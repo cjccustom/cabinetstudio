@@ -286,3 +286,12 @@ select.overridden { border-color: var(--accent); }
 .qs-card .muted { font-size: 11.5px; }
 .tag-install { margin-left: 6px; padding: 0 5px; border-radius: 3px; background: var(--sunk); color: var(--muted); font-size: 10.5px; }
 tr.missing td { color: var(--warn); }
+
+.release { border: 1px solid var(--line, #ddd); border-radius: 8px; padding: 10px 12px; margin: 0 0 16px; }
+.release.is-ready { border-color: var(--ok); }
+.release .table-wrap { margin-top: 6px; }
+.release input.len { width: 84px; text-align: right; }
+.release .check-hint { font-size: 11.5px; }
+.release tr.check-off td:first-child { color: var(--warn); }
+.release .accept { white-space: nowrap; font-size: 12px; }
+.locked-note { color: var(--muted); font-size: 12px; }

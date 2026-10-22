@@ -12,6 +12,7 @@ import { cabinetMoldings, moldingOrder, mountShape } from "../src/model/moldings
 import { priceQuote, scopeLine } from "../src/model/quote";
 import { optimizerParts } from "../src/model/cutlist";
 import { normalize } from "../src/store";
+import { fieldChecks, releaseStatus } from "../src/model/release";
 
 let failed = 0;
 const eq = (label: string, got: unknown, want: unknown) => {
@@ -250,6 +251,23 @@ eq('panel sticks out past frame', panelExtents(b21, s, { left: true, right: fals
   eq('drawer box 7.5 x 13.875 x 12 ($79.05)', near(eaglePrice('drawerBox', 13.875, 7.5, 12), 79.05, 2), true);
   eq('drawer box 12 x 21.625 x 21 ($132.56)', near(eaglePrice('drawerBox', 21.625, 12, 21), 132.56, 2), true);
   eq('odd height costs a rip over the stock height', eaglePrice('drawerBox', 19.375, 8.75, 21) > eaglePrice('drawerBox', 19.375, 9, 21), true);
+}
+
+// Order release: deposit and site measurements
+{
+  const job = normalize(sampleProject());
+  const checks = fieldChecks(job);
+  eq('back wall length is checked', checks.some((c) => c.id === 'wall:back'), true);
+  eq('ceiling checked when there are uppers', checks.some((c) => c.id === 'ceiling'), true);
+  eq('fresh job is not cleared', releaseStatus(job).ready, false);
+  const measured = Object.fromEntries(checks.map((c) => [c.id, c.design]));
+  eq('measured but no deposit', releaseStatus({ ...job, release: { measured } }).waiting.join(), 'deposit');
+  eq('deposit and matching measurements clear it', releaseStatus({ ...job, release: { depositDate: '2026-10-22', measured } }).ready, true);
+  const off = { ...measured, 'wall:back': measured['wall:back'] - 0.5 };
+  eq('1/2" short wall blocks ordering', releaseStatus({ ...job, release: { depositDate: '2026-10-22', measured: off } }).ready, false);
+  eq('marked OK clears it', releaseStatus({ ...job, release: { depositDate: '2026-10-22', measured: off, accepted: { 'wall:back': true } } }).ready, true);
+  eq('1/16" off is within tolerance', releaseStatus({ ...job, release: { depositDate: '2026-10-22', measured: { ...measured, 'wall:back': measured['wall:back'] + 0.0625 } } }).ready, true);
+  console.log('  field checks:', checks.map((c) => `${c.label} ${fmt(c.design)}`).join('; '));
 }
 
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');

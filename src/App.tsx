@@ -4,6 +4,7 @@ import { Scene } from './three/Scene';
 import { Sidebar } from './ui/Sidebar';
 import { Inspector } from './ui/Inspector';
 import { OrderList, PartsTable } from './ui/PartsTable';
+import { ReleasePanel } from './ui/Release';
 import { ProjectDialog } from './ui/ProjectDialog';
 import { DrawerCalculator } from './ui/DrawerCalculator';
 import { PanelInspector } from './ui/PanelInspector';
@@ -135,6 +136,7 @@ export default function App() {
             <div>
               <p className="hint">Doors, drawer fronts and dovetail drawer boxes for the whole job, sized from the face frame openings. Sizes are finished width × height.</p>
               <p><button onClick={() => setDialog('drawer')}>Drawer box calculator…</button></p>
+              <ReleasePanel />
               <OrderList cabinets={project.cabinets} />
               <BeadboardOrder />
               <MoldingOrder />

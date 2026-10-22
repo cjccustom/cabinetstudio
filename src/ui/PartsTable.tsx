@@ -5,6 +5,7 @@ import { buildParts } from '../model/parts';
 import { resolveEnds } from '../model/layout';
 import { fmt } from '../units';
 import { eaglePrice } from '../model/eagle';
+import { releaseStatus } from '../model/release';
 
 const materialLabel: Record<MaterialKey, string> = {
   box: '3/4" case plywood',
@@ -143,13 +144,21 @@ function orderText(jobName: string, groups: ReturnType<typeof useOrderRows>) {
 
 export function OrderList({ cabinets, compact }: { cabinets: Cabinet[]; compact?: boolean }) {
   const groups = useOrderRows(cabinets);
-  const jobName = useStore((s) => s.project.name);
+  const project = useStore((s) => s.project);
+  const jobName = project.name;
+  const release = useMemo(() => releaseStatus(project), [project]);
   const [copied, setCopied] = useState('');
   if (!groups.length) return <p className="hint">No doors, fronts or drawer boxes yet.</p>;
-  const copy = () => {
-    const text = orderText(jobName, groups);
-    navigator.clipboard.writeText(text).then(() => setCopied('Copied. Paste it into an email or your order notes.'), () => setCopied('Couldn’t reach the clipboard. Select the table and copy it instead.'));
+  const copy = (which: typeof groups, what: string) => {
+    const text = orderText(jobName, which);
+    navigator.clipboard.writeText(text).then(() => setCopied(`${what} copied. Paste it into Eagle’s quote request.`), () => setCopied('Couldn’t reach the clipboard. Select the table and copy it instead.'));
   };
+  // Eagle quotes doors and panels, drawer fronts, and drawer boxes as separate requests
+  const requests = [
+    { what: 'Doors & end panels', items: ['door', 'endPanel'] },
+    { what: 'Drawer fronts', items: ['drawerFront'] },
+    { what: 'Drawer boxes', items: ['drawerBox'] },
+  ].map((x) => ({ ...x, groups: groups.filter((g) => x.items.includes(g.item)) })).filter((x) => x.groups.length);
   return (
     <div className="parts">
       {groups.map((g) => {
@@ -195,7 +204,10 @@ export function OrderList({ cabinets, compact }: { cabinets: Cabinet[]; compact?
       {!compact && <p className="hint">Prices are estimates fitted to your 2026 Eagle orders (paint-grade maple, 5-piece, MDF panel), before tax. They usually land within a dollar of Eagle’s price on fronts and $2 on drawer boxes.</p>}
       {!compact && (
         <div className="order-actions">
-          <button onClick={copy}>Copy order as text</button>
+          {requests.map((x) => (
+            <button key={x.what} disabled={!release.ready} onClick={() => copy(x.groups, x.what)}>Copy {x.what.toLowerCase()} for Eagle</button>
+          ))}
+          {!release.ready && <span className="locked-note">Locked until the deposit is in and measurements are checked.</span>}
           {copied && <span className="ok">{copied}</span>}
         </div>
       )}
