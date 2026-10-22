@@ -65,6 +65,8 @@ export interface WallPanel {
   profile: 'standard' | 'vbead' | 'vgroove' | 'channel';
   material: 'MDF' | 'MRI' | 'MRX' | 'PVC';
   format: 'sheet' | 'strip';
+  /** Bead spacing on center. */
+  spacing?: number;
   /** Solid wood cap or ledge along the top. */
   cap: boolean;
   capHeight: number;

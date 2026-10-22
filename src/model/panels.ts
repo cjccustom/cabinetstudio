@@ -7,9 +7,17 @@ import { fmt } from '../units';
 export const profiles: Record<WallPanel['profile'], { name: string; spacing: number; sheetOnly?: boolean }> = {
   standard: { name: 'Standard Bead', spacing: 2 },
   vbead: { name: 'V-Bead', spacing: 1.625 },
-  vgroove: { name: 'V-Groove', spacing: 1.625 },
+  vgroove: { name: 'V-Groove', spacing: 6 },
   channel: { name: 'Channel Bead', spacing: 2, sheetOnly: true },
 };
+
+/**
+ * On-center bead spacings seen in Nantucket Beadboard listings (2" and 3" Standard Bead on their own site,
+ * 1-5/8" V-Bead, 2-1/2", 5-1/2" and 6" V-Groove from dealers). Confirm availability per profile before ordering.
+ */
+export const spacings = [1.625, 2, 2.5, 3, 5.5, 6];
+
+export const spacingOf = (w: WallPanel) => w.spacing ?? profiles[w.profile].spacing;
 
 export const panelMaterials: Record<WallPanel['material'], string> = {
   MDF: 'Primed MDF (interior)',
@@ -44,7 +52,7 @@ export interface PanelOrderLine { panel: WallPanel; item: string; qty: number; d
 /** Sheets or strips to order for one panel. Sheets are cut into rows when the panel is short. */
 export function panelOrder(w: WallPanel): PanelOrderLine {
   const prof = profiles[w.profile];
-  const spec = `${prof.name}, ${panelMaterials[w.material]}`;
+  const spec = `${prof.name} ${fmt(spacingOf(w))} o.c., ${panelMaterials[w.material]}`;
   const sqft = (w.width * w.height) / 144;
   if (w.format === 'sheet' || prof.sheetOnly) {
     const cols = Math.ceil(w.width / 48 - 1e-6);

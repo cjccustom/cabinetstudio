@@ -1,6 +1,7 @@
 import { useStore } from '../store';
 import type { WallId, WallPanel } from '../model/types';
-import { panelMaterials, panelOrder, profiles } from '../model/panels';
+import { panelMaterials, panelOrder, profiles, spacingOf, spacings } from '../model/panels';
+import { fmt } from '../units';
 import { wallNames, wallOrder } from '../model/layout';
 import { Field, LengthInput, Section } from './fields';
 
@@ -35,6 +36,11 @@ export function PanelInspector({ panel: w }: { panel: WallPanel }) {
               {(Object.keys(profiles) as WallPanel['profile'][]).map((k) => <option key={k} value={k}>{profiles[k].name}</option>)}
             </select>
           </Field>
+          <Field label="Bead spacing (o.c.)" htmlFor="pn-sp">
+            <select id="pn-sp" value={spacingOf(w)} onChange={(e) => set({ spacing: Number(e.target.value) })}>
+              {[...new Set([...spacings, spacingOf(w)])].sort((a, b) => a - b).map((x) => <option key={x} value={x}>{fmt(x)}</option>)}
+            </select>
+          </Field>
           <Field label="Material" htmlFor="pn-mat">
             <select id="pn-mat" value={w.material} onChange={(e) => set({ material: e.target.value as WallPanel['material'] })}>
               {(Object.keys(panelMaterials) as WallPanel['material'][]).map((k) => <option key={k} value={k}>{panelMaterials[k]}</option>)}
@@ -47,6 +53,7 @@ export function PanelInspector({ panel: w }: { panel: WallPanel }) {
             </select>
           </Field>
         </div>
+        <p className="hint">Spacings come from dealer listings. Confirm which ones Nantucket offers in this profile before ordering.</p>
         <p className="hint">To order: <strong>{order.qty}</strong> × {order.item}. {order.detail}.</p>
       </Section>
       <Section title="Cap / ledge">
