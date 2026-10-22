@@ -1,4 +1,5 @@
 import type { Cabinet, Room, ShopSettings, WallId } from './types';
+import { panelExtents } from './parts';
 
 export const wallNames: Record<WallId, string> = { back: 'Back wall', left: 'Left wall', right: 'Right wall', front: 'Front wall' };
 export const wallOrder: WallId[] = ['back', 'left', 'right', 'front'];
@@ -32,12 +33,14 @@ export function alongWall(room: Room, wall: WallId, x: number, z: number): numbe
 
 export interface Footprint { x0: number; x1: number; z0: number; z1: number; y0: number; y1: number }
 
-/** Room-space bounding box of the cabinet carcass and face frame (doors and counters excluded). */
-export function footprint(room: Room, c: Cabinet): Footprint {
+/** Room-space bounding box of the case, face frame and any end panels (doors and counters excluded). */
+export function footprint(room: Room, c: Cabinet, ext = { left: 0, right: 0 }): Footprint {
   const { pos, rotY } = wallTransform(room, c.wall, c.offset);
   const cos = Math.round(Math.cos(rotY));
   const sin = Math.round(Math.sin(rotY));
-  const pts: [number, number][] = [[0, 0], [c.width, 0], [0, c.depth], [c.width, c.depth]].map(([lx, lz]) => [
+  const l = -ext.left;
+  const r = c.width + ext.right;
+  const pts: [number, number][] = [[l, 0], [r, 0], [l, c.depth], [r, c.depth]].map(([lx, lz]) => [
     pos[0] + lx * cos + lz * sin,
     pos[2] - lx * sin + lz * cos,
   ]);
@@ -57,12 +60,13 @@ const overlaps = (a: Footprint, b: Footprint) =>
 export interface Issue { cabinetId: string; message: string; echo?: boolean }
 
 /** Layout problems worth flagging before anything gets built. */
-export function findIssues(room: Room, cabinets: Cabinet[], _s: ShopSettings): Issue[] {
+export function findIssues(room: Room, cabinets: Cabinet[], s: ShopSettings): Issue[] {
   const issues: Issue[] = [];
-  const fps = cabinets.map((c) => footprint(room, c));
+  const exts = cabinets.map((c) => extentsOf(room, cabinets, c, s));
+  const fps = cabinets.map((c, i) => footprint(room, c, exts[i]));
   cabinets.forEach((c, i) => {
     const len = wallLength(room, c.wall);
-    if (c.offset < -EPS || c.offset + c.width > len + EPS) issues.push({ cabinetId: c.id, message: `${c.name} runs past the end of the wall` });
+    if (c.offset - exts[i].left < -EPS || c.offset + c.width + exts[i].right > len + EPS) issues.push({ cabinetId: c.id, message: `${c.name} runs past the end of the wall` });
     if (c.elevation + c.height > room.height + EPS) issues.push({ cabinetId: c.id, message: `${c.name} is taller than the ceiling` });
     for (let j = i + 1; j < cabinets.length; j++) {
       if (overlaps(fps[i], fps[j])) issues.push({ cabinetId: c.id, message: `${c.name} overlaps ${cabinets[j].name}` }, { cabinetId: cabinets[j].id, message: `${cabinets[j].name} overlaps ${c.name}`, echo: true });
@@ -86,18 +90,25 @@ export function nextFreeOffset(room: Room, cabinets: Cabinet[], wall: WallId, wi
   return x + width <= len + EPS ? x : Math.max(0, len - width);
 }
 
-/** Snap a dragged cabinet's left edge to wall ends and neighbouring cabinet edges. */
-export function snapOffset(room: Room, cabinets: Cabinet[], moving: Cabinet, raw: number, tol = 1.5): number {
+/** End panel extents for a cabinet as it sits in the layout. */
+export function extentsOf(room: Room, cabinets: Cabinet[], c: Cabinet, s: ShopSettings) {
+  return panelExtents(c, s, resolveEnds(room, cabinets, c));
+}
+
+/** Snap a dragged cabinet's left edge to wall ends and neighbouring cabinet edges, end panels included. */
+export function snapOffset(room: Room, cabinets: Cabinet[], moving: Cabinet, raw: number, s: ShopSettings, tol = 1.5): number {
   const len = wallLength(room, moving.wall);
   const edges = [0, len];
   for (const c of cabinets) {
     if (c.id === moving.id || c.wall !== moving.wall) continue;
-    edges.push(c.offset, c.offset + c.width);
+    const e = extentsOf(room, cabinets, c, s);
+    edges.push(c.offset - e.left, c.offset + c.width + e.right);
   }
+  const own = extentsOf(room, cabinets, { ...moving, offset: raw }, s);
   let best = Math.round(raw * 16) / 16;
   let bestD = tol;
   for (const e of edges) {
-    for (const cand of [e, e - moving.width]) {
+    for (const cand of [e + own.left, e - moving.width - own.right]) {
       const d = Math.abs(raw - cand);
       if (d < bestD) { bestD = d; best = cand; }
     }
@@ -120,4 +131,21 @@ export function resolveEnds(room: Room, cabinets: Cabinet[], c: Cabinet): { left
   const autoRight = right < len - tol && !neighbours.some((o) => Math.abs(o.offset - right) <= tol);
   const pick = (mode: Cabinet['leftEnd'], auto: boolean) => (mode === 'exposed' ? true : mode === 'hidden' ? false : auto);
   return { left: pick(c.leftEnd, autoLeft), right: pick(c.rightEnd, autoRight) };
+}
+
+/**
+ * Open space between a cabinet's face frame edge and whatever is next to it on that side
+ * (a neighbour, its end panel, or the wall end). null when nothing is within reach.
+ */
+export function gapBeside(room: Room, cabinets: Cabinet[], c: Cabinet, side: 'left' | 'right', s: ShopSettings, reach = 12): number | null {
+  const len = wallLength(room, c.wall);
+  const edge = side === 'left' ? c.offset : c.offset + c.width;
+  let best: number | null = side === 'left' ? edge : len - edge;
+  for (const o of cabinets) {
+    if (o.id === c.id || o.wall !== c.wall || !(o.elevation < c.elevation + c.height && c.elevation < o.elevation + o.height)) continue;
+    const e = extentsOf(room, cabinets, o, s);
+    const g = side === 'left' ? edge - (o.offset + o.width + e.right) : o.offset - e.left - edge;
+    if (g > -0.01 && g < best!) best = g;
+  }
+  return best != null && best > 0.01 && best <= reach ? Math.round(best * 16) / 16 : null;
 }

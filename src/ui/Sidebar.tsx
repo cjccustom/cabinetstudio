@@ -2,9 +2,9 @@ import { useState } from 'react';
 import { useStore } from '../store';
 import { presets } from '../model/defaults';
 import { wallNames, wallOrder } from '../model/layout';
-import type { ShopSettings, WallId } from '../model/types';
+import type { PanelMode, ShopSettings, WallId } from '../model/types';
 import { fmt } from '../units';
-import { doorMaterials, doorStyles, sideThicknesses, slides, stileWidths, styleById } from '../model/eagle';
+import { doorMaterials, doorStyles, panelLabel, sideThicknesses, slides, stileWidths, styleById } from '../model/eagle';
 import { realOverhang } from '../model/parts';
 import { Field, LengthInput, Section } from './fields';
 
@@ -208,9 +208,11 @@ function ShopPanel() {
         <Field label="Doors & fronts" htmlFor="door-mount">
           <select id="door-mount" value={mountValue(settings)} onChange={(e) => {
             const v = e.target.value;
-            if (v === 'inset') set({ doorMount: 'inset' });
-            else if (v === 'custom') set({ doorMount: 'overlay' });
-            else set({ doorMount: 'overlay', doorOverlay: Number(v) });
+            // Inset end panels go with inset doors; applied panels with overlay
+            const panel = v === 'inset' ? (settings.endPanel === 'none' ? 'none' : 'inset') : settings.endPanel === 'inset' ? 'flush' : settings.endPanel;
+            if (v === 'inset') set({ doorMount: 'inset', endPanel: panel });
+            else if (v === 'custom') set({ doorMount: 'overlay', endPanel: panel });
+            else set({ doorMount: 'overlay', doorOverlay: Number(v), endPanel: panel });
           }}>
             <option value="1.25">1 1/4" overlay</option>
             <option value="0.5">1/2" overlay</option>
@@ -234,6 +236,25 @@ function ShopPanel() {
             ? 'Overlay applies at the outside of the face frame. Fronts that share a mid rail or center stile split it, leaving the gap between them. Pairs use Eagle’s formula: (opening + both overlays − gap) ÷ 2.'
             : 'Inset doors sit flush with the face frame, sized to the opening minus the reveal on every side. Drawer boxes get shorter by the front’s thickness.'}
         </p>
+      </Section>
+
+      <Section title="End panels & scribes">
+        <Field label="Standard for exposed ends" htmlFor="shop-endPanel">
+          <select id="shop-endPanel" value={settings.endPanel} onChange={(e) => set({ endPanel: e.target.value as PanelMode })}>
+            {(Object.keys(panelLabel) as PanelMode[]).map((m) => <option key={m} value={m}>{panelLabel[m]}</option>)}
+          </select>
+        </Field>
+        <div className="grid2" style={{ marginTop: 8 }}>
+          {settings.endPanel === 'reveal' && (
+            <Field label="Held back from door face" htmlFor="shop-epr"><LengthInput id="shop-epr" value={settings.endPanelReveal} onChange={(v) => set({ endPanelReveal: v! })} /></Field>
+          )}
+          <Field label="Panel thickness" htmlFor="shop-ept"><LengthInput id="shop-ept" value={settings.endPanelThickness} onChange={(v) => set({ endPanelThickness: v! })} /></Field>
+          <Field label="Scribe allowance on extended stiles" htmlFor="shop-sa"><LengthInput id="shop-sa" value={settings.scribeAllowance} onChange={(v) => set({ scribeAllowance: v! })} /></Field>
+        </div>
+        {settings.endPanel === 'inset' && settings.doorMount === 'overlay' && (
+          <p className="warn">Inset end panels with overlay doors. Fine if the customer wants it; individual cabinets can still be changed.</p>
+        )}
+        <p className="hint">End panels are ordered from Eagle in the door style and applied to the case side. Each cabinet can override this per end.</p>
       </Section>
 
       <Section title="Drawer boxes (Eagle dovetail)">

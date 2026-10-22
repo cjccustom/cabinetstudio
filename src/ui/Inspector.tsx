@@ -1,7 +1,8 @@
 import { useStore } from '../store';
-import type { Cabinet, EndMode, FaceRow, WallId } from '../model/types';
-import { layoutRows } from '../model/parts';
-import { resolveEnds, wallNames, wallOrder } from '../model/layout';
+import type { Cabinet, EndMode, FaceRow, PanelChoice, PanelMode, WallId } from '../model/types';
+import { layoutRows, panelOn } from '../model/parts';
+import { gapBeside, resolveEnds, wallNames, wallOrder } from '../model/layout';
+import { panelLabel } from '../model/eagle';
 import { uid } from '../model/defaults';
 import { fmt } from '../units';
 import { Field, LengthInput, Section } from './fields';
@@ -23,6 +24,9 @@ export function Inspector({ cab, issues }: { cab: Cabinet; issues: string[] }) {
   const room = useStore((s) => s.project.room);
   const all = useStore((s) => s.project.cabinets);
   const ends = resolveEnds(room, all, cab);
+  const sideInfo = (['left', 'right'] as const).map((side) => ({ side, panel: panelOn(cab, settings, side, ends[side]) }));
+  const bareSides = sideInfo.filter((x) => ends[x.side] && x.panel === 'none').map((x) => x.side);
+  const panels = sideInfo.filter((x) => x.panel !== 'none').map((x) => `${x.side} ${panelLabel[x.panel].toLowerCase()}`);
   const set = (patch: Partial<Cabinet>) => update(cab.id, patch);
   const setRow = (id: string, patch: Partial<FaceRow>) => set({ rows: cab.rows.map((r) => (r.id === id ? { ...r, ...patch } : r)) });
   const { rows: layout, leftover } = layoutRows(cab, settings);
@@ -116,25 +120,54 @@ export function Inspector({ cab, issues }: { cab: Cabinet; issues: string[] }) {
         </div>
       </Section>
 
-      <Section title="Ends & assembly">
+      <Section title="Ends, panels & scribes">
         <div className="ends">
           {(['left', 'right'] as const).map((side) => {
-            const key = side === 'left' ? 'leftEnd' : 'rightEnd';
-            const mode = cab[key] ?? 'auto';
+            const endKey = side === 'left' ? 'leftEnd' : 'rightEnd';
+            const panelKey = side === 'left' ? 'leftPanel' : 'rightPanel';
+            const scribeKey = side === 'left' ? 'scribeLeft' : 'scribeRight';
+            const mode = cab[endKey] ?? 'auto';
+            const gap = gapBeside(room, all, cab, side, settings);
+            const scribe = cab[scribeKey] ?? 0;
+            const closeGap = () => {
+              if (gap == null) return;
+              set({ [scribeKey]: scribe + gap, width: cab.width + gap, ...(side === 'left' ? { offset: cab.offset - gap } : {}) });
+            };
             return (
-              <Field key={side} label={side === 'left' ? 'Left end' : 'Right end'} htmlFor={`cab-${key}`}>
-                <select id={`cab-${key}`} value={mode} onChange={(e) => set({ [key]: e.target.value as EndMode })}>
-                  <option value="auto">Auto ({ends[side] ? 'exposed' : 'hidden'})</option>
-                  <option value="exposed">Exposed</option>
-                  <option value="hidden">Hidden</option>
-                </select>
-              </Field>
+              <div key={side} className="end-col">
+                <Field label={side === 'left' ? 'Left end' : 'Right end'} htmlFor={`cab-${endKey}`}>
+                  <select id={`cab-${endKey}`} value={mode} onChange={(e) => set({ [endKey]: e.target.value as EndMode })}>
+                    <option value="auto">Auto ({ends[side] ? 'exposed' : 'hidden'})</option>
+                    <option value="exposed">Exposed</option>
+                    <option value="hidden">Hidden</option>
+                  </select>
+                </Field>
+                {ends[side] && (
+                  <Field label="End panel" htmlFor={`cab-${panelKey}`}>
+                    <select id={`cab-${panelKey}`} value={cab[panelKey] ?? 'default'} onChange={(e) => set({ [panelKey]: e.target.value as PanelChoice })}>
+                      <option value="default">Job standard ({panelLabel[settings.endPanel]})</option>
+                      {(Object.keys(panelLabel) as PanelMode[]).map((m) => <option key={m} value={m}>{panelLabel[m]}</option>)}
+                    </select>
+                  </Field>
+                )}
+                <Field label="Stile extension" htmlFor={`cab-${scribeKey}`}>
+                  <LengthInput id={`cab-${scribeKey}`} value={scribe} onChange={(v) => {
+                    const d = v! - scribe;
+                    set({ [scribeKey]: v!, width: cab.width + d, ...(side === 'left' ? { offset: cab.offset - d } : {}) });
+                  }} />
+                </Field>
+                {gap != null && (
+                  <button className="mini" onClick={closeGap}>Extend stile to close {fmt(gap)} gap</button>
+                )}
+              </div>
             );
           })}
         </div>
+        <p className="hint">Extending a stile widens the face frame to fill a gap. The case keeps its size, and the cut list adds {fmt(settings.scribeAllowance)} to scribe on site.</p>
         <ul className="assembly">
           <li>Face frame: glue and pocket screws.</li>
-          <li>Case: glue, then {ends.left || ends.right ? (ends.left && ends.right ? 'pocket screws on both sides (both ends exposed)' : `pocket screws on the exposed ${ends.left ? 'left' : 'right'} side, staples on the other`) : 'staples (no exposed ends)'}.</li>
+          <li>Case: glue, then {bareSides.length ? `pocket screws on the exposed ${bareSides.join(' and ')} side${bareSides.length > 1 ? 's' : ''}${bareSides.length < 2 ? ', staples elsewhere' : ''}` : 'staples'}.</li>
+          {panels.length > 0 && <li>End panel{panels.length > 1 ? 's' : ''}: {panels.join('; ')}.</li>}
         </ul>
       </Section>
 

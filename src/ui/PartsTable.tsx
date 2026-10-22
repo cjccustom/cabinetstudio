@@ -95,7 +95,7 @@ export function PartsTable({ cabinets, compact }: { cabinets: Cabinet[]; compact
   );
 }
 
-const orderLabel = { door: 'Doors', drawerFront: 'Drawer & false fronts', drawerBox: 'Drawer boxes' } as const;
+const orderLabel = { door: 'Doors', drawerFront: 'Drawer & false fronts', endPanel: 'End panels', drawerBox: 'Drawer boxes' } as const;
 type OrderItem = keyof typeof orderLabel;
 interface OrderRow { key: string; item: OrderItem; w: number; h: number; d?: number; spec: string; qty: number; cabs: string[] }
 

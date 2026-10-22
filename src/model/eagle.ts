@@ -92,3 +92,10 @@ export function drawerBoxSize(i: DrawerInput): DrawerBox {
     notch: slide ? slide.notch : 'Notch per slide spec',
   };
 }
+
+export const panelLabel = {
+  none: 'None (finished case side)',
+  flush: 'Applied, flush with doors',
+  reveal: 'Applied, held back',
+  inset: 'Inset, flush with frame',
+} as const;

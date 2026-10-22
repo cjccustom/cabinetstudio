@@ -209,7 +209,7 @@ function CabinetModel(props: {
       st.setDragging(true);
     }
     const others = st.project.cabinets;
-    const offset = snapOffset(room, others, cab, d.startOffset + delta);
+    const offset = snapOffset(room, others, cab, d.startOffset + delta, st.project.settings);
     st.transient((p) => ({ ...p, cabinets: p.cabinets.map((c) => (c.id === cab.id ? { ...c, offset } : c)) }));
   };
 

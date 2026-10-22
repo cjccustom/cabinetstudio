@@ -16,6 +16,10 @@ export const defaultSettings: ShopSettings = {
   toeKickHeight: 4,
   toeKickDepth: 3,
   toeKickSkin: 0.5,
+  endPanel: 'flush',
+  endPanelReveal: 0.25,
+  endPanelThickness: 0.75,
+  scribeAllowance: 0.5,
   stretcherWidth: 4,
   hangingRails: false,
   nailerWidth: 3,
@@ -126,7 +130,7 @@ export function sampleProject(): Project {
   add('wall-2', 'back', 84, { width: 24 });
   add('wall-short', 'back', 108);
   add('wall-1', 'back', 138);
-  add('tall-pantry', 'left', 72);
+  add('tall-pantry', 'left', 0);
   return {
     version: 2,
     name: 'Sample kitchen',

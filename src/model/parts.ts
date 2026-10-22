@@ -1,4 +1,4 @@
-import type { Cabinet, Part, ShopSettings, VisualBox } from './types';
+import type { Cabinet, Part, PanelMode, ShopSettings, VisualBox } from './types';
 import { drawerBoxSize, styleById, type DoorProfile } from './eagle';
 import { fmt as fmtShort } from '../units';
 
@@ -77,6 +77,23 @@ function frontBoxes(x: number, y: number, z: number, w: number, h: number, t: nu
 
 export interface EndInfo { left: boolean; right: boolean }
 
+/** The end panel actually used on one side: only exposed ends get one. */
+export function panelOn(c: Cabinet, s: ShopSettings, side: 'left' | 'right', exposed: boolean): PanelMode {
+  if (!exposed) return 'none';
+  const choice = (side === 'left' ? c.leftPanel : c.rightPanel) ?? 'default';
+  return choice === 'default' ? s.endPanel : choice;
+}
+
+/** How far end panels stick out past the face frame on each side (they sit on the case side, just inside the frame edge). */
+export function panelExtents(c: Cabinet, s: ShopSettings, ends: EndInfo) {
+  const over = s.ffOverhang + s.boxThickness - s.boxActualThickness;
+  const out = (scribe: number) => Math.max(0, s.endPanelThickness - scribe - over);
+  return {
+    left: panelOn(c, s, 'left', ends.left) === 'none' ? 0 : out(c.scribeLeft ?? 0),
+    right: panelOn(c, s, 'right', ends.right) === 'none' ? 0 : out(c.scribeRight ?? 0),
+  };
+}
+
 /**
  * Build every part of a face-frame cabinet from its size and the shop's standards.
  * The 3D view draws these same parts, so what you see is what gets cut.
@@ -92,10 +109,16 @@ export function buildParts(c: Cabinet, s: ShopSettings, ends: EndInfo = { left: 
   const dd = s.dadoDepth;
   const kick = kickOf(c, s);
   const boxD = D - s.ffThickness;
-  const cutW = W - 2 * s.ffOverhang - 2 * tn + 2 * dd; // bottom, stretchers, top and back
+  // Extended (scribe) stiles widen the face frame past the case instead of a filler.
+  const sL = c.scribeLeft ?? 0;
+  const sR = c.scribeRight ?? 0;
+  const FW = W - sL - sR; // the face frame width the case is built to
+  const cutW = FW - 2 * s.ffOverhang - 2 * tn + 2 * dd; // bottom, stretchers, top and back
   const innerW = cutW - 2 * dd; // between the sides
-  const xi0 = (W - innerW) / 2; // inside face of the left side
-  const xi1 = W - xi0;
+  const xi0 = sL + (FW - innerW) / 2; // inside face of the left side
+  const xi1 = xi0 + innerW;
+  const pL = panelOn(c, s, 'left', ends.left);
+  const pR = panelOn(c, s, 'right', ends.right);
   const bt = s.backThickness;
   const rw = Math.max(s.backRabbetWidth, bt);
   // The case is built back far enough that the toe kick ends at its finished depth once the skin goes on.
@@ -108,12 +131,13 @@ export function buildParts(c: Cabinet, s: ShopSettings, ends: EndInfo = { left: 
     kick > 0
       ? [vb(x, kick, 0, ta, H - kick, boxD), vb(x, 0, 0, ta, kick, boxD - notch)]
       : [vb(x, 0, 0, ta, H, boxD)];
-  ([['Left', xi0 - ta, ends.left], ['Right', xi1, ends.right]] as const).forEach(([, x, exposed]) => {
+  ([['Left', xi0 - ta, ends.left, pL], ['Right', xi1, ends.right, pR]] as const).forEach(([, x, exposed, panel]) => {
     const notes = [];
     if (kick > 0) notes.push(`Toe notch ${fmtShort(kick)} × ${fmtShort(notch)}`);
-    notes.push(exposed ? 'Exposed end: pocket screw from inside' : 'Hidden: glue & staple');
+    const bare = exposed && panel === 'none';
+    notes.push(bare ? 'Exposed end: pocket screw from inside' : exposed ? 'Under end panel: glue & staple' : 'Hidden: glue & staple');
     parts.push({
-      name: exposed ? 'Side, exposed' : 'Side', role: 'side', material: 'box', length: H, width: boxD, thickness: tn, cut: true,
+      name: bare ? 'Side, exposed' : 'Side', role: 'side', material: 'box', length: H, width: boxD, thickness: tn, cut: true,
       note: notes.join(' · '),
       boxes: sideBoxes(x),
     });
@@ -184,20 +208,23 @@ export function buildParts(c: Cabinet, s: ShopSettings, ends: EndInfo = { left: 
   const zF = boxD;
   const ft = s.ffThickness;
   const sw = s.stileWidth;
-  const railLen = W - 2 * sw;
-  for (const x of [0, W - sw]) {
+  const railLen = FW - 2 * sw;
+  for (const [x, extra] of [[0, sL], [W - sw - sR, sR]]) {
+    const scribed = extra > 0;
     parts.push({
-      name: 'Stile', role: 'stile', material: 'faceframe', length: ffH, width: sw, thickness: ft, cut: true,
-      boxes: [vb(x, kick, zF, sw, ffH, ft)],
+      name: scribed ? 'Stile, extended' : 'Stile', role: 'stile', material: 'faceframe', length: ffH,
+      width: sw + extra + (scribed ? s.scribeAllowance : 0), thickness: ft, cut: true,
+      note: scribed ? `${fmtShort(sw)} + ${fmtShort(extra)} extension + ${fmtShort(s.scribeAllowance)} to scribe on site` : undefined,
+      boxes: [vb(x, kick, zF, sw + extra, ffH, ft)],
     });
   }
   parts.push({
     name: 'Top rail', role: 'rail', material: 'faceframe', length: railLen, width: s.topRailWidth, thickness: ft, cut: true,
-    boxes: [vb(sw, H - s.topRailWidth, zF, railLen, s.topRailWidth, ft)],
+    boxes: [vb(sL + sw, H - s.topRailWidth, zF, railLen, s.topRailWidth, ft)],
   });
   parts.push({
     name: 'Bottom rail', role: 'rail', material: 'faceframe', length: railLen, width: s.bottomRailWidth, thickness: ft, cut: true,
-    boxes: [vb(sw, kick, zF, railLen, s.bottomRailWidth, ft)],
+    boxes: [vb(sL + sw, kick, zF, railLen, s.bottomRailWidth, ft)],
   });
 
   const { rows } = layoutRows(c, s);
@@ -205,7 +232,7 @@ export function buildParts(c: Cabinet, s: ShopSettings, ends: EndInfo = { left: 
     if (i > 0) {
       parts.push({
         name: 'Mid rail', role: 'rail', material: 'faceframe', length: railLen, width: s.midRailWidth, thickness: ft, cut: true,
-        boxes: [vb(sw, r.y1, zF, railLen, s.midRailWidth, ft)],
+        boxes: [vb(sL + sw, r.y1, zF, railLen, s.midRailWidth, ft)],
       });
     }
   });
@@ -226,8 +253,9 @@ export function buildParts(c: Cabinet, s: ShopSettings, ends: EndInfo = { left: 
   const shareOv = (rail: number) => Math.min(o, (rail - gap) / 2);
   const dt = s.doorThickness;
   const zFront = inset ? D - dt : D;
-  const ox0 = sw;
-  const ox1 = W - sw;
+  const ox0 = sL + sw;
+  const ox1 = W - sR - sw;
+  const cx = (ox0 + ox1) / 2;
   const addFront = (name: string, role: 'door' | 'drawerFront', x: number, y: number, w: number, h: number, note?: string) => {
     // Short drawer fronts can't be built 5-piece; they go on the order as slabs.
     const tooShort = style.profile !== 'slab' && h < 2 * doorStile + 1.5;
@@ -247,7 +275,7 @@ export function buildParts(c: Cabinet, s: ShopSettings, ends: EndInfo = { left: 
     if (split) {
       parts.push({
         name: 'Center stile', role: 'stile', material: 'faceframe', length: r.height, width: sw, thickness: ft, cut: true,
-        boxes: [vb(W / 2 - sw / 2, r.y0, zF, sw, r.height, ft)],
+        boxes: [vb(cx - sw / 2, r.y0, zF, sw, r.height, ft)],
       });
     }
     // Front edges: overlay onto the outer frame, share mid rails, or sit inside the opening for inset
@@ -264,9 +292,9 @@ export function buildParts(c: Cabinet, s: ShopSettings, ends: EndInfo = { left: 
       if (row.doors === 1) addFront('Door', 'door', ox0 - side, fy, fullW, fh);
       else if (split) {
         const mid = inset ? -rev : shareOv(sw);
-        const lw = W / 2 - sw / 2 - ox0 + side + mid;
+        const lw = cx - sw / 2 - ox0 + side + mid;
         addFront('Door', 'door', ox0 - side, fy, lw, fh);
-        addFront('Door', 'door', W / 2 + sw / 2 - mid, fy, lw, fh);
+        addFront('Door', 'door', cx + sw / 2 - mid, fy, lw, fh);
       } else {
         // Eagle's pair formula: (opening + both overlays - gap) / 2
         const dw = (fullW - pairGap) / 2;
@@ -299,11 +327,35 @@ export function buildParts(c: Cabinet, s: ShopSettings, ends: EndInfo = { left: 
     }
   });
 
+  // End panels, bought from Eagle in the door style, applied to the outside of the case side
+  const doorFace = zFront + dt;
+  const pt = s.endPanelThickness;
+  for (const [side, mode] of [['left', pL], ['right', pR]] as const) {
+    if (mode === 'none') continue;
+    const depth = mode === 'flush' ? doorFace : mode === 'reveal' ? doorFace - s.endPanelReveal : D;
+    const label = mode === 'flush' ? 'flush with door face' : mode === 'reveal' ? `held back ${fmtShort(s.endPanelReveal)} from door face` : 'inset, flush with face frame';
+    // Draw the panel face-on, then turn it to face out from the side of the cabinet
+    const flat = frontBoxes(0, 0, 0, depth, H, pt, style.profile, doorStile, raised);
+    const boxes = flat.map((b) => {
+      const [u, v, w0] = b.min;
+      const [su, sv, sw0] = b.size;
+      const x = side === 'left' ? xi0 - ta - (w0 + sw0) : xi1 + ta + w0;
+      return vb(x, v, u, sw0, sv, su, b.shade);
+    });
+    parts.push({
+      name: 'End panel', role: 'endPanel', material: 'door', length: H, width: depth, thickness: pt, cut: false,
+      note: `${side === 'left' ? 'Left' : 'Right'}, ${label}`,
+      order: { item: 'endPanel', w: depth, h: H, spec: `${doorSpec}, end panel` },
+      boxes,
+    });
+  }
+
   if (c.kind === 'base' && c.countertop) {
     const cd = D + dt + s.counterOverhang;
+    const ext = panelExtents(c, s, ends);
     parts.push({
-      name: 'Countertop', role: 'counter', material: 'counter', length: W, width: cd, thickness: s.counterThickness, cut: false,
-      boxes: [vb(0, H, 0, W, s.counterThickness, cd)],
+      name: 'Countertop', role: 'counter', material: 'counter', length: W + ext.left + ext.right, width: cd, thickness: s.counterThickness, cut: false,
+      boxes: [vb(-ext.left, H, 0, W + ext.left + ext.right, s.counterThickness, cd)],
     });
   }
   return parts;

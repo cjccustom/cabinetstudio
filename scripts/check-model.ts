@@ -1,7 +1,7 @@
 // Sanity checks on the cabinet model: run with `npm test`.
-import { buildParts, layoutRows, realOverhang } from "../src/model/parts";
+import { buildParts, layoutRows, panelExtents, realOverhang } from "../src/model/parts";
 import { sampleProject, defaultSettings } from "../src/model/defaults";
-import { findIssues, resolveEnds } from "../src/model/layout";
+import { findIssues, gapBeside, resolveEnds } from "../src/model/layout";
 import { fmt, parseLength } from "../src/units";
 import { drawerBoxSize } from "../src/model/eagle";
 
@@ -74,6 +74,27 @@ for (const part of parts) for (const bx of part.boxes) for (const v of bx.size) 
 const ends = resolveEnds(p.room, p.cabinets, p.cabinets.find((c) => c.name === 'B4')!);
 eq('B4 right end exposed (range gap)', ends.right, true);
 eq('B4 left end hidden', ends.left, false);
+
+// Extended stile instead of a filler: face frame grows, case stays the same
+const sc = { ...b21, width: 22.5, scribeRight: 1.5 };
+const psc = buildParts(sc, s);
+eq('scribed cabinet keeps 20" bottom', psc.find((x) => x.name === 'Bottom')!.length, 20);
+const ext = psc.find((x) => x.name === 'Stile, extended')!;
+eq('extended stile cut width', ext.width, 1.5 + 1.5 + s.scribeAllowance);
+eq('extended stile drawn width', ext.boxes[0].size[0], 3);
+eq('rails unchanged', psc.find((x) => x.name === 'Top rail')!.length, 18);
+// Gap to the wall is found so the stile can close it
+const lone = { ...b21, id: 'lone', wall: 'right' as const, offset: 120 - 21 - 1.375 };
+eq('gap to wall', gapBeside(p.room, [lone], lone, 'right', s), 1.375);
+// End panels
+const pan = buildParts(b21, s, { left: true, right: false });
+const ep = pan.find((x) => x.name === 'End panel')!;
+eq('flush panel depth reaches door face', ep.width, 24 + 0.75);
+eq('panel ordered from Eagle', ep.order!.item, 'endPanel');
+eq('side under panel is stapled', pan.filter((x) => x.role === 'side').every((x) => !x.note!.includes('pocket')), true);
+eq('held-back panel', buildParts(b21, { ...s, endPanel: 'reveal' }, { left: true, right: false }).find((x) => x.name === 'End panel')!.width, 24.5);
+eq('inset panel', buildParts(b21, { ...s, endPanel: 'inset' }, { left: true, right: false }).find((x) => x.name === 'End panel')!.width, 24);
+eq('panel sticks out past frame', panelExtents(b21, s, { left: true, right: false }).left, 0.75 - 0.0625);
 
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');
 

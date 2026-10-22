@@ -31,9 +31,18 @@ export interface Cabinet {
   rightEnd?: EndMode;
   /** Wall cabinets: box bottom flush with the bottom of the face frame instead of tucked behind the rail. */
   bottomFlush?: boolean;
+  /** End panel on an exposed end. default = the job's standard. */
+  leftPanel?: PanelChoice;
+  rightPanel?: PanelChoice;
+  /** Extra width on the outside stiles, used instead of fillers and scribed on site. */
+  scribeLeft?: number;
+  scribeRight?: number;
 }
 
 export type EndMode = 'auto' | 'exposed' | 'hidden';
+/** flush = applied, front flush with the door face; reveal = applied, held back from the door face; inset = front flush with the face frame. */
+export type PanelMode = 'none' | 'flush' | 'reveal' | 'inset';
+export type PanelChoice = 'default' | PanelMode;
 
 /** The shop's construction standards. Every cabinet is built from these. */
 export interface ShopSettings {
@@ -79,6 +88,11 @@ export interface ShopSettings {
   drawerRearClearance: number;
   /** Finished toe kick skin, applied at install. The case is built back by its thickness. */
   toeKickSkin: number;
+  endPanel: PanelMode;
+  endPanelReveal: number;
+  endPanelThickness: number;
+  /** Added to the cut width of extended stiles so there's wood to scribe. */
+  scribeAllowance: number;
   counterThickness: number;
   counterOverhang: number;
   shelfSetback: number;
@@ -110,7 +124,7 @@ export type MaterialKey = 'box' | 'back' | 'toeSkin' | 'faceframe' | 'door' | 'd
 
 export type PartRole =
   | 'side' | 'bottom' | 'top' | 'stretcher' | 'back' | 'nailer' | 'toekick' | 'shelf'
-  | 'stile' | 'rail' | 'door' | 'drawerFront' | 'drawerBox' | 'counter';
+  | 'stile' | 'rail' | 'door' | 'drawerFront' | 'drawerBox' | 'endPanel' | 'counter';
 
 export interface VisualBox {
   min: [number, number, number];
@@ -131,7 +145,7 @@ export interface Part {
   /** false for anything not cut in the shop (bought doors, drawer boxes, countertops). */
   cut: boolean;
   /** Ordered from Eagle. Sizes are finished W × H (× D for drawer boxes). */
-  order?: { item: 'door' | 'drawerFront' | 'drawerBox'; w: number; h: number; d?: number; spec: string };
+  order?: { item: 'door' | 'drawerFront' | 'drawerBox' | 'endPanel'; w: number; h: number; d?: number; spec: string };
   /** Geometry in cabinet-local inches: x = left→right, y = up, z = wall→front. */
   boxes: VisualBox[];
 }
