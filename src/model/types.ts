@@ -175,6 +175,7 @@ export interface Project {
   panels?: WallPanel[];
   cutlist?: import('./cutlist').CutlistData;
   faceFrame?: Partial<import('./faceframe').FaceFrameStock>;
+  quote?: Partial<import('./quote').QuoteSettings>;
 }
 
 export type MaterialKey = 'box' | 'back' | 'toeSkin' | 'faceframe' | 'door' | 'drawerBox' | 'counter' | 'solidWood';

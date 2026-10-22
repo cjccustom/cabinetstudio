@@ -1,0 +1,225 @@
+import { useMemo, useState } from 'react';
+import { useStore } from '../store';
+import { defaultStandards, groupLabel, newExtra, priceQuote, quoteOf, scopeLine, type LaborStandards, type QuoteSettings, type Workload } from '../model/quote';
+import { Field, Section } from './fields';
+
+const money = (v: number) => `$${Math.round(v).toLocaleString('en-US')}`;
+const pct = (v: number) => `${+(v * 100).toFixed(2)}%`;
+
+function useQuote() {
+  const project = useStore((s) => s.project);
+  const commit = useStore((s) => s.commit);
+  const q = quoteOf(project);
+  const set = (patch: Partial<QuoteSettings>) => commit((p) => ({ ...p, quote: { ...quoteOf(p), ...patch } }));
+  const result = useMemo(() => priceQuote(project), [project]);
+  return { project, q, set, result };
+}
+
+function Num({ id, label, value, onChange, step = '1', suffix }: { id: string; label: string; value: number; onChange: (v: number) => void; step?: string; suffix?: string }) {
+  return (
+    <Field label={suffix ? `${label} (${suffix})` : label} htmlFor={id}>
+      <input id={id} inputMode="decimal" step={step} value={Number.isFinite(value) ? +value.toFixed(4) : ''} onChange={(e) => onChange(parseFloat(e.target.value) || 0)} />
+    </Field>
+  );
+}
+
+/* ---------- Left: how the job is priced ---------- */
+
+export function QuoteInputs() {
+  const { q, set } = useQuote();
+  const setStd = (patch: Partial<LaborStandards>) => set({ standards: { ...q.standards, ...patch } });
+  const stdFields: [keyof LaborStandards, string][] = [
+    ['jobSetup', 'Drawings, ordering, setup (per job)'], ['perBox', 'Case (per cabinet)'], ['tallBox', 'Tall case extra'], ['faceFrame', 'Face frame (per cabinet)'],
+    ['perOpening', 'Per face frame opening'], ['perDoor', 'Per door'], ['perDrawer', 'Per drawer'], ['insetFactor', 'Inset multiplier (×)'],
+    ['perShelf', 'Per shelf'], ['endPanel', 'Per end panel'], ['extendedStile', 'Per extended stile'], ['woodTop', 'Per wood top / seat'],
+    ['woodTopPerSqFt', 'Wood top per sq ft'], ['moldingPerFt', 'Moulding prep per ft'], ['beadboardPerSqFt', 'Beadboard per sq ft'],
+    ['installPerBox', 'Install per cabinet'], ['installTall', 'Install tall extra'], ['installDay', 'Per install day (load-in, cleanup)'],
+    ['moldingInstallPerFt', 'Moulding install per ft'], ['pullInstall', 'Per pull/knob'],
+  ];
+  return (
+    <aside className="sidebar">
+      <div className="side-body">
+        <Section title="Pricing method">
+          <div className="seg" role="radiogroup" aria-label="Pricing method">
+            <button role="radio" aria-checked={q.method === 'multiplier'} className={q.method === 'multiplier' ? 'on' : ''} onClick={() => set({ method: 'multiplier' })}>Cost × multiplier</button>
+            <button role="radio" aria-checked={q.method === 'rate'} className={q.method === 'rate' ? 'on' : ''} onClick={() => set({ method: 'rate' })}>Hourly rate + markup</button>
+          </div>
+          <div className="grid2" style={{ marginTop: 8 }}>
+            <Num id="q-cost" label="Your labor cost" suffix="$/hr" value={q.laborCost} onChange={(v) => set({ laborCost: v })} />
+            <Num id="q-mult" label="Multiplier" suffix="×" step="0.05" value={q.multiplier} onChange={(v) => set({ multiplier: v })} />
+            <Num id="q-rate" label="Billing rate" suffix="$/hr" value={q.billRate} onChange={(v) => set({ billRate: v })} />
+            <Num id="q-mup" label="Material markup" suffix="%" value={q.materialMarkup * 100} onChange={(v) => set({ materialMarkup: v / 100 })} />
+          </div>
+          <p className="hint">Cost × multiplier: (materials + hours × labor cost) × multiplier. Hourly rate: hours × rate + materials × (1 + markup). Both are shown in the breakdown.</p>
+        </Section>
+
+        <Section title="Workload">
+          <div className="seg" role="radiogroup" aria-label="Workload">
+            {(['full', 'normal', 'light'] as Workload[]).map((w) => (
+              <button key={w} role="radio" aria-checked={q.workload === w} className={q.workload === w ? 'on' : ''} onClick={() => set({ workload: w })}>
+                {w === 'full' ? 'Booked up' : w === 'normal' ? 'Normal' : 'Need work'}
+              </button>
+            ))}
+          </div>
+          <div className="grid3" style={{ marginTop: 8 }}>
+            {(['full', 'normal', 'light'] as Workload[]).map((w) => (
+              <Num key={w} id={`q-wl-${w}`} label={w === 'full' ? 'Booked' : w === 'normal' ? 'Normal' : 'Need work'} suffix="%" value={q.workloadAdj[w] * 100} onChange={(v) => set({ workloadAdj: { ...q.workloadAdj, [w]: v / 100 } })} />
+            ))}
+          </div>
+          <p className="hint">Raise the price when you’re booked and sharpen it when you need the job, by a set amount each time.</p>
+        </Section>
+
+        <Section title="Prices to fill in">
+          <div className="grid2">
+            <Num id="q-door" label="Eagle doors & fronts" suffix="$/sq ft" value={q.doorPerSqFt} onChange={(v) => set({ doorPerSqFt: v })} />
+            <Num id="q-dbox" label="Drawer box, average" suffix="$" value={q.drawerBoxEach} onChange={(v) => set({ drawerBoxEach: v })} />
+            <Num id="q-hinge" label="Hinge" suffix="$ each" value={q.hingeEach} onChange={(v) => set({ hingeEach: v })} />
+            <Num id="q-slide" label="Slides" suffix="$ / pair" value={q.slidePair} onChange={(v) => set({ slidePair: v })} />
+            <Num id="q-bb" label="Beadboard sheet" suffix="$" value={q.beadboardSheet} onChange={(v) => set({ beadboardSheet: v })} />
+            <Num id="q-cons" label="Consumables" suffix="$ / cabinet" value={q.consumablesPerBox} onChange={(v) => set({ consumablesPerBox: v })} />
+          </div>
+          <p className="hint">Plywood, maple and A&amp;M mouldings come from their own tabs. Eagle doesn’t publish door prices, so use $/sq ft from a recent Eagle quote.</p>
+        </Section>
+
+        <Section title="Painter">
+          <div className="grid2">
+            <Num id="q-paint" label="Painter’s price" suffix="$" value={q.painter} onChange={(v) => set({ painter: v })} />
+            <Num id="q-pmup" label="Markup" suffix="%" value={q.painterMarkup * 100} onChange={(v) => set({ painterMarkup: v / 100 })} />
+          </div>
+          <p className="hint">Leave at $0 when the customer deals with the painter directly.</p>
+        </Section>
+
+        <details className="overrides">
+          <summary>Labor standards (hours)</summary>
+          <p className="hint">Time per item for a typical job. Calibrate these as you track real jobs.</p>
+          <div className="grid2">
+            {stdFields.map(([k, label]) => (
+              <Num key={k} id={`q-std-${k}`} label={label} step="0.05" value={q.standards[k]} onChange={(v) => setStd({ [k]: v })} />
+            ))}
+          </div>
+          <button className="mini" onClick={() => set({ standards: defaultStandards })}>Reset to defaults</button>
+        </details>
+      </div>
+    </aside>
+  );
+}
+
+/* ---------- Center: the math ---------- */
+
+export function QuoteBreakdown() {
+  const { q, result: r } = useQuote();
+  const missing = r.materials.filter((m) => m.missing);
+  return (
+    <main className="stage cut-stage">
+      <section className="quote-summary">
+        <div className="qs-card"><span className="qs-label">Your cost</span><span className="qs-num">{money(r.cost)}</span><span className="muted">{(r.shopHours + r.installHours).toFixed(1)} hrs at ${q.laborCost} + materials {money(r.materialCost)}</span></div>
+        <div className={`qs-card${q.method === 'multiplier' ? ' on' : ''}`}><span className="qs-label">Cost × {q.multiplier}</span><span className="qs-num">{money(r.groups.reduce((t, g) => t + g.methodA, 0))}</span><span className="muted">before workload and extras</span></div>
+        <div className={`qs-card${q.method === 'rate' ? ' on' : ''}`}><span className="qs-label">${q.billRate}/hr + {pct(q.materialMarkup)}</span><span className="qs-num">{money(r.groups.reduce((t, g) => t + g.methodB, 0))}</span><span className="muted">before workload and extras</span></div>
+        <div className="qs-card total"><span className="qs-label">Quote</span><span className="qs-num">{money(r.total)}</span><span className="muted">{r.cost ? `${Math.round((1 - r.cost / Math.max(r.total, 1)) * 100)}% margin over your cost` : ''}</span></div>
+      </section>
+      {missing.length > 0 && (
+        <p className="warn">Missing prices, counted as $0: {missing.map((m) => m.label).join(', ')}. Fill them in on the left so the quote isn’t short.</p>
+      )}
+
+      <section className="mat-block">
+        <header><h2>Labor</h2><span className="muted">{r.shopHours.toFixed(1)} shop hrs · {r.installHours.toFixed(1)} install hrs</span></header>
+        <div className="table-wrap">
+          <table className="ff-table">
+            <thead><tr><th>Item</th><th>For</th><th className="num">Qty</th><th className="num">Hrs each</th><th className="num">Hours</th></tr></thead>
+            <tbody>
+              {r.hours.map((h, i) => (
+                <tr key={i}><td>{h.label}{h.install && <span className="tag-install">install</span>}</td><td className="muted">{groupLabel[h.group]}</td><td className="num">{+h.qty.toFixed(1)}</td><td className="num">{h.each}</td><td className="num">{h.hours.toFixed(1)}</td></tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section className="mat-block">
+        <header><h2>Materials</h2><span className="muted">at your cost, + {pct(r.tax)} sales tax {money(r.materialCost)}</span></header>
+        <div className="table-wrap">
+          <table className="ff-table">
+            <thead><tr><th>Item</th><th>For</th><th>Quantity</th><th className="num">Cost</th></tr></thead>
+            <tbody>
+              {r.materials.map((m, i) => (
+                <tr key={i} className={m.missing ? 'missing' : ''}><td>{m.label}{m.missing && <span className="note">{m.missing}</span>}</td><td className="muted">{groupLabel[m.group]}</td><td className="muted">{m.detail}</td><td className="num">{money(m.cost)}</td></tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+  );
+}
+
+/* ---------- Right: what goes on the agreement ---------- */
+
+export function QuoteSummary() {
+  const { project, q, set, result: r } = useQuote();
+  const [copied, setCopied] = useState('');
+  const lines = [
+    ...r.groups.map((g) => ({ label: groupLabel[g.group], price: g.price * (1 + q.workloadAdj[q.workload]) })),
+    ...r.extras.map((e) => ({ label: e.label, price: e.price * (1 + q.workloadAdj[q.workload]) })),
+    ...(r.painter ? [{ label: 'Cabinet prefinishing', price: r.painter }] : []),
+  ];
+  // Spread the adjustment and rounding over the lines so they add up to the total
+  const sum = lines.reduce((t, l) => t + l.price, 0) || 1;
+  const rounded = lines.map((l) => ({ ...l, price: Math.round(((l.price / sum) * r.total) / 10) * 10 }));
+  const drift = r.total - rounded.reduce((t, l) => t + l.price, 0);
+  if (rounded.length) rounded[0].price += drift;
+  const scope = project.cabinets.map((c) => scopeLine(c, project));
+  const text = [
+    ...scope,
+    '',
+    ...rounded.map((l) => `${l.label}: ${money(l.price)}`),
+    `Total Project Investment: ${money(r.total)}`,
+  ].join('\n');
+  const copy = () => navigator.clipboard.writeText(text).then(() => setCopied('Copied.'), () => setCopied('Couldn’t reach the clipboard.'));
+  return (
+    <aside className="panel">
+      <div className="panel-body">
+        <Section title="Purchase agreement">
+          <table className="totals">
+            <tbody>
+              {rounded.map((l) => <tr key={l.label}><td>{l.label}</td><td className="num">{money(l.price)}</td></tr>)}
+              <tr className="sum"><td>Total Project Investment</td><td className="num">{money(r.total)}</td></tr>
+            </tbody>
+          </table>
+          <div className="grid2" style={{ marginTop: 10 }}>
+            <Num id="q-adj" label="Your adjustment" suffix="$" value={q.adjustment} onChange={(v) => set({ adjustment: v })} />
+            <Num id="q-round" label="Round to" suffix="$" value={q.roundTo} onChange={(v) => set({ roundTo: v })} />
+          </div>
+          <p className="hint">
+            Calculated {money(r.calculated)}
+            {r.workloadAmount ? `, workload ${r.workloadAmount > 0 ? '+' : '−'}${money(Math.abs(r.workloadAmount))}` : ''}
+            {q.adjustment ? `, your adjustment ${q.adjustment > 0 ? '+' : '−'}${money(Math.abs(q.adjustment))}` : ''}.
+          </p>
+        </Section>
+
+        <Section title="Additional work" aside={<button className="mini" onClick={() => set({ extras: [...q.extras, newExtra()] })}>Add</button>}>
+          {q.extras.length === 0 && <p className="hint">Demo, trim, casing, hardware installs: anything priced by hours or a flat amount.</p>}
+          {q.extras.map((e) => (
+            <div key={e.id} className="stock-row">
+              <div className="sr-head">
+                <input id={`ex-l-${e.id}`} aria-label="Description" value={e.label} onChange={(ev) => set({ extras: q.extras.map((x) => (x.id === e.id ? { ...x, label: ev.target.value } : x)) })} />
+                <button className="icon-btn" aria-label="Remove" onClick={() => set({ extras: q.extras.filter((x) => x.id !== e.id) })}>×</button>
+              </div>
+              <div className="grid2">
+                <Num id={`ex-h-${e.id}`} label="Hours" value={e.hours} onChange={(v) => set({ extras: q.extras.map((x) => (x.id === e.id ? { ...x, hours: v } : x)) })} />
+                <Num id={`ex-a-${e.id}`} label="Materials or flat" suffix="$" value={e.amount} onChange={(v) => set({ extras: q.extras.map((x) => (x.id === e.id ? { ...x, amount: v } : x)) })} />
+              </div>
+            </div>
+          ))}
+        </Section>
+
+        <Section title="Scope of work">
+          <ul className="assembly">{scope.map((s) => <li key={s}>{s}</li>)}</ul>
+          <div className="order-actions" style={{ marginTop: 10 }}>
+            <button onClick={copy}>Copy scope and prices</button>
+            {copied && <span className="ok">{copied}</span>}
+          </div>
+        </Section>
+      </div>
+    </aside>
+  );
+}

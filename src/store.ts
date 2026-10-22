@@ -41,8 +41,8 @@ interface State {
   project: Project;
   selectedId: string | null;
   view: ViewMode;
-  mode: 'design' | 'cutlist' | 'faceframe';
-  setMode: (m: 'design' | 'cutlist' | 'faceframe') => void;
+  mode: 'design' | 'cutlist' | 'faceframe' | 'quote';
+  setMode: (m: 'design' | 'cutlist' | 'faceframe' | 'quote') => void;
   dragging: boolean;
   past: Project[];
   future: Project[];

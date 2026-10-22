@@ -9,6 +9,7 @@ import { defaultFaceFrameStock, faceFrameNeeds, faceFramePieces, roughQuarters, 
 import { panelAbove, panelOrder } from "../src/model/panels";
 import { amCatalog } from "../src/model/andersonMcquaid";
 import { cabinetMoldings, moldingOrder, mountShape } from "../src/model/moldings";
+import { priceQuote, scopeLine } from "../src/model/quote";
 import { optimizerParts } from "../src/model/cutlist";
 import { normalize } from "../src/store";
 
@@ -220,6 +221,24 @@ eq('panel sticks out past frame', panelExtents(b21, s, { left: true, right: fals
   const inches = 30 + ex.left + ex.right + 2 * m.depth + 2 * (12 + m.depth);
   eq('order lineal feet with waste', ord[0].feet, Math.ceil((inches / 12) * 1.15));
   eq('priced', ord[0].price != null, true);
+}
+
+// Quoting
+{
+  const base = normalize(sampleProject());
+  base.quote = { doorPerSqFt: 15, hingeEach: 6, slidePair: 35, drawerBoxEach: 70 };
+  const r = priceQuote(base);
+  const tax = base.settings.purchaseTax;
+  const g = r.groups[0];
+  eq('method A formula', Math.abs(g.methodA - (g.materials * (1 + tax) + g.hours * 65) * 1.85) < 0.01, true);
+  eq('method B formula', Math.abs(g.methodB - (g.hours * 110 + g.materials * (1 + tax) * 1.25)) < 0.01, true);
+  eq('quote rounds to $10', r.total % 10, 0);
+  const busy = priceQuote({ ...base, quote: { ...base.quote, workload: 'full' } });
+  eq('booked-up raises price 8%', Math.abs(busy.workloadAmount - (busy.calculated - busy.painter) * 0.08) < 0.01, true);
+  const painted = priceQuote({ ...base, quote: { ...base.quote, painter: 1500, painterMarkup: 0.1 } });
+  eq('painter line passes through with markup', Math.abs(painted.calculated - r.calculated - 1650) < 0.01, true);
+  eq('hours estimated', r.shopHours > 20 && r.installHours > 5, true);
+  eq('scope line wording', scopeLine(base.cabinets[1], base).startsWith('B2: Approx: 30”W x 34-1/2”H x 24”D; (2) overlay doors; (1) drawer'), true);
 }
 
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');
