@@ -3,21 +3,25 @@
 import type { Cabinet, Project, WallId, WallPanel } from './types';
 import { uid } from './defaults';
 import { fmt } from '../units';
+import { beadboardCatalog, type BeadboardOption, type BeadboardProduct } from './nantucket';
 
-export const profiles: Record<WallPanel['profile'], { name: string; spacing: number; sheetOnly?: boolean }> = {
-  standard: { name: 'Standard Bead', spacing: 2 },
-  vbead: { name: 'V-Bead', spacing: 1.625 },
-  vgroove: { name: 'V-Groove', spacing: 6 },
-  channel: { name: 'Channel Bead', spacing: 2, sheetOnly: true },
-};
+const legacy: Record<string, string> = { standard: 'standard-bead', vbead: 'v-bead', vgroove: 'v-groove', channel: '1-4-x-1-8-channel' };
 
-/**
- * On-center bead spacings seen in Nantucket Beadboard listings (2" and 3" Standard Bead on their own site,
- * 1-5/8" V-Bead, 2-1/2", 5-1/2" and 6" V-Groove from dealers). Confirm availability per profile before ordering.
- */
-export const spacings = [1.625, 2, 2.5, 3, 5.5, 6];
+export const productOf = (w: WallPanel): BeadboardProduct =>
+  beadboardCatalog.find((p) => p.id === (legacy[w.profile] ?? w.profile)) ?? beadboardCatalog[0];
 
-export const spacingOf = (w: WallPanel) => w.spacing ?? profiles[w.profile].spacing;
+/** The catalog option matching the panel's spacing and thickness, or the closest one the product comes in. */
+export function optionOf(w: WallPanel): BeadboardOption {
+  const opts = productOf(w).options;
+  return (
+    opts.find((o) => o.oc === w.spacing && o.thickness === (w.thickness ?? 0.5)) ??
+    opts.find((o) => o.oc === w.spacing) ??
+    opts.find((o) => o.thickness === (w.thickness ?? 0.5)) ??
+    opts[0]
+  );
+}
+
+export const spacingOf = (w: WallPanel) => optionOf(w).oc ?? 4;
 
 export const panelMaterials: Record<WallPanel['material'], string> = {
   MDF: 'Primed MDF (interior)',
@@ -31,7 +35,7 @@ export function newPanel(wall: WallId, offset: number, width: number, bottom: nu
   while (existing.some((p) => p.name === `P${n}`)) n++;
   return {
     id: uid('panel'), name: `P${n}`, wall, offset, width, bottom, height,
-    profile: 'standard', material: 'MDF', format: 'sheet', cap: true, capHeight: 1, capDepth: 2.5,
+    profile: 'standard-bead', spacing: 2, thickness: 0.5, material: 'MDF', cap: true, capHeight: 1, capDepth: 2.5,
   };
 }
 
@@ -49,18 +53,21 @@ export function panelAbove(p: Project, cab: Cabinet): WallPanel {
 
 export interface PanelOrderLine { panel: WallPanel; item: string; qty: number; detail: string }
 
-/** Sheets or strips to order for one panel. Sheets are cut into rows when the panel is short. */
+/** Sheets or strips to order for one panel. Short panels are cut from sheets in rows. */
 export function panelOrder(w: WallPanel): PanelOrderLine {
-  const prof = profiles[w.profile];
-  const spec = `${prof.name} ${fmt(spacingOf(w))} o.c., ${panelMaterials[w.material]}`;
+  const prod = productOf(w);
+  const opt = optionOf(w);
+  const code = !opt.code ? '' : w.material === 'MDF' ? ` (${opt.code})` : ` (MDF code ${opt.code}; ask for the ${w.material} code)`;
+  const spec = `${prod.name}${opt.oc ? `, ${fmt(opt.oc)} o.c.` : ''}, ${fmt(opt.thickness)} ${panelMaterials[w.material]}${code}`;
   const sqft = (w.width * w.height) / 144;
-  if (w.format === 'sheet' || prof.sheetOnly) {
+  if (prod.family === 'sheet') {
     const cols = Math.ceil(w.width / 48 - 1e-6);
     const perSheet = Math.max(1, Math.floor(96 / w.height + 1e-6));
     const sheets = w.height > 96 ? cols * Math.ceil(w.height / 96) : Math.ceil(cols / perSheet);
     return { panel: w, item: `4×8 sheet, ${spec}`, qty: sheets, detail: `${fmt(w.width)} × ${fmt(w.height)} (${sqft.toFixed(1)} sq ft)` };
   }
-  // Shiplap strips cover about 9 1/2" each once lapped
-  const strips = Math.ceil(w.width / 9.5);
-  return { panel: w, item: `1/2" shiplap strips, ${spec}`, qty: strips, detail: `${strips} strips at least ${fmt(w.height)} long (${sqft.toFixed(1)} sq ft)` };
+  const face = opt.face ?? 9.5;
+  const strips = Math.ceil(w.width / face - 1e-6);
+  const length = w.height <= 96 ? 96 : w.height <= 120 ? 120 : w.height <= 144 ? 144 : 192;
+  return { panel: w, item: `${fmt(face)} face strip, ${length / 12}' long, ${spec}`, qty: strips, detail: `${strips} strips at ${fmt(face)} face cover ${fmt(w.width)}; cut to ${fmt(w.height)} (${sqft.toFixed(1)} sq ft)` };
 }

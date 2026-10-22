@@ -62,9 +62,12 @@ export interface WallPanel {
   /** Bottom edge, off the floor. */
   bottom: number;
   height: number;
-  profile: 'standard' | 'vbead' | 'vgroove' | 'channel';
+  /** Nantucket Beadboard product id from the catalog (Standard Bead, V-Bead, a strip product…). */
+  profile: string;
+  thickness?: number;
   material: 'MDF' | 'MRI' | 'MRX' | 'PVC';
-  format: 'sheet' | 'strip';
+  /** Older projects only; the product decides sheet or strip now. */
+  format?: 'sheet' | 'strip';
   /** Bead spacing on center. */
   spacing?: number;
   /** Solid wood cap or ledge along the top. */

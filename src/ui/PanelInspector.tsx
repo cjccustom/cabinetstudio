@@ -1,6 +1,7 @@
 import { useStore } from '../store';
 import type { WallId, WallPanel } from '../model/types';
-import { panelMaterials, panelOrder, profiles, spacingOf, spacings } from '../model/panels';
+import { optionOf, panelMaterials, panelOrder, productOf } from '../model/panels';
+import { beadboardCatalog, type BeadboardProduct } from '../model/nantucket';
 import { fmt } from '../units';
 import { wallNames, wallOrder } from '../model/layout';
 import { Field, LengthInput, Section } from './fields';
@@ -10,6 +11,10 @@ export function PanelInspector({ panel: w }: { panel: WallPanel }) {
   const remove = useStore((s) => s.removeCabinet);
   const set = (patch: Partial<WallPanel>) => update(w.id, patch);
   const order = panelOrder(w);
+  const prod = productOf(w);
+  const opt = optionOf(w);
+  const ocs = [...new Set(prod.options.map((o) => o.oc).filter((x): x is number => x != null))];
+  const thicks = [...new Set(prod.options.filter((o) => o.oc === opt.oc).map((o) => o.thickness))];
   return (
     <div className="inspector">
       <div className="insp-head">
@@ -30,30 +35,44 @@ export function PanelInspector({ panel: w }: { panel: WallPanel }) {
         </div>
       </Section>
       <Section title="Nantucket Beadboard">
-        <div className="grid2">
-          <Field label="Profile" htmlFor="pn-prof">
-            <select id="pn-prof" value={w.profile} onChange={(e) => set({ profile: e.target.value as WallPanel['profile'] })}>
-              {(Object.keys(profiles) as WallPanel['profile'][]).map((k) => <option key={k} value={k}>{profiles[k].name}</option>)}
+        <Field label="Product" htmlFor="pn-prof">
+          <select id="pn-prof" value={prod.id} onChange={(e) => {
+            const next = beadboardCatalog.find((x) => x.id === e.target.value)!;
+            const o = next.options.find((x) => x.thickness === (w.thickness ?? 0.5)) ?? next.options[0];
+            set({ profile: next.id, spacing: o.oc ?? undefined, thickness: o.thickness });
+          }}>
+            {[['Sheets (4×8)', (p: BeadboardProduct) => !p.special && p.family === 'sheet'], ['Shiplap strips', (p: BeadboardProduct) => !p.special && p.family === 'strip'], ['Special order', (p: BeadboardProduct) => p.special]].map(([label, test]) => (
+              <optgroup key={label as string} label={label as string}>
+                {beadboardCatalog.filter(test as (p: BeadboardProduct) => boolean).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </optgroup>
+            ))}
+          </select>
+        </Field>
+        <div className="grid3" style={{ marginTop: 8 }}>
+          <Field label="On center" htmlFor="pn-sp">
+            <select id="pn-sp" value={opt.oc ?? ''} disabled={ocs.length < 2} onChange={(e) => {
+              const oc = Number(e.target.value);
+              const o = prod.options.find((x) => x.oc === oc && x.thickness === opt.thickness) ?? prod.options.find((x) => x.oc === oc)!;
+              set({ spacing: oc, thickness: o.thickness });
+            }}>
+              {ocs.length === 0 && <option value="">Random</option>}
+              {ocs.map((x) => <option key={x} value={x}>{fmt(x)}</option>)}
             </select>
           </Field>
-          <Field label="Bead spacing (o.c.)" htmlFor="pn-sp">
-            <select id="pn-sp" value={spacingOf(w)} onChange={(e) => set({ spacing: Number(e.target.value) })}>
-              {[...new Set([...spacings, spacingOf(w)])].sort((a, b) => a - b).map((x) => <option key={x} value={x}>{fmt(x)}</option>)}
+          <Field label="Thickness" htmlFor="pn-t">
+            <select id="pn-t" value={opt.thickness} disabled={thicks.length < 2} onChange={(e) => set({ thickness: Number(e.target.value) })}>
+              {thicks.map((x) => <option key={x} value={x}>{fmt(x)}</option>)}
             </select>
           </Field>
-          <Field label="Material" htmlFor="pn-mat">
+          <Field label="Substrate" htmlFor="pn-mat">
             <select id="pn-mat" value={w.material} onChange={(e) => set({ material: e.target.value as WallPanel['material'] })}>
-              {(Object.keys(panelMaterials) as WallPanel['material'][]).map((k) => <option key={k} value={k}>{panelMaterials[k]}</option>)}
-            </select>
-          </Field>
-          <Field label="Format" htmlFor="pn-fmt">
-            <select id="pn-fmt" value={profiles[w.profile].sheetOnly ? 'sheet' : w.format} disabled={profiles[w.profile].sheetOnly} onChange={(e) => set({ format: e.target.value as WallPanel['format'] })}>
-              <option value="sheet">4×8 sheets</option>
-              <option value="strip">Shiplap strips</option>
+              {(Object.keys(panelMaterials) as WallPanel['material'][]).map((k) => <option key={k} value={k}>{k}</option>)}
             </select>
           </Field>
         </div>
-        <p className="hint">Spacings come from dealer listings. Confirm which ones Nantucket offers in this profile before ordering.</p>
+        {opt.face && <p className="hint">Strip face width {fmt(opt.face)}.</p>}
+        {opt.code && <p className="hint">Product code <span className="mono">{opt.code}</span>{w.material !== 'MDF' && ' (MDF; confirm the code for this substrate)'}.</p>}
+        {w.material !== 'MDF' && opt.thickness !== 0.5 && <p className="warn">MRI, MRX, fire-rated MDF and PVC come in 1/2" only.</p>}
         <p className="hint">To order: <strong>{order.qty}</strong> × {order.item}. {order.detail}.</p>
       </Section>
       <Section title="Cap / ledge">

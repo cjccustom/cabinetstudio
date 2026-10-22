@@ -194,6 +194,10 @@ eq('panel sticks out past frame', panelExtents(b21, s, { left: true, right: fals
   eq('one sheet covers a 48 x 30 backsplash', panelOrder(panel).qty, 1);
   eq('60" wide backsplash still fits one sheet cut in rows', panelOrder({ ...panel, width: 60 }).qty, 1);
   eq('tall wainscot', panelOrder({ ...panel, width: 100, height: 60 }).qty, 3);
+  eq('default product is Standard Bead 2" o.c.', panelOrder(panel).item.includes('MDF502048SBP1S'), true);
+  eq('strips cover by face width', panelOrder({ ...panel, profile: 'standard-bead-strip', spacing: 2 }).qty, 5);
+  eq('3" o.c. strip has a 9" face', panelOrder({ ...panel, profile: 'standard-bead-strip', spacing: 3 }).qty, 6);
+  eq('old projects still read', panelOrder({ ...panel, profile: 'vbead', spacing: undefined }).item.startsWith('4×8 sheet, V-Bead'), true);
   eq('seat and cap on the wood list', woodPieces({ ...proj, panels: [{ ...panel, cap: true }] }).length, 2);
 }
 
