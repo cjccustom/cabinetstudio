@@ -19,12 +19,9 @@ function loadSaved(): Project | null {
 /** Fill in anything an older or hand-edited project file is missing. */
 export function normalize(p: Project): Project {
   if (!p || !Array.isArray(p.cabinets) || !p.room) throw new Error('This doesn’t look like a Cabinet Studio project.');
-  return {
-    ...sampleProject(),
-    ...p,
-    version: 1,
-    settings: { ...defaultSettings, ...p.settings },
-  };
+  // Version 1 files were drawn with placeholder construction standards, not the shop's own.
+  const settings = (p as { version: number }).version >= 2 ? { ...defaultSettings, ...p.settings } : { ...defaultSettings };
+  return { ...sampleProject(), ...p, version: 2, settings };
 }
 
 interface State {

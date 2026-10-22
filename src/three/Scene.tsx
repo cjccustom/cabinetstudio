@@ -6,7 +6,7 @@ import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import { useStore, type ViewMode } from '../store';
 import type { Cabinet, Finishes, Room, ShopSettings, WallId } from '../model/types';
 import { buildParts } from '../model/parts';
-import { alongWall, footprint, snapOffset, wallLength, wallTransform } from '../model/layout';
+import { alongWall, footprint, resolveEnds, snapOffset, wallLength, wallTransform } from '../model/layout';
 import { buildCabinetGeometry } from './cabinetGeometry';
 import { fmt, fmtFeet } from '../units';
 
@@ -151,7 +151,13 @@ function CabinetModel(props: {
   cab: Cabinet; room: Room; settings: ShopSettings; finishes: Finishes; view: ViewMode; selected: boolean; issue: boolean;
 }) {
   const { cab, room, settings, finishes, view, selected, issue } = props;
-  const geo = useMemo(() => buildCabinetGeometry(buildParts(cab, settings)), [cab, settings]);
+  const allCabs = useStore((st) => st.project.cabinets);
+  const ends = resolveEnds(room, allCabs, cab);
+  const geo = useMemo(
+    () => buildCabinetGeometry(buildParts(cab, settings, ends)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [cab, settings, ends.left, ends.right],
+  );
   useEffect(() => () => {
     geo.meshes.forEach((m) => m.geometry.dispose());
     geo.edges.dispose();

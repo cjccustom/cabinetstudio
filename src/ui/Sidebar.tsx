@@ -4,6 +4,8 @@ import { presets } from '../model/defaults';
 import { wallNames, wallOrder } from '../model/layout';
 import type { ShopSettings, WallId } from '../model/types';
 import { fmt } from '../units';
+import { doorMaterials, doorStyles, stileWidths, styleById } from '../model/eagle';
+import { realOverhang } from '../model/parts';
 import { Field, LengthInput, Section } from './fields';
 
 type Tab = 'add' | 'room' | 'shop';
@@ -132,10 +134,16 @@ function RoomPanel() {
 
 type NumKey = { [K in keyof ShopSettings]: ShopSettings[K] extends number ? K : never }[keyof ShopSettings];
 const shopFields: { title: string; fields: [NumKey, string][] }[] = [
-  { title: 'Case', fields: [['boxThickness', 'Case material'], ['backThickness', 'Back'], ['dadoDepth', 'Dado / rabbet depth'], ['stretcherWidth', 'Stretcher width'], ['nailerWidth', 'Nailer width']] },
-  { title: 'Face frame', fields: [['ffThickness', 'Thickness'], ['stileWidth', 'Stile width'], ['topRailWidth', 'Top rail'], ['bottomRailWidth', 'Bottom rail'], ['midRailWidth', 'Mid rail'], ['ffOverhang', 'Overhang past case side']] },
+  { title: 'Case', fields: [
+    ['boxThickness', 'Case stock, nominal'], ['boxActualThickness', 'Case stock, actual'],
+    ['dadoDepth', 'Dado & rabbet depth'], ['bottomReveal', 'Bottom below rail'],
+    ['backThickness', 'Back'], ['backRabbetWidth', 'Back rabbet width'],
+    ['stretcherWidth', 'Stretcher width'], ['ffOverhang', 'Extra overhang per side'],
+  ] },
+  { title: 'Face frame', fields: [['ffThickness', 'Thickness'], ['stileWidth', 'Stile width'], ['topRailWidth', 'Top rail'], ['bottomRailWidth', 'Bottom rail'], ['midRailWidth', 'Mid rail']] },
   { title: 'Toe kick', fields: [['toeKickHeight', 'Height'], ['toeKickDepth', 'Depth from face frame']] },
-  { title: 'Doors & drawers', fields: [['doorThickness', 'Thickness'], ['doorOverlay', 'Overlay'], ['doorGap', 'Gap between pairs'], ['shakerFrameWidth', 'Shaker stile/rail width']] },
+  { title: 'Door fit', fields: [['doorThickness', 'Thickness'], ['doorOverlay', 'Overlay'], ['doorGap', 'Gap between pairs']] },
+  { title: 'Drawer boxes (Eagle, undermount)', fields: [['drawerWidthDeduction', 'Width: opening minus'], ['drawerHeightDeduction', 'Height: opening minus'], ['drawerRearClearance', 'Clearance at back']] },
   { title: 'Shelves & counters', fields: [['shelfClearance', 'Shelf clearance (total)'], ['shelfSetback', 'Shelf setback'], ['counterThickness', 'Counter thickness'], ['counterOverhang', 'Counter overhang']] },
 ];
 
@@ -143,18 +151,61 @@ function ShopPanel() {
   const settings = useStore((s) => s.project.settings);
   const commit = useStore((s) => s.commit);
   const set = (patch: Partial<ShopSettings>) => commit((p) => ({ ...p, settings: { ...p.settings, ...patch } }));
+  const style = styleById(settings.doorStyleId);
+  const sample = 21;
+  const cut = sample - 2 * settings.ffOverhang - 2 * settings.boxThickness + 2 * settings.dadoDepth;
   return (
     <div>
-      <p className="hint">How you build. Every cabinet and every part dimension comes from these numbers. Changes apply to the whole job.</p>
-      <Section title="Door style">
-        <div className="seg" role="radiogroup" aria-label="Door style">
-          {(['shaker', 'slab'] as const).map((d) => (
-            <button key={d} role="radio" aria-checked={settings.doorStyle === d} className={settings.doorStyle === d ? 'on' : ''} onClick={() => set({ doorStyle: d })}>
-              {d === 'shaker' ? 'Shaker (5-piece)' : 'Slab'}
-            </button>
-          ))}
+      <p className="hint">How you build. Every cabinet and every part size comes from these numbers, and changes apply to the whole job.</p>
+
+      <Section title="Doors & fronts (Eagle Woodworking)">
+        <Field label="Style" htmlFor="door-style">
+          <select id="door-style" value={settings.doorStyleId} onChange={(e) => {
+            const next = styleById(e.target.value);
+            set({ doorStyleId: next.id, doorStile: next.fixedStile ? next.stile : settings.doorStile, doorMaterial: next.line === 'MDF' ? 'MDF' : settings.doorMaterial === 'MDF' ? 'Paint-grade maple' : settings.doorMaterial });
+          }}>
+            {(['MDF', 'Wood', 'Any'] as const).map((line) => (
+              <optgroup key={line} label={line === 'Any' ? 'Other' : `${line} styles`}>
+                {doorStyles.filter((d) => d.line === line).map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+              </optgroup>
+            ))}
+          </select>
+        </Field>
+        <div className="style-card">
+          <strong>{style.name}{style.verify && <span className="badge">Check with Eagle</span>}</strong>
+          {style.detail}
         </div>
+        <div className="grid2" style={{ marginTop: 8 }}>
+          <Field label="Material" htmlFor="door-mat">
+            <select id="door-mat" value={style.line === 'MDF' ? 'MDF' : settings.doorMaterial} disabled={style.line === 'MDF'} onChange={(e) => set({ doorMaterial: e.target.value })}>
+              {doorMaterials.filter((m) => style.line !== 'Wood' || m !== 'MDF').map((m) => <option key={m}>{m}</option>)}
+            </select>
+          </Field>
+          {style.profile !== 'slab' && (
+            <Field label="Rail & stile width" htmlFor="door-stile">
+              <select id="door-stile" value={style.fixedStile ? style.stile : settings.doorStile} disabled={style.fixedStile} onChange={(e) => set({ doorStile: Number(e.target.value) })}>
+                {(style.fixedStile ? [style.stile] : stileWidths).map((w) => <option key={w} value={w}>{fmt(w)}</option>)}
+              </select>
+            </Field>
+          )}
+          {style.panelChoice && (
+            <Field label="Center panel" htmlFor="door-panel">
+              <select id="door-panel" value={settings.doorPanel} onChange={(e) => set({ doorPanel: e.target.value as 'flat' | 'raised' })}>
+                <option value="flat">Flat</option>
+                <option value="raised">Raised</option>
+              </select>
+            </Field>
+          )}
+          <Field label="Drawer fronts" htmlFor="door-dfront">
+            <select id="door-dfront" value={settings.drawerFronts} onChange={(e) => set({ drawerFronts: e.target.value as 'match' | 'slab' })}>
+              <option value="match">Match doors</option>
+              <option value="slab">Slab</option>
+            </select>
+          </Field>
+        </div>
+        <p className="hint">Drawer fronts too short for a 5-piece frame go on the order as slabs.</p>
       </Section>
+
       {shopFields.map((g) => (
         <Section key={g.title} title={g.title}>
           <div className="grid2">
@@ -164,6 +215,17 @@ function ShopPanel() {
               </Field>
             ))}
           </div>
+          {g.title === 'Case' && (
+            <p className="hint">
+              Example: a {sample}" cabinet gets a bottom and stretchers cut at <span className="computed">{fmt(cut)}</span>. The thinner real plywood leaves the face frame
+              overhanging each side by about <span className="computed">{fmt(realOverhang(settings))}</span>.
+            </p>
+          )}
+          {g.title === 'Case' && (
+            <label className="checks" htmlFor="shop-rails">
+              <span><input id="shop-rails" type="checkbox" checked={settings.hangingRails} onChange={(e) => set({ hangingRails: e.target.checked })} /> Hanging rails in wall & tall cabinets</span>
+            </label>
+          )}
         </Section>
       ))}
     </div>

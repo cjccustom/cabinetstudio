@@ -104,3 +104,20 @@ export function snapOffset(room: Room, cabinets: Cabinet[], moving: Cabinet, raw
   }
   return best;
 }
+
+/**
+ * Which case sides show. A side is hidden when it butts a wall end or a neighbouring cabinet
+ * that overlaps it in height; anything else is a finished end unless the cabinet says otherwise.
+ */
+export function resolveEnds(room: Room, cabinets: Cabinet[], c: Cabinet): { left: boolean; right: boolean } {
+  const tol = 0.125;
+  const len = wallLength(room, c.wall);
+  const neighbours = cabinets.filter(
+    (o) => o.id !== c.id && o.wall === c.wall && o.elevation < c.elevation + c.height && c.elevation < o.elevation + o.height,
+  );
+  const autoLeft = c.offset > tol && !neighbours.some((o) => Math.abs(o.offset + o.width - c.offset) <= tol);
+  const right = c.offset + c.width;
+  const autoRight = right < len - tol && !neighbours.some((o) => Math.abs(o.offset - right) <= tol);
+  const pick = (mode: Cabinet['leftEnd'], auto: boolean) => (mode === 'exposed' ? true : mode === 'hidden' ? false : auto);
+  return { left: pick(c.leftEnd, autoLeft), right: pick(c.rightEnd, autoRight) };
+}

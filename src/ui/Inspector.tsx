@@ -1,11 +1,11 @@
 import { useStore } from '../store';
-import type { Cabinet, FaceRow, WallId } from '../model/types';
+import type { Cabinet, EndMode, FaceRow, WallId } from '../model/types';
 import { layoutRows } from '../model/parts';
-import { wallNames, wallOrder } from '../model/layout';
+import { resolveEnds, wallNames, wallOrder } from '../model/layout';
 import { uid } from '../model/defaults';
 import { fmt } from '../units';
 import { Field, LengthInput, Section } from './fields';
-import { PartsTable } from './PartsTable';
+import { OrderList, PartsTable } from './PartsTable';
 
 const kindLabel = { base: 'Base cabinet', wall: 'Wall cabinet', tall: 'Tall cabinet' };
 const rowTypes: { v: FaceRow['type']; label: string }[] = [
@@ -20,6 +20,9 @@ export function Inspector({ cab, issues }: { cab: Cabinet; issues: string[] }) {
   const remove = useStore((s) => s.removeCabinet);
   const duplicate = useStore((s) => s.duplicateCabinet);
   const settings = useStore((s) => s.project.settings);
+  const room = useStore((s) => s.project.room);
+  const all = useStore((s) => s.project.cabinets);
+  const ends = resolveEnds(room, all, cab);
   const set = (patch: Partial<Cabinet>) => update(cab.id, patch);
   const setRow = (id: string, patch: Partial<FaceRow>) => set({ rows: cab.rows.map((r) => (r.id === id ? { ...r, ...patch } : r)) });
   const { rows: layout, leftover } = layoutRows(cab, settings);
@@ -110,8 +113,34 @@ export function Inspector({ cab, issues }: { cab: Cabinet; issues: string[] }) {
         </div>
       </Section>
 
-      <Section title="Parts">
+      <Section title="Ends & assembly">
+        <div className="ends">
+          {(['left', 'right'] as const).map((side) => {
+            const key = side === 'left' ? 'leftEnd' : 'rightEnd';
+            const mode = cab[key] ?? 'auto';
+            return (
+              <Field key={side} label={side === 'left' ? 'Left end' : 'Right end'} htmlFor={`cab-${key}`}>
+                <select id={`cab-${key}`} value={mode} onChange={(e) => set({ [key]: e.target.value as EndMode })}>
+                  <option value="auto">Auto ({ends[side] ? 'exposed' : 'hidden'})</option>
+                  <option value="exposed">Exposed</option>
+                  <option value="hidden">Hidden</option>
+                </select>
+              </Field>
+            );
+          })}
+        </div>
+        <ul className="assembly">
+          <li>Face frame: glue and pocket screws.</li>
+          <li>Case: glue, then {ends.left || ends.right ? (ends.left && ends.right ? 'pocket screws on both sides (both ends exposed)' : `pocket screws on the exposed ${ends.left ? 'left' : 'right'} side, staples on the other`) : 'staples (no exposed ends)'}.</li>
+        </ul>
+      </Section>
+
+      <Section title="Cut parts">
         <PartsTable cabinets={[cab]} compact />
+      </Section>
+
+      <Section title="Order from Eagle">
+        <OrderList cabinets={[cab]} compact />
       </Section>
 
       <div className="insp-actions">

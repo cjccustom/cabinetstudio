@@ -3,7 +3,7 @@ import { useStore, type ViewMode } from './store';
 import { Scene } from './three/Scene';
 import { Sidebar } from './ui/Sidebar';
 import { Inspector } from './ui/Inspector';
-import { PartsTable } from './ui/PartsTable';
+import { OrderList, PartsTable } from './ui/PartsTable';
 import { ProjectDialog } from './ui/ProjectDialog';
 import { findIssues, wallNames, wallOrder } from './model/layout';
 import { sampleProject } from './model/defaults';
@@ -23,7 +23,7 @@ export default function App() {
   const redo = useStore((s) => s.redo);
   const canUndo = useStore((s) => s.past.length > 0);
   const canRedo = useStore((s) => s.future.length > 0);
-  const [panel, setPanel] = useState<'cabinet' | 'cutlist'>('cabinet');
+  const [panel, setPanel] = useState<'cabinet' | 'cutlist' | 'order'>('cabinet');
   const [dialog, setDialog] = useState<null | 'file' | 'new'>(null);
 
   const issues = useMemo(() => findIssues(project.room, project.cabinets, project.settings), [project]);
@@ -75,7 +75,8 @@ export default function App() {
       <aside className="panel">
         <nav className="tabs" role="tablist">
           <button role="tab" aria-selected={panel === 'cabinet'} className={panel === 'cabinet' ? 'on' : ''} onClick={() => setPanel('cabinet')}>Cabinet</button>
-          <button role="tab" aria-selected={panel === 'cutlist'} className={panel === 'cutlist' ? 'on' : ''} onClick={() => setPanel('cutlist')}>Job parts list</button>
+          <button role="tab" aria-selected={panel === 'cutlist'} className={panel === 'cutlist' ? 'on' : ''} onClick={() => setPanel('cutlist')}>Cut list</button>
+          <button role="tab" aria-selected={panel === 'order'} className={panel === 'order' ? 'on' : ''} onClick={() => setPanel('order')}>Eagle order</button>
         </nav>
         <div className="panel-body">
           {panel === 'cabinet' && (selected ? (
@@ -89,8 +90,14 @@ export default function App() {
           ))}
           {panel === 'cutlist' && (
             <div>
-              <p className="hint">Every cut part in the job, grouped by material. Sheet counts are a rough estimate until the sheet optimizer is built.</p>
+              <p className="hint">Everything cut in the shop, grouped by material. Sheet counts are a rough estimate until the sheet optimizer is built.</p>
               <PartsTable cabinets={project.cabinets} />
+            </div>
+          )}
+          {panel === 'order' && (
+            <div>
+              <p className="hint">Doors, drawer fronts and dovetail drawer boxes for the whole job, sized from the face frame openings. Sizes are finished width × height.</p>
+              <OrderList cabinets={project.cabinets} />
             </div>
           )}
         </div>
