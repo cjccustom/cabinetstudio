@@ -4,6 +4,9 @@ import { sampleProject, defaultSettings } from "../src/model/defaults";
 import { findIssues, gapBeside, resolveEnds } from "../src/model/layout";
 import { fmt, parseLength } from "../src/units";
 import { drawerBoxSize } from "../src/model/eagle";
+import { optimize } from "../src/model/optimizer";
+import { optimizerParts } from "../src/model/cutlist";
+import { normalize } from "../src/store";
 
 let failed = 0;
 const eq = (label: string, got: unknown, want: unknown) => {
@@ -98,6 +101,28 @@ eq('side under panel is stapled', pan.filter((x) => x.role === 'side').every((x)
 eq('held-back panel', buildParts(b21, { ...s, endPanel: 'reveal' }, { left: true, right: false }).find((x) => x.name === 'End panel')!.width, 24.5);
 eq('inset panel', buildParts(b21, { ...s, endPanel: 'inset' }, { left: true, right: false }).find((x) => x.name === 'End panel')!.width, 24);
 eq('panel sticks out past frame', panelExtents(b21, s, { left: true, right: false }).left, 0.75 - 0.0625);
+
+// Sheet optimizer: nothing overlaps, everything stays on the sheet, grain-locked parts keep their grain
+{
+  const proj = normalize(sampleProject());
+  const res = optimize(optimizerParts(proj, proj.cutlist!), proj.cutlist!.stock, proj.cutlist!.options);
+  const k = proj.cutlist!.options.kerf;
+  for (const m of res) {
+    eq(`${m.material}: all parts placed`, m.unplaced.length, 0);
+    for (const sh of m.sheets) {
+      sh.placed.forEach((a, i) => {
+        if (a.x < -1e-6 || a.y < -1e-6 || a.x + a.l > sh.stock.length + 1e-6 || a.y + a.w > sh.stock.width + 1e-6) { failed++; console.log('off sheet', a.part.label); }
+        if (a.part.grain && a.rotated) { failed++; console.log('grain turned', a.part.label); }
+        sh.placed.slice(i + 1).forEach((b) => {
+          if (a.x < b.x + b.l + k - 1e-6 && b.x < a.x + a.l + k - 1e-6 && a.y < b.y + b.w + k - 1e-6 && b.y < a.y + a.w + k - 1e-6) { failed++; console.log('overlap', a.part.label, b.part.label); }
+        });
+      });
+    }
+    const used = m.sheets.reduce((s2, sh) => s2 + sh.usedArea, 0);
+    const total = m.sheets.reduce((s2, sh) => s2 + sh.stock.length * sh.stock.width, 0);
+    console.log(`  ${m.material}: ${m.sheets.length} sheets, ${Math.round((100 * used) / total)}% yield, ${m.sheets.reduce((s2, sh) => s2 + sh.cuts.length, 0)} cuts`);
+  }
+}
 
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');
 

@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type { Cabinet, Project, WallId } from './model/types';
 import { cabinetFromPreset, defaultSettings, presets, sampleProject, uid } from './model/defaults';
 import { nextFreeOffset } from './model/layout';
+import { defaultCutlist } from './model/cutlist';
 
 export type ViewMode = '3d' | 'plan' | `elev-${WallId}`;
 
@@ -21,13 +22,19 @@ export function normalize(p: Project): Project {
   if (!p || !Array.isArray(p.cabinets) || !p.room) throw new Error('This doesn’t look like a Cabinet Studio project.');
   // Version 1 files were drawn with placeholder construction standards, not the shop's own.
   const settings = (p as { version: number }).version >= 2 ? { ...defaultSettings, ...p.settings } : { ...defaultSettings };
-  return { ...sampleProject(), ...p, version: 2, settings };
+  const out: Project = { ...sampleProject(), ...p, version: 2, settings };
+  const base = defaultCutlist(out);
+  const cl = p.cutlist;
+  out.cutlist = cl ? { ...base, ...cl, options: { ...base.options, ...cl.options } } : base;
+  return out;
 }
 
 interface State {
   project: Project;
   selectedId: string | null;
   view: ViewMode;
+  mode: 'design' | 'cutlist';
+  setMode: (m: 'design' | 'cutlist') => void;
   dragging: boolean;
   past: Project[];
   future: Project[];
@@ -52,9 +59,11 @@ interface State {
 const HISTORY = 100;
 
 export const useStore = create<State>((set, get) => ({
-  project: loadSaved() ?? sampleProject(),
+  project: loadSaved() ?? normalize(sampleProject()),
   selectedId: null,
   view: '3d',
+  mode: 'design',
+  setMode: (mode) => set({ mode }),
   dragging: false,
   past: [],
   future: [],

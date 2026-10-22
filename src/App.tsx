@@ -6,6 +6,7 @@ import { Inspector } from './ui/Inspector';
 import { OrderList, PartsTable } from './ui/PartsTable';
 import { ProjectDialog } from './ui/ProjectDialog';
 import { DrawerCalculator } from './ui/DrawerCalculator';
+import { CutlistInputs, CutlistLayouts, CutlistSummary } from './ui/Cutlist';
 import { findIssues, wallNames, wallOrder } from './model/layout';
 import { sampleProject } from './model/defaults';
 
@@ -20,6 +21,8 @@ export default function App() {
   const selectedId = useStore((s) => s.selectedId);
   const view = useStore((s) => s.view);
   const setView = useStore((s) => s.setView);
+  const mode = useStore((s) => s.mode);
+  const setMode = useStore((s) => s.setMode);
   const undo = useStore((s) => s.undo);
   const redo = useStore((s) => s.redo);
   const canUndo = useStore((s) => s.past.length > 0);
@@ -43,13 +46,17 @@ export default function App() {
           <span className="brand-name">Cabinet Studio</span>
           <span className="job">{project.name}</span>
         </div>
-        <div className="seg views" role="tablist" aria-label="View">
+        <div className="seg mode" role="tablist" aria-label="Workspace">
+          <button role="tab" aria-selected={mode === 'design'} className={mode === 'design' ? 'on' : ''} onClick={() => setMode('design')}>Design</button>
+          <button role="tab" aria-selected={mode === 'cutlist'} className={mode === 'cutlist' ? 'on' : ''} onClick={() => setMode('cutlist')}>Cutlist</button>
+        </div>
+        {mode === 'design' && <div className="seg views" role="tablist" aria-label="View">
           {views.map((v, i) => (
             <button key={v.v} role="tab" aria-selected={view === v.v} className={`${view === v.v ? 'on' : ''}${i === 2 ? ' sep' : ''}`} onClick={() => setView(v.v)}>
               {v.label}
             </button>
           ))}
-        </div>
+        </div>}
         <div className="actions">
           <button onClick={undo} disabled={!canUndo} title="Undo (⌘Z)">Undo</button>
           <button onClick={redo} disabled={!canRedo} title="Redo (⇧⌘Z)">Redo</button>
@@ -58,6 +65,14 @@ export default function App() {
         </div>
       </header>
 
+      {mode === 'cutlist' ? (
+        <>
+          <CutlistInputs />
+          <CutlistLayouts />
+          <CutlistSummary />
+        </>
+      ) : (
+      <>
       <Sidebar />
 
       <main className="stage">
@@ -104,6 +119,8 @@ export default function App() {
           )}
         </div>
       </aside>
+      </>
+      )}
 
       {dialog === 'file' && <ProjectDialog onClose={() => setDialog(null)} />}
       {dialog === 'drawer' && <DrawerCalculator onClose={() => setDialog(null)} />}
@@ -133,7 +150,7 @@ function useKeyboard() {
       const mod = e.metaKey || e.ctrlKey;
       if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); e.shiftKey ? st.redo() : st.undo(); return; }
       const id = st.selectedId;
-      if (!id) return;
+      if (!id || st.mode !== 'design') return;
       if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); st.removeCabinet(id); }
       else if (mod && e.key.toLowerCase() === 'd') { e.preventDefault(); st.duplicateCabinet(id); }
       else if (e.key === 'Escape') st.select(null);

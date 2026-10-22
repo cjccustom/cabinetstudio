@@ -118,6 +118,7 @@ export interface Project {
   settings: ShopSettings;
   finishes: Finishes;
   cabinets: Cabinet[];
+  cutlist?: import('./cutlist').CutlistData;
 }
 
 export type MaterialKey = 'box' | 'back' | 'toeSkin' | 'faceframe' | 'door' | 'drawerBox' | 'counter';
