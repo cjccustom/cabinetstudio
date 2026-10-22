@@ -37,6 +37,10 @@ export interface Cabinet {
   /** Extra width on the outside stiles, used instead of fillers and scribed on site. */
   scribeLeft?: number;
   scribeRight?: number;
+  /** Blind corner: the end that runs into the corner, and how far from that end the door opening starts. */
+  blind?: { side: 'left' | 'right'; width: number };
+  /** L-shaped corner cabinet spanning two walls. width runs along this wall, width2 along the other. */
+  corner?: { side: 'left' | 'right'; width2: number; lazySusan: boolean };
 }
 
 export type EndMode = 'auto' | 'exposed' | 'hidden';
@@ -93,6 +97,8 @@ export interface ShopSettings {
   endPanelThickness: number;
   /** Added to the cut width of extended stiles so there's wood to scribe. */
   scribeAllowance: number;
+  /** Stile on a blind corner between the dead area and the doors; leaves room for the neighbour's doors and pulls. */
+  blindStileWidth: number;
   counterThickness: number;
   counterOverhang: number;
   shelfSetback: number;

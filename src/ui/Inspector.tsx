@@ -1,7 +1,7 @@
 import { useStore } from '../store';
 import type { Cabinet, EndMode, FaceRow, PanelChoice, PanelMode, WallId } from '../model/types';
 import { layoutRows, panelOn } from '../model/parts';
-import { gapBeside, resolveEnds, wallNames, wallOrder } from '../model/layout';
+import { gapBeside, resolveEnds, wallLength, wallNames, wallOrder } from '../model/layout';
 import { panelLabel } from '../model/eagle';
 import { uid } from '../model/defaults';
 import { fmt } from '../units';
@@ -70,6 +70,9 @@ export function Inspector({ cab, issues }: { cab: Cabinet; issues: string[] }) {
         <p className="hint">Drag the cabinet in the 3D, Plan or Elevation view to slide it along the wall. It snaps to neighbors and wall ends.</p>
       </Section>
 
+      {(cab.blind || cab.corner) && <CornerSection cab={cab} set={set} />}
+      {!cab.corner && (
+      <>
       <Section
         title="Face frame openings"
         aside={
@@ -120,6 +123,8 @@ export function Inspector({ cab, issues }: { cab: Cabinet; issues: string[] }) {
         </div>
       </Section>
 
+      </>
+      )}
       <Section title="Ends, panels & scribes">
         <div className="ends">
           {(['left', 'right'] as const).map((side) => {
@@ -142,7 +147,7 @@ export function Inspector({ cab, issues }: { cab: Cabinet; issues: string[] }) {
                     <option value="hidden">Hidden</option>
                   </select>
                 </Field>
-                {ends[side] && (
+                {ends[side] && !cab.corner && (
                   <Field label="End panel" htmlFor={`cab-${panelKey}`}>
                     <select id={`cab-${panelKey}`} value={cab[panelKey] ?? 'default'} onChange={(e) => set({ [panelKey]: e.target.value as PanelChoice })}>
                       <option value="default">Job standard ({panelLabel[settings.endPanel]})</option>
@@ -150,13 +155,13 @@ export function Inspector({ cab, issues }: { cab: Cabinet; issues: string[] }) {
                     </select>
                   </Field>
                 )}
-                <Field label="Stile extension" htmlFor={`cab-${scribeKey}`}>
+                {!cab.corner && <Field label="Stile extension" htmlFor={`cab-${scribeKey}`}>
                   <LengthInput id={`cab-${scribeKey}`} value={scribe} onChange={(v) => {
                     const d = v! - scribe;
                     set({ [scribeKey]: v!, width: cab.width + d, ...(side === 'left' ? { offset: cab.offset - d } : {}) });
                   }} />
-                </Field>
-                {gap != null && (
+                </Field>}
+                {gap != null && !cab.corner && (
                   <button className="mini" onClick={closeGap}>Extend stile to close {fmt(gap)} gap</button>
                 )}
               </div>
@@ -184,5 +189,55 @@ export function Inspector({ cab, issues }: { cab: Cabinet; issues: string[] }) {
         <button className="danger" onClick={() => remove(cab.id)}>Delete</button>
       </div>
     </div>
+  );
+}
+
+function CornerSection({ cab, set }: { cab: Cabinet; set: (p: Partial<Cabinet>) => void }) {
+  const room = useStore((s) => s.project.room);
+  const len = wallLength(room, cab.wall);
+  // Switching corners moves the cabinet to the other end of the wall
+  const flip = (side: 'left' | 'right') => {
+    if (cab.blind) set({ blind: { ...cab.blind, side }, offset: side === 'left' ? 0 : len - cab.width });
+    if (cab.corner) set({ corner: { ...cab.corner, side }, offset: side === 'left' ? 0 : len - cab.width });
+  };
+  const side = cab.blind?.side ?? cab.corner!.side;
+  return (
+    <Section title={cab.corner ? 'Corner cabinet' : 'Blind corner'}>
+      <div className="grid3">
+        <Field label="Corner" htmlFor="cab-cside">
+          <select id="cab-cside" value={side} onChange={(e) => flip(e.target.value as 'left' | 'right')}>
+            <option value="left">Left end</option>
+            <option value="right">Right end</option>
+          </select>
+        </Field>
+        {cab.blind && (
+          <Field label="Blind width" htmlFor="cab-bw" hint="Corner end to door opening">
+            <LengthInput id="cab-bw" value={cab.blind.width} min={6} onChange={(v) => set({ blind: { ...cab.blind!, width: v! } })} />
+          </Field>
+        )}
+        {cab.corner && (
+          <Field label="Along other wall" htmlFor="cab-w2">
+            <LengthInput id="cab-w2" value={cab.corner.width2} min={cab.depth + 6} onChange={(v) => set({ corner: { ...cab.corner!, width2: v! } })} />
+          </Field>
+        )}
+        {cab.corner && !cab.corner.lazySusan && (
+          <Field label="Shelves" htmlFor="cab-csh">
+            <select id="cab-csh" value={cab.rows[0]?.shelves ?? 0} onChange={(e) => set({ rows: cab.rows.map((r, i) => (i === 0 ? { ...r, shelves: Number(e.target.value) } : r)) })}>
+              {[0, 1, 2, 3, 4].map((n) => <option key={n} value={n}>{n}</option>)}
+            </select>
+          </Field>
+        )}
+      </div>
+      {cab.corner && cab.kind === 'base' && (
+        <div className="checks">
+          <label><input id="cab-susan" type="checkbox" checked={cab.corner.lazySusan} onChange={(e) => set({ corner: { ...cab.corner!, lazySusan: e.target.checked } })} /> Lazy susan (no shelves)</label>
+        </div>
+      )}
+      <p className="hint">
+        {cab.blind
+          ? 'The cabinet on the other wall sits in front of the blind area. Set the blind width to that cabinet’s depth plus the blind stile, so its doors and pulls clear.'
+          : 'An L-shaped case with a face frame on each wall and a bifold pair of doors. Bottom, top and shelves are cut as rectangles with the front corner notched out.'}
+      </p>
+    </Section>
   );
 }

@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import type { Cabinet, Project, WallId } from './model/types';
 import { cabinetFromPreset, defaultSettings, presets, sampleProject, uid } from './model/defaults';
-import { nextFreeOffset } from './model/layout';
+import { findIssues, nextFreeOffset, wallLength } from './model/layout';
 import { defaultCutlist } from './model/cutlist';
 
 export type ViewMode = '3d' | 'plan' | `elev-${WallId}`;
@@ -92,8 +92,22 @@ export const useStore = create<State>((set, get) => ({
   addFromPreset: (presetId, wall) => {
     const preset = presets.find((p) => p.id === presetId)!;
     const { project } = get();
-    const offset = nextFreeOffset(project.room, project.cabinets, wall, preset.width, preset.elevation, preset.elevation + preset.height);
-    const cab = cabinetFromPreset(preset, wall, offset, project.cabinets);
+    let cab: Cabinet;
+    if (preset.group === 'corner') {
+      // Corner cabinets go in a corner: the left end of the wall if it's free, else the right
+      const left = cabinetFromPreset(preset, wall, 0, project.cabinets);
+      const fits = (c: Cabinet) => !findIssues(project.room, [...project.cabinets, c], project.settings).some((i) => i.cabinetId === c.id);
+      const len = wallLength(project.room, wall);
+      const right: Cabinet = {
+        ...left, offset: len - left.width,
+        ...(left.blind ? { blind: { ...left.blind, side: 'right' as const } } : {}),
+        ...(left.corner ? { corner: { ...left.corner, side: 'right' as const } } : {}),
+      };
+      cab = fits(left) || !fits(right) ? left : right;
+    } else {
+      const offset = nextFreeOffset(project.room, project.cabinets, wall, preset.width, preset.elevation, preset.elevation + preset.height, preset.depth);
+      cab = cabinetFromPreset(preset, wall, offset, project.cabinets);
+    }
     get().commit((p) => ({ ...p, cabinets: [...p.cabinets, cab] }));
     set({ selectedId: cab.id });
   },
@@ -107,7 +121,7 @@ export const useStore = create<State>((set, get) => ({
     const { project } = get();
     const src = project.cabinets.find((c) => c.id === id);
     if (!src) return;
-    const offset = nextFreeOffset(project.room, project.cabinets, src.wall, src.width, src.elevation, src.elevation + src.height);
+    const offset = nextFreeOffset(project.room, project.cabinets, src.wall, src.width, src.elevation, src.elevation + src.height, src.depth);
     const prefix = src.name.match(/^[A-Za-z]+/)?.[0] ?? 'C';
     let n = 1;
     while (project.cabinets.some((c) => c.name === `${prefix}${n}`)) n++;

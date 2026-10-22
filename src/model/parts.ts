@@ -1,8 +1,9 @@
 import type { Cabinet, Part, PanelMode, ShopSettings, VisualBox } from './types';
 import { drawerBoxSize, styleById, type DoorProfile } from './eagle';
+import { buildCornerParts } from './corner';
 import { fmt as fmtShort } from '../units';
 
-const vb = (x: number, y: number, z: number, sx: number, sy: number, sz: number, shade?: number): VisualBox => ({
+export const vb = (x: number, y: number, z: number, sx: number, sy: number, sz: number, shade?: number): VisualBox => ({
   min: [x, y, z], size: [sx, sy, sz], shade,
 });
 
@@ -49,7 +50,7 @@ function ring(x: number, y: number, w: number, h: number, width: number, depth: 
 }
 
 /** A door or drawer front, drawn close enough to its Eagle style to read correctly in elevation. */
-function frontBoxes(x: number, y: number, z: number, w: number, h: number, t: number, profile: DoorProfile, stile: number, raised: boolean): VisualBox[] {
+export function frontBoxes(x: number, y: number, z: number, w: number, h: number, t: number, profile: DoorProfile, stile: number, raised: boolean): VisualBox[] {
   if (profile === 'slab') return [vb(x, y, z, w, h, t)];
   const f = Math.min(stile, h * 0.3, w * 0.3);
   const ix = x + f, iy = y + f, iw = w - 2 * f, ih = h - 2 * f;
@@ -79,7 +80,7 @@ export interface EndInfo { left: boolean; right: boolean }
 
 /** The end panel actually used on one side: only exposed ends get one. */
 export function panelOn(c: Cabinet, s: ShopSettings, side: 'left' | 'right', exposed: boolean): PanelMode {
-  if (!exposed) return 'none';
+  if (!exposed || c.corner) return 'none';
   const choice = (side === 'left' ? c.leftPanel : c.rightPanel) ?? 'default';
   return choice === 'default' ? s.endPanel : choice;
 }
@@ -102,6 +103,7 @@ export function panelExtents(c: Cabinet, s: ShopSettings, ends: EndInfo) {
  * which is where the slim face frame overhang comes from.
  */
 export function buildParts(c: Cabinet, s: ShopSettings, ends: EndInfo = { left: false, right: false }): Part[] {
+  if (c.corner) return buildCornerParts(c, s);
   const parts: Part[] = [];
   const { width: W, height: H, depth: D } = c;
   const tn = s.boxThickness;
@@ -201,6 +203,16 @@ export function buildParts(c: Cabinet, s: ShopSettings, ends: EndInfo = { left: 
       note: 'Applied at install; run it continuous where cabinets butt',
       boxes: [vb(0, 0, D - s.toeKickDepth - s.toeKickSkin, W, kick, s.toeKickSkin)],
     });
+    // The skin wraps around exposed ends, tucked under the end panel
+    for (const [exposed, x] of [[ends.left, xi0 - ta - s.toeKickSkin], [ends.right, xi1 + ta]] as const) {
+      if (!exposed) continue;
+      const len = D - s.toeKickDepth - s.toeKickSkin;
+      parts.push({
+        name: 'Toe kick return', role: 'toekick', material: 'toeSkin', length: len, width: kick, thickness: s.toeKickSkin, cut: true,
+        note: 'Applied at install on the exposed end',
+        boxes: [vb(x, 0, 0, s.toeKickSkin, kick, len)],
+      });
+    }
   }
 
   // Face frame: glued and pocket screwed
@@ -209,6 +221,14 @@ export function buildParts(c: Cabinet, s: ShopSettings, ends: EndInfo = { left: 
   const ft = s.ffThickness;
   const sw = s.stileWidth;
   const railLen = FW - 2 * sw;
+  // Door openings. On a blind corner they start past the dead area and a wide blind stile.
+  const blind = c.blind;
+  const bs = s.blindStileWidth;
+  let ox0 = sL + sw;
+  let ox1 = W - sR - sw;
+  if (blind?.side === 'left') ox0 = Math.max(ox0, blind.width);
+  if (blind?.side === 'right') ox1 = Math.min(ox1, W - blind.width);
+  const cx = (ox0 + ox1) / 2;
   for (const [x, extra] of [[0, sL], [W - sw - sR, sR]]) {
     const scribed = extra > 0;
     parts.push({
@@ -231,8 +251,8 @@ export function buildParts(c: Cabinet, s: ShopSettings, ends: EndInfo = { left: 
   rows.forEach((r, i) => {
     if (i > 0) {
       parts.push({
-        name: 'Mid rail', role: 'rail', material: 'faceframe', length: railLen, width: s.midRailWidth, thickness: ft, cut: true,
-        boxes: [vb(sL + sw, r.y1, zF, railLen, s.midRailWidth, ft)],
+        name: 'Mid rail', role: 'rail', material: 'faceframe', length: ox1 - ox0, width: s.midRailWidth, thickness: ft, cut: true,
+        boxes: [vb(ox0, r.y1, zF, ox1 - ox0, s.midRailWidth, ft)],
       });
     }
   });
@@ -245,6 +265,15 @@ export function buildParts(c: Cabinet, s: ShopSettings, ends: EndInfo = { left: 
   const doorSpec = style.profile === 'slab'
     ? `Slab, ${material}`
     : `${style.name}, ${material}, ${fmtShort(doorStile)} stiles${raised ? ', raised panel' : ''}`;
+  if (blind) {
+    const openH = H - kick - s.topRailWidth - s.bottomRailWidth;
+    const bx = blind.side === 'left' ? ox0 - bs : ox1;
+    parts.push({
+      name: 'Blind stile', role: 'stile', material: 'faceframe', length: openH, width: bs, thickness: ft, cut: true,
+      note: `${fmtShort(blind.width)} from the ${blind.side} end to the door opening`,
+      boxes: [vb(bx, kick + s.bottomRailWidth, zF, bs, openH, ft)],
+    });
+  }
   const inset = s.doorMount === 'inset';
   const o = s.doorOverlay;
   const rev = s.insetReveal;
@@ -253,9 +282,6 @@ export function buildParts(c: Cabinet, s: ShopSettings, ends: EndInfo = { left: 
   const shareOv = (rail: number) => Math.min(o, (rail - gap) / 2);
   const dt = s.doorThickness;
   const zFront = inset ? D - dt : D;
-  const ox0 = sL + sw;
-  const ox1 = W - sR - sw;
-  const cx = (ox0 + ox1) / 2;
   const addFront = (name: string, role: 'door' | 'drawerFront', x: number, y: number, w: number, h: number, note?: string) => {
     // Short drawer fronts can't be built 5-piece; they go on the order as slabs.
     const tooShort = style.profile !== 'slab' && h < 2 * doorStile + 1.5;

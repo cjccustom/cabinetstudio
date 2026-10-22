@@ -1,7 +1,7 @@
 // Sanity checks on the cabinet model: run with `npm test`.
 import { buildParts, layoutRows, panelExtents, realOverhang } from "../src/model/parts";
-import { sampleProject, defaultSettings } from "../src/model/defaults";
-import { findIssues, gapBeside, resolveEnds } from "../src/model/layout";
+import { sampleProject, defaultSettings, presets, cabinetFromPreset } from "../src/model/defaults";
+import { findIssues, gapBeside, nextFreeOffset, resolveEnds } from "../src/model/layout";
 import { fmt, parseLength } from "../src/units";
 import { drawerBoxSize } from "../src/model/eagle";
 import { optimize } from "../src/model/optimizer";
@@ -136,6 +136,38 @@ eq('panel sticks out past frame', panelExtents(b21, s, { left: true, right: fals
   const withScribe = faceFrameNeeds(faceFramePieces({ ...proj, cabinets: [{ ...proj.cabinets[0], scribeLeft: 1.5, width: 19.5 }] }), defaultFaceFrameStock);
   eq('extended stile is its own width', withScribe.groups.map((g) => g.width).join(','), '1.5,3.5');
   console.log(`  face frames: ${pcs.length} pcs, ${ff.groups.map((g) => `${g.width}": ${(g.totalLength / 12).toFixed(1)} lf`).join(', ')}, ${ff.boards.length} boards, buy ${ff.buyBF.toFixed(1)} BF`);
+}
+
+// Corner cabinets
+{
+  const proj = normalize(sampleProject());
+  const room = { width: 144, depth: 144, height: 96 };
+  const lazy = cabinetFromPreset(presets.find((x) => x.id === 'base-lazy')!, 'back', 0, []);
+  const lp = buildParts(lazy, s);
+  eq('lazy susan has 2 bifold doors', lp.filter((x) => x.name === 'Door').length, 2);
+  eq('lazy susan bottom is notched', lp.find((x) => x.name === 'Bottom')!.note!.startsWith('L-shaped'), true);
+  eq('no shelves with a susan', lp.filter((x) => x.role === 'shelf').length, 0);
+  for (const part of lp) for (const bx of part.boxes) for (const v of bx.size) if (!(v > 0)) { failed++; console.log('bad corner box', part.name, bx.size); }
+  // Doors don't collide at the inside corner
+  const [da, db] = lp.filter((x) => x.name === 'Door').map((d) => d.boxes[0]);
+  const hit = da.min[0] < db.min[0] + db.size[0] && db.min[0] < da.min[0] + da.size[0] && da.min[2] < db.min[2] + db.size[2] && db.min[2] < da.min[2] + da.size[2];
+  eq('bifold doors clear each other', hit, false);
+  // A base on the left wall after the susan starts past the susan's leg
+  // Left-wall offsets run from the front corner, so the susan's leg takes 108..144 along that wall
+  const filler = { ...cabinetFromPreset(presets[0], 'left', 0, [lazy]), width: 90 };
+  const off = nextFreeOffset(room, [lazy, filler], 'left', 18, 0, 34.5, 24);
+  eq('next left-wall cabinet fits up against the corner leg', off, 90);
+  eq('nothing fits past the corner leg', nextFreeOffset(room, [lazy, filler], 'left', 24, 0, 34.5, 24) >= 108 - 1e-6 || nextFreeOffset(room, [lazy, filler], 'left', 24, 0, 34.5, 24) === 120, true);
+  const next = { ...cabinetFromPreset(presets[0], 'left', off, [lazy]), offset: off };
+  eq('cabinet butting the susan has a hidden end', resolveEnds(room, [lazy, next], next).right, false);
+  eq('no overlap with corner', findIssues(room, [lazy, next], s).length, 0);
+  // Blind corner: door opening starts past the blind width
+  const blind = cabinetFromPreset(presets.find((x) => x.id === 'base-blind')!, 'back', 0, []);
+  const bp = buildParts(blind, s);
+  eq('blind stile present', bp.some((x) => x.name === 'Blind stile'), true);
+  eq('blind door width', bp.find((x) => x.name === 'Door')!.width, 42 - 27 - 1.5 + 2 * s.doorOverlay);
+  eq('mid rail spans opening only', bp.find((x) => x.name === 'Mid rail')!.length, 42 - 27 - 1.5);
+  void proj;
 }
 
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');

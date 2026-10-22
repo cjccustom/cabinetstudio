@@ -40,7 +40,8 @@ export function footprint(room: Room, c: Cabinet, ext = { left: 0, right: 0 }): 
   const sin = Math.round(Math.sin(rotY));
   const l = -ext.left;
   const r = c.width + ext.right;
-  const pts: [number, number][] = [[l, 0], [r, 0], [l, c.depth], [r, c.depth]].map(([lx, lz]) => [
+  const d = c.corner ? Math.max(c.depth, c.corner.width2) : c.depth;
+  const pts: [number, number][] = [[l, 0], [r, 0], [l, d], [r, d]].map(([lx, lz]) => [
     pos[0] + lx * cos + lz * sin,
     pos[2] - lx * sin + lz * cos,
   ]);
@@ -67,6 +68,10 @@ export function findIssues(room: Room, cabinets: Cabinet[], s: ShopSettings): Is
   cabinets.forEach((c, i) => {
     const len = wallLength(room, c.wall);
     if (c.offset - exts[i].left < -EPS || c.offset + c.width + exts[i].right > len + EPS) issues.push({ cabinetId: c.id, message: `${c.name} runs past the end of the wall` });
+    if (c.corner) {
+      const f = fps[i];
+      if (f.x0 < -EPS || f.z0 < -EPS || f.x1 > room.width + EPS || f.z1 > room.depth + EPS) issues.push({ cabinetId: c.id, message: `${c.name} runs past the corner wall` });
+    }
     if (c.elevation + c.height > room.height + EPS) issues.push({ cabinetId: c.id, message: `${c.name} is taller than the ceiling` });
     for (let j = i + 1; j < cabinets.length; j++) {
       if (overlaps(fps[i], fps[j])) issues.push({ cabinetId: c.id, message: `${c.name} overlaps ${cabinets[j].name}` }, { cabinetId: cabinets[j].id, message: `${cabinets[j].name} overlaps ${c.name}`, echo: true });
@@ -75,12 +80,24 @@ export function findIssues(room: Room, cabinets: Cabinet[], s: ShopSettings): Is
   return issues;
 }
 
-/** First open spot on a wall for a new cabinet at the given height range. */
-export function nextFreeOffset(room: Room, cabinets: Cabinet[], wall: WallId, width: number, y0: number, y1: number): number {
+/**
+ * First open spot on a wall for a new cabinet. Counts cabinets on this wall plus any on the
+ * neighbouring walls that reach into the strip of floor the new cabinet would sit on (corners).
+ */
+export function nextFreeOffset(room: Room, cabinets: Cabinet[], wall: WallId, width: number, y0: number, y1: number, depth = 24): number {
   const len = wallLength(room, wall);
+  const band = (f: Footprint): [number, number] | null => {
+    // Distance from this wall, and position along it, for the footprint's corners
+    const pts = [[f.x0, f.z0], [f.x1, f.z0], [f.x0, f.z1], [f.x1, f.z1]];
+    const off = pts.map(([x, z]) => (wall === 'back' ? z : wall === 'front' ? room.depth - z : wall === 'left' ? x : room.width - x));
+    if (Math.min(...off) >= depth - EPS) return null;
+    const along = pts.map(([x, z]) => alongWall(room, wall, x, z));
+    return [Math.min(...along), Math.max(...along)];
+  };
   const taken = cabinets
-    .filter((c) => c.wall === wall && c.elevation < y1 && y0 < c.elevation + c.height)
-    .map((c) => [c.offset, c.offset + c.width] as const)
+    .filter((c) => c.elevation < y1 && y0 < c.elevation + c.height)
+    .map((c) => (c.wall === wall ? ([c.offset, c.offset + c.width] as [number, number]) : band(footprint(room, c))))
+    .filter((x): x is [number, number] => !!x)
     .sort((a, b) => a[0] - b[0]);
   let x = 0;
   for (const [a, b] of taken) {
@@ -116,19 +133,39 @@ export function snapOffset(room: Room, cabinets: Cabinet[], moving: Cabinet, raw
   return best;
 }
 
+/** Room coordinates of a point given in a cabinet's own coordinates. */
+function toRoom(room: Room, c: Cabinet, lx: number, lz: number): [number, number] {
+  const { pos, rotY } = wallTransform(room, c.wall, c.offset);
+  const cos = Math.round(Math.cos(rotY));
+  const sin = Math.round(Math.sin(rotY));
+  return [pos[0] + lx * cos + lz * sin, pos[2] - lx * sin + lz * cos];
+}
+
 /**
- * Which case sides show. A side is hidden when it butts a wall end or a neighbouring cabinet
- * that overlaps it in height; anything else is a finished end unless the cabinet says otherwise.
+ * Which case sides show. Looks just past each end: if that point is past a wall or inside
+ * another cabinet (on any wall, so corners count), the side is hidden; otherwise it's a
+ * finished end, unless the cabinet says otherwise.
  */
 export function resolveEnds(room: Room, cabinets: Cabinet[], c: Cabinet): { left: boolean; right: boolean } {
+  const probe = 0.0625;
   const tol = 0.125;
-  const len = wallLength(room, c.wall);
-  const neighbours = cabinets.filter(
-    (o) => o.id !== c.id && o.wall === c.wall && o.elevation < c.elevation + c.height && c.elevation < o.elevation + o.height,
-  );
-  const autoLeft = c.offset > tol && !neighbours.some((o) => Math.abs(o.offset + o.width - c.offset) <= tol);
-  const right = c.offset + c.width;
-  const autoRight = right < len - tol && !neighbours.some((o) => Math.abs(o.offset - right) <= tol);
+  const others = cabinets
+    .filter((o) => o.id !== c.id && o.elevation < c.elevation + c.height && c.elevation < o.elevation + o.height)
+    .map((o) => footprint(room, o));
+  const covered = ([x, z]: [number, number]) =>
+    x < 0 || z < 0 || x > room.width || z > room.depth ||
+    others.some((f) => x >= f.x0 - tol && x <= f.x1 + tol && z >= f.z0 - tol && z <= f.z1 + tol);
+  const D = c.depth;
+  let leftPt: [number, number] = [-probe, D / 2];
+  let rightPt: [number, number] = [c.width + probe, D / 2];
+  if (c.corner) {
+    // An L-corner's ends are the end of the leg on this wall and the end of the leg on the other wall
+    const legEnd: [number, number] = [c.corner.side === 'left' ? D / 2 : c.width - D / 2, c.corner.width2 + probe];
+    if (c.corner.side === 'left') leftPt = legEnd;
+    else rightPt = legEnd;
+  }
+  const autoLeft = !covered(toRoom(room, c, ...leftPt));
+  const autoRight = !covered(toRoom(room, c, ...rightPt));
   const pick = (mode: Cabinet['leftEnd'], auto: boolean) => (mode === 'exposed' ? true : mode === 'hidden' ? false : auto);
   return { left: pick(c.leftEnd, autoLeft), right: pick(c.rightEnd, autoRight) };
 }

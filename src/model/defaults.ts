@@ -20,6 +20,7 @@ export const defaultSettings: ShopSettings = {
   endPanelReveal: 0.25,
   endPanelThickness: 0.75,
   scribeAllowance: 0.5,
+  blindStileWidth: 3,
   stretcherWidth: 4,
   hangingRails: false,
   nailerWidth: 3,
@@ -61,6 +62,9 @@ export interface Preset {
   elevation: number;
   rows: () => FaceRow[];
   countertop?: boolean;
+  blind?: Cabinet['blind'];
+  corner?: Cabinet['corner'];
+  group?: 'corner';
 }
 
 export const presets: Preset[] = [
@@ -74,6 +78,14 @@ export const presets: Preset[] = [
     rows: () => [row('falseFront', 6), row('doors', null, 2, 0)] },
   { id: 'base-door', label: 'Base, full-height doors', kind: 'base', width: 24, height: 34.5, depth: 24, elevation: 0, countertop: true,
     rows: () => [row('doors', null, 2, 1)] },
+  { id: 'base-blind', label: 'Blind corner base', kind: 'base', width: 42, height: 34.5, depth: 24, elevation: 0, countertop: true, group: 'corner',
+    blind: { side: 'left', width: 27 }, rows: () => [row('drawer', 6), row('doors', null, 1, 1)] },
+  { id: 'base-lazy', label: 'Lazy susan corner base', kind: 'base', width: 36, height: 34.5, depth: 24, elevation: 0, countertop: true, group: 'corner',
+    corner: { side: 'left', width2: 36, lazySusan: true }, rows: () => [row('doors', null, 1, 0)] },
+  { id: 'wall-blind', label: 'Blind corner wall', kind: 'wall', width: 36, height: 30, depth: 12, elevation: 54, group: 'corner',
+    blind: { side: 'left', width: 15 }, rows: () => [row('doors', null, 1, 2)] },
+  { id: 'wall-corner', label: 'Corner wall, bifold doors', kind: 'wall', width: 24, height: 30, depth: 12, elevation: 54, group: 'corner',
+    corner: { side: 'left', width2: 24, lazySusan: false }, rows: () => [row('doors', null, 1, 2)] },
   { id: 'wall-1', label: 'Wall, 1 door', kind: 'wall', width: 18, height: 30, depth: 12, elevation: 54,
     rows: () => [row('doors', null, 1, 2)] },
   { id: 'wall-2', label: 'Wall, 2 doors', kind: 'wall', width: 30, height: 30, depth: 12, elevation: 54,
@@ -110,6 +122,8 @@ export function cabinetFromPreset(preset: Preset, wall: WallId, offset: number, 
     rows: preset.rows(),
     centerStile: false,
     countertop: !!preset.countertop,
+    ...(preset.blind ? { blind: { ...preset.blind } } : {}),
+    ...(preset.corner ? { corner: { ...preset.corner } } : {}),
   };
 }
 

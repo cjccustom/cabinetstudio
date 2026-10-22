@@ -35,9 +35,10 @@ function Library() {
   const add = useStore((s) => s.addFromPreset);
   const [wall, setWall] = useState<WallId>(view.startsWith('elev-') ? (view.slice(5) as WallId) : 'back');
   const groups = [
-    { kind: 'base', title: 'Base' },
-    { kind: 'wall', title: 'Wall' },
-    { kind: 'tall', title: 'Tall' },
+    { kind: 'base', title: 'Base', corner: false },
+    { kind: 'wall', title: 'Wall', corner: false },
+    { kind: 'tall', title: 'Tall', corner: false },
+    { kind: 'corner', title: 'Corners', corner: true },
   ] as const;
   return (
     <div>
@@ -46,11 +47,11 @@ function Library() {
           {wallOrder.map((w) => <option key={w} value={w}>{wallNames[w]}</option>)}
         </select>
       </Field>
-      <p className="hint">New cabinets go in the first open spot on that wall. Fine-tune sizes after you place them.</p>
+      <p className="hint">New cabinets go in the first open spot on that wall. Corner cabinets go in whichever corner of it is free.</p>
       {groups.map((g) => (
         <Section key={g.kind} title={g.title}>
           <div className="lib">
-            {presets.filter((p) => p.kind === g.kind).map((p) => (
+            {presets.filter((p) => (g.corner ? p.group === 'corner' : p.kind === g.kind && !p.group)).map((p) => (
               <button key={p.id} className="lib-item" onClick={() => add(p.id, wall)}>
                 <PresetGlyph rows={p.rows().map((r) => ({ type: r.type, doors: r.doors, h: r.height }))} w={p.width} h={p.height} kind={p.kind} />
                 <span className="lib-text">
