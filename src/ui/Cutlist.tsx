@@ -241,6 +241,7 @@ export function CutlistSummary() {
   const [filter, setFilter] = useState('');
   const banded = optimizerParts(project, data).reduce((s, p) => s + p.band * p.length, 0);
   const cost = results.reduce((s, m) => s + m.sheets.reduce((t, sh) => t + sh.stock.price, 0), 0);
+  const tax = project.settings.purchaseTax;
   const shown = parts.filter((p) => !filter || p.label.toLowerCase().includes(filter.toLowerCase()));
 
   return (
@@ -256,7 +257,9 @@ export function CutlistSummary() {
                   <td className="num">{m.sheets.some((s) => s.stock.price) ? `$${m.sheets.reduce((t, sh) => t + sh.stock.price, 0).toFixed(2)}` : '—'}</td>
                 </tr>
               ))}
-              {cost > 0 && <tr className="sum"><td>Sheet goods</td><td /><td className="num">${cost.toFixed(2)}</td></tr>}
+              {cost > 0 && <tr><td>Sheet goods</td><td /><td className="num">${cost.toFixed(2)}</td></tr>}
+              {cost > 0 && tax > 0 && <tr><td>Sales tax {+(tax * 100).toFixed(3)}%</td><td /><td className="num">${(cost * tax).toFixed(2)}</td></tr>}
+              {cost > 0 && <tr className="sum"><td>Your cost</td><td /><td className="num">${(cost * (1 + tax)).toFixed(2)}</td></tr>}
             </tbody>
           </table>
           {banded > 0 && <p className="hint">Edge banding: {(banded / 12).toFixed(1)} lin ft (shelf fronts{data.extra.some((e) => e.band) ? ' and extra parts' : ''}).</p>}

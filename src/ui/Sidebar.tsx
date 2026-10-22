@@ -279,6 +279,15 @@ function ShopPanel() {
         <p className="hint">End panels are ordered from Eagle in the door style and applied to the case side. Each cabinet can override this per end.</p>
       </Section>
 
+      <Section title="Purchasing">
+        <div className="grid2">
+          <Field label="Sales tax you pay on materials %" htmlFor="shop-ptax">
+            <input id="shop-ptax" inputMode="decimal" value={+(settings.purchaseTax * 100).toFixed(3)} onChange={(e) => set({ purchaseTax: (parseFloat(e.target.value) || 0) / 100 })} />
+          </Field>
+        </div>
+        <p className="hint">Added to every material cost. Customers aren’t charged sales tax.</p>
+      </Section>
+
       <Section title="Mouldings (Anderson & McQuaid)">
         <div className="grid2">
           <Field label="Species" htmlFor="shop-mspecies">

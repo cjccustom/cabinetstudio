@@ -144,6 +144,8 @@ export interface ShopSettings {
   moldSpecies: string;
   /** Extra moulding for miters and defects. 0.15 = 15%. */
   moldWaste: number;
+  /** Sales tax the shop pays on materials it buys (customers aren't charged tax). 0.0625 = 6.25%. */
+  purchaseTax: number;
   counterThickness: number;
   counterOverhang: number;
   shelfSetback: number;

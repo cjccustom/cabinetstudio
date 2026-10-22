@@ -21,7 +21,7 @@ export interface ExtraPart {
 export interface CutlistData {
   stock: Stock[];
   extra: ExtraPart[];
-  options: OptimizerOptions & { bandShelves: boolean; /** Sales tax on sheet goods, if ever charged; the shop is exempt. 0.0625 = 6.25%. */ taxRate: number };
+  options: OptimizerOptions & { bandShelves: boolean; /** Unused; tax on purchases is the shop-wide purchaseTax setting. */ taxRate: number };
   /** Grain lock overrides for design parts, by part id. */
   grain: Record<string, boolean>;
   /** Design parts left out of the optimizer, by part id. */
@@ -42,7 +42,7 @@ export const sheetMaterial = (key: MaterialKey, p: Project): string | null => {
   return null;
 };
 
-/** Shop's current price per sheet (imported prefinished birch, Oct 2026). */
+/** Shop's current price per sheet before tax (imported prefinished birch, Oct 2026). */
 export const sheetPrice = (material: string) => (material.startsWith('3/4"') ? 86.4 : material.startsWith('1/2"') ? 74.91 : 0);
 
 export function defaultCutlist(p: Project): CutlistData {

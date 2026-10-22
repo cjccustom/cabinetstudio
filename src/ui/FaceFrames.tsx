@@ -169,6 +169,7 @@ function FFRow({ g, open, toggle }: { g: FaceFrameResult['groups'][number]; open
 export function FaceFrameSummary() {
   const { result: r, stock: s, jobName, wood } = useFF();
   const woodBF = wood.reduce((t, g) => t + g.buyBF, 0);
+  const tax = useStore((st) => st.project.settings.purchaseTax);
   const [copied, setCopied] = useState('');
   const text = [
     `Face frame stock: ${jobName}`,
@@ -191,7 +192,8 @@ export function FaceFrameSummary() {
               <tr><td>Finished face frames</td><td className="num">{r.netBF.toFixed(1)} BF</td></tr>
               <tr><td>Rough boards ({r.boards.length})</td><td className="num">{r.roughBF.toFixed(1)} BF</td></tr>
               <tr><td>Plus {Math.round(s.waste * 100)}% defect waste</td><td className="num">{r.buyBF.toFixed(1)} BF</td></tr>
-              {s.pricePerBF > 0 && <tr className="sum"><td>At ${s.pricePerBF.toFixed(2)}/BF</td><td className="num">${((r.buyBF + woodBF) * s.pricePerBF).toFixed(2)}</td></tr>}
+              {s.pricePerBF > 0 && <tr><td>At ${s.pricePerBF.toFixed(2)}/BF</td><td className="num">${((r.buyBF + woodBF) * s.pricePerBF).toFixed(2)}</td></tr>}
+              {s.pricePerBF > 0 && tax > 0 && <tr className="sum"><td>With {+(tax * 100).toFixed(3)}% sales tax</td><td className="num">${((r.buyBF + woodBF) * s.pricePerBF * (1 + tax)).toFixed(2)}</td></tr>}
             </tbody>
           </table>
           {!s.pricePerBF && <p className="hint">Enter your price per board foot to see the cost. It will feed the quote.</p>}

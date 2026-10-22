@@ -10,6 +10,7 @@ export function MoldingOrder() {
   const lines = useMemo(() => moldingOrder(project), [project]);
   if (!lines.length) return null;
   const total = lines.reduce((t, l) => t + l.cost, 0);
+  const tax = project.settings.purchaseTax;
   return (
     <div className="pgroup" style={{ marginTop: 18 }}>
       <div className="pgroup-head">
@@ -28,7 +29,8 @@ export function MoldingOrder() {
               <td className="num">{l.price != null ? `$${l.cost.toFixed(2)}` : '—'}</td>
             </tr>
           ))}
-          <tr className="sum"><td /><td>Total</td><td /><td /><td className="num">${total.toFixed(2)}</td></tr>
+          <tr><td /><td>Subtotal</td><td /><td /><td className="num">${total.toFixed(2)}</td></tr>
+          {tax > 0 && <tr className="sum"><td /><td>With {+(tax * 100).toFixed(3)}% sales tax</td><td /><td /><td className="num">${(total * (1 + tax)).toFixed(2)}</td></tr>}
         </tbody>
       </table>
       <p className="hint">Prices from andersonmcquaid.com/price-list as of Oct 22, 2026. They change without notice.</p>

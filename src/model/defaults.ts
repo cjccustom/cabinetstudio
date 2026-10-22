@@ -24,6 +24,7 @@ export const defaultSettings: ShopSettings = {
   woodSpecies: 'Hard maple',
   moldSpecies: 'Maple',
   moldWaste: 0.15,
+  purchaseTax: 0.0625,
   stretcherWidth: 4,
   hangingRails: false,
   nailerWidth: 3,

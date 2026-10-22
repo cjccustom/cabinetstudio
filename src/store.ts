@@ -32,7 +32,7 @@ export function normalize(p: Project): Project {
   const base = defaultCutlist(out);
   const cl = p.cutlist;
   out.cutlist = cl
-    ? { ...base, ...cl, options: { ...base.options, ...cl.options, taxRate: 0 }, stock: cl.stock.map((st) => (st.price ? st : { ...st, price: sheetPrice(st.material) })) }
+    ? { ...base, ...cl, options: { ...base.options, ...cl.options }, stock: cl.stock.map((st) => (st.price ? st : { ...st, price: sheetPrice(st.material) })) }
     : base;
   return out;
 }
