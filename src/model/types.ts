@@ -119,6 +119,7 @@ export interface Project {
   finishes: Finishes;
   cabinets: Cabinet[];
   cutlist?: import('./cutlist').CutlistData;
+  faceFrame?: Partial<import('./faceframe').FaceFrameStock>;
 }
 
 export type MaterialKey = 'box' | 'back' | 'toeSkin' | 'faceframe' | 'door' | 'drawerBox' | 'counter';

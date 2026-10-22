@@ -7,6 +7,7 @@ import { OrderList, PartsTable } from './ui/PartsTable';
 import { ProjectDialog } from './ui/ProjectDialog';
 import { DrawerCalculator } from './ui/DrawerCalculator';
 import { CutlistInputs, CutlistLayouts, CutlistSummary } from './ui/Cutlist';
+import { FaceFrameBreakdown, FaceFrameInputs, FaceFrameSummary } from './ui/FaceFrames';
 import { findIssues, wallNames, wallOrder } from './model/layout';
 import { sampleProject } from './model/defaults';
 
@@ -48,7 +49,8 @@ export default function App() {
         </div>
         <div className="seg mode" role="tablist" aria-label="Workspace">
           <button role="tab" aria-selected={mode === 'design'} className={mode === 'design' ? 'on' : ''} onClick={() => setMode('design')}>Design</button>
-          <button role="tab" aria-selected={mode === 'cutlist'} className={mode === 'cutlist' ? 'on' : ''} onClick={() => setMode('cutlist')}>Cutlist</button>
+          <button role="tab" aria-selected={mode === 'cutlist'} className={mode === 'cutlist' ? 'on' : ''} onClick={() => setMode('cutlist')}>Sheet cutlist</button>
+          <button role="tab" aria-selected={mode === 'faceframe'} className={mode === 'faceframe' ? 'on' : ''} onClick={() => setMode('faceframe')}>Face frame stock</button>
         </div>
         {mode === 'design' && <div className="seg views" role="tablist" aria-label="View">
           {views.map((v, i) => (
@@ -70,6 +72,12 @@ export default function App() {
           <CutlistInputs />
           <CutlistLayouts />
           <CutlistSummary />
+        </>
+      ) : mode === 'faceframe' ? (
+        <>
+          <FaceFrameInputs />
+          <FaceFrameBreakdown />
+          <FaceFrameSummary />
         </>
       ) : (
       <>

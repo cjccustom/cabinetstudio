@@ -245,3 +245,14 @@ td.spec { font-size: 11.5px; }
 tr.skipped td { opacity: 0.45; }
 .pad { padding: 20px; }
 .part-legend { columns: 1 !important; }
+.ff-table td, .ff-table th { padding: 6px 8px; }
+.ff-table .sum td { font-weight: 600; border-top: 1px solid var(--line); }
+.ff-detail > td { background: var(--sunk); padding: 6px 12px 10px; }
+.big-stat { font: 500 15px/1.2 var(--font-ui); margin-bottom: 8px; }
+.big-stat .mono { font-size: 30px; font-weight: 500; margin-right: 4px; }
+.boards { display: flex; flex-direction: column; gap: 5px; max-width: 640px; }
+.board { display: grid; grid-template-columns: 26px 1fr; gap: 8px; align-items: center; }
+.board-n { font: 500 11px var(--font-mono); color: var(--muted); text-align: right; }
+.board-bar { display: flex; height: 22px; border: 1px solid var(--line); border-radius: 3px; overflow: hidden; background: var(--sunk); gap: 1px; }
+.board-edge { background: var(--line); }
+.board-strip { background: var(--accent-soft); color: var(--fg); font: 500 10.5px/22px var(--font-mono); text-align: center; overflow: hidden; white-space: nowrap; min-width: 0; }

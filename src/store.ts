@@ -33,8 +33,8 @@ interface State {
   project: Project;
   selectedId: string | null;
   view: ViewMode;
-  mode: 'design' | 'cutlist';
-  setMode: (m: 'design' | 'cutlist') => void;
+  mode: 'design' | 'cutlist' | 'faceframe';
+  setMode: (m: 'design' | 'cutlist' | 'faceframe') => void;
   dragging: boolean;
   past: Project[];
   future: Project[];

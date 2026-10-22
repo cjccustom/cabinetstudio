@@ -5,6 +5,7 @@ import { findIssues, gapBeside, resolveEnds } from "../src/model/layout";
 import { fmt, parseLength } from "../src/units";
 import { drawerBoxSize } from "../src/model/eagle";
 import { optimize } from "../src/model/optimizer";
+import { defaultFaceFrameStock, faceFrameNeeds, faceFramePieces } from "../src/model/faceframe";
 import { optimizerParts } from "../src/model/cutlist";
 import { normalize } from "../src/store";
 
@@ -122,6 +123,19 @@ eq('panel sticks out past frame', panelExtents(b21, s, { left: true, right: fals
     const total = m.sheets.reduce((s2, sh) => s2 + sh.stock.length * sh.stock.width, 0);
     console.log(`  ${m.material}: ${m.sheets.length} sheets, ${Math.round((100 * used) / total)}% yield, ${m.sheets.reduce((s2, sh) => s2 + sh.cuts.length, 0)} cuts`);
   }
+}
+
+// Face frame stock: grouped by finished width, strips never longer than a board
+{
+  const proj = normalize(sampleProject());
+  const pcs = faceFramePieces(proj);
+  const ff = faceFrameNeeds(pcs, defaultFaceFrameStock);
+  eq('every piece counted once', ff.groups.reduce((t, g) => t + g.count, 0), pcs.length);
+  eq('1 1/2" is the main width', ff.groups[0].width, 1.5);
+  for (const g of ff.groups) for (const st of g.strips) if (st.used > 96 - 4 + 1e-6) { failed++; console.log('strip too long', st.used); }
+  const withScribe = faceFrameNeeds(faceFramePieces({ ...proj, cabinets: [{ ...proj.cabinets[0], scribeLeft: 1.5, width: 19.5 }] }), defaultFaceFrameStock);
+  eq('extended stile is its own width', withScribe.groups.map((g) => g.width).join(','), '1.5,3.5');
+  console.log(`  face frames: ${pcs.length} pcs, ${ff.groups.map((g) => `${g.width}": ${(g.totalLength / 12).toFixed(1)} lf`).join(', ')}, ${ff.boards.length} boards, buy ${ff.buyBF.toFixed(1)} BF`);
 }
 
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');
