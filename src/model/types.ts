@@ -116,6 +116,8 @@ export interface ShopSettings {
   doorMaterial: string;
   doorStile: number;
   doorPanel: 'flat' | 'raised';
+  /** Eagle hinge cup boring code. */
+  hingeBoring: import('./eagle').HingeBoring;
   drawerFronts: 'match' | 'slab';
   doorThickness: number;
   doorMount: 'overlay' | 'inset';
@@ -204,7 +206,7 @@ export interface Part {
   /** false for anything not cut in the shop (bought doors, drawer boxes, countertops). */
   cut: boolean;
   /** Ordered from Eagle. Sizes are finished W × H (× D for drawer boxes). */
-  order?: { item: 'door' | 'drawerFront' | 'drawerBox' | 'endPanel'; w: number; h: number; d?: number; spec: string };
+  order?: { item: 'door' | 'drawerFront' | 'drawerBox' | 'endPanel'; w: number; h: number; d?: number; spec: string; /** 5-piece rail and stile widths; absent on slabs. */ rail?: number; stile?: number };
   /** Geometry in cabinet-local inches: x = left→right, y = up, z = wall→front. */
   boxes: VisualBox[];
 }

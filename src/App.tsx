@@ -5,6 +5,7 @@ import { Sidebar } from './ui/Sidebar';
 import { Inspector } from './ui/Inspector';
 import { OrderList, PartsTable } from './ui/PartsTable';
 import { ReleasePanel } from './ui/Release';
+import { EagleRequests } from './ui/EagleRequests';
 import { ProjectDialog } from './ui/ProjectDialog';
 import { DrawerCalculator } from './ui/DrawerCalculator';
 import { PanelInspector } from './ui/PanelInspector';
@@ -138,6 +139,7 @@ export default function App() {
               <p><button onClick={() => setDialog('drawer')}>Drawer box calculator…</button></p>
               <ReleasePanel />
               <OrderList cabinets={project.cabinets} />
+              <EagleRequests />
               <BeadboardOrder />
               <MoldingOrder />
             </div>

@@ -13,6 +13,7 @@ import { priceQuote, scopeLine } from "../src/model/quote";
 import { optimizerParts } from "../src/model/cutlist";
 import { normalize } from "../src/store";
 import { fieldChecks, releaseStatus } from "../src/model/release";
+import { eagleFraction, eagleRequests, requestText } from "../src/model/eagleRequest";
 
 let failed = 0;
 const eq = (label: string, got: unknown, want: unknown) => {
@@ -49,7 +50,7 @@ eq('bottom top below rail', bot.min[1] + bot.size[1], 4 + 1.5 - 0.0625);
 const side = p21.find((x) => x.role === 'side')!.boxes[0];
 eq('left side outer face', side.min[0], 0.0625);
 const box = p21.find((x) => x.name === 'Drawer box')!;
-eq('drawer box width (5/8 sides, Tandem)', box.order!.w, 18 - 0.375);
+eq('drawer box width (1/2 sides, Tandem)', box.order!.w, 18 - 0.625);
 eq('drawer box height', box.order!.h, 6 - 0.8125);
 eq('drawer box depth', box.order!.d, 21);
 eq('1/2" sides width', drawerBoxSize({ openingW: 18, openingH: 6, depth: 24, side: 0.5, slideId: 'tandem', rearClearance: 0.5 }).w, 17.375);
@@ -268,6 +269,29 @@ eq('panel sticks out past frame', panelExtents(b21, s, { left: true, right: fals
   eq('marked OK clears it', releaseStatus({ ...job, release: { depositDate: '2026-10-22', measured: off, accepted: { 'wall:back': true } } }).ready, true);
   eq('1/16" off is within tolerance', releaseStatus({ ...job, release: { depositDate: '2026-10-22', measured: { ...measured, 'wall:back': measured['wall:back'] + 0.0625 } } }).ready, true);
   console.log('  field checks:', checks.map((c) => `${c.label} ${fmt(c.design)}`).join('; '));
+}
+
+// Eagle quote requests, laid out like Eagle's own confirmation emails
+{
+  const job = normalize(sampleProject());
+  const reqs = eagleRequests(job);
+  eq('three requests: doors, fronts, boxes', reqs.map((r) => r.kind).join(), 'doors,fronts,boxes');
+  const cfg = Object.fromEntries(reqs[0].config);
+  eq('door construction', cfg['Construction Type'], '5-Piece Doors (Wood only)');
+  eq('door wood', cfg['Wood Type'], 'Maple - Paint Grade');
+  eq('rail and stile', cfg['Rail and Stile Width'], '2-1/4"');
+  eq('framing bead', cfg['Framing Bead'], '5pc - C (Hartford)');
+  eq('hinge holes', cfg['Hinge Holes'], 'A-03 (cup only 3mm tab (1/8"))');
+  eq('end panels go on the door request as Panel', reqs[0].lines.some((l) => l[1] === 'Panel'), true);
+  eq('fronts have no hinge holes', Object.fromEntries(reqs[1].config)['Hinge Holes'], 'None');
+  eq('box columns', reqs[2].columns.slice(1, 5).join(), 'Qty,Height,Width,Depth');
+  eq('box material', Object.fromEntries(reqs[2].config)['Drawer material'], '1/2 maple');
+  eq('fractions Eagle style', [eagleFraction(2.25), eagleFraction(0.75), eagleFraction(1.5)].join(' '), '2-1/4" 3/4" 1-1/2"');
+  eq('nothing to check on a Hartford job', reqs.flatMap((r) => r.check).join(), '');
+  // Short fronts get 1 1/2" rails like Eagle's 4 3/4" fronts
+  const short = { ...job, cabinets: job.cabinets.map((c) => (c.name === 'B3' ? { ...c, rows: [{ type: 'drawer' as const, height: 3.5, doors: 1 as const, shelves: 0 }, ...c.rows.slice(1)] } : c)) };
+  eq('short front rails', eagleRequests(short)[1].lines.some((l) => l[5] === '1-1/2"'), true);
+  console.log(requestText(job.name, reqs[1]).split('\n').slice(0, 14).join('\n'));
 }
 
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');

@@ -41,6 +41,45 @@ export const doorStyles: DoorStyle[] = [
   { id: 'slab', name: 'Slab', line: 'Any', profile: 'slab', stile: 0, detail: 'Flat one-piece door.' },
 ];
 
+/** Drawer fronts shorter than this get narrow rails (Eagle used 1 1/2" rails on 5 13/16" fronts, full rails on 7 1/8"). */
+export const narrowRailBelow = 6.5;
+export const narrowRail = 1.5;
+
+/**
+ * Eagle's framing bead letters for 5-piece wood doors. C, D and G are from CJC's orders; the rest
+ * follow the order Eagle lists the styles in and should be checked against the quote form.
+ */
+export const framingBead: Record<string, { letter: string; confirmed: boolean }> = {
+  boston: { letter: 'A', confirmed: false },
+  providence: { letter: 'B', confirmed: false },
+  hartford: { letter: 'C', confirmed: true },
+  portsmouth: { letter: 'D', confirmed: true },
+  nantucket: { letter: 'E', confirmed: false },
+  manchester: { letter: 'F', confirmed: false },
+  newport: { letter: 'G', confirmed: true },
+  portland: { letter: 'H', confirmed: false },
+  cambridge: { letter: 'I', confirmed: false },
+};
+
+/** Hinge cup boring on Eagle's quote form. */
+export const hingeBorings = {
+  'A-03': 'A-03 (cup only 3mm tab (1/8"))',
+  'A-05': 'A-05 (cup only 5mm tab (3/16"))',
+} as const;
+export type HingeBoring = keyof typeof hingeBorings;
+
+/** Wood type names as Eagle's form spells them. */
+export const eagleWood: Record<string, string> = {
+  'Paint-grade maple': 'Maple - Paint Grade',
+  'Natural maple': 'Maple',
+  'White oak': 'White Oak',
+  Birch: 'Birch',
+  Cherry: 'Cherry',
+  'Red oak': 'Red Oak',
+  Walnut: 'Walnut',
+  MDF: 'MDF',
+};
+
 /** Eagle's standard rail/stile widths. Rail/stile widths include any framing bead. */
 export const stileWidths = [1.5, 1.75, 2.25, 2.5, 3, 3.25];
 

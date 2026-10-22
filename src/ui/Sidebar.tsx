@@ -6,7 +6,7 @@ import { amSpecies } from '../model/moldings';
 import { wallNames, wallOrder } from '../model/layout';
 import type { PanelMode, ShopSettings, WallId } from '../model/types';
 import { fmt } from '../units';
-import { doorMaterials, doorStyles, panelLabel, sideThicknesses, slides, stileWidths, styleById } from '../model/eagle';
+import { doorMaterials, doorStyles, hingeBorings, panelLabel, sideThicknesses, slides, stileWidths, styleById, type HingeBoring } from '../model/eagle';
 import { realOverhang } from '../model/parts';
 import { Field, LengthInput, Section } from './fields';
 
@@ -216,6 +216,11 @@ function ShopPanel() {
               </select>
             </Field>
           )}
+          <Field label="Hinge boring (Eagle)" htmlFor="door-hinge">
+            <select id="door-hinge" value={settings.hingeBoring} onChange={(e) => set({ hingeBoring: e.target.value as HingeBoring })}>
+              {(Object.keys(hingeBorings) as HingeBoring[]).map((k) => <option key={k} value={k}>{hingeBorings[k]}</option>)}
+            </select>
+          </Field>
           <Field label="Drawer fronts" htmlFor="door-dfront">
             <select id="door-dfront" value={settings.drawerFronts} onChange={(e) => set({ drawerFronts: e.target.value as 'match' | 'slab' })}>
               <option value="match">Match doors</option>

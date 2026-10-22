@@ -295,3 +295,10 @@ tr.missing td { color: var(--warn); }
 .release tr.check-off td:first-child { color: var(--warn); }
 .release .accept { white-space: nowrap; font-size: 12px; }
 .locked-note { color: var(--muted); font-size: 12px; }
+
+.eagle-requests { margin-top: 18px; }
+.eagle-requests h4 { margin: 0 0 4px; }
+.eagle-config { display: grid; grid-template-columns: max-content 1fr; gap: 2px 10px; margin: 4px 0 8px; font-size: 12px; }
+.eagle-config > div { display: contents; }
+.eagle-config dt { font-weight: 600; }
+.eagle-config dd { margin: 0; }

@@ -1,5 +1,5 @@
 import type { Cabinet, Part, PanelMode, ShopSettings, VisualBox } from './types';
-import { drawerBoxSize, styleById, type DoorProfile } from './eagle';
+import { drawerBoxSize, narrowRail, narrowRailBelow, styleById, type DoorProfile } from './eagle';
 import { buildCornerParts } from './corner';
 import { fmt as fmtShort, fmt } from '../units';
 
@@ -292,14 +292,16 @@ export function buildParts(c: Cabinet, s: ShopSettings, ends: EndInfo = { left: 
   const zFront = inset ? D - dt : D;
   const addFront = (name: string, role: 'door' | 'drawerFront', x: number, y: number, w: number, h: number, note?: string) => {
     // Short drawer fronts can't be built 5-piece; they go on the order as slabs.
-    const tooShort = style.profile !== 'slab' && h < 2 * doorStile + 1.5;
+    // Eagle drops short drawer fronts to 1 1/2" rails.
+    const rail = role === 'drawerFront' && h < narrowRailBelow ? Math.min(narrowRail, doorStile) : doorStile;
+    const tooShort = style.profile !== 'slab' && h < 2 * rail + 1.5;
     const slab = role === 'drawerFront' && (s.drawerFronts === 'slab' || tooShort);
     const profile: DoorProfile = slab ? 'slab' : style.profile;
     const spec = (slab ? `Slab, ${material}` : doorSpec) + (inset ? ', inset' : '');
     parts.push({
       name, role, material: 'door', length: h, width: w, thickness: dt, cut: false, note,
-      order: { item: role, w, h, spec },
-      boxes: frontBoxes(x, y, zFront, w, h, dt, profile, doorStile, raised),
+      order: { item: role, w, h, spec, ...(profile === 'slab' ? {} : { rail, stile: doorStile }) },
+      boxes: frontBoxes(x, y, zFront, w, h, dt, profile, Math.min(rail, doorStile), raised),
     });
   };
   c.rows.forEach((row, i) => {
@@ -386,7 +388,7 @@ export function buildParts(c: Cabinet, s: ShopSettings, ends: EndInfo = { left: 
     parts.push({
       name: 'End panel', role: 'endPanel', material: 'door', length: ph, width: depth, thickness: pt, cut: false,
       note: `${side === 'left' ? 'Left' : 'Right'}, ${label}, ${fmtShort(py0)} off cabinet bottom`,
-      order: { item: 'endPanel', w: depth, h: ph, spec: `${doorSpec}, end panel` },
+      order: { item: 'endPanel', w: depth, h: ph, spec: `${doorSpec}, end panel`, ...(style.profile === 'slab' ? {} : { rail: doorStile, stile: doorStile }) },
       boxes,
     });
   }
