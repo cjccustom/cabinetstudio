@@ -46,9 +46,6 @@ export function CutlistInputs() {
             <Field label="Blade kerf" htmlFor="co-kerf"><LengthInput id="co-kerf" value={o.kerf} onChange={(v) => setOpt({ kerf: v! })} /></Field>
             <Field label="Edge trim" htmlFor="co-trim"><LengthInput id="co-trim" value={o.trim} onChange={(v) => setOpt({ trim: v! })} /></Field>
             <Field label="Keep offcuts over" htmlFor="co-min"><LengthInput id="co-min" value={o.minOffcut} onChange={(v) => setOpt({ minOffcut: v! })} /></Field>
-            <Field label="Sales tax %" htmlFor="co-tax">
-              <input id="co-tax" inputMode="decimal" value={+(o.taxRate * 100).toFixed(3)} onChange={(e) => setOpt({ taxRate: (parseFloat(e.target.value) || 0) / 100 })} />
-            </Field>
           </div>
           <div className="checks">
             <label><input id="co-grain" type="checkbox" checked={o.considerGrain} onChange={(e) => setOpt({ considerGrain: e.target.checked })} /> Respect grain direction</label>
@@ -259,9 +256,7 @@ export function CutlistSummary() {
                   <td className="num">{m.sheets.some((s) => s.stock.price) ? `$${m.sheets.reduce((t, sh) => t + sh.stock.price, 0).toFixed(2)}` : '—'}</td>
                 </tr>
               ))}
-              {cost > 0 && <tr><td>Sheet goods</td><td /><td className="num">${cost.toFixed(2)}</td></tr>}
-              {cost > 0 && data.options.taxRate > 0 && <tr><td>Tax {+(data.options.taxRate * 100).toFixed(3)}%</td><td /><td className="num">${(cost * data.options.taxRate).toFixed(2)}</td></tr>}
-              {cost > 0 && <tr className="sum"><td>With tax</td><td /><td className="num">${(cost * (1 + data.options.taxRate)).toFixed(2)}</td></tr>}
+              {cost > 0 && <tr className="sum"><td>Sheet goods</td><td /><td className="num">${cost.toFixed(2)}</td></tr>}
             </tbody>
           </table>
           {banded > 0 && <p className="hint">Edge banding: {(banded / 12).toFixed(1)} lin ft (shelf fronts{data.extra.some((e) => e.band) ? ' and extra parts' : ''}).</p>}
