@@ -64,7 +64,7 @@ export function hardwareOrder(p: Project): HardwareOrder {
         const clip = inset ? 'T51.1901.PS' : 'T51.1901';
         add(byPart(`${clip} L`), 1, c.name, 'slides', `${clip} L locking device missing from the price list`);
         add(byPart(`${clip} R`), 1, c.name, 'slides', `${clip} R locking device missing from the price list`);
-        if (s.tandemRearBrackets) add(byPart('295.3750.02'), 2, c.name, 'slides', 'Tandem rear bracket missing from the price list');
+        if (s.tandemRearBrackets === 'always' || (s.tandemRearBrackets === 'overlay' && !inset)) add(byPart('295.3750.02'), 2, c.name, 'slides', 'Tandem rear bracket missing from the price list');
       }
     }
   }

@@ -22,6 +22,8 @@ export function normalize(p: Project): Project {
   if (!p || !Array.isArray(p.cabinets) || !p.room) throw new Error('This doesn’t look like a Cabinet Studio project.');
   // Version 1 files were drawn with placeholder construction standards, not the shop's own.
   const settings = (p as { version: number }).version >= 2 ? { ...defaultSettings, ...p.settings } : { ...defaultSettings };
+  // Rear brackets used to be a yes/no
+  if (typeof (settings.tandemRearBrackets as unknown) === 'boolean') settings.tandemRearBrackets = 'overlay';
   // Older files stored flat/raised instead of Eagle's center panel code
   if ((p.settings as { doorPanel?: string } | undefined)?.doorPanel === 'raised' && !p.settings.centerPanel) settings.centerPanel = 'MDF-03';
   const sample = sampleProject();

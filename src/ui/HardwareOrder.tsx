@@ -38,7 +38,7 @@ export function HardwareOrder() {
         </table>
       </div>
       {h.problems.map((x) => <p key={x.text} className="warn">{x.text}</p>)}
-      <p className="hint">Public web prices from {wwePriceDate}, before tax and shipping, with quantity breaks where Woodworker Express lists them. Your account price may differ. Screws aren’t included.</p>
+      <p className="hint">Woodworker Express prices from {wwePriceDate} (same as your account pricing), before tax and shipping, with their quantity breaks. Screws are under shop supplies on the Quote tab.</p>
       <div className="order-actions">
         <button disabled={!release.ready} onClick={copy}>Copy hardware order</button>
         {!release.ready && <span className="locked-note">Locked until the deposit is in and measurements are checked.</span>}

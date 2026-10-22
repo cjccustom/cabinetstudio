@@ -346,9 +346,13 @@ function ShopPanel() {
           <Field label="Clearance at back" htmlFor="shop-rear"><LengthInput id="shop-rear" value={settings.drawerRearClearance} onChange={(v) => set({ drawerRearClearance: v! })} /></Field>
         </div>
         {settings.drawerSlide === 'tandem' && (
-          <label className="checks" htmlFor="shop-rearbr">
-            <span><input id="shop-rearbr" type="checkbox" checked={settings.tandemRearBrackets} onChange={(e) => set({ tandemRearBrackets: e.target.checked })} /> Tandem rear mounting brackets (2 per drawer)</span>
-          </label>
+          <Field label="Tandem rear brackets (2 per drawer)" htmlFor="shop-rearbr">
+            <select id="shop-rearbr" value={settings.tandemRearBrackets} onChange={(e) => set({ tandemRearBrackets: e.target.value as ShopSettings['tandemRearBrackets'] })}>
+              <option value="overlay">Overlay drawers only</option>
+              <option value="always">Always</option>
+              <option value="never">Never</option>
+            </select>
+          </Field>
         )}
         <p className="hint">Boxes are sized from each face frame opening. The drawer calculator on the Eagle order tab runs the same math for a single opening.</p>
       </Section>

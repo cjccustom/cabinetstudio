@@ -11,6 +11,7 @@ import { panelOrder } from './panels';
 import { uid } from './defaults';
 import { eaglePrice, hingeTypes } from './eagle';
 import { hardwareOrder } from './hardware';
+import { defaultSupplies, supplyLines, type SupplyGroup, type SupplyItem } from './supplies';
 
 /** Shop hours per item. Start from these and calibrate against tracked jobs. */
 export interface LaborStandards {
@@ -75,7 +76,8 @@ export interface QuoteSettings {
   /** Up or down from the fitted Eagle prices, for a price increase or a pricier species. 0.05 = 5%. */
   eagleAdjust: number;
   beadboardSheet: number;
-  consumablesPerBox: number;
+  /** Screws, glue, banding, abrasives and install sundries. */
+  supplies: SupplyItem[];
   installPulls: boolean;
   painter: number;
   painterMarkup: number;
@@ -96,7 +98,7 @@ export const defaultQuote: QuoteSettings = {
   workloadAdj: { full: 0.08, normal: 0, light: -0.06 },
   eagleAdjust: 0,
   beadboardSheet: 0,
-  consumablesPerBox: 15,
+  supplies: defaultSupplies,
   installPulls: true,
   painter: 0,
   painterMarkup: 0,
@@ -191,11 +193,10 @@ export function estimateMaterials(p: Project, q: QuoteSettings): MaterialLine[] 
   const woodBF = wood.reduce((t, g) => t + g.buyBF, 0);
   if (woodBF) out.push({ group: 'tops', label: 'Solid wood for tops, seats & caps', cost: woodBF * ffStock.pricePerBF, detail: `${Math.ceil(woodBF)} BF`, missing: ffStock.pricePerBF ? undefined : 'Enter $/BF on the Solid wood tab' });
 
-  let fronts = 0, frontCost = 0, frontArea = 0, doors = 0, drawers = 0, boxCost = 0, boxes = 0;
+  let fronts = 0, frontCost = 0, frontArea = 0, doors = 0, drawers = 0, boxCost = 0;
   const hingeKinds = new Set<string>();
   const k = 1 + q.eagleAdjust;
   for (const c of p.cabinets) {
-    boxes++;
     for (const part of buildParts(c, p.settings, resolveEnds(p.room, p.cabinets, c))) {
       const o = part.order;
       if (!o) continue;
@@ -225,7 +226,12 @@ export function estimateMaterials(p: Project, q: QuoteSettings): MaterialLine[] 
   }
   const bb = (p.panels ?? []).map(panelOrder).reduce((t, l) => t + (l.item.startsWith('4×8') ? l.qty : 0), 0);
   if (bb) out.push({ group: 'paneling', label: 'Nantucket beadboard sheets', cost: bb * q.beadboardSheet, detail: `${bb} sheets`, missing: q.beadboardSheet ? undefined : 'Enter your beadboard sheet price' });
-  if (boxes) out.push({ group: 'cabinets', label: 'Glue, screws, staples, sandpaper', cost: boxes * q.consumablesPerBox, detail: `${boxes} cabinets` });
+  const groups: [SupplyGroup, string][] = [['cabinets', 'Shop supplies: screws, glue, banding, abrasives'], ['tops', 'Shop supplies for tops'], ['paneling', 'Shop supplies for paneling']];
+  const sup = supplyLines(p, q.supplies);
+  for (const [g, label] of groups) {
+    const mine = sup.filter((l) => l.group === g && l.qty > 0);
+    if (mine.length) out.push({ group: g, label, cost: mine.reduce((t, l) => t + l.cost, 0), detail: `${mine.length} items` });
+  }
   return out;
 }
 

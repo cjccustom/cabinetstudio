@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { useStore } from '../store';
 import { defaultStandards, groupLabel, newExtra, priceQuote, quoteOf, scopeLine, type LaborStandards, type QuoteSettings, type Workload } from '../model/quote';
 import { Field, Section } from './fields';
+import { defaultSupplies, driverLabel, newSupply, supplyLines, type SupplyDriver, type SupplyItem } from '../model/supplies';
 
 const money = (v: number) => `$${Math.round(v).toLocaleString('en-US')}`;
 const pct = (v: number) => `${+(v * 100).toFixed(2)}%`;
@@ -73,10 +74,11 @@ export function QuoteInputs() {
           <div className="grid2">
             <Num id="q-eagle" label="Eagle prices, up or down" suffix="%" value={q.eagleAdjust * 100} onChange={(v) => set({ eagleAdjust: v / 100 })} />
             <Num id="q-bb" label="Beadboard sheet" suffix="$" value={q.beadboardSheet} onChange={(v) => set({ beadboardSheet: v })} />
-            <Num id="q-cons" label="Consumables" suffix="$ / cabinet" value={q.consumablesPerBox} onChange={(v) => set({ consumablesPerBox: v })} />
           </div>
           <p className="hint">Plywood, maple and A&amp;M mouldings come from their own tabs. Blum hinges, slides and clips are priced from Woodworker Express’s price list. Eagle doors, fronts and drawer boxes are priced piece by piece from your 2026 Eagle orders (paint-grade maple, 5-piece). Raise the percentage after a price increase or for a pricier species.</p>
         </Section>
+
+        <SuppliesEditor />
 
         <Section title="Painter">
           <div className="grid2">
@@ -218,5 +220,47 @@ export function QuoteSummary() {
         </Section>
       </div>
     </aside>
+  );
+}
+
+/* ---------- Shop supplies ---------- */
+
+function SuppliesEditor() {
+  const { project, q, set } = useQuote();
+  const lines = useMemo(() => supplyLines(project, q.supplies), [project, q.supplies]);
+  const total = lines.reduce((t, l) => t + l.cost, 0);
+  const put = (id: string, patch: Partial<SupplyItem>) => set({ supplies: q.supplies.map((x) => (x.id === id ? { ...x, ...patch } : x)) });
+  return (
+    <Section title="Shop supplies" aside={<span className="muted">{money(total)}</span>}>
+      <details className="supplies">
+        <summary>Screws, glue, banding, abrasives, install sundries ({lines.filter((l) => l.qty > 0).length} used on this job)</summary>
+        <p className="hint">Each item is counted from the design: face frame joints, hinges, drawers, feet of shelf banding. The starting prices are typical retail; change them to what you pay.</p>
+        {lines.map(({ item, count, qty, cost }) => (
+          <div key={item.id} className={`supply ${qty ? '' : 'unused'}`}>
+            <div className="supply-head">
+              <input aria-label="Item" value={item.label} onChange={(e) => put(item.id, { label: e.target.value })} />
+              <span className="num">{qty ? `$${cost.toFixed(2)}` : '—'}</span>
+              <button className="mini" title="Remove" onClick={() => set({ supplies: q.supplies.filter((x) => x.id !== item.id) })}>×</button>
+            </div>
+            <div className="supply-row">
+              <input aria-label="Quantity" inputMode="decimal" value={item.qtyPer} onChange={(e) => put(item.id, { qtyPer: parseFloat(e.target.value) || 0 })} />
+              <input aria-label="Unit" className="unit" value={item.unit} onChange={(e) => put(item.id, { unit: e.target.value })} />
+              <select aria-label="Counted" value={item.driver} onChange={(e) => put(item.id, { driver: e.target.value as SupplyDriver })}>
+                {(Object.keys(driverLabel) as SupplyDriver[]).map((d) => <option key={d} value={d}>{driverLabel[d]}</option>)}
+              </select>
+            </div>
+            <div className="supply-row">
+              <span>at $</span>
+              <input aria-label="Cost per unit" inputMode="decimal" value={item.unitCost} onChange={(e) => put(item.id, { unitCost: parseFloat(e.target.value) || 0 })} />
+              <span className="muted">each · {count} × {item.qtyPer} = {+qty.toFixed(1)} {item.unit}</span>
+            </div>
+          </div>
+        ))}
+        <div className="order-actions">
+          <button className="mini" onClick={() => set({ supplies: [...q.supplies, newSupply()] })}>Add item</button>
+          <button className="mini" onClick={() => set({ supplies: defaultSupplies })}>Reset to starting list</button>
+        </div>
+      </details>
+    </Section>
   );
 }

@@ -15,6 +15,7 @@ import { normalize } from "../src/store";
 import { fieldChecks, releaseStatus } from "../src/model/release";
 import { eagleFraction, eagleRequests, requestText } from "../src/model/eagleRequest";
 import { hardwareOrder, tierPrice } from "../src/model/hardware";
+import { defaultSupplies, supplyDrivers, supplyLines } from "../src/model/supplies";
 
 let failed = 0;
 const eq = (label: string, got: unknown, want: unknown) => {
@@ -310,17 +311,33 @@ eq('panel sticks out past frame', panelExtents(b21, s, { left: true, right: fals
   eq('1 1/4" overlay picks Compact 39C355B.20', qty('39C355B.20'), h.hinges);
   eq('one 21" Tandem 563H pair per drawer', qty('563H5330B'), h.drawers);
   eq('left and right clips per drawer', [qty('T51.1901 L'), qty('T51.1901 R')].join(), `${h.drawers},${h.drawers}`);
-  eq('no rear brackets unless chosen', qty('295.3750.02'), 0);
-  eq('rear brackets when chosen', qty.call(null, '295.3750.02') + (hardwareOrder({ ...job, settings: { ...job.settings, tandemRearBrackets: true } }).lines.find((l) => l.part.part === '295.3750.02')?.qty ?? 0), 2 * h.drawers);
+  eq('rear brackets on overlay drawers', qty('295.3750.02'), 2 * h.drawers);
   eq('no problems on the sample', h.problems.map((x) => x.text).join('; '), '');
   const inset = hardwareOrder({ ...job, settings: { ...job.settings, doorMount: 'inset', hingeType: 'cliptop' } });
   const iq = (part: string) => inset.lines.find((l) => l.part.part === part)?.qty ?? 0;
   eq('inset Clip Top: half crank on 9mm face frame plate', [iq('71B3650'), iq('175H5030.21')].join(), `${inset.hinges},${inset.hinges}`);
   eq('inset drawers get PS clips', iq('T51.1901.PS L'), inset.drawers);
+  eq('no rear brackets on inset', iq('295.3750.02'), 0);
   const compact = h.lines.find((l) => l.part.part === '39C355B.20')!.part;
   eq('quantity break at 300', [tierPrice(compact, 299), tierPrice(compact, 300)].join(), '3.25,2.97');
   const quoted = priceQuote(job).materials.find((m) => m.label.startsWith('Hinges'));
   eq('quote prices hinges from the list', Math.abs((quoted?.cost ?? 0) - h.hinges * 3.25) < 0.01, true);
+}
+
+// Shop supplies counted from the design
+{
+  const job = normalize(sampleProject());
+  const d = supplyDrivers(job);
+  const h = hardwareOrder(job);
+  eq('hinge count drives hinge screws', d.hinge, h.hinges);
+  eq('two joints per rail', d.ffJoint > 2 * job.cabinets.length, true);
+  eq('shelf banding counted', d.bandFt > 10, true);
+  const lines = supplyLines(job, defaultSupplies);
+  const pocket = lines.find((l) => l.item.label.startsWith('Pocket'))!;
+  eq('pocket screws = 2 per joint at $0.04', Math.abs(pocket.cost - d.ffJoint * 2 * 0.04) < 1e-9, true);
+  const sup = priceQuote(job).materials.find((m) => m.label.startsWith('Shop supplies'))!;
+  eq('quote carries shop supplies', Math.abs(sup.cost - lines.filter((l) => l.group === 'cabinets').reduce((t, l) => t + l.cost, 0)) < 0.01, true);
+  console.log('  supplies:', lines.filter((l) => l.qty).map((l) => `${l.item.label} ${l.qty.toFixed(0)} = $${l.cost.toFixed(2)}`).join('; '));
 }
 
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');

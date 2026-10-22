@@ -130,8 +130,8 @@ export interface ShopSettings {
   /** Reveal around inset doors and between inset pairs. */
   insetReveal: number;
   drawerSlide: string;
-  /** Blum Tandem rear mounting brackets, two per drawer. */
-  tandemRearBrackets: boolean;
+  /** Blum Tandem rear mounting brackets, two per drawer: on overlay jobs only, always or never. */
+  tandemRearBrackets: 'overlay' | 'always' | 'never';
   drawerSide: number;
   drawerWidthDeduction: number;
   drawerHeightDeduction: number;
