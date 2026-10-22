@@ -20,7 +20,8 @@ export const defaultSettings: ShopSettings = {
   endPanelReveal: 0.25,
   endPanelThickness: 0.75,
   scribeAllowance: 0.5,
-  blindStileWidth: 3,
+  blindClearance: 3,
+  woodSpecies: 'Hard maple',
   stretcherWidth: 4,
   hangingRails: false,
   nailerWidth: 3,
@@ -64,7 +65,8 @@ export interface Preset {
   countertop?: boolean;
   blind?: Cabinet['blind'];
   corner?: Cabinet['corner'];
-  group?: 'corner';
+  group?: 'corner' | 'mudroom';
+  top?: Pick<Cabinet, 'topKind' | 'topThickness' | 'topFront' | 'topLeft' | 'topRight'>;
 }
 
 export const presets: Preset[] = [
@@ -79,13 +81,21 @@ export const presets: Preset[] = [
   { id: 'base-door', label: 'Base, full-height doors', kind: 'base', width: 24, height: 34.5, depth: 24, elevation: 0, countertop: true,
     rows: () => [row('doors', null, 2, 1)] },
   { id: 'base-blind', label: 'Blind corner base', kind: 'base', width: 42, height: 34.5, depth: 24, elevation: 0, countertop: true, group: 'corner',
-    blind: { side: 'left', width: 27 }, rows: () => [row('drawer', 6), row('doors', null, 1, 1)] },
+    blind: { side: 'left', dead: 24, clearance: 3 }, rows: () => [row('drawer', 6), row('doors', null, 1, 1)] },
   { id: 'base-lazy', label: 'Lazy susan corner base', kind: 'base', width: 36, height: 34.5, depth: 24, elevation: 0, countertop: true, group: 'corner',
     corner: { side: 'left', width2: 36, lazySusan: true }, rows: () => [row('doors', null, 1, 0)] },
   { id: 'wall-blind', label: 'Blind corner wall', kind: 'wall', width: 36, height: 30, depth: 12, elevation: 54, group: 'corner',
-    blind: { side: 'left', width: 15 }, rows: () => [row('doors', null, 1, 2)] },
+    blind: { side: 'left', dead: 12, clearance: 3 }, rows: () => [row('doors', null, 1, 2)] },
   { id: 'wall-corner', label: 'Corner wall, bifold doors', kind: 'wall', width: 24, height: 30, depth: 12, elevation: 54, group: 'corner',
     corner: { side: 'left', width2: 24, lazySusan: false }, rows: () => [row('doors', null, 1, 2)] },
+  { id: 'bench', label: 'Bench base, open cubbies', kind: 'base', width: 48, height: 17.25, depth: 16, elevation: 0, countertop: true, group: 'mudroom',
+    top: { topKind: 'wood', topThickness: 1.25, topFront: 1 }, rows: () => [row('open', null, 1, 0)] },
+  { id: 'bench-drawers', label: 'Bench base, drawers', kind: 'base', width: 48, height: 17.25, depth: 16, elevation: 0, countertop: true, group: 'mudroom',
+    top: { topKind: 'wood', topThickness: 1.25, topFront: 1 }, rows: () => [row('drawer', null)] },
+  { id: 'cubby-upper', label: 'Upper cubbies, open', kind: 'wall', width: 48, height: 16, depth: 14, elevation: 66, group: 'mudroom',
+    rows: () => [row('open', null, 1, 0)] },
+  { id: 'locker', label: 'Locker, open with shelf', kind: 'tall', width: 18, height: 84, depth: 18, elevation: 0, group: 'mudroom',
+    rows: () => [row('open', 14, 1, 0), row('open', null, 1, 0)] },
   { id: 'wall-1', label: 'Wall, 1 door', kind: 'wall', width: 18, height: 30, depth: 12, elevation: 54,
     rows: () => [row('doors', null, 1, 2)] },
   { id: 'wall-2', label: 'Wall, 2 doors', kind: 'wall', width: 30, height: 30, depth: 12, elevation: 54,
@@ -124,6 +134,7 @@ export function cabinetFromPreset(preset: Preset, wall: WallId, offset: number, 
     countertop: !!preset.countertop,
     ...(preset.blind ? { blind: { ...preset.blind } } : {}),
     ...(preset.corner ? { corner: { ...preset.corner } } : {}),
+    ...(preset.top ?? {}),
   };
 }
 
@@ -150,7 +161,7 @@ export function sampleProject(): Project {
     name: 'Sample kitchen',
     room: { width: 156, depth: 120, height: 96 },
     settings: { ...defaultSettings },
-    finishes: { paint: '#e8e6df', box: '#d8c29a', counter: '#4a4c4f' },
+    finishes: { paint: '#e8e6df', box: '#d8c29a', counter: '#4a4c4f', wood: '#b9875a' },
     cabinets: cabs,
   };
 }

@@ -137,3 +137,35 @@ export function faceFrameNeeds(pieces: FFPiece[], s: FaceFrameStock): FaceFrameR
   const buyBF = roughBF * (1 + s.waste);
   return { groups, boards, tooLong, netBF, roughBF, buyBF, cost: buyBF * s.pricePerBF };
 }
+
+/** Solid wood tops, bench seats and beadboard caps: glued up or milled from thicker stock. */
+export interface WoodPiece { label: string; length: number; width: number; thickness: number }
+
+export function woodPieces(p: Project): WoodPiece[] {
+  const out: WoodPiece[] = [];
+  for (const c of p.cabinets) {
+    for (const part of buildParts(c, p.settings, resolveEnds(p.room, p.cabinets, c))) {
+      if (part.material === 'solidWood') out.push({ label: `${c.name} ${part.name.toLowerCase()}`, length: part.length, width: part.width, thickness: part.thickness });
+    }
+  }
+  for (const w of p.panels ?? []) if (w.cap) out.push({ label: `${w.name} beadboard cap`, length: w.width, width: w.capDepth, thickness: w.capHeight });
+  return out;
+}
+
+/** Rough stock thickness to buy for a finished thickness, in quarters: 1 1/4" finished comes from 6/4. */
+export function roughQuarters(t: number): number {
+  const q = [4, 5, 6, 8, 10, 12, 16];
+  return q.find((x) => x / 4 >= t + 0.1875 - 1e-6) ?? 16;
+}
+
+export interface WoodGroup { quarters: number; pieces: WoodPiece[]; roughBF: number; buyBF: number }
+
+export function woodNeeds(pieces: WoodPiece[], s: FaceFrameStock): WoodGroup[] {
+  const qs = [...new Set(pieces.map((p) => roughQuarters(p.thickness)))].sort((a, b) => a - b);
+  return qs.map((q) => {
+    const mine = pieces.filter((p) => roughQuarters(p.thickness) === q);
+    // 2" extra length and 1" extra width for each glue-up before it's trimmed to size
+    const roughBF = mine.reduce((t, p) => t + ((p.length + 2) * (p.width + 1) * (q / 4)) / 144, 0);
+    return { quarters: q, pieces: mine, roughBF, buyBF: roughBF * (1 + s.waste) };
+  });
+}

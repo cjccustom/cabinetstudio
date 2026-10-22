@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Cabinet, Project, WallId } from './model/types';
+import type { Cabinet, Project, WallId, WallPanel } from './model/types';
 import { cabinetFromPreset, defaultSettings, presets, sampleProject, uid } from './model/defaults';
 import { findIssues, nextFreeOffset, wallLength } from './model/layout';
 import { defaultCutlist } from './model/cutlist';
@@ -22,7 +22,13 @@ export function normalize(p: Project): Project {
   if (!p || !Array.isArray(p.cabinets) || !p.room) throw new Error('This doesn’t look like a Cabinet Studio project.');
   // Version 1 files were drawn with placeholder construction standards, not the shop's own.
   const settings = (p as { version: number }).version >= 2 ? { ...defaultSettings, ...p.settings } : { ...defaultSettings };
-  const out: Project = { ...sampleProject(), ...p, version: 2, settings };
+  const sample = sampleProject();
+  // Older blind corners stored one blind width (dead area + a 3" stile)
+  const cabinets = p.cabinets.map((c) => {
+    const b = c.blind as (Cabinet['blind'] & { width?: number }) | undefined;
+    return b && b.dead == null ? { ...c, blind: { side: b.side, dead: Math.max(0, (b.width ?? 27) - 3), clearance: settings.blindClearance } } : c;
+  });
+  const out: Project = { ...sample, ...p, version: 2, settings, cabinets, finishes: { ...sample.finishes, ...p.finishes } };
   const base = defaultCutlist(out);
   const cl = p.cutlist;
   out.cutlist = cl ? { ...base, ...cl, options: { ...base.options, ...cl.options } } : base;
@@ -54,6 +60,8 @@ interface State {
   removeCabinet: (id: string) => void;
   duplicateCabinet: (id: string) => void;
   loadProject: (p: Project) => void;
+  addPanel: (panel: WallPanel) => void;
+  updatePanel: (id: string, patch: Partial<WallPanel>) => void;
 }
 
 const HISTORY = 100;
@@ -114,7 +122,7 @@ export const useStore = create<State>((set, get) => ({
   updateCabinet: (id, patch) =>
     get().commit((p) => ({ ...p, cabinets: p.cabinets.map((c) => (c.id === id ? { ...c, ...patch } : c)) })),
   removeCabinet: (id) => {
-    get().commit((p) => ({ ...p, cabinets: p.cabinets.filter((c) => c.id !== id) }));
+    get().commit((p) => ({ ...p, cabinets: p.cabinets.filter((c) => c.id !== id), panels: (p.panels ?? []).filter((w) => w.id !== id) }));
     if (get().selectedId === id) set({ selectedId: null });
   },
   duplicateCabinet: (id) => {
@@ -129,6 +137,12 @@ export const useStore = create<State>((set, get) => ({
     get().commit((p) => ({ ...p, cabinets: [...p.cabinets, copy] }));
     set({ selectedId: copy.id });
   },
+  addPanel: (panel) => {
+    get().commit((p) => ({ ...p, panels: [...(p.panels ?? []), panel] }));
+    set({ selectedId: panel.id });
+  },
+  updatePanel: (id, patch) =>
+    get().commit((p) => ({ ...p, panels: (p.panels ?? []).map((w) => (w.id === id ? { ...w, ...patch } : w)) })),
   loadProject: (p) => {
     get().commit(() => normalize(p));
     set({ selectedId: null });

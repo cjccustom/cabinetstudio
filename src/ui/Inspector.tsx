@@ -7,6 +7,7 @@ import { uid } from '../model/defaults';
 import { fmt } from '../units';
 import { Field, LengthInput, Section } from './fields';
 import { OrderList, PartsTable } from './PartsTable';
+import { OverridesSection } from './Overrides';
 
 const kindLabel = { base: 'Base cabinet', wall: 'Wall cabinet', tall: 'Tall cabinet' };
 const rowTypes: { v: FaceRow['type']; label: string }[] = [
@@ -117,14 +118,52 @@ export function Inspector({ cab, issues }: { cab: Cabinet; issues: string[] }) {
           {cab.kind === 'wall' && (
             <label><input id="cab-flush" type="checkbox" checked={!!cab.bottomFlush} onChange={(e) => set({ bottomFlush: e.target.checked })} /> Box bottom flush with bottom of face frame (for cabinets hung high)</label>
           )}
-          {cab.kind === 'base' && (
-            <label><input id="cab-counter" type="checkbox" checked={cab.countertop} onChange={(e) => set({ countertop: e.target.checked })} /> Show countertop</label>
-          )}
+
         </div>
       </Section>
 
       </>
       )}
+      {cab.kind === 'base' && !cab.corner && (
+        <Section title="Top">
+          <div className="grid3">
+            <Field label="Top" htmlFor="cab-topkind">
+              <select id="cab-topkind" value={cab.countertop ? cab.topKind ?? 'stone' : 'none'} onChange={(e) => {
+                const v = e.target.value;
+                set(v === 'none' ? { countertop: false } : { countertop: true, topKind: v as 'stone' | 'wood' });
+              }}>
+                <option value="stone">Stone / by others</option>
+                <option value="wood">Solid wood (shop built)</option>
+                <option value="none">None</option>
+              </select>
+            </Field>
+            {cab.countertop && (
+              <Field label="Thickness" htmlFor="cab-topt">
+                <LengthInput id="cab-topt" value={cab.topThickness ?? null} allowAuto placeholder={fmt(cab.topKind === 'wood' ? 1.25 : settings.counterThickness)} onChange={(v) => set({ topThickness: v ?? undefined })} />
+              </Field>
+            )}
+            {cab.countertop && (
+              <Field label="Front overhang" htmlFor="cab-topf" hint="Past door face">
+                <LengthInput id="cab-topf" value={cab.topFront ?? null} allowAuto placeholder={fmt(settings.counterOverhang)} onChange={(v) => set({ topFront: v ?? undefined })} />
+              </Field>
+            )}
+            {cab.countertop && (
+              <Field label="Left overhang" htmlFor="cab-topl">
+                <LengthInput id="cab-topl" value={cab.topLeft ?? null} allowAuto placeholder="0&quot;" onChange={(v) => set({ topLeft: v ?? undefined })} />
+              </Field>
+            )}
+            {cab.countertop && (
+              <Field label="Right overhang" htmlFor="cab-topr">
+                <LengthInput id="cab-topr" value={cab.topRight ?? null} allowAuto placeholder="0&quot;" onChange={(v) => set({ topRight: v ?? undefined })} />
+              </Field>
+            )}
+          </div>
+          {cab.topKind === 'wood' && cab.countertop && <p className="hint">Solid wood tops and bench seats go on the Solid wood list with board feet to buy.</p>}
+        </Section>
+      )}
+
+      <OverridesSection cab={cab} settings={settings} set={set} />
+
       <Section title="Ends, panels & scribes">
         <div className="ends">
           {(['left', 'right'] as const).map((side) => {
@@ -211,8 +250,13 @@ function CornerSection({ cab, set }: { cab: Cabinet; set: (p: Partial<Cabinet>) 
           </select>
         </Field>
         {cab.blind && (
-          <Field label="Blind width" htmlFor="cab-bw" hint="Corner end to door opening">
-            <LengthInput id="cab-bw" value={cab.blind.width} min={6} onChange={(v) => set({ blind: { ...cab.blind!, width: v! } })} />
+          <Field label="Covered by neighbor" htmlFor="cab-bdead" hint="Its depth">
+            <LengthInput id="cab-bdead" value={cab.blind.dead} min={0} onChange={(v) => set({ blind: { ...cab.blind!, dead: v! } })} />
+          </Field>
+        )}
+        {cab.blind && (
+          <Field label="Stile clearance" htmlFor="cab-bclr" hint="Past the 1 1/2&quot; stile">
+            <LengthInput id="cab-bclr" value={cab.blind.clearance} min={0} onChange={(v) => set({ blind: { ...cab.blind!, clearance: v! } })} />
           </Field>
         )}
         {cab.corner && (
@@ -235,7 +279,7 @@ function CornerSection({ cab, set }: { cab: Cabinet; set: (p: Partial<Cabinet>) 
       )}
       <p className="hint">
         {cab.blind
-          ? 'The cabinet on the other wall sits in front of the blind area. Set the blind width to that cabinet’s depth plus the blind stile, so its doors and pulls clear.'
+          ? 'The cabinet on the other wall covers the blind area, which is left open. The blind stile is a regular face frame stile plus clearance for that cabinet’s doors and pulls. Give it more next to a dishwasher or range.'
           : 'An L-shaped case with a face frame on each wall and a bifold pair of doors. Bottom, top and shelves are cut as rectangles with the front corner notched out.'}
       </p>
     </Section>

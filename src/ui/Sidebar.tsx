@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useStore } from '../store';
 import { presets } from '../model/defaults';
+import { newPanel, panelAbove } from '../model/panels';
 import { wallNames, wallOrder } from '../model/layout';
 import type { PanelMode, ShopSettings, WallId } from '../model/types';
 import { fmt } from '../units';
@@ -33,12 +34,18 @@ export function Sidebar() {
 function Library() {
   const view = useStore((s) => s.view);
   const add = useStore((s) => s.addFromPreset);
+  const addBeadboard = () => {
+    const st = useStore.getState();
+    const cab = st.project.cabinets.find((c) => c.id === st.selectedId);
+    st.addPanel(cab ? panelAbove(st.project, cab) : newPanel(wall, 0, 48, 18.5, 30, st.project.panels ?? []));
+  };
   const [wall, setWall] = useState<WallId>(view.startsWith('elev-') ? (view.slice(5) as WallId) : 'back');
   const groups = [
     { kind: 'base', title: 'Base', corner: false },
     { kind: 'wall', title: 'Wall', corner: false },
     { kind: 'tall', title: 'Tall', corner: false },
     { kind: 'corner', title: 'Corners', corner: true },
+    { kind: 'mudroom', title: 'Mudroom & built-ins', corner: true },
   ] as const;
   return (
     <div>
@@ -51,7 +58,7 @@ function Library() {
       {groups.map((g) => (
         <Section key={g.kind} title={g.title}>
           <div className="lib">
-            {presets.filter((p) => (g.corner ? p.group === 'corner' : p.kind === g.kind && !p.group)).map((p) => (
+            {presets.filter((p) => (g.corner ? p.group === g.kind : p.kind === g.kind && !p.group)).map((p) => (
               <button key={p.id} className="lib-item" onClick={() => add(p.id, wall)}>
                 <PresetGlyph rows={p.rows().map((r) => ({ type: r.type, doors: r.doors, h: r.height }))} w={p.width} h={p.height} kind={p.kind} />
                 <span className="lib-text">
@@ -63,6 +70,19 @@ function Library() {
           </div>
         </Section>
       ))}
+      <Section title="Wall finishes">
+        <button className="lib-item" onClick={addBeadboard}>
+          <svg className="glyph" width="44" height="44" viewBox="0 0 44 44" aria-hidden="true">
+            <rect x="6" y="10" width="32" height="24" className="g-frame" />
+            {[10, 14, 18, 22, 26, 30, 34].map((x) => <line key={x} x1={x} x2={x} y1="10" y2="34" className="g-bead" />)}
+            <rect x="5" y="8" width="34" height="3" className="g-door" />
+          </svg>
+          <span className="lib-text">
+            <span>Beadboard backsplash</span>
+            <span className="muted">Above the selected cabinet, up to the upper</span>
+          </span>
+        </button>
+      </Section>
     </div>
   );
 }
@@ -121,9 +141,9 @@ function RoomPanel() {
       </Section>
       <Section title="Finishes">
         <div className="swatches">
-          {([['paint', 'Paint / stain'], ['box', 'Case interior'], ['counter', 'Countertop']] as const).map(([k, label]) => (
+          {([['paint', 'Paint / stain'], ['box', 'Case interior'], ['counter', 'Stone top'], ['wood', 'Solid wood']] as const).map(([k, label]) => (
             <label key={k} className="swatch" htmlFor={`fin-${k}`}>
-              <input id={`fin-${k}`} type="color" value={finishes[k]} onChange={(e) => commit((p) => ({ ...p, finishes: { ...p.finishes, [k]: e.target.value } }))} />
+              <input id={`fin-${k}`} type="color" value={finishes[k] ?? '#b9875a'} onChange={(e) => commit((p) => ({ ...p, finishes: { ...p.finishes, [k]: e.target.value } }))} />
               <span>{label}</span>
             </label>
           ))}

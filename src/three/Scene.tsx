@@ -4,7 +4,8 @@ import { Canvas, ThreeEvent, useThree } from '@react-three/fiber';
 import { Html, Line, OrbitControls, OrthographicCamera, PerspectiveCamera } from '@react-three/drei';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import { useStore, type ViewMode } from '../store';
-import type { Cabinet, Finishes, Room, ShopSettings, WallId } from '../model/types';
+import type { Cabinet, Finishes, Room, ShopSettings, WallId, WallPanel } from '../model/types';
+import { profiles } from '../model/panels';
 import { buildParts } from '../model/parts';
 import { alongWall, footprint, resolveEnds, snapOffset, wallLength, wallTransform } from '../model/layout';
 import { buildCabinetGeometry } from './cabinetGeometry';
@@ -46,6 +47,9 @@ export function Scene({ issueIds }: { issueIds: Set<string> }) {
           selected={c.id === selectedId}
           issue={issueIds.has(c.id)}
         />
+      ))}
+      {(project.panels ?? []).filter((w) => !elevWall || w.wall === elevWall).map((w) => (
+        <WallPanelModel key={w.id} panel={w} room={room} finishes={finishes} selected={w.id === selectedId} />
       ))}
       {elevWall && <ElevationDims room={room} wall={elevWall} cabinets={visible} />}
       {view === 'plan' && <PlanLabels room={room} cabinets={project.cabinets} />}
@@ -168,7 +172,7 @@ function CabinetModel(props: {
   const hit = useMemo(() => new THREE.Vector3(), []);
 
   const colorFor = (material: string, shade: number) => {
-    const base = material === 'box' || material === 'back' ? finishes.box : material === 'counter' ? finishes.counter : finishes.paint;
+    const base = material === 'box' || material === 'back' ? finishes.box : material === 'counter' ? finishes.counter : material === 'solidWood' ? finishes.wood ?? '#b9875a' : finishes.paint;
     return new THREE.Color(base).multiplyScalar(shade);
   };
 
@@ -306,5 +310,42 @@ function PlanLabels({ room, cabinets }: { room: Room; cabinets: Cabinet[] }) {
         );
       })}
     </>
+  );
+}
+
+/** Beadboard drawn as a thin panel on the wall with its bead lines, plus the solid wood cap. */
+function WallPanelModel({ panel: w, room, finishes, selected }: { panel: WallPanel; room: Room; finishes: Finishes; selected: boolean }) {
+  const { pos, rotY } = wallTransform(room, w.wall, w.offset);
+  const t = 0.5;
+  const beads = useMemo(() => {
+    const sp = profiles[w.profile].spacing;
+    const pts: number[] = [];
+    for (let x = sp; x < w.width - 0.01; x += sp) pts.push(x, w.bottom, t + 0.01, x, w.bottom + w.height, t + 0.01);
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+    return g;
+  }, [w.profile, w.width, w.bottom, w.height]);
+  useEffect(() => () => beads.dispose(), [beads]);
+  const select = (e: ThreeEvent<PointerEvent>) => {
+    if (e.button !== 0) return;
+    e.stopPropagation();
+    useStore.getState().select(w.id);
+  };
+  return (
+    <group position={[pos[0], 0, pos[2]]} rotation-y={rotY} onPointerDown={select}>
+      <mesh position={[w.width / 2, w.bottom + w.height / 2, t / 2]}>
+        <boxGeometry args={[w.width, w.height, t]} />
+        <meshStandardMaterial color={finishes.paint} roughness={0.8} emissive={selected ? ACCENT : '#000000'} emissiveIntensity={selected ? 0.08 : 0} />
+      </mesh>
+      <lineSegments geometry={beads}>
+        <lineBasicMaterial color={selected ? ACCENT : EDGE} transparent opacity={0.35} />
+      </lineSegments>
+      {w.cap && (
+        <mesh position={[w.width / 2, w.bottom + w.height + w.capHeight / 2, w.capDepth / 2]}>
+          <boxGeometry args={[w.width, w.capHeight, w.capDepth]} />
+          <meshStandardMaterial color={finishes.wood ?? '#b9875a'} roughness={0.6} />
+        </mesh>
+      )}
+    </group>
   );
 }

@@ -6,6 +6,8 @@ import { Inspector } from './ui/Inspector';
 import { OrderList, PartsTable } from './ui/PartsTable';
 import { ProjectDialog } from './ui/ProjectDialog';
 import { DrawerCalculator } from './ui/DrawerCalculator';
+import { PanelInspector } from './ui/PanelInspector';
+import { BeadboardOrder } from './ui/BeadboardOrder';
 import { CutlistInputs, CutlistLayouts, CutlistSummary } from './ui/Cutlist';
 import { FaceFrameBreakdown, FaceFrameInputs, FaceFrameSummary } from './ui/FaceFrames';
 import { findIssues, wallNames, wallOrder } from './model/layout';
@@ -34,6 +36,7 @@ export default function App() {
   const issues = useMemo(() => findIssues(project.room, project.cabinets, project.settings), [project]);
   const issueIds = useMemo(() => new Set(issues.map((i) => i.cabinetId)), [issues]);
   const summary = issues.filter((i) => !i.echo).map((i) => i.message);
+  const selectedPanel = (project.panels ?? []).find((w) => w.id === selectedId) ?? null;
   const selected = project.cabinets.find((c) => c.id === selectedId) ?? null;
 
   useEffect(() => { if (selectedId) setPanel('cabinet'); }, [selectedId]);
@@ -50,7 +53,7 @@ export default function App() {
         <div className="seg mode" role="tablist" aria-label="Workspace">
           <button role="tab" aria-selected={mode === 'design'} className={mode === 'design' ? 'on' : ''} onClick={() => setMode('design')}>Design</button>
           <button role="tab" aria-selected={mode === 'cutlist'} className={mode === 'cutlist' ? 'on' : ''} onClick={() => setMode('cutlist')}>Sheet cutlist</button>
-          <button role="tab" aria-selected={mode === 'faceframe'} className={mode === 'faceframe' ? 'on' : ''} onClick={() => setMode('faceframe')}>Face frame stock</button>
+          <button role="tab" aria-selected={mode === 'faceframe'} className={mode === 'faceframe' ? 'on' : ''} onClick={() => setMode('faceframe')}>Solid wood</button>
         </div>
         {mode === 'design' && <div className="seg views" role="tablist" aria-label="View">
           {views.map((v, i) => (
@@ -100,10 +103,11 @@ export default function App() {
         <nav className="tabs" role="tablist">
           <button role="tab" aria-selected={panel === 'cabinet'} className={panel === 'cabinet' ? 'on' : ''} onClick={() => setPanel('cabinet')}>Cabinet</button>
           <button role="tab" aria-selected={panel === 'cutlist'} className={panel === 'cutlist' ? 'on' : ''} onClick={() => setPanel('cutlist')}>Cut list</button>
-          <button role="tab" aria-selected={panel === 'order'} className={panel === 'order' ? 'on' : ''} onClick={() => setPanel('order')}>Eagle order</button>
+          <button role="tab" aria-selected={panel === 'order'} className={panel === 'order' ? 'on' : ''} onClick={() => setPanel('order')}>Orders</button>
         </nav>
         <div className="panel-body">
-          {panel === 'cabinet' && (selected ? (
+          {panel === 'cabinet' && selectedPanel && <PanelInspector key={selectedPanel.id} panel={selectedPanel} />}
+          {panel === 'cabinet' && !selectedPanel && (selected ? (
             <Inspector key={selected.id} cab={selected} issues={issues.filter((i) => i.cabinetId === selected.id).map((i) => i.message)} />
           ) : (
             <div className="empty">
@@ -123,6 +127,7 @@ export default function App() {
               <p className="hint">Doors, drawer fronts and dovetail drawer boxes for the whole job, sized from the face frame openings. Sizes are finished width × height.</p>
               <p><button onClick={() => setDialog('drawer')}>Drawer box calculator…</button></p>
               <OrderList cabinets={project.cabinets} />
+              <BeadboardOrder />
             </div>
           )}
         </div>

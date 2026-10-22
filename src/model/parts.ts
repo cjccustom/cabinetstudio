@@ -1,7 +1,7 @@
 import type { Cabinet, Part, PanelMode, ShopSettings, VisualBox } from './types';
 import { drawerBoxSize, styleById, type DoorProfile } from './eagle';
 import { buildCornerParts } from './corner';
-import { fmt as fmtShort } from '../units';
+import { fmt as fmtShort, fmt } from '../units';
 
 export const vb = (x: number, y: number, z: number, sx: number, sy: number, sz: number, shade?: number): VisualBox => ({
   min: [x, y, z], size: [sx, sy, sz], shade,
@@ -16,10 +16,14 @@ export interface RowLayout {
 }
 
 /** Where the face frame starts off the floor of the cabinet (toe kick for base/tall). */
-export const kickOf = (c: Cabinet, s: ShopSettings) => (c.kind === 'wall' ? 0 : s.toeKickHeight);
+export const kickOf = (c: Cabinet, s: ShopSettings) => (c.kind === 'wall' ? 0 : eff(c, s).toeKickHeight);
+
+/** The shop standards with this cabinet's own changes applied. */
+export const eff = (c: Cabinet, s: ShopSettings): ShopSettings => (c.overrides ? { ...s, ...c.overrides } : s);
 
 /** Resolve each face row's opening height, top to bottom. Auto rows split what's left. */
 export function layoutRows(c: Cabinet, s: ShopSettings): { rows: RowLayout[]; leftover: number } {
+  s = eff(c, s);
   const kick = kickOf(c, s);
   const top = c.height - s.topRailWidth;
   const bottom = kick + s.bottomRailWidth;
@@ -80,6 +84,7 @@ export interface EndInfo { left: boolean; right: boolean }
 
 /** The end panel actually used on one side: only exposed ends get one. */
 export function panelOn(c: Cabinet, s: ShopSettings, side: 'left' | 'right', exposed: boolean): PanelMode {
+  s = eff(c, s);
   if (!exposed || c.corner) return 'none';
   const choice = (side === 'left' ? c.leftPanel : c.rightPanel) ?? 'default';
   return choice === 'default' ? s.endPanel : choice;
@@ -87,6 +92,7 @@ export function panelOn(c: Cabinet, s: ShopSettings, side: 'left' | 'right', exp
 
 /** How far end panels stick out past the face frame on each side (they sit on the case side, just inside the frame edge). */
 export function panelExtents(c: Cabinet, s: ShopSettings, ends: EndInfo) {
+  s = eff(c, s);
   const over = s.ffOverhang + s.boxThickness - s.boxActualThickness;
   const out = (scribe: number) => Math.max(0, s.endPanelThickness - scribe - over);
   return {
@@ -103,6 +109,7 @@ export function panelExtents(c: Cabinet, s: ShopSettings, ends: EndInfo) {
  * which is where the slim face frame overhang comes from.
  */
 export function buildParts(c: Cabinet, s: ShopSettings, ends: EndInfo = { left: false, right: false }): Part[] {
+  s = eff(c, s);
   if (c.corner) return buildCornerParts(c, s);
   const parts: Part[] = [];
   const { width: W, height: H, depth: D } = c;
@@ -223,11 +230,12 @@ export function buildParts(c: Cabinet, s: ShopSettings, ends: EndInfo = { left: 
   const railLen = FW - 2 * sw;
   // Door openings. On a blind corner they start past the dead area and a wide blind stile.
   const blind = c.blind;
-  const bs = s.blindStileWidth;
+  const bs = sw + (blind?.clearance ?? s.blindClearance); // the blind stile: a face frame stile plus clearance
+  const blindOpen = blind ? blind.dead + bs : 0;
   let ox0 = sL + sw;
   let ox1 = W - sR - sw;
-  if (blind?.side === 'left') ox0 = Math.max(ox0, blind.width);
-  if (blind?.side === 'right') ox1 = Math.min(ox1, W - blind.width);
+  if (blind?.side === 'left') ox0 = Math.max(ox0, blindOpen);
+  if (blind?.side === 'right') ox1 = Math.min(ox1, W - blindOpen);
   const cx = (ox0 + ox1) / 2;
   for (const [x, extra] of [[0, sL], [W - sw - sR, sR]]) {
     const scribed = extra > 0;
@@ -270,7 +278,7 @@ export function buildParts(c: Cabinet, s: ShopSettings, ends: EndInfo = { left: 
     const bx = blind.side === 'left' ? ox0 - bs : ox1;
     parts.push({
       name: 'Blind stile', role: 'stile', material: 'faceframe', length: openH, width: bs, thickness: ft, cut: true,
-      note: `${fmtShort(blind.width)} from the ${blind.side} end to the door opening`,
+      note: `${fmtShort(sw)} + ${fmtShort(bs - sw)} clearance; starts ${fmtShort(blind.dead)} from the ${blind.side} end`,
       boxes: [vb(bx, kick + s.bottomRailWidth, zF, bs, openH, ft)],
     });
   }
@@ -383,16 +391,33 @@ export function buildParts(c: Cabinet, s: ShopSettings, ends: EndInfo = { left: 
     });
   }
 
-  if (c.kind === 'base' && c.countertop) {
-    const cd = D + dt + s.counterOverhang;
-    const ext = panelExtents(c, s, ends);
-    parts.push({
-      name: 'Countertop', role: 'counter', material: 'counter', length: W + ext.left + ext.right, width: cd, thickness: s.counterThickness, cut: false,
-      boxes: [vb(-ext.left, H, 0, W + ext.left + ext.right, s.counterThickness, cd)],
-    });
-  }
+  if (c.kind === 'base' && c.countertop) parts.push(topPart(c, s, W, D + dt, panelExtents(c, s, ends)));
   return parts;
 }
 
 /** How far the face frame actually sticks out past each case side once real plywood thickness is counted. */
 export const realOverhang = (s: ShopSettings) => s.ffOverhang + (s.boxThickness - s.boxActualThickness);
+
+/**
+ * The top of a base cabinet: stone by others, or a solid wood top / bench seat glued up in the shop.
+ * Overhangs are measured past the door face and past each end (end panels included).
+ */
+export function topPart(c: Cabinet, s: ShopSettings, W: number, frontFace: number, ext: { left: number; right: number }): Part {
+  const wood = c.topKind === 'wood';
+  const t = c.topThickness ?? (wood ? 1.25 : s.counterThickness);
+  const front = c.topFront ?? s.counterOverhang;
+  const left = ext.left + (c.topLeft ?? 0);
+  const right = ext.right + (c.topRight ?? 0);
+  const len = W + left + right;
+  const depth = frontFace + front;
+  return wood
+    ? {
+        name: 'Wood top', role: 'woodTop', material: 'solidWood', length: len, width: depth, thickness: t, cut: true,
+        note: `${s.woodSpecies}, glued up; ${fmt(front)} front overhang`,
+        boxes: [vb(-left, c.height, 0, len, t, depth)],
+      }
+    : {
+        name: 'Countertop', role: 'counter', material: 'counter', length: len, width: depth, thickness: t, cut: false,
+        boxes: [vb(-left, c.height, 0, len, t, depth)],
+      };
+}

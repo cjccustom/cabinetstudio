@@ -5,7 +5,8 @@ import { findIssues, gapBeside, nextFreeOffset, resolveEnds } from "../src/model
 import { fmt, parseLength } from "../src/units";
 import { drawerBoxSize } from "../src/model/eagle";
 import { optimize } from "../src/model/optimizer";
-import { defaultFaceFrameStock, faceFrameNeeds, faceFramePieces } from "../src/model/faceframe";
+import { defaultFaceFrameStock, faceFrameNeeds, faceFramePieces, roughQuarters, woodPieces } from "../src/model/faceframe";
+import { panelAbove, panelOrder } from "../src/model/panels";
 import { optimizerParts } from "../src/model/cutlist";
 import { normalize } from "../src/store";
 
@@ -165,9 +166,35 @@ eq('panel sticks out past frame', panelExtents(b21, s, { left: true, right: fals
   const blind = cabinetFromPreset(presets.find((x) => x.id === 'base-blind')!, 'back', 0, []);
   const bp = buildParts(blind, s);
   eq('blind stile present', bp.some((x) => x.name === 'Blind stile'), true);
-  eq('blind door width', bp.find((x) => x.name === 'Door')!.width, 42 - 27 - 1.5 + 2 * s.doorOverlay);
-  eq('mid rail spans opening only', bp.find((x) => x.name === 'Mid rail')!.length, 42 - 27 - 1.5);
+  // Blind stile = 1 1/2" face frame stile + 3" clearance, starting 24" from the corner
+  eq('blind stile width', bp.find((x) => x.name === 'Blind stile')!.width, 4.5);
+  eq('blind door width', bp.find((x) => x.name === 'Door')!.width, 42 - 28.5 - 1.5 + 2 * s.doorOverlay);
+  eq('mid rail spans opening only', bp.find((x) => x.name === 'Mid rail')!.length, 42 - 28.5 - 1.5);
+  eq('more clearance next to a range', buildParts({ ...blind, blind: { ...blind.blind!, clearance: 6 } }, s).find((x) => x.name === 'Blind stile')!.width, 7.5);
   void proj;
+}
+
+// Per-cabinet overrides, solid wood tops, beadboard
+{
+  const b = { ...sampleProject().cabinets.find((c) => c.name === 'B2')!, overrides: { stileWidth: 2, toeKickHeight: 3.5 } };
+  const ps = buildParts(b, s);
+  eq('override stile width', ps.find((x) => x.name === 'Stile')!.width, 2);
+  eq('override rail length', ps.find((x) => x.name === 'Top rail')!.length, 26);
+  eq('override toe kick', ps.find((x) => x.name === 'Stile')!.length, 34.5 - 3.5);
+  eq('job standard untouched', buildParts({ ...b, overrides: undefined }, s).find((x) => x.name === 'Stile')!.width, 1.5);
+  const bench = cabinetFromPreset(presets.find((x) => x.id === 'bench')!, 'back', 0, []);
+  const top = buildParts(bench, s).find((x) => x.role === 'woodTop')!;
+  eq('bench seat is solid wood', top.material, 'solidWood');
+  eq('bench seat depth', top.width, 16 + 0.75 + 1);
+  eq('bench seat 6/4 stock', roughQuarters(top.thickness), 6);
+  eq('4/4 for 3/4 finished', roughQuarters(0.75), 4);
+  const proj = normalize({ ...sampleProject(), cabinets: [bench] });
+  const panel = panelAbove(proj, bench);
+  eq('backsplash starts on the seat', panel.bottom, 17.25 + 1.25);
+  eq('one sheet covers a 48 x 30 backsplash', panelOrder(panel).qty, 1);
+  eq('60" wide backsplash still fits one sheet cut in rows', panelOrder({ ...panel, width: 60 }).qty, 1);
+  eq('tall wainscot', panelOrder({ ...panel, width: 100, height: 60 }).qty, 3);
+  eq('seat and cap on the wood list', woodPieces({ ...proj, panels: [{ ...panel, cap: true }] }).length, 2);
 }
 
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');

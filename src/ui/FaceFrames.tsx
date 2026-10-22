@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useStore } from '../store';
-import { defaultFaceFrameStock, faceFrameNeeds, faceFramePieces, type FaceFrameResult, type FaceFrameStock } from '../model/faceframe';
+import { defaultFaceFrameStock, faceFrameNeeds, faceFramePieces, woodNeeds, woodPieces, type FaceFrameResult, type FaceFrameStock } from '../model/faceframe';
 import { fmt, fmtFeet } from '../units';
 import { Field, LengthInput, Section } from './fields';
 
@@ -10,7 +10,8 @@ function useFF() {
   const stock = { ...defaultFaceFrameStock, ...project.faceFrame };
   const set = (patch: Partial<FaceFrameStock>) => commit((p) => ({ ...p, faceFrame: { ...defaultFaceFrameStock, ...p.faceFrame, ...patch } }));
   const result = useMemo(() => faceFrameNeeds(faceFramePieces(project), stock), [project]); // eslint-disable-line react-hooks/exhaustive-deps
-  return { stock, set, result, jobName: project.name };
+  const wood = useMemo(() => woodNeeds(woodPieces(project), stock), [project]); // eslint-disable-line react-hooks/exhaustive-deps
+  return { stock, set, result, wood, jobName: project.name };
 }
 
 const lf = (inches: number) => `${(inches / 12).toFixed(1)} lf`;
@@ -52,7 +53,7 @@ export function FaceFrameInputs() {
 }
 
 export function FaceFrameBreakdown() {
-  const { result, stock } = useFF();
+  const { result, stock, wood } = useFF();
   const [open, setOpen] = useState<number | null>(null);
   if (!result.groups.length) return <main className="stage cut-stage"><div className="empty pad"><p>No face frames yet. Add cabinets in Design.</p></div></main>;
   return (
@@ -94,6 +95,26 @@ export function FaceFrameBreakdown() {
           <p className="warn">Longer than a {fmtFeet(stock.boardLength)} board after end trim: {result.tooLong.map((p) => `${p.cabinet} ${p.name} ${fmt(p.length)}`).join(', ')}. Buy longer stock for these.</p>
         )}
       </section>
+
+      {wood.length > 0 && (
+        <section className="mat-block">
+          <header><h2>Tops, seats & caps</h2><span className="muted">{stock.species.replace(/,.*$/, '')}, by rough thickness</span></header>
+          <div className="table-wrap">
+            <table className="ff-table">
+              <thead><tr><th>Piece</th><th className="num">Length</th><th className="num">Width</th><th className="num">Finished</th><th className="num">Buy</th></tr></thead>
+              <tbody>
+                {wood.flatMap((g) => g.pieces.map((p, i) => (
+                  <tr key={`${g.quarters}-${i}`}><td>{p.label}</td><td className="num">{fmt(p.length)}</td><td className="num">{fmt(p.width)}</td><td className="num">{fmt(p.thickness)}</td><td className="num">{g.quarters}/4</td></tr>
+                )))}
+                {wood.map((g) => (
+                  <tr key={g.quarters} className="sum"><td>{g.quarters}/4 stock</td><td /><td /><td /><td className="num">{Math.ceil(g.buyBF)} BF</td></tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="hint">Board feet include 2" of length and 1" of width per glue-up, plus defect waste.</p>
+        </section>
+      )}
 
       <section className="mat-block">
         <header><h2>Rip plan</h2><span className="muted">{result.boards.length} boards, {fmt(stock.boardWidth)} × {fmtFeet(stock.boardLength)}</span></header>
@@ -146,7 +167,8 @@ function FFRow({ g, open, toggle }: { g: FaceFrameResult['groups'][number]; open
 }
 
 export function FaceFrameSummary() {
-  const { result: r, stock: s, jobName } = useFF();
+  const { result: r, stock: s, jobName, wood } = useFF();
+  const woodBF = wood.reduce((t, g) => t + g.buyBF, 0);
   const [copied, setCopied] = useState('');
   const text = [
     `Face frame stock: ${jobName}`,
@@ -161,13 +183,15 @@ export function FaceFrameSummary() {
     <aside className="panel">
       <div className="panel-body">
         <Section title="To buy">
-          <div className="big-stat"><span className="mono">{Math.ceil(r.buyBF)}</span> board feet</div>
+          <div className="big-stat"><span className="mono">{Math.ceil(r.buyBF + woodBF)}</span> board feet</div>
+          {wood.map((g) => <p key={g.quarters} className="hint" style={{ marginTop: 0 }}>{g.quarters}/4 for tops, seats & caps: {Math.ceil(g.buyBF)} BF</p>)}
+          <p className="hint" style={{ marginTop: 0 }}>Face frames (4/4): {Math.ceil(r.buyBF)} BF</p>
           <table className="totals">
             <tbody>
               <tr><td>Finished face frames</td><td className="num">{r.netBF.toFixed(1)} BF</td></tr>
               <tr><td>Rough boards ({r.boards.length})</td><td className="num">{r.roughBF.toFixed(1)} BF</td></tr>
               <tr><td>Plus {Math.round(s.waste * 100)}% defect waste</td><td className="num">{r.buyBF.toFixed(1)} BF</td></tr>
-              {s.pricePerBF > 0 && <tr className="sum"><td>At ${s.pricePerBF.toFixed(2)}/BF</td><td className="num">${r.cost.toFixed(2)}</td></tr>}
+              {s.pricePerBF > 0 && <tr className="sum"><td>At ${s.pricePerBF.toFixed(2)}/BF</td><td className="num">${((r.buyBF + woodBF) * s.pricePerBF).toFixed(2)}</td></tr>}
             </tbody>
           </table>
           {!s.pricePerBF && <p className="hint">Enter your price per board foot to see the cost. It will feed the quote.</p>}

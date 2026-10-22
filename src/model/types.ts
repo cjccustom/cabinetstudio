@@ -38,9 +38,37 @@ export interface Cabinet {
   scribeLeft?: number;
   scribeRight?: number;
   /** Blind corner: the end that runs into the corner, and how far from that end the door opening starts. */
-  blind?: { side: 'left' | 'right'; width: number };
+  blind?: { side: 'left' | 'right'; /** Covered by the cabinet on the other wall. */ dead: number; /** Extra stile width past the face frame stile, for the neighbour's doors and pulls (or an appliance). */ clearance: number };
   /** L-shaped corner cabinet spanning two walls. width runs along this wall, width2 along the other. */
   corner?: { side: 'left' | 'right'; width2: number; lazySusan: boolean };
+  /** Any shop standard changed for just this cabinet. */
+  overrides?: Partial<ShopSettings>;
+  /** What sits on top of a base cabinet: stone (by others) or a solid wood top/bench seat built in the shop. */
+  topKind?: 'stone' | 'wood';
+  topThickness?: number;
+  /** Overhang past the door face, and past each end. */
+  topFront?: number;
+  topLeft?: number;
+  topRight?: number;
+}
+
+/** Beadboard or other paneling applied to a wall, like a backsplash above a mudroom bench. */
+export interface WallPanel {
+  id: string;
+  name: string;
+  wall: WallId;
+  offset: number;
+  width: number;
+  /** Bottom edge, off the floor. */
+  bottom: number;
+  height: number;
+  profile: 'standard' | 'vbead' | 'vgroove' | 'channel';
+  material: 'MDF' | 'MRI' | 'MRX' | 'PVC';
+  format: 'sheet' | 'strip';
+  /** Solid wood cap or ledge along the top. */
+  cap: boolean;
+  capHeight: number;
+  capDepth: number;
 }
 
 export type EndMode = 'auto' | 'exposed' | 'hidden';
@@ -97,8 +125,10 @@ export interface ShopSettings {
   endPanelThickness: number;
   /** Added to the cut width of extended stiles so there's wood to scribe. */
   scribeAllowance: number;
-  /** Stile on a blind corner between the dead area and the doors; leaves room for the neighbour's doors and pulls. */
-  blindStileWidth: number;
+  /** Default extra blind stile width on blind corners, past the face frame stile. */
+  blindClearance: number;
+  /** Solid wood species for tops, seats and caps. */
+  woodSpecies: string;
   counterThickness: number;
   counterOverhang: number;
   shelfSetback: number;
@@ -109,6 +139,7 @@ export interface Finishes {
   paint: string;
   box: string;
   counter: string;
+  wood: string;
 }
 
 export interface Room {
@@ -124,15 +155,16 @@ export interface Project {
   settings: ShopSettings;
   finishes: Finishes;
   cabinets: Cabinet[];
+  panels?: WallPanel[];
   cutlist?: import('./cutlist').CutlistData;
   faceFrame?: Partial<import('./faceframe').FaceFrameStock>;
 }
 
-export type MaterialKey = 'box' | 'back' | 'toeSkin' | 'faceframe' | 'door' | 'drawerBox' | 'counter';
+export type MaterialKey = 'box' | 'back' | 'toeSkin' | 'faceframe' | 'door' | 'drawerBox' | 'counter' | 'solidWood';
 
 export type PartRole =
   | 'side' | 'bottom' | 'top' | 'stretcher' | 'back' | 'nailer' | 'toekick' | 'shelf'
-  | 'stile' | 'rail' | 'door' | 'drawerFront' | 'drawerBox' | 'endPanel' | 'counter';
+  | 'stile' | 'rail' | 'door' | 'drawerFront' | 'drawerBox' | 'endPanel' | 'counter' | 'woodTop';
 
 export interface VisualBox {
   min: [number, number, number];
