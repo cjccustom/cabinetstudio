@@ -42,6 +42,7 @@ export const defaultSettings: ShopSettings = {
   doorGap: 0.125,
   insetReveal: 0.09375,
   drawerSlide: 'tandem',
+  tandemRearBrackets: false,
   drawerSide: 0.5,
   drawerWidthDeduction: 0.625,
   drawerHeightDeduction: 0.8125,

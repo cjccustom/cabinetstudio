@@ -14,6 +14,7 @@ import { optimizerParts } from "../src/model/cutlist";
 import { normalize } from "../src/store";
 import { fieldChecks, releaseStatus } from "../src/model/release";
 import { eagleFraction, eagleRequests, requestText } from "../src/model/eagleRequest";
+import { hardwareOrder, tierPrice } from "../src/model/hardware";
 
 let failed = 0;
 const eq = (label: string, got: unknown, want: unknown) => {
@@ -228,7 +229,7 @@ eq('panel sticks out past frame', panelExtents(b21, s, { left: true, right: fals
 // Quoting
 {
   const base = normalize(sampleProject());
-  base.quote = { hingeEach: 6, slidePair: 35 };
+  base.quote = {};
   const r = priceQuote(base);
   const tax = base.settings.purchaseTax;
   const g = r.groups[0];
@@ -299,6 +300,27 @@ eq('panel sticks out past frame', panelExtents(b21, s, { left: true, right: fals
   const short = { ...job, cabinets: job.cabinets.map((c) => (c.name === 'B3' ? { ...c, rows: [{ type: 'drawer' as const, height: 3.5, doors: 1 as const, shelves: 0 }, ...c.rows.slice(1)] } : c)) };
   eq('short front rails', eagleRequests(short)[1].lines.some((l) => l[5] === '1-1/2"'), true);
   console.log(requestText(job.name, reqs[1]).split('\n').slice(0, 14).join('\n'));
+}
+
+// Woodworker Express hardware
+{
+  const job = normalize(sampleProject());
+  const h = hardwareOrder(job);
+  const qty = (part: string) => h.lines.find((l) => l.part.part === part)?.qty ?? 0;
+  eq('1 1/4" overlay picks Compact 39C355B.20', qty('39C355B.20'), h.hinges);
+  eq('one 21" Tandem 563H pair per drawer', qty('563H5330B'), h.drawers);
+  eq('left and right clips per drawer', [qty('T51.1901 L'), qty('T51.1901 R')].join(), `${h.drawers},${h.drawers}`);
+  eq('no rear brackets unless chosen', qty('295.3750.02'), 0);
+  eq('rear brackets when chosen', qty.call(null, '295.3750.02') + (hardwareOrder({ ...job, settings: { ...job.settings, tandemRearBrackets: true } }).lines.find((l) => l.part.part === '295.3750.02')?.qty ?? 0), 2 * h.drawers);
+  eq('no problems on the sample', h.problems.map((x) => x.text).join('; '), '');
+  const inset = hardwareOrder({ ...job, settings: { ...job.settings, doorMount: 'inset', hingeType: 'cliptop' } });
+  const iq = (part: string) => inset.lines.find((l) => l.part.part === part)?.qty ?? 0;
+  eq('inset Clip Top: half crank on 9mm face frame plate', [iq('71B3650'), iq('175H5030.21')].join(), `${inset.hinges},${inset.hinges}`);
+  eq('inset drawers get PS clips', iq('T51.1901.PS L'), inset.drawers);
+  const compact = h.lines.find((l) => l.part.part === '39C355B.20')!.part;
+  eq('quantity break at 300', [tierPrice(compact, 299), tierPrice(compact, 300)].join(), '3.25,2.97');
+  const quoted = priceQuote(job).materials.find((m) => m.label.startsWith('Hinges'));
+  eq('quote prices hinges from the list', Math.abs((quoted?.cost ?? 0) - h.hinges * 3.25) < 0.01, true);
 }
 
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');

@@ -302,3 +302,5 @@ tr.missing td { color: var(--warn); }
 .eagle-config > div { display: contents; }
 .eagle-config dt { font-weight: 600; }
 .eagle-config dd { margin: 0; }
+.wwe-order { margin-top: 18px; }
+.wwe-order .check-hint { font-size: 11px; }

@@ -1,0 +1,2751 @@
+{
+  "schema_version": "1.0.0",
+  "catalog_name": "Woodworker Express - selected Blum cabinet hardware",
+  "price_checked_date": "2026-10-22",
+  "currency": "USD",
+  "price_basis": "Public web prices checked without signing in; account pricing may differ.",
+  "scope": "50 selected Blum soft-close screw-on hinges, CLIP mounting plates, TANDEM 563H/563F and MOVENTO 763H/769 slide lengths, locking devices and selected slide accessories. Not the entire supplier catalog.",
+  "excluded_costs": [
+    "sales tax",
+    "freight",
+    "shipping membership",
+    "labor",
+    "selling markup",
+    "screws unless explicitly listed"
+  ],
+  "user_defaults": {
+    "drawer_side_thickness_in": 0.5,
+    "tandem_series": "563H",
+    "overlay_tandem_left_clip": "T51.1901 L",
+    "overlay_tandem_right_clip": "T51.1901 R",
+    "inset_tandem_left_clip": "T51.1901.PS L",
+    "inset_tandem_right_clip": "T51.1901.PS R"
+  },
+  "integration_rules": [
+    "Use supplier_sku as the vendor-specific primary key. Preserve all part numbers and SKU values as text; do not strip punctuation, spaces or handedness.",
+    "base_unit_price_usd is the cost of one unit as defined by unit. A slide pair contains a left and right runner; order one pair per drawer, not two.",
+    "Each locking-device SKU is one handed clip. A complete drawer needs one left and one right of the same compatible family. TANDEM and MOVENTO clips are separate systems.",
+    "Quantity tiers contain only explicitly published discounts. Empty tiers means none was displayed, not a guarantee that no other discount exists. Use base price below the first tier. Evaluate tiers per exact supplier SKU after aggregating the intended purchase quantity; do not combine unrelated parts.",
+    "All selected SKUs are sold in multiples of one priced unit. Recheck supplier unit and order_multiple when adding future products. Screws sold in packs require different purchase-rounding logic.",
+    "COMPACT hinges include their plate; CLIP top hinges require one compatible separately priced mounting plate per hinge. Door hinge count must be a chosen or engineered input based on door size and weight, not always two.",
+    "Hinge/plate geometry is a separate validated design rule. 175H5030.21 is a 9 mm inset face-frame adapter requiring a half-cranked hinge such as 71B3650, rather than automatically pairing every inset plate with 71B3750.",
+    "563H is the default for the user's 1/2-inch drawer sides. 563F is an optional thicker-box family; never silently swap H and F to obtain a cheaper price.",
+    "Rear mounting hardware depends on installation. Include two TANDEM 295.3750.02 brackets only when that mounting method is chosen. MOVENTO needs its own validated mounting method; 769 requires side mounting to frameless or blocked-out cabinets.",
+    "MOVENTO 298.7600 is one set per inset drawer, containing right and left add-on depth adjusters, per the Blum MOVENTO guide. It is included in MOVENTO inset example assemblies. It is not for TIP-ON BLUMOTION.",
+    "MOVENTO thin-front spacer T59.K010M is individually priced. Require the installation construction to determine spacer use, quantity and setback; do not auto-add to every 1/2-inch drawer.",
+    "Recipes are hardware-cost examples using base prices, not sale prices or full installed drawer costs. Store freight, tax, labor and markup as separate quote inputs. Reprice parts independently and recalculate assemblies from their components.",
+    "Treat this as an editable dated price snapshot. Recheck current prices before placing orders or issuing a binding quote."
+  ],
+  "technical_reference_urls": [
+    "https://d2.blum.com/services/BEC003/tdmbmn_ep_dok_bus_%24sen-us_%24aof_%24v15.pdf",
+    "https://www.woodworkerexpress.com/blum-9mm-inset-face-frame-plate.html",
+    "https://d2.blum.com/services/BEC003/movento_ep_dok_bus_%24sen-us_%24aof_%24v7.pdf"
+  ],
+  "products": [
+    {
+      "supplier": "Woodworker Express",
+      "manufacturer": "Blum",
+      "supplier_sku": "11183350",
+      "manufacturer_part_number": "71B3550",
+      "supplier_manufacturer_part_number": "71B3550",
+      "category": "hinge",
+      "series": "CLIP top BLUMOTION 110",
+      "description": "110-degree CLIP top BLUMOTION, straight arm / full overlay, screw-on",
+      "nominal_length_in": null,
+      "overlay_in": null,
+      "plate_height_mm": null,
+      "handedness": null,
+      "unit": "each",
+      "supplier_priced_by": "Each",
+      "pieces_per_unit": 1,
+      "base_unit_price_usd": 4.35,
+      "currency": "USD",
+      "minimum_order_quantity": 1,
+      "order_multiple": 1,
+      "quantity_tiers": [
+        {
+          "minimum_quantity": 250,
+          "maximum_quantity": 499,
+          "unit_price_usd": 4.17
+        },
+        {
+          "minimum_quantity": 500,
+          "maximum_quantity": null,
+          "unit_price_usd": 4.05
+        }
+      ],
+      "drawer_side_min_in": null,
+      "drawer_side_max_in": null,
+      "quantity_per_drawer": null,
+      "separate_hinge_plate_required": true,
+      "adjustment": null,
+      "application": "overlay_by_plate_geometry",
+      "notes": "One compatible mounting plate per hinge; screws separate. Application depends on hinge arm, plate and cabinet geometry.",
+      "price_checked_date": "2026-10-22",
+      "price_basis": "public_web_not_signed_in",
+      "source_url": "https://www.woodworkerexpress.com/blum-110deg-blumotion-hinge-full-overlay-screw-on.html"
+    },
+    {
+      "supplier": "Woodworker Express",
+      "manufacturer": "Blum",
+      "supplier_sku": "11183354",
+      "manufacturer_part_number": "71B3650",
+      "supplier_manufacturer_part_number": "71B3650",
+      "category": "hinge",
+      "series": "CLIP top BLUMOTION 110",
+      "description": "110-degree CLIP top BLUMOTION, half crank / half overlay, screw-on",
+      "nominal_length_in": null,
+      "overlay_in": null,
+      "plate_height_mm": null,
+      "handedness": null,
+      "unit": "each",
+      "supplier_priced_by": "Each",
+      "pieces_per_unit": 1,
+      "base_unit_price_usd": 4.65,
+      "currency": "USD",
+      "minimum_order_quantity": 1,
+      "order_multiple": 1,
+      "quantity_tiers": [
+        {
+          "minimum_quantity": 250,
+          "maximum_quantity": null,
+          "unit_price_usd": 4.41
+        }
+      ],
+      "drawer_side_min_in": null,
+      "drawer_side_max_in": null,
+      "quantity_per_drawer": null,
+      "separate_hinge_plate_required": true,
+      "adjustment": null,
+      "application": "half_overlay_or_face_frame_inset_with_9mm_adapter",
+      "notes": "One compatible mounting plate per hinge; screws separate. Application depends on hinge arm, plate and cabinet geometry.",
+      "price_checked_date": "2026-10-22",
+      "price_basis": "public_web_not_signed_in",
+      "source_url": "https://www.woodworkerexpress.com/blum-110deg-blumotion-hinge-half-overlay-screw-on.html"
+    },
+    {
+      "supplier": "Woodworker Express",
+      "manufacturer": "Blum",
+      "supplier_sku": "11183357",
+      "manufacturer_part_number": "71B3750",
+      "supplier_manufacturer_part_number": "71B3750",
+      "category": "hinge",
+      "series": "CLIP top BLUMOTION 110",
+      "description": "110-degree CLIP top BLUMOTION, full crank / inset, screw-on",
+      "nominal_length_in": null,
+      "overlay_in": null,
+      "plate_height_mm": null,
+      "handedness": null,
+      "unit": "each",
+      "supplier_priced_by": "Each",
+      "pieces_per_unit": 1,
+      "base_unit_price_usd": 4.71,
+      "currency": "USD",
+      "minimum_order_quantity": 1,
+      "order_multiple": 1,
+      "quantity_tiers": [
+        {
+          "minimum_quantity": 250,
+          "maximum_quantity": null,
+          "unit_price_usd": 4.48
+        }
+      ],
+      "drawer_side_min_in": null,
+      "drawer_side_max_in": null,
+      "quantity_per_drawer": null,
+      "separate_hinge_plate_required": true,
+      "adjustment": null,
+      "application": "inset_by_plate_geometry",
+      "notes": "One compatible mounting plate per hinge; screws separate. Application depends on hinge arm, plate and cabinet geometry.",
+      "price_checked_date": "2026-10-22",
+      "price_basis": "public_web_not_signed_in",
+      "source_url": "https://www.woodworkerexpress.com/blum-110deg-blumotion-hinge-inset-screw-on.html"
+    },
+    {
+      "supplier": "Woodworker Express",
+      "manufacturer": "Blum",
+      "supplier_sku": "11183250",
+      "manufacturer_part_number": "38N355B.06",
+      "supplier_manufacturer_part_number": "38N355B.06",
+      "category": "hinge",
+      "series": "COMPACT BLUMOTION 38N",
+      "description": "COMPACT BLUMOTION 3/8\" overlay, screw-on",
+      "nominal_length_in": null,
+      "overlay_in": 0.375,
+      "plate_height_mm": null,
+      "handedness": null,
+      "unit": "each",
+      "supplier_priced_by": "Each",
+      "pieces_per_unit": 1,
+      "base_unit_price_usd": 3.17,
+      "currency": "USD",
+      "minimum_order_quantity": 1,
+      "order_multiple": 1,
+      "quantity_tiers": [
+        {
+          "minimum_quantity": 250,
+          "maximum_quantity": null,
+          "unit_price_usd": 2.88
+        }
+      ],
+      "drawer_side_min_in": null,
+      "drawer_side_max_in": null,
+      "quantity_per_drawer": null,
+      "separate_hinge_plate_required": false,
+      "adjustment": null,
+      "application": "face_frame_overlay",
+      "notes": "Integrated plate included. Screws separate. Select the specified overlay.",
+      "price_checked_date": "2026-10-22",
+      "price_basis": "public_web_not_signed_in",
+      "source_url": "https://www.woodworkerexpress.com/blum-38n-soft-close-hinges-105deg-compact-blumotion-3-8-overlay.html"
+    },
+    {
+      "supplier": "Woodworker Express",
+      "manufacturer": "Blum",
+      "supplier_sku": "11183251",
+      "manufacturer_part_number": "38N355B.08",
+      "supplier_manufacturer_part_number": "38N355B.08",
+      "category": "hinge",
+      "series": "COMPACT BLUMOTION 38N",
+      "description": "COMPACT BLUMOTION 1/2\" overlay, screw-on",
+      "nominal_length_in": null,
+      "overlay_in": 0.5,
+      "plate_height_mm": null,
+      "handedness": null,
+      "unit": "each",
+      "supplier_priced_by": "Each",
+      "pieces_per_unit": 1,
+      "base_unit_price_usd": 3.17,
+      "currency": "USD",
+      "minimum_order_quantity": 1,
+      "order_multiple": 1,
+      "quantity_tiers": [
+        {
+          "minimum_quantity": 250,
+          "maximum_quantity": null,
+          "unit_price_usd": 3.06
+        }
+      ],
+      "drawer_side_min_in": null,
+      "drawer_side_max_in": null,
+      "quantity_per_drawer": null,
+      "separate_hinge_plate_required": false,
+      "adjustment": null,
+      "application": "face_frame_overlay",
+      "notes": "Integrated plate included. Screws separate. Select the specified overlay.",
+      "price_checked_date": "2026-10-22",
+      "price_basis": "public_web_not_signed_in",
+      "source_url": "https://www.woodworkerexpress.com/blum-38n-soft-close-hinges-105deg-compact-blumotion-1-2-overlay.html"
+    },
+    {
+      "supplier": "Woodworker Express",
+      "manufacturer": "Blum",
+      "supplier_sku": "11206151",
+      "manufacturer_part_number": "38N355B.10",
+      "supplier_manufacturer_part_number": "38N355B.10",
+      "category": "hinge",
+      "series": "COMPACT BLUMOTION 38N",
+      "description": "COMPACT BLUMOTION 5/8\" overlay, screw-on",
+      "nominal_length_in": null,
+      "overlay_in": 0.625,
+      "plate_height_mm": null,
+      "handedness": null,
+      "unit": "each",
+      "supplier_priced_by": "Each",
+      "pieces_per_unit": 1,
+      "base_unit_price_usd": 3.17,
+      "currency": "USD",
+      "minimum_order_quantity": 1,
+      "order_multiple": 1,
+      "quantity_tiers": [
+        {
+          "minimum_quantity": 250,
+          "maximum_quantity": null,
+          "unit_price_usd": 2.89
+        }
+      ],
+      "drawer_side_min_in": null,
+      "drawer_side_max_in": null,
+      "quantity_per_drawer": null,
+      "separate_hinge_plate_required": false,
+      "adjustment": null,
+      "application": "face_frame_overlay",
+      "notes": "Integrated plate included. Screws separate. Select the specified overlay.",
+      "price_checked_date": "2026-10-22",
+      "price_basis": "public_web_not_signed_in",
+      "source_url": "https://www.woodworkerexpress.com/blum-38n-soft-close-hinges-105deg-compact-blumotion-5-8-overlay.html"
+    },
+    {
+      "supplier": "Woodworker Express",
+      "manufacturer": "Blum",
+      "supplier_sku": "11183252",
+      "manufacturer_part_number": "38N355B.12",
+      "supplier_manufacturer_part_number": "38N355B.12",
+      "category": "hinge",
+      "series": "COMPACT BLUMOTION 38N",
+      "description": "COMPACT BLUMOTION 3/4\" overlay, screw-on",
+      "nominal_length_in": null,
+      "overlay_in": 0.75,
+      "plate_height_mm": null,
+      "handedness": null,
+      "unit": "each",
+      "supplier_priced_by": "Each",
+      "pieces_per_unit": 1,
+      "base_unit_price_usd": 3.17,
+      "currency": "USD",
+      "minimum_order_quantity": 1,
+      "order_multiple": 1,
+      "quantity_tiers": [
+        {
+          "minimum_quantity": 250,
+          "maximum_quantity": null,
+          "unit_price_usd": 2.88
+        }
+      ],
+      "drawer_side_min_in": null,
+      "drawer_side_max_in": null,
+      "quantity_per_drawer": null,
+      "separate_hinge_plate_required": false,
+      "adjustment": null,
+      "application": "face_frame_overlay",
+      "notes": "Integrated plate included. Screws separate. Select the specified overlay.",
+      "price_checked_date": "2026-10-22",
+      "price_basis": "public_web_not_signed_in",
+      "source_url": "https://www.woodworkerexpress.com/blum-38n-soft-close-hinges-105deg-compact-blumotion-3-4-overlay.html"
+    },
+    {
+      "supplier": "Woodworker Express",
+      "manufacturer": "Blum",
+      "supplier_sku": "11183259",
+      "manufacturer_part_number": "39C355B.16",
+      "supplier_manufacturer_part_number": "39C355B.16",
+      "category": "hinge",
+      "series": "COMPACT BLUMOTION 39C",
+      "description": "COMPACT BLUMOTION 1\" overlay, screw-on",
+      "nominal_length_in": null,
+      "overlay_in": 1.0,
+      "plate_height_mm": null,
+      "handedness": null,
+      "unit": "each",
+      "supplier_priced_by": "Each",
+      "pieces_per_unit": 1,
+      "base_unit_price_usd": 3.25,
+      "currency": "USD",
+      "minimum_order_quantity": 1,
+      "order_multiple": 1,
+      "quantity_tiers": [
+        {
+          "minimum_quantity": 300,
+          "maximum_quantity": null,
+          "unit_price_usd": 2.97
+        }
+      ],
+      "drawer_side_min_in": null,
+      "drawer_side_max_in": null,
+      "quantity_per_drawer": null,
+      "separate_hinge_plate_required": false,
+      "adjustment": null,
+      "application": "face_frame_overlay",
+      "notes": "Integrated plate included. Screws separate. Select the specified overlay.",
+      "price_checked_date": "2026-10-22",
+      "price_basis": "public_web_not_signed_in",
+      "source_url": "https://www.woodworkerexpress.com/blum-39c-soft-close-hinges-110deg-compact-blumotion-1-overlay.html"
+    },
+    {
+      "supplier": "Woodworker Express",
+      "manufacturer": "Blum",
+      "supplier_sku": "11183260",
+      "manufacturer_part_number": "39C355B.20",
+      "supplier_manufacturer_part_number": "39C355B.20",
+      "category": "hinge",
+      "series": "COMPACT BLUMOTION 39C",
+      "description": "COMPACT BLUMOTION 1-1/4\" overlay, screw-on",
+      "nominal_length_in": null,
+      "overlay_in": 1.25,
+      "plate_height_mm": null,
+      "handedness": null,
+      "unit": "each",
+      "supplier_priced_by": "Each",
+      "pieces_per_unit": 1,
+      "base_unit_price_usd": 3.25,
+      "currency": "USD",
+      "minimum_order_quantity": 1,
+      "order_multiple": 1,
+      "quantity_tiers": [
+        {
+          "minimum_quantity": 300,
+          "maximum_quantity": null,
+          "unit_price_usd": 2.97
+        }
+      ],
+      "drawer_side_min_in": null,
+      "drawer_side_max_in": null,
+      "quantity_per_drawer": null,
+      "separate_hinge_plate_required": false,
+      "adjustment": null,
+      "application": "face_frame_overlay",
+      "notes": "Integrated plate included. Screws separate. Select the specified overlay.",
+      "price_checked_date": "2026-10-22",
+      "price_basis": "public_web_not_signed_in",
+      "source_url": "https://www.woodworkerexpress.com/blum-39c-soft-close-hinges-110deg-compact-blumotion-1-1-4-overlay.html"
+    },
+    {
+      "supplier": "Woodworker Express",
+      "manufacturer": "Blum",
+      "supplier_sku": "11183261",
+      "manufacturer_part_number": "39C355B.21",
+      "supplier_manufacturer_part_number": "39C355B.21",
+      "category": "hinge",
+      "series": "COMPACT BLUMOTION 39C",
+      "description": "COMPACT BLUMOTION 1-5/16\" overlay, screw-on",
+      "nominal_length_in": null,
+      "overlay_in": 1.3125,
+      "plate_height_mm": null,
+      "handedness": null,
+      "unit": "each",
+      "supplier_priced_by": "Each",
+      "pieces_per_unit": 1,
+      "base_unit_price_usd": 3.25,
+      "currency": "USD",
+      "minimum_order_quantity": 1,
+      "order_multiple": 1,
+      "quantity_tiers": [
+        {
+          "minimum_quantity": 300,
+          "maximum_quantity": null,
+          "unit_price_usd": 2.97
+        }
+      ],
+      "drawer_side_min_in": null,
+      "drawer_side_max_in": null,
+      "quantity_per_drawer": null,
+      "separate_hinge_plate_required": false,
+      "adjustment": null,
+      "application": "face_frame_overlay",
+      "notes": "Integrated plate included. Screws separate. Select the specified overlay.",
+      "price_checked_date": "2026-10-22",
+      "price_basis": "public_web_not_signed_in",
+      "source_url": "https://www.woodworkerexpress.com/blum-compact-blumotion-39c-hinge-1-5-16-overlay-screw-on.html"
+    },
+    {
+      "supplier": "Woodworker Express",
+      "manufacturer": "Blum",
+      "supplier_sku": "11183262",
+      "manufacturer_part_number": "39C355B.22",
+      "supplier_manufacturer_part_number": "39C355B.22",
+      "category": "hinge",
+      "series": "COMPACT BLUMOTION 39C",
+      "description": "COMPACT BLUMOTION 1-3/8\" overlay, screw-on",
+      "nominal_length_in": null,
+      "overlay_in": 1.375,
+      "plate_height_mm": null,
+      "handedness": null,
+      "unit": "each",
+      "supplier_priced_by": "Each",
+      "pieces_per_unit": 1,
+      "base_unit_price_usd": 3.25,
+      "currency": "USD",
+      "minimum_order_quantity": 1,
+      "order_multiple": 1,
+      "quantity_tiers": [
+        {
+          "minimum_quantity": 300,
+          "maximum_quantity": null,
+          "unit_price_usd": 2.97
+        }
+      ],
+      "drawer_side_min_in": null,
+      "drawer_side_max_in": null,
+      "quantity_per_drawer": null,
+      "separate_hinge_plate_required": false,
+      "adjustment": null,
+      "application": "face_frame_overlay",
+      "notes": "Integrated plate included. Screws separate. Select the specified overlay.",
+      "price_checked_date": "2026-10-22",
+      "price_basis": "public_web_not_signed_in",
+      "source_url": "https://www.woodworkerexpress.com/blum-39c-soft-close-hinges-110deg-compact-blumotion-1-3-8-overlay.html"
+    },
+    {
+      "supplier": "Woodworker Express",
+      "manufacturer": "Blum",
+      "supplier_sku": "11206153",
+      "manufacturer_part_number": "39C355B.24",
+      "supplier_manufacturer_part_number": "39C355B.24",
+      "category": "hinge",
+      "series": "COMPACT BLUMOTION 39C",
+      "description": "COMPACT BLUMOTION 1-1/2\" overlay, screw-on",
+      "nominal_length_in": null,
+      "overlay_in": 1.5,
+      "plate_height_mm": null,
+      "handedness": null,
+      "unit": "each",
+      "supplier_priced_by": "Each",
+      "pieces_per_unit": 1,
+      "base_unit_price_usd": 3.25,
+      "currency": "USD",
+      "minimum_order_quantity": 1,
+      "order_multiple": 1,
+      "quantity_tiers": [
+        {
+          "minimum_quantity": 300,
+          "maximum_quantity": null,
+          "unit_price_usd": 2.96
+        }
+      ],
+      "drawer_side_min_in": null,
+      "drawer_side_max_in": null,
+      "quantity_per_drawer": null,
+      "separate_hinge_plate_required": false,
+      "adjustment": null,
+      "application": "face_frame_overlay",
+      "notes": "Integrated plate included. Screws separate. Select the specified overlay.",
+      "price_checked_date": "2026-10-22",
+      "price_basis": "public_web_not_signed_in",
+      "source_url": "https://www.woodworkerexpress.com/blum-39c-soft-close-hinges-110deg-compact-blumotion-1-1-2-overlay.html"
+    },
+    {
+      "supplier": "Woodworker Express",
+      "manufacturer": "Blum",
+      "supplier_sku": "11183263",
+      "manufacturer_part_number": "39C355B.25",
+      "supplier_manufacturer_part_number": "39C355B.25",
+      "category": "hinge",
+      "series": "COMPACT BLUMOTION 39C",
+      "description": "COMPACT BLUMOTION 1-9/16\" overlay, screw-on",
+      "nominal_length_in": null,
+      "overlay_in": 1.5625,
+      "plate_height_mm": null,
+      "handedness": null,
+      "unit": "each",
+      "supplier_priced_by": "Each",
+      "pieces_per_unit": 1,
+      "base_unit_price_usd": 3.25,
+      "currency": "USD",
+      "minimum_order_quantity": 1,
+      "order_multiple": 1,
+      "quantity_tiers": [
+        {
+          "minimum_quantity": 300,
+          "maximum_quantity": null,
+          "unit_price_usd": 2.97
+        }
+      ],
+      "drawer_side_min_in": null,
+      "drawer_side_max_in": null,
+      "quantity_per_drawer": null,
+      "separate_hinge_plate_required": false,
+      "adjustment": null,
+      "application": "face_frame_overlay",
+      "notes": "Integrated plate included. Screws separate. Select the specified overlay.",
+      "price_checked_date": "2026-10-22",
+      "price_basis": "public_web_not_signed_in",
+      "source_url": "https://www.woodworkerexpress.com/blum-compact-blumotion-39c-hinge-1-9-16-overlay-screw-on.html"
+    },
+    {
+      "supplier": "Woodworker Express",
+      "manufacturer": "Blum",
+      "supplier_sku": "10372342",
+      "manufacturer_part_number": "173H7100",
+      "supplier_manufacturer_part_number": "173H7100",
+      "category": "hinge_mounting_plate",
+      "series": "CLIP mounting plate",
+      "description": "0 mm wing plate, cam height adjustment",
+      "nominal_length_in": null,
+      "overlay_in": null,
+      "plate_height_mm": 0.0,
+      "handedness": null,
+      "unit": "each",
+      "supplier_priced_by": "Each",
+      "pieces_per_unit": 1,
+      "base_unit_price_usd": 0.71,
+      "currency": "USD",
+      "minimum_order_quantity": 1,
+      "order_multiple": 1,
+      "quantity_tiers": [
+        {
+          "minimum_quantity": 500,
+          "maximum_quantity": null,
+          "unit_price_usd": 0.66
+        }
+      ],
+      "drawer_side_min_in": null,
+      "drawer_side_max_in": null,
+      "quantity_per_drawer": null,
+      "separate_hinge_plate_required": null,
+      "adjustment": null,
+      "application": "select_by_hinge_and_cabinet_geometry",
+      "notes": "One plate per CLIP hinge. Screws separate.",
+      "price_checked_date": "2026-10-22",
+      "price_basis": "public_web_not_signed_in",
+      "source_url": "https://www.woodworkerexpress.com/blum-0mm-cam-adj-wing-wood-screw-plate.html"
+    },
+    {
+      "supplier": "Woodworker Express",
+      "manufacturer": "Blum",
+      "supplier_sku": "10372345",
+      "manufacturer_part_number": "173L6100",
+      "supplier_manufacturer_part_number": "173L6100",
+      "category": "hinge_mounting_plate",
+      "series": "CLIP mounting plate",
+      "description": "0 mm wing plate, slotted height adjustment",
+      "nominal_length_in": null,
+      "overlay_in": null,
+      "plate_height_mm": 0.0,
+      "handedness": null,
+      "unit": "each",
+      "supplier_priced_by": "Each",
+      "pieces_per_unit": 1,
+      "base_unit_price_usd": 0.35,
+      "currency": "USD",
+      "minimum_order_quantity": 1,
+      "order_multiple": 1,
+      "quantity_tiers": [
+        {
+          "minimum_quantity": 500,
+          "maximum_quantity": null,
+          "unit_price_usd": 0.31
+        }
+      ],
+      "drawer_side_min_in": null,
+      "drawer_side_max_in": null,
+      "quantity_per_drawer": null,
+      "separate_hinge_plate_required": null,
+      "adjustment": null,
+      "application": "select_by_hinge_and_cabinet_geometry",
+      "notes": "One plate per CLIP hinge. Screws separate.",
+      "price_checked_date": "2026-10-22",
+      "price_basis": "public_web_not_signed_in",
+      "source_url": "https://www.woodworkerexpress.com/blum-0mm-base-plates-clip-one-piece-wood-screw-plate.html"
+    },
+    {
+      "supplier": "Woodworker Express",
+      "manufacturer": "Blum",
+      "supplier_sku": "10372894",
+      "manufacturer_part_number": "175H6000",
+      "supplier_manufacturer_part_number": "175H6000",
+      "category": "hinge_mounting_plate",
+      "series": "CLIP mounting plate",
+      "description": "0 mm face-frame adapter, cam height adjustment",
+      "nominal_length_in": null,
+      "overlay_in": null,
+      "plate_height_mm": 0.0,
+      "handedness": null,
+      "unit": "each",
+      "supplier_priced_by": "Each",
+      "pieces_per_unit": 1,
+      "base_unit_price_usd": 1.09,
+      "currency": "USD",
+      "minimum_order_quantity": 1,
+      "order_multiple": 1,
+      "quantity_tiers": [
+        {
+          "minimum_quantity": 250,
+          "maximum_quantity": null,
+          "unit_price_usd": 0.97
+        }
+      ],
+      "drawer_side_min_in": null,
+      "drawer_side_max_in": null,
+      "quantity_per_drawer": null,
+      "separate_hinge_plate_required": null,
+      "adjustment": null,
+      "application": "select_by_hinge_and_cabinet_geometry",
+      "notes": "One plate per CLIP hinge. Screws separate.",
+      "price_checked_date": "2026-10-22",
+      "price_basis": "public_web_not_signed_in",
+      "source_url": "https://www.woodworkerexpress.com/blum-face-frame-base-plates-cam-adj-center-mount-plate-height-0mm.html"
+    },
+    {
+      "supplier": "Woodworker Express",
+      "manufacturer": "Blum",
+      "supplier_sku": "10372343",
+      "manufacturer_part_number": "173H7130",
+      "supplier_manufacturer_part_number": "173H7130",
+      "category": "hinge_mounting_plate",
+      "series": "CLIP mounting plate",
+      "description": "3 mm wing plate, cam height adjustment",
+      "nominal_length_in": null,
+      "overlay_in": null,
+      "plate_height_mm": 3.0,
+      "handedness": null,
+      "unit": "each",
+      "supplier_priced_by": "Each",
+      "pieces_per_unit": 1,
+      "base_unit_price_usd": 0.81,
+      "currency": "USD",
+      "minimum_order_quantity": 1,
+      "order_multiple": 1,
+      "quantity_tiers": [
+        {
+          "minimum_quantity": 500,
+          "maximum_quantity": null,
+          "unit_price_usd": 0.74
+        }
+      ],
+      "drawer_side_min_in": null,
+      "drawer_side_max_in": null,
+      "quantity_per_drawer": null,
+      "separate_hinge_plate_required": null,
+      "adjustment": null,
+      "application": "select_by_hinge_and_cabinet_geometry",
+      "notes": "One plate per CLIP hinge. Screws separate.",
+      "price_checked_date": "2026-10-22",
+      "price_basis": "public_web_not_signed_in",
+      "source_url": "https://www.woodworkerexpress.com/blum-3mm-cam-adj-wing-wood-screw-plate.html"
+    },
+    {
+      "supplier": "Woodworker Express",
+      "manufacturer": "Blum",
+      "supplier_sku": "10409783",
+      "manufacturer_part_number": "175H6030",
+      "supplier_manufacturer_part_number": "175H6030",
+      "category": "hinge_mounting_plate",
+      "series": "CLIP mounting plate",
+      "description": "3 mm face-frame adapter, cam height adjustment",
+      "nominal_length_in": null,
+      "overlay_in": null,
+      "plate_height_mm": 3.0,
+      "handedness": null,
+      "unit": "each",
+      "supplier_priced_by": "Each",
+      "pieces_per_unit": 1,
+      "base_unit_price_usd": 1.21,
+      "currency": "USD",
+      "minimum_order_quantity": 1,
+      "order_multiple": 1,
+      "quantity_tiers": [
+        {
+          "minimum_quantity": 250,
+          "maximum_quantity": null,
+          "unit_price_usd": 1.09
+        }
+      ],
+      "drawer_side_min_in": null,
+      "drawer_side_max_in": null,
+      "quantity_per_drawer": null,
+      "separate_hinge_plate_required": null,
+      "adjustment": null,
+      "application": "select_by_hinge_and_cabinet_geometry",
+      "notes": "One plate per CLIP hinge. Screws separate.",
+      "price_checked_date": "2026-10-22",
+      "price_basis": "public_web_not_signed_in",
+      "source_url": "https://www.woodworkerexpress.com/blum-face-frame-base-plates-cam-adj-center-mount-plate-height-3mm.html"
+    },
+    {
+      "supplier": "Woodworker Express",
+      "manufacturer": "Blum",
+      "supplier_sku": "10372356",
+      "manufacturer_part_number": "175H5030.21",
+      "supplier_manufacturer_part_number": "175H5030.21",
+      "category": "hinge_mounting_plate",
+      "series": "CLIP mounting plate",
+      "description": "9 mm face-frame adapter, cam height adjustment",
+      "nominal_length_in": null,
+      "overlay_in": null,
+      "plate_height_mm": 9.0,
+      "handedness": null,
+      "unit": "each",
+      "supplier_priced_by": "Each",
+      "pieces_per_unit": 1,
+      "base_unit_price_usd": 2.25,
+      "currency": "USD",
+      "minimum_order_quantity": 1,
+      "order_multiple": 1,
+      "quantity_tiers": [
+        {
+          "minimum_quantity": 250,
+          "maximum_quantity": null,
+          "unit_price_usd": 2.05
+        }
+      ],
+      "drawer_side_min_in": null,
+      "drawer_side_max_in": null,
+      "quantity_per_drawer": null,
+      "separate_hinge_plate_required": null,
+      "adjustment": null,
+      "application": "face_frame_inset",
+      "notes": "One plate per CLIP hinge. Screws separate. Requires a half-cranked hinge such as 71B3650; not the full-cranked 71B3750.",
+      "price_checked_date": "2026-10-22",
+      "price_basis": "public_web_not_signed_in",
+      "source_url": "https://www.woodworkerexpress.com/blum-9mm-inset-face-frame-plate.html"
+    },
+    {
+      "supplier": "Woodworker Express",
+      "manufacturer": "Blum",
+      "supplier_sku": "11467224",
+      "manufacturer_part_number": "763H3050S",
+      "supplier_manufacturer_part_number": "763H3050S",
+      "category": "drawer_slide",
+      "series": "MOVENTO 763H",
+      "description": "12-inch MOVENTO 763H, full extension, soft-close",
+      "nominal_length_in": 12,
+      "overlay_in": null,
+      "plate_height_mm": null,
+      "handedness": null,
+      "unit": "pair",
+      "supplier_priced_by": "Set",
+      "pieces_per_unit": 2,
+      "base_unit_price_usd": 34.38,
+      "currency": "USD",
+      "minimum_order_quantity": 1,
+      "order_multiple": 1,
+      "quantity_tiers": [],
+      "drawer_side_min_in": 0.5,
+      "drawer_side_max_in": 0.625,
+      "quantity_per_drawer": 1,
+      "separate_hinge_plate_required": null,
+      "adjustment": null,
+      "application": "face_frame_or_frameless",
+      "notes": "One left/right slide pair. Locking devices, screws and rear supports separate.",
+      "price_checked_date": "2026-10-22",
+      "price_basis": "public_web_not_signed_in",
+      "source_url": "https://www.woodworkerexpress.com/slides-undermount-blum-movento-full-ext-undermount-slides-763H-standard-duty-12-s.html"
+    },
+    {
+      "supplier": "Woodworker Express",
+      "manufacturer": "Blum",
+      "supplier_sku": "11467225",
+      "manufacturer_part_number": "763H3810S",
+      "supplier_manufacturer_part_number": "763H3810S",
+      "category": "drawer_slide",
+      "series": "MOVENTO 763H",
+      "description": "15-inch MOVENTO 763H, full extension, soft-close",
+      "nominal_length_in": 15,
+      "overlay_in": null,
+      "plate_height_mm": null,
+      "handedness": null,
+      "unit": "pair",
+      "supplier_priced_by": "Set",
+      "pieces_per_unit": 2,
+      "base_unit_price_usd": 34.38,
+      "currency": "USD",
+      "minimum_order_quantity": 1,
+      "order_multiple": 1,
+      "quantity_tiers": [],
+      "drawer_side_min_in": 0.5,
+      "drawer_side_max_in": 0.625,
+      "quantity_per_drawer": 1,
+      "separate_hinge_plate_required": null,
+      "adjustment": null,
+      "application": "face_frame_or_frameless",
+      "notes": "One left/right slide pair. Locking devices, screws and rear supports separate.",
+      "price_checked_date": "2026-10-22",
+      "price_basis": "public_web_not_signed_in",
+      "source_url": "https://www.woodworkerexpress.com/slides-undermount-blum-movento-full-ext-undermount-slides-763H-standard-duty-15-s.html"
+    },
+    {
+      "supplier": "Woodworker Express",
+      "manufacturer": "Blum",
+      "supplier_sku": "11467226",
+      "manufacturer_part_number": "763H4570S",
+      "supplier_manufacturer_part_number": "763H4570S",
+      "category": "drawer_slide",
+      "series": "MOVENTO 763H",
+      "description": "18-inch MOVENTO 763H, full extension, soft-close",
+      "nominal_length_in": 18,
+      "overlay_in": null,
+      "plate_height_mm": null,
+      "handedness": null,
+      "unit": "pair",
+      "supplier_priced_by": "Set",
+      "pieces_per_unit": 2,
+      "base_unit_price_usd": 34.38,
+      "currency": "USD",
+      "minimum_order_quantity": 1,
+      "order_multiple": 1,
+      "quantity_tiers": [],
+      "drawer_side_min_in": 0.5,
+      "drawer_side_max_in": 0.625,
+      "quantity_per_drawer": 1,
+      "separate_hinge_plate_required": null,
+      "adjustment": null,
+      "application": "face_frame_or_frameless",
+      "notes": "One left/right slide pair. Locking devices, screws and rear supports separate.",
+      "price_checked_date": "2026-10-22",
+      "price_basis": "public_web_not_signed_in",
+      "source_url": "https://www.woodworkerexpress.com/blum-movento-full-ext-undermount-slides-763H-standard-duty-18-s.html"
+    },
+    {
+      "supplier": "Woodworker Express",
+      "manufacturer": "Blum",
+      "supplier_sku": "11467227",
+      "manufacturer_part_number": "763H5330S",
+      "supplier_manufacturer_part_number": "763H5330S",
+      "category": "drawer_slide",
+      "series": "MOVENTO 763H",
+      "description": "21-inch MOVENTO 763H, full extension, soft-close",
+      "nominal_length_in": 21,
+      "overlay_in": null,
+      "plate_height_mm": null,
+      "handedness": null,
+      "unit": "pair",
+      "supplier_priced_by": "Set",
+      "pieces_per_unit": 2,
+      "base_unit_price_usd": 34.75,
+      "currency": "USD",
+      "minimum_order_quantity": 1,
+      "order_multiple": 1,
+      "quantity_tiers": [],
+      "drawer_side_min_in": 0.5,
+      "drawer_side_max_in": 0.625,
+      "quantity_per_drawer": 1,
+      "separate_hinge_plate_required": null,
+      "adjustment": null,
+      "application": "face_frame_or_frameless",
+      "notes": "One left/right slide pair. Locking devices, screws and rear supports separate.",
+      "price_checked_date": "2026-10-22",
+      "price_basis": "public_web_not_signed_in",
+      "source_url": "https://www.woodworkerexpress.com/slides-undermount-blum-movento-full-ext-undermount-slides-763H-standard-duty-21-s.html"
+    },
+    {
+      "supplier": "Woodworker Express",
+      "manufacturer": "Blum",
+      "supplier_sku": "11467232",
+      "manufacturer_part_number": "769.4570S",
+      "supplier_manufacturer_part_number": "769.4570S",
+      "category": "drawer_slide",
+      "series": "MOVENTO 769 heavy duty",
+      "description": "18-inch MOVENTO 769 heavy duty, full extension, soft-close",
+      "nominal_length_in": 18,
+      "overlay_in": null,
+      "plate_height_mm": null,
+      "handedness": null,
+      "unit": "pair",
+      "supplier_priced_by": "Set",
+      "pieces_per_unit": 2,
+      "base_unit_price_usd": 43.28,
+      "currency": "USD",
+      "minimum_order_quantity": 1,
+      "order_multiple": 1,
+      "quantity_tiers": [],
+      "drawer_side_min_in": 0.5,
+      "drawer_side_max_in": 0.625,
+      "quantity_per_drawer": 1,
+      "separate_hinge_plate_required": null,
+      "adjustment": null,
+      "application": "frameless_or_blocked_out_face_frame",
+      "notes": "One left/right slide pair. Locking devices, screws and rear supports separate.",
+      "price_checked_date": "2026-10-22",
+      "price_basis": "public_web_not_signed_in",
+      "source_url": "https://www.woodworkerexpress.com/slides-undermount-blum-movento-full-ext-undermount-slides-769-hd-18-s.html"
+    },
+    {
+      "supplier": "Woodworker Express",
+      "manufacturer": "Blum",
+      "supplier_sku": "11467233",
+      "manufacturer_part_number": "769.5330S",
+      "supplier_manufacturer_part_number": "769.5330S",
+      "category": "drawer_slide",
+      "series": "MOVENTO 769 heavy duty",
+      "description": "21-inch MOVENTO 769 heavy duty, full extension, soft-close",
+      "nominal_length_in": 21,
+      "overlay_in": null,
+      "plate_height_mm": null,
+      "handedness": null,
+      "unit": "pair",
+      "supplier_priced_by": "Set",
+      "pieces_per_unit": 2,
+      "base_unit_price_usd": 43.68,
+      "currency": "USD",
+      "minimum_order_quantity": 1,
+      "order_multiple": 1,
+      "quantity_tiers": [],
+      "drawer_side_min_in": 0.5,
+      "drawer_side_max_in": 0.625,
+      "quantity_per_drawer": 1,
+      "separate_hinge_plate_required": null,
+      "adjustment": null,
+      "application": "frameless_or_blocked_out_face_frame",
+      "notes": "One left/right slide pair. Locking devices, screws and rear supports separate.",
+      "price_checked_date": "2026-10-22",
+      "price_basis": "public_web_not_signed_in",
+      "source_url": "https://www.woodworkerexpress.com/slides-undermount-blum-movento-full-ext-undermount-slides-769-hd-21-s.html"
+    },
+    {
+      "supplier": "Woodworker Express",
+      "manufacturer": "Blum",
+      "supplier_sku": "11467234",
+      "manufacturer_part_number": "769.6100S",
+      "supplier_manufacturer_part_number": "769.6100S",
+      "category": "drawer_slide",
+      "series": "MOVENTO 769 heavy duty",
+      "description": "24-inch MOVENTO 769 heavy duty, full extension, soft-close",
+      "nominal_length_in": 24,
+      "overlay_in": null,
+      "plate_height_mm": null,
+      "handedness": null,
+      "unit": "pair",
+      "supplier_priced_by": "Set",
+      "pieces_per_unit": 2,
+      "base_unit_price_usd": 50.08,
+      "currency": "USD",
+      "minimum_order_quantity": 1,
+      "order_multiple": 1,
+      "quantity_tiers": [],
+      "drawer_side_min_in": 0.5,
+      "drawer_side_max_in": 0.625,
+      "quantity_per_drawer": 1,
+      "separate_hinge_plate_required": null,
+      "adjustment": null,
+      "application": "frameless_or_blocked_out_face_frame",
+      "notes": "One left/right slide pair. Locking devices, screws and rear supports separate.",
+      "price_checked_date": "2026-10-22",
+      "price_basis": "public_web_not_signed_in",
+      "source_url": "https://www.woodworkerexpress.com/slides-undermount-blum-movento-full-ext-undermount-slides-769-hd-24-s.html"
+    },
+    {
+      "supplier": "Woodworker Express",
+      "manufacturer": "Blum",
+      "supplier_sku": "11467235",
+      "manufacturer_part_number": "769.6860S",
+      "supplier_manufacturer_part_number": "769.6860S",
+      "category": "drawer_slide",
+      "series": "MOVENTO 769 heavy duty",
+      "description": "27-inch MOVENTO 769 heavy duty, full extension, soft-close",
+      "nominal_length_in": 27,
+      "overlay_in": null,
+      "plate_height_mm": null,
+      "handedness": null,
+      "unit": "pair",
+      "supplier_priced_by": "Set",
+      "pieces_per_unit": 2,
+      "base_unit_price_usd": 52.21,
+      "currency": "USD",
+      "minimum_order_quantity": 1,
+      "order_multiple": 1,
+      "quantity_tiers": [],
+      "drawer_side_min_in": 0.5,
+      "drawer_side_max_in": 0.625,
+      "quantity_per_drawer": 1,
+      "separate_hinge_plate_required": null,
+      "adjustment": null,
+      "application": "frameless_or_blocked_out_face_frame",
+      "notes": "One left/right slide pair. Locking devices, screws and rear supports separate.",
+      "price_checked_date": "2026-10-22",
+      "price_basis": "public_web_not_signed_in",
+      "source_url": "https://www.woodworkerexpress.com/slides-undermount-blum-movento-full-ext-undermount-slides-769-hd-27-s.html"
+    },
+    {
+      "supplier": "Woodworker Express",
+      "manufacturer": "Blum",
+      "supplier_sku": "11212229",
+      "manufacturer_part_number": "563F2290B10",
+      "supplier_manufacturer_part_number": "563F2290B10",
+      "category": "drawer_slide",
+      "series": "TANDEM 563F",
+      "description": "9-inch TANDEM 563F, full extension, soft-close",
+      "nominal_length_in": 9,
+      "overlay_in": null,
+      "plate_height_mm": null,
+      "handedness": null,
+      "unit": "pair",
+      "supplier_priced_by": "Set",
+      "pieces_per_unit": 2,
+      "base_unit_price_usd": 28.27,
+      "currency": "USD",
+      "minimum_order_quantity": 1,
+      "order_multiple": 1,
+      "quantity_tiers": [],
+      "drawer_side_min_in": 0.625,
+      "drawer_side_max_in": 0.75,
+      "quantity_per_drawer": 1,
+      "separate_hinge_plate_required": null,
+      "adjustment": null,
+      "application": "face_frame_or_frameless",
+      "notes": "One left/right slide pair. Locking devices, screws and rear supports separate. Optional thicker-box alternative; not the default for 1/2-inch sides.",
+      "price_checked_date": "2026-10-22",
+      "price_basis": "public_web_not_signed_in",
+      "source_url": "https://www.woodworkerexpress.com/blum-tandem-plus-blumotion-563f-drawer-slides-9in.html"
+    },
+    {
+      "supplier": "Woodworker Express",
+      "manufacturer": "Blum",
+      "supplier_sku": "11212230",
+      "manufacturer_part_number": "563F3050B",
+      "supplier_manufacturer_part_number": "563F3050B",
+      "category": "drawer_slide",
+      "series": "TANDEM 563F",
+      "description": "12-inch TANDEM 563F, full extension, soft-close",
+      "nominal_length_in": 12,
+      "overlay_in": null,
+      "plate_height_mm": null,
+      "handedness": null,
+      "unit": "pair",
+      "supplier_priced_by": "Set",
+      "pieces_per_unit": 2,
+      "base_unit_price_usd": 23.75,
+      "currency": "USD",
+      "minimum_order_quantity": 1,
+      "order_multiple": 1,
+      "quantity_tiers": [],
+      "drawer_side_min_in": 0.625,
+      "drawer_side_max_in": 0.75,
+      "quantity_per_drawer": 1,
+      "separate_hinge_plate_required": null,
+      "adjustment": null,
+      "application": "face_frame_or_frameless",
+      "notes": "One left/right slide pair. Locking devices, screws and rear supports separate. Optional thicker-box alternative; not the default for 1/2-inch sides.",
+      "price_checked_date": "2026-10-22",
+      "price_basis": "public_web_not_signed_in",
+      "source_url": "https://www.woodworkerexpress.com/blum-12in-tandem-plus-blumotion-563f-drawer-slides.html"
+    },
+    {
+      "supplier": "Woodworker Express",
+      "manufacturer": "Blum",
+      "supplier_sku": "11212231",
+      "manufacturer_part_number": "563F3810B",
+      "supplier_manufacturer_part_number": "563F3810B",
+      "category": "drawer_slide",
+      "series": "TANDEM 563F",
+      "description": "15-inch TANDEM 563F, full extension, soft-close",
+      "nominal_length_in": 15,
+      "overlay_in": null,
+      "plate_height_mm": null,
+      "handedness": null,
+      "unit": "pair",
+      "supplier_priced_by": "Set",
+      "pieces_per_unit": 2,
+      "base_unit_price_usd": 23.75,
+      "currency": "USD",
+      "minimum_order_quantity": 1,
+      "order_multiple": 1,
+      "quantity_tiers": [],
+      "drawer_side_min_in": 0.625,
+      "drawer_side_max_in": 0.75,
+      "quantity_per_drawer": 1,
+      "separate_hinge_plate_required": null,
+      "adjustment": null,
+      "application": "face_frame_or_frameless",
+      "notes": "One left/right slide pair. Locking devices, screws and rear supports separate. Optional thicker-box alternative; not the default for 1/2-inch sides.",
+      "price_checked_date": "2026-10-22",
+      "price_basis": "public_web_not_signed_in",
+      "source_url": "https://www.woodworkerexpress.com/blum-15in-tandem-plus-blumotion-563f-drawer-slides.html"
+    },
+    {
+      "supplier": "Woodworker Express",
+      "manufacturer": "Blum",
+      "supplier_sku": "11212232",
+      "manufacturer_part_number": "563F4570B",
+      "supplier_manufacturer_part_number": "563F4570B",
+      "category": "drawer_slide",
+      "series": "TANDEM 563F",
+      "description": "18-inch TANDEM 563F, full extension, soft-close",
+      "nominal_length_in": 18,
+      "overlay_in": null,
+      "plate_height_mm": null,
+      "handedness": null,
+      "unit": "pair",
+      "supplier_priced_by": "Set",
+      "pieces_per_unit": 2,
+      "base_unit_price_usd": 21.09,
+      "currency": "USD",
+      "minimum_order_quantity": 1,
+      "order_multiple": 1,
+      "quantity_tiers": [],
+      "drawer_side_min_in": 0.625,
+      "drawer_side_max_in": 0.75,
+      "quantity_per_drawer": 1,
+      "separate_hinge_plate_required": null,
+      "adjustment": null,
+      "application": "face_frame_or_frameless",
+      "notes": "One left/right slide pair. Locking devices, screws and rear supports separate. Optional thicker-box alternative; not the default for 1/2-inch sides.",
+      "price_checked_date": "2026-10-22",
+      "price_basis": "public_web_not_signed_in",
+      "source_url": "https://www.woodworkerexpress.com/blum-18in-tandem-plus-blumotion-563f-undermount-drawer-slides.html"
+    },
+    {
+      "supplier": "Woodworker Express",
+      "manufacturer": "Blum",
+      "supplier_sku": "11212233",
+      "manufacturer_part_number": "563F5330B",
+      "supplier_manufacturer_part_number": "563F5330B",
+      "category": "drawer_slide",
+      "series": "TANDEM 563F",
+      "description": "21-inch TANDEM 563F, full extension, soft-close",
+      "nominal_length_in": 21,
+      "overlay_in": null,
+      "plate_height_mm": null,
+      "handedness": null,
+      "unit": "pair",
+      "supplier_priced_by": "Set",
+      "pieces_per_unit": 2,
+      "base_unit_price_usd": 21.66,
+      "currency": "USD",
+      "minimum_order_quantity": 1,
+      "order_multiple": 1,
+      "quantity_tiers": [],
+      "drawer_side_min_in": 0.625,
+      "drawer_side_max_in": 0.75,
+      "quantity_per_drawer": 1,
+      "separate_hinge_plate_required": null,
+      "adjustment": null,
+      "application": "face_frame_or_frameless",
+      "notes": "One left/right slide pair. Locking devices, screws and rear supports separate. Optional thicker-box alternative; not the default for 1/2-inch sides.",
+      "price_checked_date": "2026-10-22",
+      "price_basis": "public_web_not_signed_in",
+      "source_url": "https://www.woodworkerexpress.com/blum-21in-tandem-plus-blumotion-563f-undermount-drawer-slides.html"
+    },
+    {
+      "supplier": "Woodworker Express",
+      "manufacturer": "Blum",
+      "supplier_sku": "11198193",
+      "manufacturer_part_number": "563H2290B10",
+      "supplier_manufacturer_part_number": "563H2290B10",
+      "category": "drawer_slide",
+      "series": "TANDEM 563H",
+      "description": "9-inch TANDEM 563H, full extension, soft-close",
+      "nominal_length_in": 9,
+      "overlay_in": null,
+      "plate_height_mm": null,
+      "handedness": null,
+      "unit": "pair",
+      "supplier_priced_by": "Set",
+      "pieces_per_unit": 2,
+      "base_unit_price_usd": 28.28,
+      "currency": "USD",
+      "minimum_order_quantity": 1,
+      "order_multiple": 1,
+      "quantity_tiers": [],
+      "drawer_side_min_in": 0.5,
+      "drawer_side_max_in": 0.625,
+      "quantity_per_drawer": 1,
+      "separate_hinge_plate_required": null,
+      "adjustment": null,
+      "application": "face_frame_or_frameless",
+      "notes": "One left/right slide pair. Locking devices, screws and rear supports separate.",
+      "price_checked_date": "2026-10-22",
+      "price_basis": "public_web_not_signed_in",
+      "source_url": "https://www.woodworkerexpress.com/blum-9in-tandem-plus-blumotion-563h-drawer-slides-soft-close.html"
+    },
+    {
+      "supplier": "Woodworker Express",
+      "manufacturer": "Blum",
+      "supplier_sku": "11198194",
+      "manufacturer_part_number": "563H3050B",
+      "supplier_manufacturer_part_number": "563H3050B",
+      "category": "drawer_slide",
+      "series": "TANDEM 563H",
+      "description": "12-inch TANDEM 563H, full extension, soft-close",
+      "nominal_length_in": 12,
+      "overlay_in": null,
+      "plate_height_mm": null,
+      "handedness": null,
+      "unit": "pair",
+      "supplier_priced_by": "Set",
+      "pieces_per_unit": 2,
+      "base_unit_price_usd": 22.26,
+      "currency": "USD",
+      "minimum_order_quantity": 1,
+      "order_multiple": 1,
+      "quantity_tiers": [],
+      "drawer_side_min_in": 0.5,
+      "drawer_side_max_in": 0.625,
+      "quantity_per_drawer": 1,
+      "separate_hinge_plate_required": null,
+      "adjustment": null,
+      "application": "face_frame_or_frameless",
+      "notes": "One left/right slide pair. Locking devices, screws and rear supports separate.",
+      "price_checked_date": "2026-10-22",
+      "price_basis": "public_web_not_signed_in",
+      "source_url": "https://www.woodworkerexpress.com/blum-12in-tandem-plus-blumotion-563h-drawer-slides-soft-close.html"
+    },
+    {
+      "supplier": "Woodworker Express",
+      "manufacturer": "Blum",
+      "supplier_sku": "11198215",
+      "manufacturer_part_number": "563H3810B",
+      "supplier_manufacturer_part_number": "563H3810B",
+      "category": "drawer_slide",
+      "series": "TANDEM 563H",
+      "description": "15-inch TANDEM 563H, full extension, soft-close",
+      "nominal_length_in": 15,
+      "overlay_in": null,
+      "plate_height_mm": null,
+      "handedness": null,
+      "unit": "pair",
+      "supplier_priced_by": "Set",
+      "pieces_per_unit": 2,
+      "base_unit_price_usd": 22.26,
+      "currency": "USD",
+      "minimum_order_quantity": 1,
+      "order_multiple": 1,
+      "quantity_tiers": [],
+      "drawer_side_min_in": 0.5,
+      "drawer_side_max_in": 0.625,
+      "quantity_per_drawer": 1,
+      "separate_hinge_plate_required": null,
+      "adjustment": null,
+      "application": "face_frame_or_frameless",
+      "notes": "One left/right slide pair. Locking devices, screws and rear supports separate.",
+      "price_checked_date": "2026-10-22",
+      "price_basis": "public_web_not_signed_in",
+      "source_url": "https://www.woodworkerexpress.com/blum-563h-tandem-plus-blumotion-15in-undermount-drawer-slides.html"
+    },
+    {
+      "supplier": "Woodworker Express",
+      "manufacturer": "Blum",
+      "supplier_sku": "11198216",
+      "manufacturer_part_number": "563H4570B",
+      "supplier_manufacturer_part_number": "563H4570B",
+      "category": "drawer_slide",
+      "series": "TANDEM 563H",
+      "description": "18-inch TANDEM 563H, full extension, soft-close",
+      "nominal_length_in": 18,
+      "overlay_in": null,
+      "plate_height_mm": null,
+      "handedness": null,
+      "unit": "pair",
+      "supplier_priced_by": "Set",
+      "pieces_per_unit": 2,
+      "base_unit_price_usd": 19.99,
+      "currency": "USD",
+      "minimum_order_quantity": 1,
+      "order_multiple": 1,
+      "quantity_tiers": [],
+      "drawer_side_min_in": 0.5,
+      "drawer_side_max_in": 0.625,
+      "quantity_per_drawer": 1,
+      "separate_hinge_plate_required": null,
+      "adjustment": null,
+      "application": "face_frame_or_frameless",
+      "notes": "One left/right slide pair. Locking devices, screws and rear supports separate.",
+      "price_checked_date": "2026-10-22",
+      "price_basis": "public_web_not_signed_in",
+      "source_url": "https://www.woodworkerexpress.com/blum-563h-tandem-plus-blumotion-18in-undermount-drawer-slides.html"
+    },
+    {
+      "supplier": "Woodworker Express",
+      "manufacturer": "Blum",
+      "supplier_sku": "11198217",
+      "manufacturer_part_number": "563H5330B",
+      "supplier_manufacturer_part_number": "563H5330B",
+      "category": "drawer_slide",
+      "series": "TANDEM 563H",
+      "description": "21-inch TANDEM 563H, full extension, soft-close",
+      "nominal_length_in": 21,
+      "overlay_in": null,
+      "plate_height_mm": null,
+      "handedness": null,
+      "unit": "pair",
+      "supplier_priced_by": "Set",
+      "pieces_per_unit": 2,
+      "base_unit_price_usd": 20.55,
+      "currency": "USD",
+      "minimum_order_quantity": 1,
+      "order_multiple": 1,
+      "quantity_tiers": [],
+      "drawer_side_min_in": 0.5,
+      "drawer_side_max_in": 0.625,
+      "quantity_per_drawer": 1,
+      "separate_hinge_plate_required": null,
+      "adjustment": null,
+      "application": "face_frame_or_frameless",
+      "notes": "One left/right slide pair. Locking devices, screws and rear supports separate.",
+      "price_checked_date": "2026-10-22",
+      "price_basis": "public_web_not_signed_in",
+      "source_url": "https://www.woodworkerexpress.com/blum-563h-tandem-plus-blumotion-21in-undermount-drawer-slides.html"
+    },
+    {
+      "supplier": "Woodworker Express",
+      "manufacturer": "Blum",
+      "supplier_sku": "11372411",
+      "manufacturer_part_number": "T51.7601 L",
+      "supplier_manufacturer_part_number": "T51.7601 LI",
+      "category": "locking_device",
+      "series": "MOVENTO",
+      "description": "MOVENTO locking device, left",
+      "nominal_length_in": null,
+      "overlay_in": null,
+      "plate_height_mm": null,
+      "handedness": "left",
+      "unit": "each",
+      "supplier_priced_by": "Each",
+      "pieces_per_unit": 1,
+      "base_unit_price_usd": 1.98,
+      "currency": "USD",
+      "minimum_order_quantity": 1,
+      "order_multiple": 1,
+      "quantity_tiers": [],
+      "drawer_side_min_in": null,
+      "drawer_side_max_in": null,
+      "quantity_per_drawer": 1,
+      "separate_hinge_plate_required": null,
+      "adjustment": "height_and_lateral",
+      "application": "movento_overlay_or_inset",
+      "notes": "One left and one right required per drawer. MOVENTO depth adjustment uses a separate accessory; not interchangeable with TANDEM clips.",
+      "price_checked_date": "2026-10-22",
+      "price_basis": "public_web_not_signed_in",
+      "source_url": "https://www.woodworkerexpress.com/slides-undermount-blum-movento-front-locking-device-side-to-side-adjustment-left-right-hand-right-hand-front-locking-device-side-to-side-adjustment.html"
+    },
+    {
+      "supplier": "Woodworker Express",
+      "manufacturer": "Blum",
+      "supplier_sku": "11372412",
+      "manufacturer_part_number": "T51.7601 R",
+      "supplier_manufacturer_part_number": "T51.7601 RE",
+      "category": "locking_device",
+      "series": "MOVENTO",
+      "description": "MOVENTO locking device, right",
+      "nominal_length_in": null,
+      "overlay_in": null,
+      "plate_height_mm": null,
+      "handedness": "right",
+      "unit": "each",
+      "supplier_priced_by": "Each",
+      "pieces_per_unit": 1,
+      "base_unit_price_usd": 1.98,
+      "currency": "USD",
+      "minimum_order_quantity": 1,
+      "order_multiple": 1,
+      "quantity_tiers": [],
+      "drawer_side_min_in": null,
+      "drawer_side_max_in": null,
+      "quantity_per_drawer": 1,
+      "separate_hinge_plate_required": null,
+      "adjustment": "height_and_lateral",
+      "application": "movento_overlay_or_inset",
+      "notes": "One left and one right required per drawer. MOVENTO depth adjustment uses a separate accessory; not interchangeable with TANDEM clips.",
+      "price_checked_date": "2026-10-22",
+      "price_basis": "public_web_not_signed_in",
+      "source_url": "https://www.woodworkerexpress.com/slides-undermount-blum-movento-front-locking-device-side-to-side-adjustment-left-right-hand-left-hand-front-locking-device-side-to-side-adjustment.html"
+    },
+    {
+      "supplier": "Woodworker Express",
+      "manufacturer": "Blum",
+      "supplier_sku": "11211508",
+      "manufacturer_part_number": "T51.0801.20 L",
+      "supplier_manufacturer_part_number": "T51.0801.20 L",
+      "category": "locking_device",
+      "series": "TANDEM",
+      "description": "TANDEM narrow locking device, left",
+      "nominal_length_in": null,
+      "overlay_in": null,
+      "plate_height_mm": null,
+      "handedness": "left",
+      "unit": "each",
+      "supplier_priced_by": "Each",
+      "pieces_per_unit": 1,
+      "base_unit_price_usd": 1.14,
+      "currency": "USD",
+      "minimum_order_quantity": 1,
+      "order_multiple": 1,
+      "quantity_tiers": [],
+      "drawer_side_min_in": null,
+      "drawer_side_max_in": null,
+      "quantity_per_drawer": 1,
+      "separate_hinge_plate_required": null,
+      "adjustment": "height_only",
+      "application": "narrow_drawer",
+      "notes": "Optional alternative. No lateral or depth adjustment. Check minimum drawer width for narrow applications.",
+      "price_checked_date": "2026-10-22",
+      "price_basis": "public_web_not_signed_in",
+      "source_url": "https://www.woodworkerexpress.com/blum-tandem-563-569-narrow-locking-device-left.html"
+    },
+    {
+      "supplier": "Woodworker Express",
+      "manufacturer": "Blum",
+      "supplier_sku": "11211509",
+      "manufacturer_part_number": "T51.0801.20 R",
+      "supplier_manufacturer_part_number": "T51.0801.20 R",
+      "category": "locking_device",
+      "series": "TANDEM",
+      "description": "TANDEM narrow locking device, right",
+      "nominal_length_in": null,
+      "overlay_in": null,
+      "plate_height_mm": null,
+      "handedness": "right",
+      "unit": "each",
+      "supplier_priced_by": "Each",
+      "pieces_per_unit": 1,
+      "base_unit_price_usd": 1.14,
+      "currency": "USD",
+      "minimum_order_quantity": 1,
+      "order_multiple": 1,
+      "quantity_tiers": [],
+      "drawer_side_min_in": null,
+      "drawer_side_max_in": null,
+      "quantity_per_drawer": 1,
+      "separate_hinge_plate_required": null,
+      "adjustment": "height_only",
+      "application": "narrow_drawer",
+      "notes": "Optional alternative. No lateral or depth adjustment. Check minimum drawer width for narrow applications.",
+      "price_checked_date": "2026-10-22",
+      "price_basis": "public_web_not_signed_in",
+      "source_url": "https://www.woodworkerexpress.com/blum-r-tandem-563-569-narrow-locking-device-right.html"
+    },
+    {
+      "supplier": "Woodworker Express",
+      "manufacturer": "Blum",
+      "supplier_sku": "11211494",
+      "manufacturer_part_number": "T51.1801 L",
+      "supplier_manufacturer_part_number": "T51.1801 L",
+      "category": "locking_device",
+      "series": "TANDEM",
+      "description": "TANDEM basic locking device, left",
+      "nominal_length_in": null,
+      "overlay_in": null,
+      "plate_height_mm": null,
+      "handedness": "left",
+      "unit": "each",
+      "supplier_priced_by": "Each",
+      "pieces_per_unit": 1,
+      "base_unit_price_usd": 0.93,
+      "currency": "USD",
+      "minimum_order_quantity": 1,
+      "order_multiple": 1,
+      "quantity_tiers": [],
+      "drawer_side_min_in": null,
+      "drawer_side_max_in": null,
+      "quantity_per_drawer": 1,
+      "separate_hinge_plate_required": null,
+      "adjustment": "height_only",
+      "application": "basic_height_adjustment_only",
+      "notes": "Optional alternative. No lateral or depth adjustment. Check minimum drawer width for narrow applications.",
+      "price_checked_date": "2026-10-22",
+      "price_basis": "public_web_not_signed_in",
+      "source_url": "https://www.woodworkerexpress.com/blum-l-tandem-563-569-standard-mount-locking-device-left.html"
+    },
+    {
+      "supplier": "Woodworker Express",
+      "manufacturer": "Blum",
+      "supplier_sku": "11211505",
+      "manufacturer_part_number": "T51.1801 R",
+      "supplier_manufacturer_part_number": "T51.1801 R",
+      "category": "locking_device",
+      "series": "TANDEM",
+      "description": "TANDEM basic locking device, right",
+      "nominal_length_in": null,
+      "overlay_in": null,
+      "plate_height_mm": null,
+      "handedness": "right",
+      "unit": "each",
+      "supplier_priced_by": "Each",
+      "pieces_per_unit": 1,
+      "base_unit_price_usd": 0.93,
+      "currency": "USD",
+      "minimum_order_quantity": 1,
+      "order_multiple": 1,
+      "quantity_tiers": [],
+      "drawer_side_min_in": null,
+      "drawer_side_max_in": null,
+      "quantity_per_drawer": 1,
+      "separate_hinge_plate_required": null,
+      "adjustment": "height_only",
+      "application": "basic_height_adjustment_only",
+      "notes": "Optional alternative. No lateral or depth adjustment. Check minimum drawer width for narrow applications.",
+      "price_checked_date": "2026-10-22",
+      "price_basis": "public_web_not_signed_in",
+      "source_url": "https://www.woodworkerexpress.com/blum-r-tandem-563-569-standard-mount-locking-device-right.html"
+    },
+    {
+      "supplier": "Woodworker Express",
+      "manufacturer": "Blum",
+      "supplier_sku": "11198225",
+      "manufacturer_part_number": "T51.1901 L",
+      "supplier_manufacturer_part_number": "T51.1901 L",
+      "category": "locking_device",
+      "series": "TANDEM",
+      "description": "TANDEM side-adjustable locking device, left",
+      "nominal_length_in": null,
+      "overlay_in": null,
+      "plate_height_mm": null,
+      "handedness": "left",
+      "unit": "each",
+      "supplier_priced_by": "Each",
+      "pieces_per_unit": 1,
+      "base_unit_price_usd": 1.86,
+      "currency": "USD",
+      "minimum_order_quantity": 1,
+      "order_multiple": 1,
+      "quantity_tiers": [],
+      "drawer_side_min_in": null,
+      "drawer_side_max_in": null,
+      "quantity_per_drawer": 1,
+      "separate_hinge_plate_required": null,
+      "adjustment": "height_and_lateral",
+      "application": "overlay_default",
+      "notes": "User default for overlay drawers. One left and one right per drawer. No depth adjustment.",
+      "price_checked_date": "2026-10-22",
+      "price_basis": "public_web_not_signed_in",
+      "source_url": "https://www.woodworkerexpress.com/blum-l-tandem-locking-devices.html"
+    },
+    {
+      "supplier": "Woodworker Express",
+      "manufacturer": "Blum",
+      "supplier_sku": "11198226",
+      "manufacturer_part_number": "T51.1901 R",
+      "supplier_manufacturer_part_number": "T51.1901 R",
+      "category": "locking_device",
+      "series": "TANDEM",
+      "description": "TANDEM side-adjustable locking device, right",
+      "nominal_length_in": null,
+      "overlay_in": null,
+      "plate_height_mm": null,
+      "handedness": "right",
+      "unit": "each",
+      "supplier_priced_by": "Each",
+      "pieces_per_unit": 1,
+      "base_unit_price_usd": 1.86,
+      "currency": "USD",
+      "minimum_order_quantity": 1,
+      "order_multiple": 1,
+      "quantity_tiers": [],
+      "drawer_side_min_in": null,
+      "drawer_side_max_in": null,
+      "quantity_per_drawer": 1,
+      "separate_hinge_plate_required": null,
+      "adjustment": "height_and_lateral",
+      "application": "overlay_default",
+      "notes": "User default for overlay drawers. One left and one right per drawer. No depth adjustment.",
+      "price_checked_date": "2026-10-22",
+      "price_basis": "public_web_not_signed_in",
+      "source_url": "https://www.woodworkerexpress.com/blum-r-tandem-locking-devices.html"
+    },
+    {
+      "supplier": "Woodworker Express",
+      "manufacturer": "Blum",
+      "supplier_sku": "11198227",
+      "manufacturer_part_number": "T51.1901.PS L",
+      "supplier_manufacturer_part_number": "T51.1901.PS L",
+      "category": "locking_device",
+      "series": "TANDEM",
+      "description": "TANDEM PS locking device, left",
+      "nominal_length_in": null,
+      "overlay_in": null,
+      "plate_height_mm": null,
+      "handedness": "left",
+      "unit": "each",
+      "supplier_priced_by": "Each",
+      "pieces_per_unit": 1,
+      "base_unit_price_usd": 4.21,
+      "currency": "USD",
+      "minimum_order_quantity": 1,
+      "order_multiple": 1,
+      "quantity_tiers": [],
+      "drawer_side_min_in": null,
+      "drawer_side_max_in": null,
+      "quantity_per_drawer": 1,
+      "separate_hinge_plate_required": null,
+      "adjustment": "height_lateral_and_outward_depth",
+      "application": "inset_default",
+      "notes": "User default for inset drawers. One left and one right per drawer.",
+      "price_checked_date": "2026-10-22",
+      "price_basis": "public_web_not_signed_in",
+      "source_url": "https://www.woodworkerexpress.com/blum-l-tandem-563-569-d-adjustable-locking-device.html"
+    },
+    {
+      "supplier": "Woodworker Express",
+      "manufacturer": "Blum",
+      "supplier_sku": "11198228",
+      "manufacturer_part_number": "T51.1901.PS R",
+      "supplier_manufacturer_part_number": "T51.1901.PS R",
+      "category": "locking_device",
+      "series": "TANDEM",
+      "description": "TANDEM PS locking device, right",
+      "nominal_length_in": null,
+      "overlay_in": null,
+      "plate_height_mm": null,
+      "handedness": "right",
+      "unit": "each",
+      "supplier_priced_by": "Each",
+      "pieces_per_unit": 1,
+      "base_unit_price_usd": 4.21,
+      "currency": "USD",
+      "minimum_order_quantity": 1,
+      "order_multiple": 1,
+      "quantity_tiers": [],
+      "drawer_side_min_in": null,
+      "drawer_side_max_in": null,
+      "quantity_per_drawer": 1,
+      "separate_hinge_plate_required": null,
+      "adjustment": "height_lateral_and_outward_depth",
+      "application": "inset_default",
+      "notes": "User default for inset drawers. One left and one right per drawer.",
+      "price_checked_date": "2026-10-22",
+      "price_basis": "public_web_not_signed_in",
+      "source_url": "https://www.woodworkerexpress.com/blum-r-tandem-563-569-d-adjustable-locking-device.html"
+    },
+    {
+      "supplier": "Woodworker Express",
+      "manufacturer": "Blum",
+      "supplier_sku": "11490500",
+      "manufacturer_part_number": "298.7600",
+      "supplier_manufacturer_part_number": "298.7600",
+      "category": "slide_accessory",
+      "series": "MOVENTO",
+      "description": "MOVENTO inset depth-adjuster bumper set",
+      "nominal_length_in": null,
+      "overlay_in": null,
+      "plate_height_mm": null,
+      "handedness": null,
+      "unit": "set",
+      "supplier_priced_by": "Set",
+      "pieces_per_unit": 2,
+      "base_unit_price_usd": 6.33,
+      "currency": "USD",
+      "minimum_order_quantity": 1,
+      "order_multiple": 1,
+      "quantity_tiers": [],
+      "drawer_side_min_in": null,
+      "drawer_side_max_in": null,
+      "quantity_per_drawer": 1,
+      "separate_hinge_plate_required": null,
+      "adjustment": "depth",
+      "application": "movento_inset",
+      "notes": "One set per inset drawer; contains left/right depth adjusters, verified in the Blum MOVENTO guide. Not for TIP-ON BLUMOTION.",
+      "price_checked_date": "2026-10-22",
+      "price_basis": "public_web_not_signed_in",
+      "source_url": "https://www.woodworkerexpress.com/movento-depth-adjuster-bumper-set-for-runners-orion-gray-blum-298.7600.html"
+    },
+    {
+      "supplier": "Woodworker Express",
+      "manufacturer": "Blum",
+      "supplier_sku": "11467241",
+      "manufacturer_part_number": "T59.K010M",
+      "supplier_manufacturer_part_number": "T59.K010M",
+      "category": "slide_accessory",
+      "series": "MOVENTO",
+      "description": "MOVENTO locking-device spacer for thin fronts",
+      "nominal_length_in": null,
+      "overlay_in": null,
+      "plate_height_mm": null,
+      "handedness": null,
+      "unit": "each",
+      "supplier_priced_by": "Each",
+      "pieces_per_unit": 1,
+      "base_unit_price_usd": 0.78,
+      "currency": "USD",
+      "minimum_order_quantity": 1,
+      "order_multiple": 1,
+      "quantity_tiers": [],
+      "drawer_side_min_in": null,
+      "drawer_side_max_in": null,
+      "quantity_per_drawer": null,
+      "separate_hinge_plate_required": null,
+      "adjustment": null,
+      "application": "thin_drawer_box_front",
+      "notes": "Sold individually. Optional installation-dependent spacer; verify quantity and setback with the selected drawer construction.",
+      "price_checked_date": "2026-10-22",
+      "price_basis": "public_web_not_signed_in",
+      "source_url": "https://www.woodworkerexpress.com/blum-locking-device-spacer.html"
+    },
+    {
+      "supplier": "Woodworker Express",
+      "manufacturer": "Blum",
+      "supplier_sku": "11361014",
+      "manufacturer_part_number": "295.3750.02",
+      "supplier_manufacturer_part_number": "295.3750.02",
+      "category": "slide_accessory",
+      "series": "TANDEM",
+      "description": "TANDEM rear mounting bracket",
+      "nominal_length_in": null,
+      "overlay_in": null,
+      "plate_height_mm": null,
+      "handedness": null,
+      "unit": "each",
+      "supplier_priced_by": "Each",
+      "pieces_per_unit": 1,
+      "base_unit_price_usd": 0.7,
+      "currency": "USD",
+      "minimum_order_quantity": 1,
+      "order_multiple": 1,
+      "quantity_tiers": [],
+      "drawer_side_min_in": null,
+      "drawer_side_max_in": null,
+      "quantity_per_drawer": 2,
+      "separate_hinge_plate_required": null,
+      "adjustment": null,
+      "application": "tandem_rear_mount",
+      "notes": "Two brackets per drawer only when rear mounting is used. Not automatically included for side mounting. Do not substitute for a MOVENTO rear bracket.",
+      "price_checked_date": "2026-10-22",
+      "price_basis": "public_web_not_signed_in",
+      "source_url": "https://www.woodworkerexpress.com/drawer-slides-accessories-blum-tandem-rear-attachment-options-screw-on-brackets-type-brackets.html"
+    }
+  ],
+  "example_drawer_assemblies": [
+    {
+      "name": "MOVENTO 763H 12-inch overlay",
+      "application": "overlay",
+      "components": [
+        {
+          "supplier_sku": "11467224",
+          "manufacturer_part_number": "763H3050S",
+          "quantity": 1,
+          "unit": "pair"
+        },
+        {
+          "supplier_sku": "11372411",
+          "manufacturer_part_number": "T51.7601 L",
+          "quantity": 1,
+          "unit": "each"
+        },
+        {
+          "supplier_sku": "11372412",
+          "manufacturer_part_number": "T51.7601 R",
+          "quantity": 1,
+          "unit": "each"
+        }
+      ],
+      "base_hardware_cost_usd": 38.34,
+      "excludes": "thin-front spacers, rear supports, screws, installation labor, freight, tax, selling markup"
+    },
+    {
+      "name": "MOVENTO 763H 12-inch inset",
+      "application": "inset",
+      "components": [
+        {
+          "supplier_sku": "11467224",
+          "manufacturer_part_number": "763H3050S",
+          "quantity": 1,
+          "unit": "pair"
+        },
+        {
+          "supplier_sku": "11372411",
+          "manufacturer_part_number": "T51.7601 L",
+          "quantity": 1,
+          "unit": "each"
+        },
+        {
+          "supplier_sku": "11372412",
+          "manufacturer_part_number": "T51.7601 R",
+          "quantity": 1,
+          "unit": "each"
+        },
+        {
+          "supplier_sku": "11490500",
+          "manufacturer_part_number": "298.7600",
+          "quantity": 1,
+          "unit": "set"
+        }
+      ],
+      "base_hardware_cost_usd": 44.67,
+      "excludes": "thin-front spacers, rear supports, screws, installation labor, freight, tax, selling markup"
+    },
+    {
+      "name": "MOVENTO 763H 15-inch overlay",
+      "application": "overlay",
+      "components": [
+        {
+          "supplier_sku": "11467225",
+          "manufacturer_part_number": "763H3810S",
+          "quantity": 1,
+          "unit": "pair"
+        },
+        {
+          "supplier_sku": "11372411",
+          "manufacturer_part_number": "T51.7601 L",
+          "quantity": 1,
+          "unit": "each"
+        },
+        {
+          "supplier_sku": "11372412",
+          "manufacturer_part_number": "T51.7601 R",
+          "quantity": 1,
+          "unit": "each"
+        }
+      ],
+      "base_hardware_cost_usd": 38.34,
+      "excludes": "thin-front spacers, rear supports, screws, installation labor, freight, tax, selling markup"
+    },
+    {
+      "name": "MOVENTO 763H 15-inch inset",
+      "application": "inset",
+      "components": [
+        {
+          "supplier_sku": "11467225",
+          "manufacturer_part_number": "763H3810S",
+          "quantity": 1,
+          "unit": "pair"
+        },
+        {
+          "supplier_sku": "11372411",
+          "manufacturer_part_number": "T51.7601 L",
+          "quantity": 1,
+          "unit": "each"
+        },
+        {
+          "supplier_sku": "11372412",
+          "manufacturer_part_number": "T51.7601 R",
+          "quantity": 1,
+          "unit": "each"
+        },
+        {
+          "supplier_sku": "11490500",
+          "manufacturer_part_number": "298.7600",
+          "quantity": 1,
+          "unit": "set"
+        }
+      ],
+      "base_hardware_cost_usd": 44.67,
+      "excludes": "thin-front spacers, rear supports, screws, installation labor, freight, tax, selling markup"
+    },
+    {
+      "name": "MOVENTO 763H 18-inch overlay",
+      "application": "overlay",
+      "components": [
+        {
+          "supplier_sku": "11467226",
+          "manufacturer_part_number": "763H4570S",
+          "quantity": 1,
+          "unit": "pair"
+        },
+        {
+          "supplier_sku": "11372411",
+          "manufacturer_part_number": "T51.7601 L",
+          "quantity": 1,
+          "unit": "each"
+        },
+        {
+          "supplier_sku": "11372412",
+          "manufacturer_part_number": "T51.7601 R",
+          "quantity": 1,
+          "unit": "each"
+        }
+      ],
+      "base_hardware_cost_usd": 38.34,
+      "excludes": "thin-front spacers, rear supports, screws, installation labor, freight, tax, selling markup"
+    },
+    {
+      "name": "MOVENTO 763H 18-inch inset",
+      "application": "inset",
+      "components": [
+        {
+          "supplier_sku": "11467226",
+          "manufacturer_part_number": "763H4570S",
+          "quantity": 1,
+          "unit": "pair"
+        },
+        {
+          "supplier_sku": "11372411",
+          "manufacturer_part_number": "T51.7601 L",
+          "quantity": 1,
+          "unit": "each"
+        },
+        {
+          "supplier_sku": "11372412",
+          "manufacturer_part_number": "T51.7601 R",
+          "quantity": 1,
+          "unit": "each"
+        },
+        {
+          "supplier_sku": "11490500",
+          "manufacturer_part_number": "298.7600",
+          "quantity": 1,
+          "unit": "set"
+        }
+      ],
+      "base_hardware_cost_usd": 44.67,
+      "excludes": "thin-front spacers, rear supports, screws, installation labor, freight, tax, selling markup"
+    },
+    {
+      "name": "MOVENTO 763H 21-inch overlay",
+      "application": "overlay",
+      "components": [
+        {
+          "supplier_sku": "11467227",
+          "manufacturer_part_number": "763H5330S",
+          "quantity": 1,
+          "unit": "pair"
+        },
+        {
+          "supplier_sku": "11372411",
+          "manufacturer_part_number": "T51.7601 L",
+          "quantity": 1,
+          "unit": "each"
+        },
+        {
+          "supplier_sku": "11372412",
+          "manufacturer_part_number": "T51.7601 R",
+          "quantity": 1,
+          "unit": "each"
+        }
+      ],
+      "base_hardware_cost_usd": 38.71,
+      "excludes": "thin-front spacers, rear supports, screws, installation labor, freight, tax, selling markup"
+    },
+    {
+      "name": "MOVENTO 763H 21-inch inset",
+      "application": "inset",
+      "components": [
+        {
+          "supplier_sku": "11467227",
+          "manufacturer_part_number": "763H5330S",
+          "quantity": 1,
+          "unit": "pair"
+        },
+        {
+          "supplier_sku": "11372411",
+          "manufacturer_part_number": "T51.7601 L",
+          "quantity": 1,
+          "unit": "each"
+        },
+        {
+          "supplier_sku": "11372412",
+          "manufacturer_part_number": "T51.7601 R",
+          "quantity": 1,
+          "unit": "each"
+        },
+        {
+          "supplier_sku": "11490500",
+          "manufacturer_part_number": "298.7600",
+          "quantity": 1,
+          "unit": "set"
+        }
+      ],
+      "base_hardware_cost_usd": 45.04,
+      "excludes": "thin-front spacers, rear supports, screws, installation labor, freight, tax, selling markup"
+    },
+    {
+      "name": "MOVENTO 769 heavy duty 18-inch overlay",
+      "application": "overlay",
+      "components": [
+        {
+          "supplier_sku": "11467232",
+          "manufacturer_part_number": "769.4570S",
+          "quantity": 1,
+          "unit": "pair"
+        },
+        {
+          "supplier_sku": "11372411",
+          "manufacturer_part_number": "T51.7601 L",
+          "quantity": 1,
+          "unit": "each"
+        },
+        {
+          "supplier_sku": "11372412",
+          "manufacturer_part_number": "T51.7601 R",
+          "quantity": 1,
+          "unit": "each"
+        }
+      ],
+      "base_hardware_cost_usd": 47.24,
+      "excludes": "thin-front spacers, rear supports, screws, installation labor, freight, tax, selling markup"
+    },
+    {
+      "name": "MOVENTO 769 heavy duty 18-inch inset",
+      "application": "inset",
+      "components": [
+        {
+          "supplier_sku": "11467232",
+          "manufacturer_part_number": "769.4570S",
+          "quantity": 1,
+          "unit": "pair"
+        },
+        {
+          "supplier_sku": "11372411",
+          "manufacturer_part_number": "T51.7601 L",
+          "quantity": 1,
+          "unit": "each"
+        },
+        {
+          "supplier_sku": "11372412",
+          "manufacturer_part_number": "T51.7601 R",
+          "quantity": 1,
+          "unit": "each"
+        },
+        {
+          "supplier_sku": "11490500",
+          "manufacturer_part_number": "298.7600",
+          "quantity": 1,
+          "unit": "set"
+        }
+      ],
+      "base_hardware_cost_usd": 53.57,
+      "excludes": "thin-front spacers, rear supports, screws, installation labor, freight, tax, selling markup"
+    },
+    {
+      "name": "MOVENTO 769 heavy duty 21-inch overlay",
+      "application": "overlay",
+      "components": [
+        {
+          "supplier_sku": "11467233",
+          "manufacturer_part_number": "769.5330S",
+          "quantity": 1,
+          "unit": "pair"
+        },
+        {
+          "supplier_sku": "11372411",
+          "manufacturer_part_number": "T51.7601 L",
+          "quantity": 1,
+          "unit": "each"
+        },
+        {
+          "supplier_sku": "11372412",
+          "manufacturer_part_number": "T51.7601 R",
+          "quantity": 1,
+          "unit": "each"
+        }
+      ],
+      "base_hardware_cost_usd": 47.64,
+      "excludes": "thin-front spacers, rear supports, screws, installation labor, freight, tax, selling markup"
+    },
+    {
+      "name": "MOVENTO 769 heavy duty 21-inch inset",
+      "application": "inset",
+      "components": [
+        {
+          "supplier_sku": "11467233",
+          "manufacturer_part_number": "769.5330S",
+          "quantity": 1,
+          "unit": "pair"
+        },
+        {
+          "supplier_sku": "11372411",
+          "manufacturer_part_number": "T51.7601 L",
+          "quantity": 1,
+          "unit": "each"
+        },
+        {
+          "supplier_sku": "11372412",
+          "manufacturer_part_number": "T51.7601 R",
+          "quantity": 1,
+          "unit": "each"
+        },
+        {
+          "supplier_sku": "11490500",
+          "manufacturer_part_number": "298.7600",
+          "quantity": 1,
+          "unit": "set"
+        }
+      ],
+      "base_hardware_cost_usd": 53.97,
+      "excludes": "thin-front spacers, rear supports, screws, installation labor, freight, tax, selling markup"
+    },
+    {
+      "name": "MOVENTO 769 heavy duty 24-inch overlay",
+      "application": "overlay",
+      "components": [
+        {
+          "supplier_sku": "11467234",
+          "manufacturer_part_number": "769.6100S",
+          "quantity": 1,
+          "unit": "pair"
+        },
+        {
+          "supplier_sku": "11372411",
+          "manufacturer_part_number": "T51.7601 L",
+          "quantity": 1,
+          "unit": "each"
+        },
+        {
+          "supplier_sku": "11372412",
+          "manufacturer_part_number": "T51.7601 R",
+          "quantity": 1,
+          "unit": "each"
+        }
+      ],
+      "base_hardware_cost_usd": 54.04,
+      "excludes": "thin-front spacers, rear supports, screws, installation labor, freight, tax, selling markup"
+    },
+    {
+      "name": "MOVENTO 769 heavy duty 24-inch inset",
+      "application": "inset",
+      "components": [
+        {
+          "supplier_sku": "11467234",
+          "manufacturer_part_number": "769.6100S",
+          "quantity": 1,
+          "unit": "pair"
+        },
+        {
+          "supplier_sku": "11372411",
+          "manufacturer_part_number": "T51.7601 L",
+          "quantity": 1,
+          "unit": "each"
+        },
+        {
+          "supplier_sku": "11372412",
+          "manufacturer_part_number": "T51.7601 R",
+          "quantity": 1,
+          "unit": "each"
+        },
+        {
+          "supplier_sku": "11490500",
+          "manufacturer_part_number": "298.7600",
+          "quantity": 1,
+          "unit": "set"
+        }
+      ],
+      "base_hardware_cost_usd": 60.37,
+      "excludes": "thin-front spacers, rear supports, screws, installation labor, freight, tax, selling markup"
+    },
+    {
+      "name": "MOVENTO 769 heavy duty 27-inch overlay",
+      "application": "overlay",
+      "components": [
+        {
+          "supplier_sku": "11467235",
+          "manufacturer_part_number": "769.6860S",
+          "quantity": 1,
+          "unit": "pair"
+        },
+        {
+          "supplier_sku": "11372411",
+          "manufacturer_part_number": "T51.7601 L",
+          "quantity": 1,
+          "unit": "each"
+        },
+        {
+          "supplier_sku": "11372412",
+          "manufacturer_part_number": "T51.7601 R",
+          "quantity": 1,
+          "unit": "each"
+        }
+      ],
+      "base_hardware_cost_usd": 56.17,
+      "excludes": "thin-front spacers, rear supports, screws, installation labor, freight, tax, selling markup"
+    },
+    {
+      "name": "MOVENTO 769 heavy duty 27-inch inset",
+      "application": "inset",
+      "components": [
+        {
+          "supplier_sku": "11467235",
+          "manufacturer_part_number": "769.6860S",
+          "quantity": 1,
+          "unit": "pair"
+        },
+        {
+          "supplier_sku": "11372411",
+          "manufacturer_part_number": "T51.7601 L",
+          "quantity": 1,
+          "unit": "each"
+        },
+        {
+          "supplier_sku": "11372412",
+          "manufacturer_part_number": "T51.7601 R",
+          "quantity": 1,
+          "unit": "each"
+        },
+        {
+          "supplier_sku": "11490500",
+          "manufacturer_part_number": "298.7600",
+          "quantity": 1,
+          "unit": "set"
+        }
+      ],
+      "base_hardware_cost_usd": 62.5,
+      "excludes": "thin-front spacers, rear supports, screws, installation labor, freight, tax, selling markup"
+    },
+    {
+      "name": "TANDEM 563F 9-inch overlay",
+      "application": "overlay",
+      "components": [
+        {
+          "supplier_sku": "11212229",
+          "manufacturer_part_number": "563F2290B10",
+          "quantity": 1,
+          "unit": "pair"
+        },
+        {
+          "supplier_sku": "11198225",
+          "manufacturer_part_number": "T51.1901 L",
+          "quantity": 1,
+          "unit": "each"
+        },
+        {
+          "supplier_sku": "11198226",
+          "manufacturer_part_number": "T51.1901 R",
+          "quantity": 1,
+          "unit": "each"
+        }
+      ],
+      "base_hardware_cost_usd": 31.99,
+      "excludes": "screws, rear supports, installation labor, freight, tax, selling markup"
+    },
+    {
+      "name": "TANDEM 563F 9-inch inset",
+      "application": "inset",
+      "components": [
+        {
+          "supplier_sku": "11212229",
+          "manufacturer_part_number": "563F2290B10",
+          "quantity": 1,
+          "unit": "pair"
+        },
+        {
+          "supplier_sku": "11198227",
+          "manufacturer_part_number": "T51.1901.PS L",
+          "quantity": 1,
+          "unit": "each"
+        },
+        {
+          "supplier_sku": "11198228",
+          "manufacturer_part_number": "T51.1901.PS R",
+          "quantity": 1,
+          "unit": "each"
+        }
+      ],
+      "base_hardware_cost_usd": 36.69,
+      "excludes": "screws, rear supports, installation labor, freight, tax, selling markup"
+    },
+    {
+      "name": "TANDEM 563F 12-inch overlay",
+      "application": "overlay",
+      "components": [
+        {
+          "supplier_sku": "11212230",
+          "manufacturer_part_number": "563F3050B",
+          "quantity": 1,
+          "unit": "pair"
+        },
+        {
+          "supplier_sku": "11198225",
+          "manufacturer_part_number": "T51.1901 L",
+          "quantity": 1,
+          "unit": "each"
+        },
+        {
+          "supplier_sku": "11198226",
+          "manufacturer_part_number": "T51.1901 R",
+          "quantity": 1,
+          "unit": "each"
+        }
+      ],
+      "base_hardware_cost_usd": 27.47,
+      "excludes": "screws, rear supports, installation labor, freight, tax, selling markup"
+    },
+    {
+      "name": "TANDEM 563F 12-inch inset",
+      "application": "inset",
+      "components": [
+        {
+          "supplier_sku": "11212230",
+          "manufacturer_part_number": "563F3050B",
+          "quantity": 1,
+          "unit": "pair"
+        },
+        {
+          "supplier_sku": "11198227",
+          "manufacturer_part_number": "T51.1901.PS L",
+          "quantity": 1,
+          "unit": "each"
+        },
+        {
+          "supplier_sku": "11198228",
+          "manufacturer_part_number": "T51.1901.PS R",
+          "quantity": 1,
+          "unit": "each"
+        }
+      ],
+      "base_hardware_cost_usd": 32.17,
+      "excludes": "screws, rear supports, installation labor, freight, tax, selling markup"
+    },
+    {
+      "name": "TANDEM 563F 15-inch overlay",
+      "application": "overlay",
+      "components": [
+        {
+          "supplier_sku": "11212231",
+          "manufacturer_part_number": "563F3810B",
+          "quantity": 1,
+          "unit": "pair"
+        },
+        {
+          "supplier_sku": "11198225",
+          "manufacturer_part_number": "T51.1901 L",
+          "quantity": 1,
+          "unit": "each"
+        },
+        {
+          "supplier_sku": "11198226",
+          "manufacturer_part_number": "T51.1901 R",
+          "quantity": 1,
+          "unit": "each"
+        }
+      ],
+      "base_hardware_cost_usd": 27.47,
+      "excludes": "screws, rear supports, installation labor, freight, tax, selling markup"
+    },
+    {
+      "name": "TANDEM 563F 15-inch inset",
+      "application": "inset",
+      "components": [
+        {
+          "supplier_sku": "11212231",
+          "manufacturer_part_number": "563F3810B",
+          "quantity": 1,
+          "unit": "pair"
+        },
+        {
+          "supplier_sku": "11198227",
+          "manufacturer_part_number": "T51.1901.PS L",
+          "quantity": 1,
+          "unit": "each"
+        },
+        {
+          "supplier_sku": "11198228",
+          "manufacturer_part_number": "T51.1901.PS R",
+          "quantity": 1,
+          "unit": "each"
+        }
+      ],
+      "base_hardware_cost_usd": 32.17,
+      "excludes": "screws, rear supports, installation labor, freight, tax, selling markup"
+    },
+    {
+      "name": "TANDEM 563F 18-inch overlay",
+      "application": "overlay",
+      "components": [
+        {
+          "supplier_sku": "11212232",
+          "manufacturer_part_number": "563F4570B",
+          "quantity": 1,
+          "unit": "pair"
+        },
+        {
+          "supplier_sku": "11198225",
+          "manufacturer_part_number": "T51.1901 L",
+          "quantity": 1,
+          "unit": "each"
+        },
+        {
+          "supplier_sku": "11198226",
+          "manufacturer_part_number": "T51.1901 R",
+          "quantity": 1,
+          "unit": "each"
+        }
+      ],
+      "base_hardware_cost_usd": 24.81,
+      "excludes": "screws, rear supports, installation labor, freight, tax, selling markup"
+    },
+    {
+      "name": "TANDEM 563F 18-inch inset",
+      "application": "inset",
+      "components": [
+        {
+          "supplier_sku": "11212232",
+          "manufacturer_part_number": "563F4570B",
+          "quantity": 1,
+          "unit": "pair"
+        },
+        {
+          "supplier_sku": "11198227",
+          "manufacturer_part_number": "T51.1901.PS L",
+          "quantity": 1,
+          "unit": "each"
+        },
+        {
+          "supplier_sku": "11198228",
+          "manufacturer_part_number": "T51.1901.PS R",
+          "quantity": 1,
+          "unit": "each"
+        }
+      ],
+      "base_hardware_cost_usd": 29.51,
+      "excludes": "screws, rear supports, installation labor, freight, tax, selling markup"
+    },
+    {
+      "name": "TANDEM 563F 21-inch overlay",
+      "application": "overlay",
+      "components": [
+        {
+          "supplier_sku": "11212233",
+          "manufacturer_part_number": "563F5330B",
+          "quantity": 1,
+          "unit": "pair"
+        },
+        {
+          "supplier_sku": "11198225",
+          "manufacturer_part_number": "T51.1901 L",
+          "quantity": 1,
+          "unit": "each"
+        },
+        {
+          "supplier_sku": "11198226",
+          "manufacturer_part_number": "T51.1901 R",
+          "quantity": 1,
+          "unit": "each"
+        }
+      ],
+      "base_hardware_cost_usd": 25.38,
+      "excludes": "screws, rear supports, installation labor, freight, tax, selling markup"
+    },
+    {
+      "name": "TANDEM 563F 21-inch inset",
+      "application": "inset",
+      "components": [
+        {
+          "supplier_sku": "11212233",
+          "manufacturer_part_number": "563F5330B",
+          "quantity": 1,
+          "unit": "pair"
+        },
+        {
+          "supplier_sku": "11198227",
+          "manufacturer_part_number": "T51.1901.PS L",
+          "quantity": 1,
+          "unit": "each"
+        },
+        {
+          "supplier_sku": "11198228",
+          "manufacturer_part_number": "T51.1901.PS R",
+          "quantity": 1,
+          "unit": "each"
+        }
+      ],
+      "base_hardware_cost_usd": 30.08,
+      "excludes": "screws, rear supports, installation labor, freight, tax, selling markup"
+    },
+    {
+      "name": "TANDEM 563H 9-inch overlay",
+      "application": "overlay",
+      "components": [
+        {
+          "supplier_sku": "11198193",
+          "manufacturer_part_number": "563H2290B10",
+          "quantity": 1,
+          "unit": "pair"
+        },
+        {
+          "supplier_sku": "11198225",
+          "manufacturer_part_number": "T51.1901 L",
+          "quantity": 1,
+          "unit": "each"
+        },
+        {
+          "supplier_sku": "11198226",
+          "manufacturer_part_number": "T51.1901 R",
+          "quantity": 1,
+          "unit": "each"
+        }
+      ],
+      "base_hardware_cost_usd": 32.0,
+      "excludes": "screws, rear supports, installation labor, freight, tax, selling markup"
+    },
+    {
+      "name": "TANDEM 563H 9-inch inset",
+      "application": "inset",
+      "components": [
+        {
+          "supplier_sku": "11198193",
+          "manufacturer_part_number": "563H2290B10",
+          "quantity": 1,
+          "unit": "pair"
+        },
+        {
+          "supplier_sku": "11198227",
+          "manufacturer_part_number": "T51.1901.PS L",
+          "quantity": 1,
+          "unit": "each"
+        },
+        {
+          "supplier_sku": "11198228",
+          "manufacturer_part_number": "T51.1901.PS R",
+          "quantity": 1,
+          "unit": "each"
+        }
+      ],
+      "base_hardware_cost_usd": 36.7,
+      "excludes": "screws, rear supports, installation labor, freight, tax, selling markup"
+    },
+    {
+      "name": "TANDEM 563H 12-inch overlay",
+      "application": "overlay",
+      "components": [
+        {
+          "supplier_sku": "11198194",
+          "manufacturer_part_number": "563H3050B",
+          "quantity": 1,
+          "unit": "pair"
+        },
+        {
+          "supplier_sku": "11198225",
+          "manufacturer_part_number": "T51.1901 L",
+          "quantity": 1,
+          "unit": "each"
+        },
+        {
+          "supplier_sku": "11198226",
+          "manufacturer_part_number": "T51.1901 R",
+          "quantity": 1,
+          "unit": "each"
+        }
+      ],
+      "base_hardware_cost_usd": 25.98,
+      "excludes": "screws, rear supports, installation labor, freight, tax, selling markup"
+    },
+    {
+      "name": "TANDEM 563H 12-inch inset",
+      "application": "inset",
+      "components": [
+        {
+          "supplier_sku": "11198194",
+          "manufacturer_part_number": "563H3050B",
+          "quantity": 1,
+          "unit": "pair"
+        },
+        {
+          "supplier_sku": "11198227",
+          "manufacturer_part_number": "T51.1901.PS L",
+          "quantity": 1,
+          "unit": "each"
+        },
+        {
+          "supplier_sku": "11198228",
+          "manufacturer_part_number": "T51.1901.PS R",
+          "quantity": 1,
+          "unit": "each"
+        }
+      ],
+      "base_hardware_cost_usd": 30.68,
+      "excludes": "screws, rear supports, installation labor, freight, tax, selling markup"
+    },
+    {
+      "name": "TANDEM 563H 15-inch overlay",
+      "application": "overlay",
+      "components": [
+        {
+          "supplier_sku": "11198215",
+          "manufacturer_part_number": "563H3810B",
+          "quantity": 1,
+          "unit": "pair"
+        },
+        {
+          "supplier_sku": "11198225",
+          "manufacturer_part_number": "T51.1901 L",
+          "quantity": 1,
+          "unit": "each"
+        },
+        {
+          "supplier_sku": "11198226",
+          "manufacturer_part_number": "T51.1901 R",
+          "quantity": 1,
+          "unit": "each"
+        }
+      ],
+      "base_hardware_cost_usd": 25.98,
+      "excludes": "screws, rear supports, installation labor, freight, tax, selling markup"
+    },
+    {
+      "name": "TANDEM 563H 15-inch inset",
+      "application": "inset",
+      "components": [
+        {
+          "supplier_sku": "11198215",
+          "manufacturer_part_number": "563H3810B",
+          "quantity": 1,
+          "unit": "pair"
+        },
+        {
+          "supplier_sku": "11198227",
+          "manufacturer_part_number": "T51.1901.PS L",
+          "quantity": 1,
+          "unit": "each"
+        },
+        {
+          "supplier_sku": "11198228",
+          "manufacturer_part_number": "T51.1901.PS R",
+          "quantity": 1,
+          "unit": "each"
+        }
+      ],
+      "base_hardware_cost_usd": 30.68,
+      "excludes": "screws, rear supports, installation labor, freight, tax, selling markup"
+    },
+    {
+      "name": "TANDEM 563H 18-inch overlay",
+      "application": "overlay",
+      "components": [
+        {
+          "supplier_sku": "11198216",
+          "manufacturer_part_number": "563H4570B",
+          "quantity": 1,
+          "unit": "pair"
+        },
+        {
+          "supplier_sku": "11198225",
+          "manufacturer_part_number": "T51.1901 L",
+          "quantity": 1,
+          "unit": "each"
+        },
+        {
+          "supplier_sku": "11198226",
+          "manufacturer_part_number": "T51.1901 R",
+          "quantity": 1,
+          "unit": "each"
+        }
+      ],
+      "base_hardware_cost_usd": 23.71,
+      "excludes": "screws, rear supports, installation labor, freight, tax, selling markup"
+    },
+    {
+      "name": "TANDEM 563H 18-inch inset",
+      "application": "inset",
+      "components": [
+        {
+          "supplier_sku": "11198216",
+          "manufacturer_part_number": "563H4570B",
+          "quantity": 1,
+          "unit": "pair"
+        },
+        {
+          "supplier_sku": "11198227",
+          "manufacturer_part_number": "T51.1901.PS L",
+          "quantity": 1,
+          "unit": "each"
+        },
+        {
+          "supplier_sku": "11198228",
+          "manufacturer_part_number": "T51.1901.PS R",
+          "quantity": 1,
+          "unit": "each"
+        }
+      ],
+      "base_hardware_cost_usd": 28.41,
+      "excludes": "screws, rear supports, installation labor, freight, tax, selling markup"
+    },
+    {
+      "name": "TANDEM 563H 21-inch overlay",
+      "application": "overlay",
+      "components": [
+        {
+          "supplier_sku": "11198217",
+          "manufacturer_part_number": "563H5330B",
+          "quantity": 1,
+          "unit": "pair"
+        },
+        {
+          "supplier_sku": "11198225",
+          "manufacturer_part_number": "T51.1901 L",
+          "quantity": 1,
+          "unit": "each"
+        },
+        {
+          "supplier_sku": "11198226",
+          "manufacturer_part_number": "T51.1901 R",
+          "quantity": 1,
+          "unit": "each"
+        }
+      ],
+      "base_hardware_cost_usd": 24.27,
+      "excludes": "screws, rear supports, installation labor, freight, tax, selling markup"
+    },
+    {
+      "name": "TANDEM 563H 21-inch inset",
+      "application": "inset",
+      "components": [
+        {
+          "supplier_sku": "11198217",
+          "manufacturer_part_number": "563H5330B",
+          "quantity": 1,
+          "unit": "pair"
+        },
+        {
+          "supplier_sku": "11198227",
+          "manufacturer_part_number": "T51.1901.PS L",
+          "quantity": 1,
+          "unit": "each"
+        },
+        {
+          "supplier_sku": "11198228",
+          "manufacturer_part_number": "T51.1901.PS R",
+          "quantity": 1,
+          "unit": "each"
+        }
+      ],
+      "base_hardware_cost_usd": 28.97,
+      "excludes": "screws, rear supports, installation labor, freight, tax, selling markup"
+    }
+  ]
+}
