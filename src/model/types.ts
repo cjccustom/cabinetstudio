@@ -115,9 +115,12 @@ export interface ShopSettings {
   doorStyleId: string;
   doorMaterial: string;
   doorStile: number;
-  doorPanel: 'flat' | 'raised';
-  /** Eagle hinge cup boring code. */
-  hingeBoring: import('./eagle').HingeBoring;
+  /** Eagle center panel code for doors and end panels, e.g. MDF-07. */
+  centerPanel: string;
+  /** Eagle center panel code for drawer fronts. */
+  frontPanel: string;
+  outsideEdge: import('./eagle').OutsideEdge;
+  hingeType: import('./eagle').HingeType;
   drawerFronts: 'match' | 'slab';
   doorThickness: number;
   doorMount: 'overlay' | 'inset';

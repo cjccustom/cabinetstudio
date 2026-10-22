@@ -9,7 +9,7 @@ import { defaultFaceFrameStock, faceFrameNeeds, faceFramePieces, woodNeeds, wood
 import { moldingOrder } from './moldings';
 import { panelOrder } from './panels';
 import { uid } from './defaults';
-import { eaglePrice, hingeHoles } from './eagle';
+import { eaglePrice, hingeHoles, hingeTypes } from './eagle';
 
 /** Shop hours per item. Start from these and calibrate against tracked jobs. */
 export interface LaborStandards {
@@ -195,6 +195,7 @@ export function estimateMaterials(p: Project, q: QuoteSettings): MaterialLine[] 
   if (woodBF) out.push({ group: 'tops', label: 'Solid wood for tops, seats & caps', cost: woodBF * ffStock.pricePerBF, detail: `${Math.ceil(woodBF)} BF`, missing: ffStock.pricePerBF ? undefined : 'Enter $/BF on the Solid wood tab' });
 
   let fronts = 0, frontCost = 0, frontArea = 0, doors = 0, drawers = 0, boxCost = 0, hinges = 0, boxes = 0;
+  const hingeKinds = new Set<string>();
   const k = 1 + q.eagleAdjust;
   for (const c of p.cabinets) {
     boxes++;
@@ -211,13 +212,14 @@ export function estimateMaterials(p: Project, q: QuoteSettings): MaterialLine[] 
         if (o.item === 'door') {
           doors++;
           hinges += hingeHoles(o.h);
+          hingeKinds.add(hingeTypes[eff(c, p.settings).hingeType].name);
         }
       }
     }
   }
   if (fronts) out.push({ group: 'cabinets', label: 'Eagle doors, fronts & end panels', cost: frontCost, detail: `${fronts} pcs, ${frontArea.toFixed(1)} sq ft` });
   if (drawers) out.push({ group: 'cabinets', label: 'Eagle dovetail drawer boxes', cost: boxCost, detail: `${drawers} boxes` });
-  if (hinges) out.push({ group: 'cabinets', label: 'Hinges (Blum)', cost: hinges * q.hingeEach, detail: `${hinges} hinges on ${doors} doors`, missing: q.hingeEach ? undefined : 'Enter your hinge price' });
+  if (hinges) out.push({ group: 'cabinets', label: `Hinges (${[...hingeKinds].join(' & ')})`, cost: hinges * q.hingeEach, detail: `${hinges} hinges on ${doors} doors`, missing: q.hingeEach ? undefined : 'Enter your hinge price' });
   if (drawers) out.push({ group: 'cabinets', label: 'Drawer slides (pairs)', cost: drawers * q.slidePair, detail: `${drawers} pairs`, missing: q.slidePair ? undefined : 'Enter your slide price' });
   for (const m of moldingOrder(p)) {
     out.push({ group: m.kinds.includes('cap') ? 'paneling' : 'cabinets', label: `A&M ${m.num} moulding`, cost: m.cost, detail: `${m.feet} lin ft`, missing: m.price == null ? 'No A&M price' : undefined });

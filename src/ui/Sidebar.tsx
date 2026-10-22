@@ -6,7 +6,7 @@ import { amSpecies } from '../model/moldings';
 import { wallNames, wallOrder } from '../model/layout';
 import type { PanelMode, ShopSettings, WallId } from '../model/types';
 import { fmt } from '../units';
-import { doorMaterials, doorStyles, hingeBorings, panelLabel, sideThicknesses, slides, stileWidths, styleById, type HingeBoring } from '../model/eagle';
+import { centerPanels, doorMaterials, doorStyles, hingeTypes, outsideEdges, panelLabel, sideThicknesses, slides, stileWidths, styleById, type HingeType, type OutsideEdge } from '../model/eagle';
 import { realOverhang } from '../model/parts';
 import { Field, LengthInput, Section } from './fields';
 
@@ -172,6 +172,11 @@ function ShopPanel() {
   const commit = useStore((s) => s.commit);
   const set = (patch: Partial<ShopSettings>) => commit((p) => ({ ...p, settings: { ...p.settings, ...patch } }));
   const style = styleById(settings.doorStyleId);
+  const panelOptions = (['MDF', 'Veneer', 'Wood'] as const).map((line) => (
+    <optgroup key={line} label={line === 'MDF' ? 'MDF (paint grade)' : line === 'Veneer' ? 'Veneer (stained)' : 'Solid wood'}>
+      {centerPanels.filter((c) => c.line === line).map((c) => <option key={c.code} value={c.code}>{c.code} {c.name}</option>)}
+    </optgroup>
+  ));
   const sample = 21;
   const cut = sample - 2 * settings.ffOverhang - 2 * settings.boxThickness + 2 * settings.dadoDepth;
   return (
@@ -179,14 +184,14 @@ function ShopPanel() {
       <p className="hint">How you build. Every cabinet and every part size comes from these numbers, and changes apply to the whole job.</p>
 
       <Section title="Doors & fronts (Eagle Woodworking)">
-        <Field label="Style" htmlFor="door-style">
+        <Field label="Style (framing bead)" htmlFor="door-style">
           <select id="door-style" value={settings.doorStyleId} onChange={(e) => {
             const next = styleById(e.target.value);
             set({ doorStyleId: next.id, doorStile: next.fixedStile ? next.stile : settings.doorStile, doorMaterial: next.line === 'MDF' ? 'MDF' : settings.doorMaterial === 'MDF' ? 'Paint-grade maple' : settings.doorMaterial });
           }}>
             {(['MDF', 'Wood', 'Any'] as const).map((line) => (
               <optgroup key={line} label={line === 'Any' ? 'Other' : `${line} styles`}>
-                {doorStyles.filter((d) => d.line === line).map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+                {doorStyles.filter((d) => d.line === line).map((d) => <option key={d.id} value={d.id}>{d.bead ? `${d.name} (${d.bead})` : d.name}</option>)}
               </optgroup>
             ))}
           </select>
@@ -210,15 +215,28 @@ function ShopPanel() {
           )}
           {style.panelChoice && (
             <Field label="Center panel" htmlFor="door-panel">
-              <select id="door-panel" value={settings.doorPanel} onChange={(e) => set({ doorPanel: e.target.value as 'flat' | 'raised' })}>
-                <option value="flat">Flat</option>
-                <option value="raised">Raised</option>
+              <select id="door-panel" value={settings.centerPanel} onChange={(e) => set({ centerPanel: e.target.value })}>
+                {panelOptions}
               </select>
             </Field>
           )}
-          <Field label="Hinge boring (Eagle)" htmlFor="door-hinge">
-            <select id="door-hinge" value={settings.hingeBoring} onChange={(e) => set({ hingeBoring: e.target.value as HingeBoring })}>
-              {(Object.keys(hingeBorings) as HingeBoring[]).map((k) => <option key={k} value={k}>{hingeBorings[k]}</option>)}
+          {style.panelChoice && (
+            <Field label="Drawer front panel" htmlFor="door-fpanel">
+              <select id="door-fpanel" value={settings.frontPanel} onChange={(e) => set({ frontPanel: e.target.value })}>
+                {panelOptions}
+              </select>
+            </Field>
+          )}
+          {style.profile !== 'slab' && (
+            <Field label="Outside edge" htmlFor="door-edge">
+              <select id="door-edge" value={settings.outsideEdge} onChange={(e) => set({ outsideEdge: e.target.value as OutsideEdge })}>
+                {outsideEdges.map((x) => <option key={x.code} value={x.code}>{x.code} {x.name}</option>)}
+              </select>
+            </Field>
+          )}
+          <Field label="Hinges" htmlFor="door-hinge">
+            <select id="door-hinge" value={settings.hingeType} onChange={(e) => set({ hingeType: e.target.value as HingeType })}>
+              {(Object.keys(hingeTypes) as HingeType[]).map((k) => <option key={k} value={k}>{hingeTypes[k].name} ({hingeTypes[k].boring.slice(0, 4)} boring)</option>)}
             </select>
           </Field>
           <Field label="Drawer fronts" htmlFor="door-dfront">
@@ -228,7 +246,7 @@ function ShopPanel() {
             </select>
           </Field>
         </div>
-        <p className="hint">Drawer fronts too short for a 5-piece frame go on the order as slabs.</p>
+        <p className="hint">Drawer fronts under 6 1/2" tall get 1 1/2" rails, as Eagle builds them. Anything too short even for that goes on the order as a slab.</p>
       </Section>
 
       <Section title="Door mounting">

@@ -3,7 +3,7 @@
 // along the other wall (z), then mirrored for the right-hand corner.
 import type { Cabinet, Part, ShopSettings, VisualBox } from './types';
 import { frontBoxes, kickOf, vb } from './parts';
-import { styleById } from './eagle';
+import { styleById, panelByCode } from './eagle';
 import { fmt } from '../units';
 
 export function buildCornerParts(c: Cabinet, s: ShopSettings): Part[] {
@@ -112,7 +112,7 @@ export function buildCornerParts(c: Cabinet, s: ShopSettings): Part[] {
   // Bifold doors, one on each face, hinged to each other at the corner
   const style = styleById(s.doorStyleId);
   const stile = style.fixedStile ? style.stile : s.doorStile;
-  const raised = !!style.panelChoice && s.doorPanel === 'raised';
+  const raised = !!style.panelChoice && !!panelByCode(s.centerPanel).raised;
   const material = style.line === 'MDF' ? 'MDF' : s.doorMaterial;
   const spec = style.profile === 'slab' ? `Slab, ${material}` : `${style.name}, ${material}, ${fmt(stile)} stiles${raised ? ', raised panel' : ''}`;
   const o = s.doorMount === 'inset' ? -s.insetReveal : s.doorOverlay;

@@ -1,5 +1,5 @@
 import type { Cabinet, Part, PanelMode, ShopSettings, VisualBox } from './types';
-import { drawerBoxSize, narrowRail, narrowRailBelow, styleById, type DoorProfile } from './eagle';
+import { drawerBoxSize, narrowRail, narrowRailBelow, styleById, type DoorProfile, panelByCode } from './eagle';
 import { buildCornerParts } from './corner';
 import { fmt as fmtShort, fmt } from '../units';
 
@@ -54,7 +54,7 @@ function ring(x: number, y: number, w: number, h: number, width: number, depth: 
 }
 
 /** A door or drawer front, drawn close enough to its Eagle style to read correctly in elevation. */
-export function frontBoxes(x: number, y: number, z: number, w: number, h: number, t: number, profile: DoorProfile, stile: number, raised: boolean): VisualBox[] {
+export function frontBoxes(x: number, y: number, z: number, w: number, h: number, t: number, profile: DoorProfile, stile: number, raised: boolean, flatFront = false): VisualBox[] {
   if (profile === 'slab') return [vb(x, y, z, w, h, t)];
   const f = Math.min(stile, h * 0.3, w * 0.3);
   const ix = x + f, iy = y + f, iw = w - 2 * f, ih = h - 2 * f;
@@ -74,7 +74,8 @@ export function frontBoxes(x: number, y: number, z: number, w: number, h: number
   if (profile === 'step') addRing(0.375, t - 0.1875, 0.97);
   if (profile === 'bevel') addRing(0.5, t - 0.25, 0.96);
   if (profile === 'ogee') { addRing(0.3, t - 0.12, 0.98); addRing(0.3, t - 0.28, 0.95); }
-  inner.push(vb(px, py, 0, pw, ph, t - 0.375, 0.93));
+  // Flat front panels sit flush with the frame face; the rest are recessed
+  inner.push(vb(px, py, 0, pw, ph, flatFront ? t : t - 0.375, flatFront ? 0.97 : 0.93));
   if (raised && pw > 3 && ph > 3) inner.push(vb(px + 1.25, py + 1.25, 0, pw - 2.5, ph - 2.5, t - 0.125, 0.99));
   for (const b of inner) out.push({ ...b, min: [b.min[0], b.min[1], z] });
   return out;
@@ -268,7 +269,8 @@ export function buildParts(c: Cabinet, s: ShopSettings, ends: EndInfo = { left: 
   // Openings: doors and drawer fronts (ordered from Eagle), drawer boxes, shelves
   const style = styleById(s.doorStyleId);
   const doorStile = style.fixedStile ? style.stile : s.doorStile;
-  const raised = !!style.panelChoice && s.doorPanel === 'raised';
+  const raised = !!style.panelChoice && !!panelByCode(s.centerPanel).raised;
+  const frontPanel = panelByCode(s.frontPanel);
   const material = style.line === 'MDF' ? 'MDF' : s.doorMaterial;
   const doorSpec = style.profile === 'slab'
     ? `Slab, ${material}`
@@ -301,7 +303,9 @@ export function buildParts(c: Cabinet, s: ShopSettings, ends: EndInfo = { left: 
     parts.push({
       name, role, material: 'door', length: h, width: w, thickness: dt, cut: false, note,
       order: { item: role, w, h, spec, ...(profile === 'slab' ? {} : { rail, stile: doorStile }) },
-      boxes: frontBoxes(x, y, zFront, w, h, dt, profile, Math.min(rail, doorStile), raised),
+      boxes: role === 'drawerFront'
+        ? frontBoxes(x, y, zFront, w, h, dt, profile, Math.min(rail, doorStile), !!style.panelChoice && !!frontPanel.raised, !!frontPanel.flatFront)
+        : frontBoxes(x, y, zFront, w, h, dt, profile, doorStile, raised),
     });
   };
   c.rows.forEach((row, i) => {

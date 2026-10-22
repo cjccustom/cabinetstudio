@@ -3,7 +3,7 @@ import { buildParts, layoutRows, panelExtents, realOverhang } from "../src/model
 import { sampleProject, defaultSettings, presets, cabinetFromPreset } from "../src/model/defaults";
 import { findIssues, gapBeside, nextFreeOffset, resolveEnds } from "../src/model/layout";
 import { fmt, parseLength } from "../src/units";
-import { drawerBoxSize, eaglePrice } from "../src/model/eagle";
+import { drawerBoxSize, eaglePrice, hingeHoles } from "../src/model/eagle";
 import { optimize } from "../src/model/optimizer";
 import { defaultFaceFrameStock, faceFrameNeeds, faceFramePieces, roughQuarters, woodPieces } from "../src/model/faceframe";
 import { panelAbove, panelOrder } from "../src/model/panels";
@@ -287,6 +287,13 @@ eq('panel sticks out past frame', panelExtents(b21, s, { left: true, right: fals
   eq('box columns', reqs[2].columns.slice(1, 5).join(), 'Qty,Height,Width,Depth');
   eq('box material', Object.fromEntries(reqs[2].config)['Drawer material'], '1/2 maple');
   eq('fractions Eagle style', [eagleFraction(2.25), eagleFraction(0.75), eagleFraction(1.5)].join(' '), '2-1/4" 3/4" 1-1/2"');
+  eq('center panel code', cfg['Center Panel'], 'MDF-07 (1/4" flat panel - default 5pc painted)');
+  eq('front panel code', Object.fromEntries(reqs[1].config)['Center Panel'], 'MDF-10 (flat front panel with 1/8" back reveal flush)');
+  eq('outside edge', cfg['Outside Edge'], 'E-01 (hand broken - default)');
+  const clip = eagleRequests({ ...job, settings: { ...job.settings, hingeType: 'cliptop', doorStyleId: 'cambridge' } });
+  eq('clip top hinges bore A-05', Object.fromEntries(clip[0].config)['Hinge Holes'], 'A-05 (cup only 5mm tab (3/16"))');
+  eq('Cambridge is 5pc - L', Object.fromEntries(clip[0].config)['Framing Bead'], '5pc - L (Cambridge Step Shaker)');
+  eq('hinge holes by Eagle table', [8, 30, 39, 39.0625, 60, 61, 80, 84].map(hingeHoles).join(), '0,2,2,3,3,4,4,5');
   eq('nothing to check on a Hartford job', reqs.flatMap((r) => r.check).join(), '');
   // Short fronts get 1 1/2" rails like Eagle's 4 3/4" fronts
   const short = { ...job, cabinets: job.cabinets.map((c) => (c.name === 'B3' ? { ...c, rows: [{ type: 'drawer' as const, height: 3.5, doors: 1 as const, shelves: 0 }, ...c.rows.slice(1)] } : c)) };

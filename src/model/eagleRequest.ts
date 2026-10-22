@@ -3,7 +3,7 @@
 import type { Project } from './types';
 import { buildParts, eff } from './parts';
 import { resolveEnds } from './layout';
-import { eagleWood, framingBead, hingeBorings, slides, styleById } from './eagle';
+import { eagleWood, edgeText, hingeTypes, minBoringStile, panelByCode, panelText, slides, styleById } from './eagle';
 
 export type RequestKind = 'doors' | 'fronts' | 'boxes';
 export const requestTitle: Record<RequestKind, string> = { doors: 'Doors & panels', fronts: 'Drawer fronts', boxes: 'Drawer boxes' };
@@ -38,25 +38,24 @@ function frontConfig(p: Project, cabId: string, kind: 'doors' | 'fronts', slab: 
   const style = styleById(s.doorStyleId);
   const check: string[] = [];
   const wood = style.line === 'MDF' ? 'MDF' : eagleWood[s.doorMaterial] ?? s.doorMaterial;
+  const boring = kind === 'doors' ? hingeTypes[s.hingeType].boring : 'None';
   if (slab) {
-    return { config: [['Construction Type', 'Slab'], ['Wood Type', wood], ['Door Thickness', eagleFraction(s.doorThickness)], ['Finish', 'None'], ['Hinge Holes', kind === 'doors' ? hingeBorings[s.hingeBoring] : 'None']], check: ['Slab doors haven’t been ordered through the app yet'] };
+    return { config: [['Construction Type', 'Slab'], ['Wood Type', wood], ['Door Thickness', eagleFraction(s.doorThickness)], ['Finish', 'None'], ['Hinge Holes', boring]], check: ['Slab doors haven’t been ordered through the app yet'] };
   }
-  const bead = framingBead[style.id];
   if (style.line === 'MDF') check.push(`${style.name} is an MDF door; only paint-grade maple 5-piece has been ordered through the app`);
-  else if (!bead) check.push(`No framing bead letter for ${style.name}`);
-  else if (!bead.confirmed) check.push(`Framing bead letter ${bead.letter} for ${style.name} is a guess`);
-  if (s.doorPanel === 'raised') check.push('Raised panel code not known yet');
   const stile = style.fixedStile ? style.stile : s.doorStile;
+  if (kind === 'doors' && stile < minBoringStile && style.id !== 'barharbor') check.push(`Eagle won’t bore hinge cups in stiles under ${eagleFraction(minBoringStile)}`);
+  const panel = panelByCode(kind === 'doors' ? s.centerPanel : s.frontPanel);
   const config: [string, string][] = [
-    ['Construction Type', style.line === 'MDF' ? '5-Piece Doors (MDF)' : '5-Piece Doors (Wood only)'],
+    ['Construction Type', style.line === 'MDF' ? '2-Piece MDF' : '5-Piece Doors (Wood only)'],
     ['Wood Type', wood],
     ['Door Thickness', eagleFraction(s.doorThickness)],
     ['Rail and Stile Width', eagleFraction(stile)],
-    ['Framing Bead', bead ? `5pc - ${bead.letter} (${style.name})` : style.name],
-    ['Outside Edge', 'E-01 (hand broken - default)'],
-    ['Center Panel', s.doorPanel === 'raised' ? 'Raised panel' : kind === 'doors' ? 'MDF-07 (1/4" flat panel - default 5pc painted)' : 'MDF-10 (flat front)'],
+    ['Framing Bead', style.bead ? `${style.bead} (${style.name})` : style.name],
+    ['Outside Edge', edgeText(s.outsideEdge)],
+    ['Center Panel', panelText(panel)],
     ['Finish', 'None'],
-    ['Hinge Holes', kind === 'doors' ? hingeBorings[s.hingeBoring] : 'None'],
+    ['Hinge Holes', boring],
   ];
   return { config, check };
 }

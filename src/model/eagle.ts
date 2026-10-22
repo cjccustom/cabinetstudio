@@ -5,6 +5,8 @@ export type DoorProfile = 'slab' | 'shaker' | 'slim' | 'step' | 'bevel' | 'raise
 
 export interface DoorStyle {
   id: string;
+  /** Eagle's framing bead (inside profile) code, e.g. 5pc - C. */
+  bead?: string;
   name: string;
   line: 'MDF' | 'Wood' | 'Any';
   profile: DoorProfile;
@@ -21,23 +23,23 @@ export interface DoorStyle {
 // From eaglewoodworking.com (MDF and wood door style pages), checked Oct 22, 2026.
 // Every style but the slim shakers also comes with a raised center panel.
 export const doorStyles: DoorStyle[] = [
-  { id: 'jefferson', name: 'Jefferson Shaker', line: 'MDF', profile: 'shaker', stile: 2.25, panelChoice: true, detail: 'Classic shaker. Eagle’s most popular MDF door.' },
-  { id: 'monroe', name: 'Monroe Slim Shaker', line: 'MDF', profile: 'slim', stile: 1.5, detail: 'Contemporary shaker with slender rails and stiles.' },
-  { id: 'adams', name: 'Adams', line: 'MDF', profile: 'step', stile: 2.25, panelChoice: true, detail: '1/4" round-over inside profile.' },
-  { id: 'franklin', name: 'Franklin', line: 'MDF', profile: 'bevel', stile: 2.25, panelChoice: true, detail: '22.5° bevel.' },
-  { id: 'washington', name: 'Washington', line: 'MDF', profile: 'bevel', stile: 2.25, panelChoice: true, detail: '45° bevel.' },
-  { id: 'hamilton', name: 'Hamilton', line: 'MDF', profile: 'bevel', stile: 2.25, panelChoice: true, detail: '60° bevel.' },
-  { id: 'madison', name: 'Madison Ogee', line: 'MDF', profile: 'ogee', stile: 2.25, panelChoice: true, detail: 'Ogee bevel.' },
-  { id: 'boston', name: 'Boston Shaker', line: 'Wood', profile: 'shaker', stile: 2.25, panelChoice: true, detail: 'Classic shaker. Eagle’s most popular wood door.' },
-  { id: 'providence', name: 'Providence', line: 'Wood', profile: 'shaker', stile: 2.25, panelChoice: true, detail: 'Shaker with a shallow center panel.' },
-  { id: 'hartford', name: 'Hartford', line: 'Wood', profile: 'step', stile: 2.25, panelChoice: true, detail: 'Rounded framing bead.' },
-  { id: 'portsmouth', name: 'Portsmouth', line: 'Wood', profile: 'bevel', stile: 2.25, panelChoice: true, detail: '20° beveled framing bead.' },
-  { id: 'nantucket', name: 'Nantucket', line: 'Wood', profile: 'bevel', stile: 2.25, panelChoice: true, detail: '30° bevel.' },
-  { id: 'manchester', name: 'Manchester', line: 'Wood', profile: 'bevel', stile: 2.25, panelChoice: true, detail: '60° bevel.' },
-  { id: 'newport', name: 'Newport Ogee', line: 'Wood', profile: 'ogee', stile: 2.25, panelChoice: true, detail: 'Ogee bevel.' },
-  { id: 'portland', name: 'Portland', line: 'Wood', profile: 'ogee', stile: 2.25, panelChoice: true, detail: 'Cove profile.' },
-  { id: 'cambridge', name: 'Cambridge Step Shaker', line: 'Wood', profile: 'step', stile: 2.25, panelChoice: true, detail: 'Shaker with a stepped inside edge.' },
-  { id: 'barharbor', name: 'Bar Harbor Slim Shaker', line: 'Wood', profile: 'slim', stile: 1, fixedStile: true, detail: 'Slim mitered shaker, 1" rails and stiles. Eagle’s only mitered door.' },
+  { id: 'jefferson', bead: '2pc - A', name: 'Jefferson Shaker', line: 'MDF', profile: 'shaker', stile: 2.25, panelChoice: true, detail: 'Classic shaker. Eagle’s most popular MDF door.' },
+  { id: 'monroe', bead: '2pc - B', name: 'Monroe Slim Shaker', line: 'MDF', profile: 'slim', stile: 1.5, detail: 'Contemporary shaker with slender rails and stiles.' },
+  { id: 'adams', bead: '2pc - C', name: 'Adams', line: 'MDF', profile: 'step', stile: 2.25, panelChoice: true, detail: '1/4" round-over inside profile.' },
+  { id: 'franklin', bead: '2pc - D', name: 'Franklin', line: 'MDF', profile: 'bevel', stile: 2.25, panelChoice: true, detail: '22.5° bevel.' },
+  { id: 'washington', bead: '2pc - E', name: 'Washington', line: 'MDF', profile: 'bevel', stile: 2.25, panelChoice: true, detail: '45° bevel.' },
+  { id: 'hamilton', bead: '2pc - F', name: 'Hamilton', line: 'MDF', profile: 'bevel', stile: 2.25, panelChoice: true, detail: '60° bevel.' },
+  { id: 'madison', bead: '2pc - G', name: 'Madison Ogee', line: 'MDF', profile: 'ogee', stile: 2.25, panelChoice: true, detail: 'Ogee bevel.' },
+  { id: 'boston', bead: '5pc - A', name: 'Boston Shaker', line: 'Wood', profile: 'shaker', stile: 2.25, panelChoice: true, detail: 'Classic shaker. Eagle’s most popular wood door.' },
+  { id: 'providence', bead: '5pc - B', name: 'Providence', line: 'Wood', profile: 'shaker', stile: 2.25, panelChoice: true, detail: 'Shaker with a shallow center panel.' },
+  { id: 'hartford', bead: '5pc - C', name: 'Hartford', line: 'Wood', profile: 'step', stile: 2.25, panelChoice: true, detail: 'Rounded framing bead.' },
+  { id: 'portsmouth', bead: '5pc - D', name: 'Portsmouth', line: 'Wood', profile: 'bevel', stile: 2.25, panelChoice: true, detail: '20° beveled framing bead.' },
+  { id: 'nantucket', bead: '5pc - E', name: 'Nantucket', line: 'Wood', profile: 'bevel', stile: 2.25, panelChoice: true, detail: '30° bevel.' },
+  { id: 'manchester', bead: '5pc - F', name: 'Manchester', line: 'Wood', profile: 'bevel', stile: 2.25, panelChoice: true, detail: '60° bevel.' },
+  { id: 'newport', bead: '5pc - G', name: 'Newport Ogee', line: 'Wood', profile: 'ogee', stile: 2.25, panelChoice: true, detail: 'Ogee bevel.' },
+  { id: 'portland', bead: '5pc - I', name: 'Portland', line: 'Wood', profile: 'ogee', stile: 2.25, panelChoice: true, detail: 'Cove profile.' },
+  { id: 'cambridge', bead: '5pc - L', name: 'Cambridge Step Shaker', line: 'Wood', profile: 'step', stile: 2.25, panelChoice: true, detail: 'Shaker with a stepped inside edge.' },
+  { id: 'barharbor', bead: '5pc - P', name: 'Bar Harbor Slim Shaker', line: 'Wood', profile: 'slim', stile: 1, fixedStile: true, detail: 'Slim mitered shaker, 1" rails and stiles. Eagle’s only mitered door.' },
   { id: 'slab', name: 'Slab', line: 'Any', profile: 'slab', stile: 0, detail: 'Flat one-piece door.' },
 ];
 
@@ -45,28 +47,48 @@ export const doorStyles: DoorStyle[] = [
 export const narrowRailBelow = 6.5;
 export const narrowRail = 1.5;
 
-/**
- * Eagle's framing bead letters for 5-piece wood doors. C, D and G are from CJC's orders; the rest
- * follow the order Eagle lists the styles in and should be checked against the quote form.
- */
-export const framingBead: Record<string, { letter: string; confirmed: boolean }> = {
-  boston: { letter: 'A', confirmed: false },
-  providence: { letter: 'B', confirmed: false },
-  hartford: { letter: 'C', confirmed: true },
-  portsmouth: { letter: 'D', confirmed: true },
-  nantucket: { letter: 'E', confirmed: false },
-  manchester: { letter: 'F', confirmed: false },
-  newport: { letter: 'G', confirmed: true },
-  portland: { letter: 'H', confirmed: false },
-  cambridge: { letter: 'I', confirmed: false },
-};
+// Eagle's doors product guide (framing beads, center panels, outside edges, hinge boring), checked Oct 22, 2026.
 
-/** Hinge cup boring on Eagle's quote form. */
-export const hingeBorings = {
-  'A-03': 'A-03 (cup only 3mm tab (1/8"))',
-  'A-05': 'A-05 (cup only 5mm tab (3/16"))',
+export interface CenterPanel { code: string; name: string; raised?: boolean; /** Drawn flush with the frame front (flat front panels). */ flatFront?: boolean; line: 'MDF' | 'Veneer' | 'Wood'; note?: string }
+export const centerPanels: CenterPanel[] = [
+  { code: 'MDF-07', name: '1/4" flat panel', line: 'MDF', note: 'default 5pc painted' },
+  { code: 'MDF-10', name: 'flat front panel with 1/8" back reveal flush', flatFront: true, line: 'MDF' },
+  { code: 'MDF-01', name: 'flat front panel with 1/8" back reveal', flatFront: true, line: 'MDF' },
+  { code: 'MDF-02', name: '3/8" flat panel', line: 'MDF', note: '2pc MDF or Bar Harbor only' },
+  { code: 'MDF-03', name: 'beveled raised panel', raised: true, line: 'MDF' },
+  { code: 'MDF-04', name: 'ogee raised panel', raised: true, line: 'MDF' },
+  { code: 'MDF-05', name: 'cove raised panel', raised: true, line: 'MDF' },
+  { code: 'MDF-06', name: 'beveled raised panel with shelf', raised: true, line: 'MDF' },
+  { code: 'MDF-08', name: 'reverse bevel', line: 'MDF' },
+  { code: 'MDF-09', name: 'reverse cove', line: 'MDF' },
+  { code: 'VNR-01', name: '1/4" veneer flat panel', line: 'Veneer', note: 'default 5pc stained' },
+  { code: 'VNR-02', name: '3/8" veneer flat panel', line: 'Veneer', note: 'Bar Harbor only' },
+  { code: 'VNR-03', name: 'veneer flat front panel with 1/8" back reveal', flatFront: true, line: 'Veneer' },
+  { code: 'WD-01', name: 'flat front panel with 1/8" back reveal', flatFront: true, line: 'Wood' },
+  { code: 'WD-03', name: 'beveled raised panel', raised: true, line: 'Wood' },
+  { code: 'WD-04', name: 'ogee raised panel', raised: true, line: 'Wood' },
+  { code: 'WD-05', name: 'cove raised panel', raised: true, line: 'Wood' },
+];
+export const panelByCode = (code: string) => centerPanels.find((p) => p.code === code) ?? centerPanels[0];
+export const panelText = (p: CenterPanel) => `${p.code} (${p.name}${p.note ? ` - ${p.note}` : ''})`;
+
+export const outsideEdges = [
+  { code: 'E-01', name: 'hand broken - default' },
+  { code: 'E-02', name: 'ogee edge' },
+  { code: 'E-03', name: '1/4" beveled edge' },
+] as const;
+export type OutsideEdge = (typeof outsideEdges)[number]['code'];
+export const edgeText = (code: string) => { const e = outsideEdges.find((x) => x.code === code) ?? outsideEdges[0]; return `${e.code} (${e.name})`; };
+
+/** Blum hinge used on the job; Eagle bores the cup for its tab distance. */
+export const hingeTypes = {
+  compact: { name: 'Blum Compact', boring: 'A-03 (cup only 3mm tab (1/8"))' },
+  cliptop: { name: 'Blum Clip Top', boring: 'A-05 (cup only 5mm tab (3/16"))' },
 } as const;
-export type HingeBoring = keyof typeof hingeBorings;
+export type HingeType = keyof typeof hingeTypes;
+
+/** Eagle won't bore hinge cups in stiles narrower than this, except on Bar Harbor. */
+export const minBoringStile = 1.75;
 
 /** Wood type names as Eagle's form spells them. */
 export const eagleWood: Record<string, string> = {
@@ -162,8 +184,8 @@ export const eagleRates = {
 
 export type EagleItem = 'door' | 'drawerFront' | 'endPanel' | 'drawerBox';
 
-/** Blum hinges per door by height, matching how Eagle bores them. */
-export const hingeHoles = (h: number) => (h > 60 ? 4 : h > 40 ? 3 : 2);
+/** Hinges per door by height, from Eagle's hinge boring table. */
+export const hingeHoles = (h: number) => (h < 9 ? 0 : h <= 39 ? 2 : h <= 60 ? 3 : h <= 80 ? 4 : 5);
 /** Eagle adds a center rail on tall 5-piece doors and panels. */
 export const needsCenterRail = (h: number) => h > 50;
 

@@ -1,5 +1,5 @@
 import type { Cabinet, PanelMode, ShopSettings } from '../model/types';
-import { doorStyles, panelLabel, sideThicknesses, stileWidths, styleById } from '../model/eagle';
+import { centerPanels, doorStyles, hingeTypes, outsideEdges, panelLabel, sideThicknesses, stileWidths, styleById, type HingeType } from '../model/eagle';
 import { fmt } from '../units';
 import { Field, LengthInput } from './fields';
 
@@ -38,7 +38,11 @@ export function OverridesSection({ cab, settings, set }: { cab: Cabinet; setting
       <summary>Construction for this cabinet{count > 0 && <span className="badge-on">{count} changed</span>}</summary>
       <p className="hint">Blank fields follow the job’s shop standards. Fill one in to change it for this cabinet only.</p>
       <div className="grid2">
-        {choice('doorStyleId', 'Door style', doorStyles.map((d) => ({ v: d.id, label: d.name })))}
+        {choice('doorStyleId', 'Door style (framing bead)', doorStyles.map((d) => ({ v: d.id, label: d.bead ? `${d.name} (${d.bead})` : d.name })))}
+        {style.panelChoice && choice('centerPanel', 'Center panel', centerPanels.map((c) => ({ v: c.code, label: `${c.code} ${c.name}` })))}
+        {style.panelChoice && choice('frontPanel', 'Drawer front panel', centerPanels.map((c) => ({ v: c.code, label: `${c.code} ${c.name}` })))}
+        {style.profile !== 'slab' && choice('outsideEdge', 'Outside edge', outsideEdges.map((e) => ({ v: e.code, label: `${e.code} ${e.name}` })))}
+        {choice('hingeType', 'Hinges', (Object.keys(hingeTypes) as HingeType[]).map((k) => ({ v: k, label: hingeTypes[k].name })))}
         {style.profile !== 'slab' && !style.fixedStile && choice('doorStile', 'Door rail & stile', stileWidths.map((w) => ({ v: w, label: fmt(w) })))}
         {choice('doorMount', 'Doors', [{ v: 'overlay', label: 'Overlay' }, { v: 'inset', label: 'Inset' }])}
         {choice('drawerFronts', 'Drawer fronts', [{ v: 'match', label: 'Match doors' }, { v: 'slab', label: 'Slab' }])}
