@@ -41,5 +41,54 @@ export const doorMaterials = ['MDF', 'Paint-grade maple', 'Natural maple', 'Whit
 
 export const styleById = (id: string) => doorStyles.find((d) => d.id === id) ?? doorStyles[0];
 
-/** Undermount slide lengths, which set the drawer box depth. */
-export const slideLengths = [9, 12, 15, 18, 21, 24, 27, 30];
+export interface Slide {
+  id: string;
+  name: string;
+  /** Box width = opening width minus this, keyed by drawer side thickness. */
+  widthDeduction: Record<string, number>;
+  heightDeduction: number;
+  lengths: number[];
+  notch: string;
+}
+
+/**
+ * Blum Tandem deductions match Eagle's drawer calculator: 5/8" off the opening width for
+ * 1/2" sides, 3/8" for 5/8" sides, and at least 13/16" off the opening height.
+ */
+export const slides: Slide[] = [
+  { id: 'tandem', name: 'Blum Tandem (undermount)', widthDeduction: { '0.5': 0.625, '0.625': 0.375 }, heightDeduction: 0.8125, lengths: [9, 12, 15, 18, 21], notch: '1 3/8" notch, bored for Tandem' },
+];
+export const sideThicknesses = [0.5, 0.625];
+
+export interface DrawerInput {
+  openingW: number;
+  openingH: number;
+  /** Clear depth from the face of the face frame to the back (or whatever stops the box). */
+  depth: number;
+  side: number;
+  slideId: string;
+  rearClearance: number;
+  /** Used when slideId is 'custom'. */
+  customW?: number;
+  customH?: number;
+}
+
+export interface DrawerBox { w: number; h: number; d: number; slide: string; notch: string }
+
+const floor16 = (v: number) => Math.floor(v * 16 + 1e-6) / 16;
+
+/** Eagle-style drawer box sizing from a face frame opening. */
+export function drawerBoxSize(i: DrawerInput): DrawerBox {
+  const slide = slides.find((x) => x.id === i.slideId);
+  const wDed = slide ? slide.widthDeduction[String(i.side)] ?? slide.widthDeduction['0.625'] : i.customW ?? 0.625;
+  const hDed = slide ? slide.heightDeduction : i.customH ?? 0.8125;
+  const lengths = slide ? slide.lengths : [9, 12, 15, 18, 21, 24];
+  const d = [...lengths].reverse().find((l) => l <= i.depth - i.rearClearance) ?? 0;
+  return {
+    w: floor16(i.openingW - wDed),
+    h: floor16(i.openingH - hDed),
+    d,
+    slide: slide ? slide.name : 'Custom slides',
+    notch: slide ? slide.notch : 'Notch per slide spec',
+  };
+}

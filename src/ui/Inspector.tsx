@@ -107,6 +107,9 @@ export function Inspector({ cab, issues }: { cab: Cabinet; issues: string[] }) {
         {leftover > 0.01 && <p className="warn">{fmt(leftover)} of face frame is unused. Make one row auto.</p>}
         <div className="checks">
           <label><input id="cab-cstile" type="checkbox" checked={cab.centerStile} onChange={(e) => set({ centerStile: e.target.checked })} /> Center stile between pairs of doors</label>
+          {cab.kind === 'wall' && (
+            <label><input id="cab-flush" type="checkbox" checked={!!cab.bottomFlush} onChange={(e) => set({ bottomFlush: e.target.checked })} /> Box bottom flush with bottom of face frame (for cabinets hung high)</label>
+          )}
           {cab.kind === 'base' && (
             <label><input id="cab-counter" type="checkbox" checked={cab.countertop} onChange={(e) => set({ countertop: e.target.checked })} /> Show countertop</label>
           )}

@@ -8,12 +8,13 @@ import { fmt } from '../units';
 const materialLabel: Record<MaterialKey, string> = {
   box: '3/4" case plywood',
   back: 'Back panels',
+  toeSkin: 'Toe kick skins (install)',
   drawerBox: 'Drawer boxes',
   faceframe: 'Face frame stock',
   door: 'Doors & drawer fronts',
   counter: 'Countertop',
 };
-const order: MaterialKey[] = ['box', 'back', 'faceframe', 'door'];
+const order: MaterialKey[] = ['box', 'back', 'toeSkin', 'faceframe', 'door'];
 const SHEET = 48 * 96;
 
 interface Row { key: string; name: string; material: MaterialKey; length: number; width: number; thickness: number; qty: number; cabs: string[]; note?: string }
@@ -54,7 +55,7 @@ export function PartsTable({ cabinets, compact }: { cabinets: Cabinet[]; compact
         const count = g.rows.reduce((s, r) => s + r.qty, 0);
         let summary = `${count} pcs`;
         if (g.material === 'box' || g.material === 'back') summary += ` · ${(area / 144).toFixed(1)} sq ft · ~${Math.ceil((area * 1.18) / SHEET)} sheets`;
-        if (g.material === 'faceframe') summary += ` · ${(lin / 12).toFixed(1)} lin ft`;
+        if (g.material === 'faceframe' || g.material === 'toeSkin') summary += ` · ${(lin / 12).toFixed(1)} lin ft`;
         return (
           <div key={g.material} className="pgroup">
             <div className="pgroup-head">

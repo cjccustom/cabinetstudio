@@ -4,18 +4,23 @@ function gcd(a: number, b: number): number {
   return b === 0 ? a : gcd(b, a % b);
 }
 
-/** Format inches as a shop fraction, rounded to the nearest 1/16": 23.25 -> 23 1/4" */
+/**
+ * Format inches as a shop fraction: 23.25 -> 23 1/4". Rounds to the nearest 1/16",
+ * except exact 32nds (like a 3/32" reveal), which are shown as they are.
+ */
 export function fmt(inches: number, withMark = true): string {
   const mark = withMark ? '"' : '';
   const neg = inches < 0;
-  let sixteenths = Math.round(Math.abs(inches) * 16);
-  const whole = Math.floor(sixteenths / 16);
-  sixteenths -= whole * 16;
+  const abs = Math.abs(inches);
+  const den = Math.abs(abs * 32 - Math.round(abs * 32)) < 1e-6 ? 32 : 16;
+  let parts = Math.round(abs * den);
+  const whole = Math.floor(parts / den);
+  parts -= whole * den;
   let out: string;
-  if (sixteenths === 0) out = `${whole}`;
+  if (parts === 0) out = `${whole}`;
   else {
-    const g = gcd(sixteenths, 16);
-    const frac = `${sixteenths / g}/${16 / g}`;
+    const g = gcd(parts, den);
+    const frac = `${parts / g}/${den / g}`;
     out = whole ? `${whole} ${frac}` : frac;
   }
   return (neg ? '-' : '') + out + mark;

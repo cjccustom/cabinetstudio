@@ -29,6 +29,8 @@ export interface Cabinet {
   /** Finished (exposed) end panels. auto = exposed when nothing sits against that side. */
   leftEnd?: EndMode;
   rightEnd?: EndMode;
+  /** Wall cabinets: box bottom flush with the bottom of the face frame instead of tucked behind the rail. */
+  bottomFlush?: boolean;
 }
 
 export type EndMode = 'auto' | 'exposed' | 'hidden';
@@ -64,11 +66,19 @@ export interface ShopSettings {
   doorPanel: 'flat' | 'raised';
   drawerFronts: 'match' | 'slab';
   doorThickness: number;
+  doorMount: 'overlay' | 'inset';
   doorOverlay: number;
+  /** Gap between a pair of doors, and between fronts that share a mid rail or center stile. */
   doorGap: number;
+  /** Reveal around inset doors and between inset pairs. */
+  insetReveal: number;
+  drawerSlide: string;
+  drawerSide: number;
   drawerWidthDeduction: number;
   drawerHeightDeduction: number;
   drawerRearClearance: number;
+  /** Finished toe kick skin, applied at install. The case is built back by its thickness. */
+  toeKickSkin: number;
   counterThickness: number;
   counterOverhang: number;
   shelfSetback: number;
@@ -96,7 +106,7 @@ export interface Project {
   cabinets: Cabinet[];
 }
 
-export type MaterialKey = 'box' | 'back' | 'faceframe' | 'door' | 'drawerBox' | 'counter';
+export type MaterialKey = 'box' | 'back' | 'toeSkin' | 'faceframe' | 'door' | 'drawerBox' | 'counter';
 
 export type PartRole =
   | 'side' | 'bottom' | 'top' | 'stretcher' | 'back' | 'nailer' | 'toekick' | 'shelf'

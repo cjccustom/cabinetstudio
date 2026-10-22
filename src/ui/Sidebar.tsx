@@ -4,7 +4,7 @@ import { presets } from '../model/defaults';
 import { wallNames, wallOrder } from '../model/layout';
 import type { ShopSettings, WallId } from '../model/types';
 import { fmt } from '../units';
-import { doorMaterials, doorStyles, stileWidths, styleById } from '../model/eagle';
+import { doorMaterials, doorStyles, sideThicknesses, slides, stileWidths, styleById } from '../model/eagle';
 import { realOverhang } from '../model/parts';
 import { Field, LengthInput, Section } from './fields';
 
@@ -141,9 +141,7 @@ const shopFields: { title: string; fields: [NumKey, string][] }[] = [
     ['stretcherWidth', 'Stretcher width'], ['ffOverhang', 'Extra overhang per side'],
   ] },
   { title: 'Face frame', fields: [['ffThickness', 'Thickness'], ['stileWidth', 'Stile width'], ['topRailWidth', 'Top rail'], ['bottomRailWidth', 'Bottom rail'], ['midRailWidth', 'Mid rail']] },
-  { title: 'Toe kick', fields: [['toeKickHeight', 'Height'], ['toeKickDepth', 'Depth from face frame']] },
-  { title: 'Door fit', fields: [['doorThickness', 'Thickness'], ['doorOverlay', 'Overlay'], ['doorGap', 'Gap between pairs']] },
-  { title: 'Drawer boxes (Eagle, undermount)', fields: [['drawerWidthDeduction', 'Width: opening minus'], ['drawerHeightDeduction', 'Height: opening minus'], ['drawerRearClearance', 'Clearance at back']] },
+  { title: 'Toe kick', fields: [['toeKickHeight', 'Height'], ['toeKickDepth', 'Finished depth'], ['toeKickSkin', 'Skin (applied at install)']] },
   { title: 'Shelves & counters', fields: [['shelfClearance', 'Shelf clearance (total)'], ['shelfSetback', 'Shelf setback'], ['counterThickness', 'Counter thickness'], ['counterOverhang', 'Counter overhang']] },
 ];
 
@@ -206,6 +204,62 @@ function ShopPanel() {
         <p className="hint">Drawer fronts too short for a 5-piece frame go on the order as slabs.</p>
       </Section>
 
+      <Section title="Door mounting">
+        <Field label="Doors & fronts" htmlFor="door-mount">
+          <select id="door-mount" value={mountValue(settings)} onChange={(e) => {
+            const v = e.target.value;
+            if (v === 'inset') set({ doorMount: 'inset' });
+            else if (v === 'custom') set({ doorMount: 'overlay' });
+            else set({ doorMount: 'overlay', doorOverlay: Number(v) });
+          }}>
+            <option value="1.25">1 1/4" overlay</option>
+            <option value="0.5">1/2" overlay</option>
+            <option value="inset">Inset</option>
+            {mountValue(settings) === 'custom' && <option value="custom">{fmt(settings.doorOverlay)} overlay</option>}
+          </select>
+        </Field>
+        <div className="grid2" style={{ marginTop: 8 }}>
+          {settings.doorMount === 'overlay' ? (
+            <>
+              <Field label="Overlay" htmlFor="shop-doorOverlay"><LengthInput id="shop-doorOverlay" value={settings.doorOverlay} onChange={(v) => set({ doorOverlay: v! })} /></Field>
+              <Field label="Gap between fronts" htmlFor="shop-doorGap"><LengthInput id="shop-doorGap" value={settings.doorGap} onChange={(v) => set({ doorGap: v! })} /></Field>
+            </>
+          ) : (
+            <Field label="Reveal" htmlFor="shop-insetReveal"><LengthInput id="shop-insetReveal" value={settings.insetReveal} onChange={(v) => set({ insetReveal: v! })} /></Field>
+          )}
+          <Field label="Door thickness" htmlFor="shop-doorThickness"><LengthInput id="shop-doorThickness" value={settings.doorThickness} onChange={(v) => set({ doorThickness: v! })} /></Field>
+        </div>
+        <p className="hint">
+          {settings.doorMount === 'overlay'
+            ? 'Overlay applies at the outside of the face frame. Fronts that share a mid rail or center stile split it, leaving the gap between them. Pairs use Eagle’s formula: (opening + both overlays − gap) ÷ 2.'
+            : 'Inset doors sit flush with the face frame, sized to the opening minus the reveal on every side. Drawer boxes get shorter by the front’s thickness.'}
+        </p>
+      </Section>
+
+      <Section title="Drawer boxes (Eagle dovetail)">
+        <div className="grid2">
+          <Field label="Slides" htmlFor="shop-slide">
+            <select id="shop-slide" value={settings.drawerSlide} onChange={(e) => set({ drawerSlide: e.target.value })}>
+              {slides.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
+              <option value="custom">Other (enter deductions)</option>
+            </select>
+          </Field>
+          <Field label="Side thickness" htmlFor="shop-side">
+            <select id="shop-side" value={settings.drawerSide} onChange={(e) => set({ drawerSide: Number(e.target.value) })}>
+              {sideThicknesses.map((t) => <option key={t} value={t}>{fmt(t)}</option>)}
+            </select>
+          </Field>
+          {settings.drawerSlide === 'custom' && (
+            <>
+              <Field label="Width: opening minus" htmlFor="shop-dw"><LengthInput id="shop-dw" value={settings.drawerWidthDeduction} onChange={(v) => set({ drawerWidthDeduction: v! })} /></Field>
+              <Field label="Height: opening minus" htmlFor="shop-dh"><LengthInput id="shop-dh" value={settings.drawerHeightDeduction} onChange={(v) => set({ drawerHeightDeduction: v! })} /></Field>
+            </>
+          )}
+          <Field label="Clearance at back" htmlFor="shop-rear"><LengthInput id="shop-rear" value={settings.drawerRearClearance} onChange={(v) => set({ drawerRearClearance: v! })} /></Field>
+        </div>
+        <p className="hint">Boxes are sized from each face frame opening. The drawer calculator on the Eagle order tab runs the same math for a single opening.</p>
+      </Section>
+
       {shopFields.map((g) => (
         <Section key={g.title} title={g.title}>
           <div className="grid2">
@@ -221,6 +275,12 @@ function ShopPanel() {
               overhanging each side by about <span className="computed">{fmt(realOverhang(settings))}</span>.
             </p>
           )}
+          {g.title === 'Toe kick' && (
+            <p className="hint">
+              Cases are built with the kick <span className="computed">{fmt(settings.toeKickDepth + settings.toeKickSkin)}</span> deep on a scrap 3/4" nailer,
+              so it finishes at {fmt(settings.toeKickDepth)} once the skin goes on.
+            </p>
+          )}
           {g.title === 'Case' && (
             <label className="checks" htmlFor="shop-rails">
               <span><input id="shop-rails" type="checkbox" checked={settings.hangingRails} onChange={(e) => set({ hangingRails: e.target.checked })} /> Hanging rails in wall & tall cabinets</span>
@@ -230,4 +290,9 @@ function ShopPanel() {
       ))}
     </div>
   );
+}
+
+function mountValue(s: ShopSettings) {
+  if (s.doorMount === 'inset') return 'inset';
+  return s.doorOverlay === 1.25 || s.doorOverlay === 0.5 ? String(s.doorOverlay) : 'custom';
 }

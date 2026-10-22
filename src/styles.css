@@ -203,3 +203,5 @@ td.spec { font-size: 11.5px; }
 .badge { display: inline-block; margin-left: 6px; padding: 0 5px; border-radius: 3px; background: var(--warn-soft); color: var(--warn); font-size: 10.5px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
 .computed { font-family: var(--font-mono); font-size: 12px; color: var(--accent); }
 .spec-line { margin: 0 0 4px; font-size: 12px; color: var(--muted); }
+.calc-result { margin-top: 14px; padding: 12px 14px; border-radius: 8px; background: var(--accent-soft); }
+.calc-size { font-size: 20px; font-weight: 500; color: var(--fg); margin-bottom: 4px; }

@@ -5,6 +5,7 @@ import { Sidebar } from './ui/Sidebar';
 import { Inspector } from './ui/Inspector';
 import { OrderList, PartsTable } from './ui/PartsTable';
 import { ProjectDialog } from './ui/ProjectDialog';
+import { DrawerCalculator } from './ui/DrawerCalculator';
 import { findIssues, wallNames, wallOrder } from './model/layout';
 import { sampleProject } from './model/defaults';
 
@@ -24,7 +25,7 @@ export default function App() {
   const canUndo = useStore((s) => s.past.length > 0);
   const canRedo = useStore((s) => s.future.length > 0);
   const [panel, setPanel] = useState<'cabinet' | 'cutlist' | 'order'>('cabinet');
-  const [dialog, setDialog] = useState<null | 'file' | 'new'>(null);
+  const [dialog, setDialog] = useState<null | 'file' | 'new' | 'drawer'>(null);
 
   const issues = useMemo(() => findIssues(project.room, project.cabinets, project.settings), [project]);
   const issueIds = useMemo(() => new Set(issues.map((i) => i.cabinetId)), [issues]);
@@ -97,6 +98,7 @@ export default function App() {
           {panel === 'order' && (
             <div>
               <p className="hint">Doors, drawer fronts and dovetail drawer boxes for the whole job, sized from the face frame openings. Sizes are finished width × height.</p>
+              <p><button onClick={() => setDialog('drawer')}>Drawer box calculator…</button></p>
               <OrderList cabinets={project.cabinets} />
             </div>
           )}
@@ -104,6 +106,7 @@ export default function App() {
       </aside>
 
       {dialog === 'file' && <ProjectDialog onClose={() => setDialog(null)} />}
+      {dialog === 'drawer' && <DrawerCalculator onClose={() => setDialog(null)} />}
       {dialog === 'new' && (
         <div className="modal-back" onClick={() => setDialog(null)}>
           <div className="modal small" role="dialog" aria-modal="true" aria-labelledby="new-title" onClick={(e) => e.stopPropagation()}>

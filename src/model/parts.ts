@@ -1,5 +1,5 @@
 import type { Cabinet, Part, ShopSettings, VisualBox } from './types';
-import { slideLengths, styleById, type DoorProfile } from './eagle';
+import { drawerBoxSize, styleById, type DoorProfile } from './eagle';
 import { fmt as fmtShort } from '../units';
 
 const vb = (x: number, y: number, z: number, sx: number, sy: number, sz: number, shade?: number): VisualBox => ({
@@ -98,7 +98,9 @@ export function buildParts(c: Cabinet, s: ShopSettings, ends: EndInfo = { left: 
   const xi1 = W - xi0;
   const bt = s.backThickness;
   const rw = Math.max(s.backRabbetWidth, bt);
-  const notch = Math.max(0, s.toeKickDepth - s.ffThickness);
+  // The case is built back far enough that the toe kick ends at its finished depth once the skin goes on.
+  const kickBack = s.toeKickDepth + s.toeKickSkin;
+  const notch = Math.max(0, kickBack - s.ffThickness);
   const dados = fmtShort(dd);
 
   // Sides
@@ -117,11 +119,13 @@ export function buildParts(c: Cabinet, s: ShopSettings, ends: EndInfo = { left: 
     });
   });
 
-  // Bottom: in dados, sitting a hair below the top of the face frame bottom rail
-  const botTop = kick + s.bottomRailWidth - s.bottomReveal;
+  // Bottom: in dados, a hair below the top of the bottom rail, or flush with the bottom of the
+  // face frame on wall cabinets hung high enough that the underside shows.
+  const flush = c.kind === 'wall' && !!c.bottomFlush;
+  const botTop = flush ? ta : kick + s.bottomRailWidth - s.bottomReveal;
   parts.push({
     name: 'Bottom', role: 'bottom', material: 'box', length: cutW, width: boxD - rw, thickness: tn, cut: true,
-    note: `In ${dados} dados`,
+    note: flush ? `In ${dados} dados, flush with bottom of face frame` : `In ${dados} dados`,
     boxes: [vb(xi0, botTop - ta, rw, innerW, ta, boxD - rw)],
   });
 
@@ -163,10 +167,15 @@ export function buildParts(c: Cabinet, s: ShopSettings, ends: EndInfo = { left: 
   }
 
   if (kick > 0) {
-    const z = D - s.toeKickDepth - ta;
     parts.push({
-      name: 'Toe kick', role: 'toekick', material: 'box', length: innerW, width: kick, thickness: tn, cut: true,
-      boxes: [vb(xi0, 0, z, innerW, kick, ta)],
+      name: 'Toe kick nailer', role: 'nailer', material: 'box', length: innerW, width: kick, thickness: tn, cut: true,
+      note: 'Scrap 3/4" ply',
+      boxes: [vb(xi0, 0, D - kickBack - ta, innerW, kick, ta)],
+    });
+    parts.push({
+      name: 'Toe kick skin', role: 'toekick', material: 'toeSkin', length: W, width: kick, thickness: s.toeKickSkin, cut: true,
+      note: 'Applied at install; run it continuous where cabinets butt',
+      boxes: [vb(0, 0, D - s.toeKickDepth - s.toeKickSkin, W, kick, s.toeKickSkin)],
     });
   }
 
@@ -209,8 +218,14 @@ export function buildParts(c: Cabinet, s: ShopSettings, ends: EndInfo = { left: 
   const doorSpec = style.profile === 'slab'
     ? `Slab, ${material}`
     : `${style.name}, ${material}, ${fmtShort(doorStile)} stiles${raised ? ', raised panel' : ''}`;
+  const inset = s.doorMount === 'inset';
   const o = s.doorOverlay;
+  const rev = s.insetReveal;
+  const gap = s.doorGap;
+  // Fronts sharing a mid rail or center stile split it, so a wide overlay can't run them into each other.
+  const shareOv = (rail: number) => Math.min(o, (rail - gap) / 2);
   const dt = s.doorThickness;
+  const zFront = inset ? D - dt : D;
   const ox0 = sw;
   const ox1 = W - sw;
   const addFront = (name: string, role: 'door' | 'drawerFront', x: number, y: number, w: number, h: number, note?: string) => {
@@ -218,11 +233,11 @@ export function buildParts(c: Cabinet, s: ShopSettings, ends: EndInfo = { left: 
     const tooShort = style.profile !== 'slab' && h < 2 * doorStile + 1.5;
     const slab = role === 'drawerFront' && (s.drawerFronts === 'slab' || tooShort);
     const profile: DoorProfile = slab ? 'slab' : style.profile;
-    const spec = slab ? `Slab, ${material}` : doorSpec;
+    const spec = (slab ? `Slab, ${material}` : doorSpec) + (inset ? ', inset' : '');
     parts.push({
       name, role, material: 'door', length: h, width: w, thickness: dt, cut: false, note,
       order: { item: role, w, h, spec },
-      boxes: frontBoxes(x, y, D, w, h, dt, profile, doorStile, raised),
+      boxes: frontBoxes(x, y, zFront, w, h, dt, profile, doorStile, raised),
     });
   };
   c.rows.forEach((row, i) => {
@@ -235,32 +250,39 @@ export function buildParts(c: Cabinet, s: ShopSettings, ends: EndInfo = { left: 
         boxes: [vb(W / 2 - sw / 2, r.y0, zF, sw, r.height, ft)],
       });
     }
-    const fy = r.y0 - o;
-    const fh = r.height + 2 * o;
-    const fullW = ox1 - ox0 + 2 * o;
+    // Front edges: overlay onto the outer frame, share mid rails, or sit inside the opening for inset
+    const top = inset ? -rev : i === 0 ? o : shareOv(s.midRailWidth);
+    const bottom = inset ? -rev : i === rows.length - 1 ? o : shareOv(s.midRailWidth);
+    const side = inset ? -rev : o;
+    const fy = r.y0 - bottom;
+    const fh = r.height + top + bottom;
+    const fullW = ox1 - ox0 + 2 * side;
+    const pairGap = inset ? rev : gap;
     if (row.type === 'drawer' || row.type === 'falseFront') {
-      addFront(row.type === 'drawer' ? 'Drawer front' : 'False front', 'drawerFront', ox0 - o, fy, fullW, fh, row.type === 'falseFront' ? 'Fixed, no drawer box' : undefined);
+      addFront(row.type === 'drawer' ? 'Drawer front' : 'False front', 'drawerFront', ox0 - side, fy, fullW, fh, row.type === 'falseFront' ? 'Fixed, no drawer box' : undefined);
     } else if (row.type === 'doors') {
-      if (row.doors === 1) addFront('Door', 'door', ox0 - o, fy, fullW, fh);
+      if (row.doors === 1) addFront('Door', 'door', ox0 - side, fy, fullW, fh);
       else if (split) {
-        const lw = W / 2 - sw / 2 - ox0 + 2 * o;
-        addFront('Door', 'door', ox0 - o, fy, lw, fh);
-        addFront('Door', 'door', W / 2 + sw / 2 - o, fy, lw, fh);
+        const mid = inset ? -rev : shareOv(sw);
+        const lw = W / 2 - sw / 2 - ox0 + side + mid;
+        addFront('Door', 'door', ox0 - side, fy, lw, fh);
+        addFront('Door', 'door', W / 2 + sw / 2 - mid, fy, lw, fh);
       } else {
-        const dw = (fullW - s.doorGap) / 2;
-        addFront('Door', 'door', ox0 - o, fy, dw, fh);
-        addFront('Door', 'door', ox0 - o + dw + s.doorGap, fy, dw, fh);
+        // Eagle's pair formula: (opening + both overlays - gap) / 2
+        const dw = (fullW - pairGap) / 2;
+        addFront('Door', 'door', ox0 - side, fy, dw, fh);
+        addFront('Door', 'door', ox0 - side + dw + pairGap, fy, dw, fh);
       }
     }
     if (row.type === 'drawer') {
-      const room = boxD - rw - s.drawerRearClearance;
-      const depth = [...slideLengths].reverse().find((l) => l <= room) ?? 0;
-      const bw = ox1 - ox0 - s.drawerWidthDeduction;
-      const bh = r.height - s.drawerHeightDeduction;
+      const box = drawerBoxSize({
+        openingW: ox1 - ox0, openingH: r.height, depth: D - rw - (inset ? dt : 0), side: s.drawerSide,
+        slideId: s.drawerSlide, rearClearance: s.drawerRearClearance, customW: s.drawerWidthDeduction, customH: s.drawerHeightDeduction,
+      });
       parts.push({
-        name: 'Drawer box', role: 'drawerBox', material: 'drawerBox', length: depth, width: bw, thickness: bh, cut: false,
-        note: depth ? `${depth}" undermount slides` : 'Cabinet too shallow for standard slides',
-        order: { item: 'drawerBox', w: bw, h: bh, d: depth, spec: `Dovetail, notched & bored for ${depth}" undermount slides` },
+        name: 'Drawer box', role: 'drawerBox', material: 'drawerBox', length: box.d, width: box.w, thickness: box.h, cut: false,
+        note: box.d ? `${box.d}" slides` : 'Cabinet too shallow for standard slides',
+        order: { item: 'drawerBox', w: box.w, h: box.h, d: box.d, spec: `Dovetail, ${fmtShort(s.drawerSide)} sides, ${box.notch}` },
         boxes: [],
       });
     }
