@@ -330,12 +330,19 @@ export function buildParts(c: Cabinet, s: ShopSettings, ends: EndInfo = { left: 
   // End panels, bought from Eagle in the door style, applied to the outside of the case side
   const doorFace = zFront + dt;
   const pt = s.endPanelThickness;
+  // Applied panels are held up to line up with the doors and fronts; the toe kick returns underneath.
+  // Inset panels follow the face frame, since inset doors sit inside it.
+  const frontYs = parts.filter((p) => p.role === 'door' || p.role === 'drawerFront').flatMap((p) => p.boxes.map((b) => [b.min[1], b.min[1] + b.size[1]]));
+  const doorBottom = frontYs.length ? Math.min(...frontYs.map((y) => y[0])) : kick;
+  const doorTop = frontYs.length ? Math.max(...frontYs.map((y) => y[1])) : H;
   for (const [side, mode] of [['left', pL], ['right', pR]] as const) {
     if (mode === 'none') continue;
     const depth = mode === 'flush' ? doorFace : mode === 'reveal' ? doorFace - s.endPanelReveal : D;
     const label = mode === 'flush' ? 'flush with door face' : mode === 'reveal' ? `held back ${fmtShort(s.endPanelReveal)} from door face` : 'inset, flush with face frame';
     // Draw the panel face-on, then turn it to face out from the side of the cabinet
-    const flat = frontBoxes(0, 0, 0, depth, H, pt, style.profile, doorStile, raised);
+    const [py0, py1] = mode === 'inset' ? [kick, H] : [doorBottom, doorTop];
+    const ph = py1 - py0;
+    const flat = frontBoxes(0, py0, 0, depth, ph, pt, style.profile, doorStile, raised);
     const boxes = flat.map((b) => {
       const [u, v, w0] = b.min;
       const [su, sv, sw0] = b.size;
@@ -343,9 +350,9 @@ export function buildParts(c: Cabinet, s: ShopSettings, ends: EndInfo = { left: 
       return vb(x, v, u, sw0, sv, su, b.shade);
     });
     parts.push({
-      name: 'End panel', role: 'endPanel', material: 'door', length: H, width: depth, thickness: pt, cut: false,
-      note: `${side === 'left' ? 'Left' : 'Right'}, ${label}`,
-      order: { item: 'endPanel', w: depth, h: H, spec: `${doorSpec}, end panel` },
+      name: 'End panel', role: 'endPanel', material: 'door', length: ph, width: depth, thickness: pt, cut: false,
+      note: `${side === 'left' ? 'Left' : 'Right'}, ${label}, ${fmtShort(py0)} off cabinet bottom`,
+      order: { item: 'endPanel', w: depth, h: ph, spec: `${doorSpec}, end panel` },
       boxes,
     });
   }

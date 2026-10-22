@@ -91,6 +91,9 @@ const pan = buildParts(b21, s, { left: true, right: false });
 const ep = pan.find((x) => x.name === 'End panel')!;
 eq('flush panel depth reaches door face', ep.width, 24 + 0.75);
 eq('panel ordered from Eagle', ep.order!.item, 'endPanel');
+// 1 1/4" overlay on a 34 1/2" base: doors run from 4 + 1 1/2 - 1 1/4 up to 34 1/2 - 1 1/2 + 1 1/4
+eq('panel height matches doors', ep.length, (34.5 - 0.25) - (4 + 0.25));
+eq('inset panel follows face frame', buildParts(b21, { ...s, endPanel: 'inset' }, { left: true, right: false }).find((x) => x.name === 'End panel')!.length, 30.5);
 eq('side under panel is stapled', pan.filter((x) => x.role === 'side').every((x) => !x.note!.includes('pocket')), true);
 eq('held-back panel', buildParts(b21, { ...s, endPanel: 'reveal' }, { left: true, right: false }).find((x) => x.name === 'End panel')!.width, 24.5);
 eq('inset panel', buildParts(b21, { ...s, endPanel: 'inset' }, { left: true, right: false }).find((x) => x.name === 'End panel')!.width, 24);
