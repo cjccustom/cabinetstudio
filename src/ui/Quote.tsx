@@ -71,14 +71,13 @@ export function QuoteInputs() {
 
         <Section title="Prices to fill in">
           <div className="grid2">
-            <Num id="q-door" label="Eagle doors & fronts" suffix="$/sq ft" value={q.doorPerSqFt} onChange={(v) => set({ doorPerSqFt: v })} />
-            <Num id="q-dbox" label="Drawer box, average" suffix="$" value={q.drawerBoxEach} onChange={(v) => set({ drawerBoxEach: v })} />
+            <Num id="q-eagle" label="Eagle prices, up or down" suffix="%" value={q.eagleAdjust * 100} onChange={(v) => set({ eagleAdjust: v / 100 })} />
             <Num id="q-hinge" label="Hinge" suffix="$ each" value={q.hingeEach} onChange={(v) => set({ hingeEach: v })} />
             <Num id="q-slide" label="Slides" suffix="$ / pair" value={q.slidePair} onChange={(v) => set({ slidePair: v })} />
             <Num id="q-bb" label="Beadboard sheet" suffix="$" value={q.beadboardSheet} onChange={(v) => set({ beadboardSheet: v })} />
             <Num id="q-cons" label="Consumables" suffix="$ / cabinet" value={q.consumablesPerBox} onChange={(v) => set({ consumablesPerBox: v })} />
           </div>
-          <p className="hint">Plywood, maple and A&amp;M mouldings come from their own tabs. Eagle doesn’t publish door prices, so use $/sq ft from a recent Eagle quote.</p>
+          <p className="hint">Plywood, maple and A&amp;M mouldings come from their own tabs. Eagle doors, fronts and drawer boxes are priced piece by piece from your 2026 Eagle orders (paint-grade maple, 5-piece). Raise the percentage after a price increase or for a pricier species.</p>
         </Section>
 
         <Section title="Painter">

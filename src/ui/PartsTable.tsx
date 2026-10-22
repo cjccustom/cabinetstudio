@@ -4,6 +4,7 @@ import type { Cabinet, MaterialKey } from '../model/types';
 import { buildParts } from '../model/parts';
 import { resolveEnds } from '../model/layout';
 import { fmt } from '../units';
+import { eaglePrice } from '../model/eagle';
 
 const materialLabel: Record<MaterialKey, string> = {
   box: '3/4" case plywood',
@@ -96,9 +97,11 @@ export function PartsTable({ cabinets, compact }: { cabinets: Cabinet[]; compact
   );
 }
 
+const money = (v: number) => `$${v.toFixed(2)}`;
+
 const orderLabel = { door: 'Doors', drawerFront: 'Drawer & false fronts', endPanel: 'End panels', drawerBox: 'Drawer boxes' } as const;
 type OrderItem = keyof typeof orderLabel;
-interface OrderRow { key: string; item: OrderItem; w: number; h: number; d?: number; spec: string; qty: number; cabs: string[] }
+interface OrderRow { key: string; item: OrderItem; w: number; h: number; d?: number; spec: string; qty: number; cabs: string[]; each: number }
 
 export function useOrderRows(cabinets: Cabinet[]) {
   const settings = useStore((s) => s.project.settings);
@@ -116,7 +119,7 @@ export function useOrderRows(cabinets: Cabinet[]) {
         if (row) {
           row.qty++;
           if (!row.cabs.includes(c.name)) row.cabs.push(c.name);
-        } else map.set(key, { key, item: o.item, w: o.w, h: o.h, d: o.d, spec: o.spec, qty: 1, cabs: [c.name] });
+        } else map.set(key, { key, item: o.item, w: o.w, h: o.h, d: o.d, spec: o.spec, qty: 1, cabs: [c.name], each: eaglePrice(o.item, o.w, o.h, o.d ?? 0) });
       }
     }
     const rows = [...map.values()].sort((a, b) => b.h - a.h || b.w - a.w);
@@ -155,7 +158,7 @@ export function OrderList({ cabinets, compact }: { cabinets: Cabinet[]; compact?
         <div key={g.item} className="pgroup">
           <div className="pgroup-head">
             <span>{orderLabel[g.item]}</span>
-            <span className="muted">{g.rows.reduce((s, r) => s + r.qty, 0)} pcs</span>
+            <span className="muted">{g.rows.reduce((s, r) => s + r.qty, 0)} pcs · about {money(g.rows.reduce((s, r) => s + r.qty * r.each, 0))}</span>
           </div>
           {shared && <p className="spec-line">{shared}</p>}
           <div className="table-wrap">
@@ -168,6 +171,7 @@ export function OrderList({ cabinets, compact }: { cabinets: Cabinet[]; compact?
                   {g.item === 'drawerBox' && <th className="num">Depth</th>}
                   {!shared && <th>Spec</th>}
                   {!compact && <th>Cabinets</th>}
+                  {!compact && <th className="num" title="Estimated from your 2026 Eagle orders, before tax">Est. each</th>}
                 </tr>
               </thead>
               <tbody>
@@ -179,6 +183,7 @@ export function OrderList({ cabinets, compact }: { cabinets: Cabinet[]; compact?
                     {g.item === 'drawerBox' && <td className="num">{fmt(r.d ?? 0)}</td>}
                     {!shared && <td className="spec">{r.spec}</td>}
                     {!compact && <td className="cabs">{r.cabs.join(', ')}</td>}
+                    {!compact && <td className="num">{money(r.each)}</td>}
                   </tr>
                 ))}
               </tbody>
@@ -187,6 +192,7 @@ export function OrderList({ cabinets, compact }: { cabinets: Cabinet[]; compact?
         </div>
         );
       })}
+      {!compact && <p className="hint">Prices are estimates fitted to your 2026 Eagle orders (paint-grade maple, 5-piece, MDF panel), before tax. They usually land within a dollar of Eagle’s price on fronts and $2 on drawer boxes.</p>}
       {!compact && (
         <div className="order-actions">
           <button onClick={copy}>Copy order as text</button>

@@ -3,7 +3,7 @@ import { buildParts, layoutRows, panelExtents, realOverhang } from "../src/model
 import { sampleProject, defaultSettings, presets, cabinetFromPreset } from "../src/model/defaults";
 import { findIssues, gapBeside, nextFreeOffset, resolveEnds } from "../src/model/layout";
 import { fmt, parseLength } from "../src/units";
-import { drawerBoxSize } from "../src/model/eagle";
+import { drawerBoxSize, eaglePrice } from "../src/model/eagle";
 import { optimize } from "../src/model/optimizer";
 import { defaultFaceFrameStock, faceFrameNeeds, faceFramePieces, roughQuarters, woodPieces } from "../src/model/faceframe";
 import { panelAbove, panelOrder } from "../src/model/panels";
@@ -226,7 +226,7 @@ eq('panel sticks out past frame', panelExtents(b21, s, { left: true, right: fals
 // Quoting
 {
   const base = normalize(sampleProject());
-  base.quote = { doorPerSqFt: 15, hingeEach: 6, slidePair: 35, drawerBoxEach: 70 };
+  base.quote = { hingeEach: 6, slidePair: 35 };
   const r = priceQuote(base);
   const tax = base.settings.purchaseTax;
   const g = r.groups[0];
@@ -239,6 +239,17 @@ eq('panel sticks out past frame', panelExtents(b21, s, { left: true, right: fals
   eq('painter line passes through with markup', Math.abs(painted.calculated - r.calculated - 1650) < 0.01, true);
   eq('hours estimated', r.shopHours > 20 && r.installHours > 5, true);
   eq('scope line wording', scopeLine(base.cabinets[1], base).startsWith('B2: Approx: 30”W x 34-1/2”H x 24”D; (2) overlay doors; (1) drawer'), true);
+}
+
+// Eagle prices from real order acknowledgments
+{
+  const near = (a: number, b: number, tol: number) => Math.abs(a - b) <= tol;
+  eq('door 15.75 x 48.325, 3 holes ($78.35, Oct)', near(eaglePrice('door', 15.75, 48.325), 78.35, 1), true);
+  eq('tall door gets a center rail ($96.25 class)', eaglePrice('door', 17.875, 65.875) - eaglePrice('door', 17.875, 49.9) > 7, true);
+  eq('drawer front 36.313 x 4.75 ($33.03)', near(eaglePrice('drawerFront', 36.313, 4.75), 33.03, 1), true);
+  eq('drawer box 7.5 x 13.875 x 12 ($79.05)', near(eaglePrice('drawerBox', 13.875, 7.5, 12), 79.05, 2), true);
+  eq('drawer box 12 x 21.625 x 21 ($132.56)', near(eaglePrice('drawerBox', 21.625, 12, 21), 132.56, 2), true);
+  eq('odd height costs a rip over the stock height', eaglePrice('drawerBox', 19.375, 8.75, 21) > eaglePrice('drawerBox', 19.375, 9, 21), true);
 }
 
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');

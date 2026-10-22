@@ -109,3 +109,36 @@ export const panelLabel = {
   reveal: 'Applied, held back',
   inset: 'Inset, flush with frame',
 } as const;
+
+// Price estimates fitted to CJC's Eagle order acknowledgments, Jan–Oct 2026, before tax.
+// Doors and fronts: 9 orders, 115 pieces of paint-grade maple 5-piece with MDF panels
+// (Hartford, Portsmouth, Newport Ogee), all within about $0.70 of Eagle's price.
+// Drawer boxes: 5 orders, 33 solid maple dovetail boxes, finished, notched and bored,
+// all within about $2. Eagle prices a box by the stock board height it's cut from (whole
+// inches, 4" minimum) plus a charge for ripping to an odd height.
+export const eagleRates = {
+  front: { base: 21.51, perSqFt: 9.732, perHingeHole: 1.941, centerRail: 7.227 },
+  box: { base: 43.85, perGirthInch: 0.1458, perBottomSqIn: 0.0168, rip: 1.933, tallPerGirthInch: 0.0879 },
+};
+
+export type EagleItem = 'door' | 'drawerFront' | 'endPanel' | 'drawerBox';
+
+/** Blum hinges per door by height, matching how Eagle bores them. */
+export const hingeHoles = (h: number) => (h > 60 ? 4 : h > 40 ? 3 : 2);
+/** Eagle adds a center rail on tall 5-piece doors and panels. */
+export const needsCenterRail = (h: number) => h > 50;
+
+export function eagleFrontPrice(item: EagleItem, w: number, h: number): number {
+  const r = eagleRates.front;
+  return r.base + (r.perSqFt * w * h) / 144 + (item === 'door' ? r.perHingeHole * hingeHoles(h) : 0) + (needsCenterRail(h) ? r.centerRail : 0);
+}
+
+export function eagleBoxPrice(w: number, h: number, d: number): number {
+  const r = eagleRates.box;
+  const stock = Math.max(4, Math.ceil(h - 1e-6));
+  const girth = w + d;
+  return r.base + r.perGirthInch * girth * stock + r.perBottomSqIn * w * d + (stock - h > 1e-3 ? r.rip : 0) + r.tallPerGirthInch * Math.max(0, stock - 10) * girth;
+}
+
+/** Estimated Eagle price for one piece. */
+export const eaglePrice = (item: EagleItem, w: number, h: number, d = 0) => (item === 'drawerBox' ? eagleBoxPrice(w, h, d) : eagleFrontPrice(item, w, h));

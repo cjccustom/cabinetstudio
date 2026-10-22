@@ -9,6 +9,7 @@ import { defaultFaceFrameStock, faceFrameNeeds, faceFramePieces, woodNeeds, wood
 import { moldingOrder } from './moldings';
 import { panelOrder } from './panels';
 import { uid } from './defaults';
+import { eaglePrice, hingeHoles } from './eagle';
 
 /** Shop hours per item. Start from these and calibrate against tracked jobs. */
 export interface LaborStandards {
@@ -70,8 +71,8 @@ export interface QuoteSettings {
   workload: Workload;
   workloadAdj: Record<Workload, number>;
   /** Purchased parts not yet in the app's price lists. */
-  doorPerSqFt: number;
-  drawerBoxEach: number;
+  /** Up or down from the fitted Eagle prices, for a price increase or a pricier species. 0.05 = 5%. */
+  eagleAdjust: number;
   hingeEach: number;
   slidePair: number;
   beadboardSheet: number;
@@ -94,8 +95,7 @@ export const defaultQuote: QuoteSettings = {
   materialMarkup: 0.25,
   workload: 'normal',
   workloadAdj: { full: 0.08, normal: 0, light: -0.06 },
-  doorPerSqFt: 0,
-  drawerBoxEach: 0,
+  eagleAdjust: 0,
   hingeEach: 0,
   slidePair: 0,
   beadboardSheet: 0,
@@ -194,24 +194,29 @@ export function estimateMaterials(p: Project, q: QuoteSettings): MaterialLine[] 
   const woodBF = wood.reduce((t, g) => t + g.buyBF, 0);
   if (woodBF) out.push({ group: 'tops', label: 'Solid wood for tops, seats & caps', cost: woodBF * ffStock.pricePerBF, detail: `${Math.ceil(woodBF)} BF`, missing: ffStock.pricePerBF ? undefined : 'Enter $/BF on the Solid wood tab' });
 
-  let doorArea = 0, doors = 0, drawers = 0, hinges = 0, boxes = 0;
+  let fronts = 0, frontCost = 0, frontArea = 0, doors = 0, drawers = 0, boxCost = 0, hinges = 0, boxes = 0;
+  const k = 1 + q.eagleAdjust;
   for (const c of p.cabinets) {
     boxes++;
     for (const part of buildParts(c, p.settings, resolveEnds(p.room, p.cabinets, c))) {
       const o = part.order;
       if (!o) continue;
-      if (o.item === 'drawerBox') drawers++;
-      else {
-        doorArea += sqft(o.w, o.h);
+      if (o.item === 'drawerBox') {
+        drawers++;
+        boxCost += eaglePrice('drawerBox', o.w, o.h, o.d ?? 0) * k;
+      } else {
+        fronts++;
+        frontArea += sqft(o.w, o.h);
+        frontCost += eaglePrice(o.item, o.w, o.h) * k;
         if (o.item === 'door') {
           doors++;
-          hinges += o.h > 60 ? 4 : o.h > 40 ? 3 : 2;
+          hinges += hingeHoles(o.h);
         }
       }
     }
   }
-  if (doorArea) out.push({ group: 'cabinets', label: 'Eagle doors, fronts & end panels', cost: doorArea * q.doorPerSqFt, detail: `${doorArea.toFixed(1)} sq ft`, missing: q.doorPerSqFt ? undefined : 'Enter Eagle’s $/sq ft for your door style' });
-  if (drawers) out.push({ group: 'cabinets', label: 'Eagle dovetail drawer boxes', cost: drawers * q.drawerBoxEach, detail: `${drawers} boxes`, missing: q.drawerBoxEach ? undefined : 'Enter an average drawer box price' });
+  if (fronts) out.push({ group: 'cabinets', label: 'Eagle doors, fronts & end panels', cost: frontCost, detail: `${fronts} pcs, ${frontArea.toFixed(1)} sq ft` });
+  if (drawers) out.push({ group: 'cabinets', label: 'Eagle dovetail drawer boxes', cost: boxCost, detail: `${drawers} boxes` });
   if (hinges) out.push({ group: 'cabinets', label: 'Hinges (Blum)', cost: hinges * q.hingeEach, detail: `${hinges} hinges on ${doors} doors`, missing: q.hingeEach ? undefined : 'Enter your hinge price' });
   if (drawers) out.push({ group: 'cabinets', label: 'Drawer slides (pairs)', cost: drawers * q.slidePair, detail: `${drawers} pairs`, missing: q.slidePair ? undefined : 'Enter your slide price' });
   for (const m of moldingOrder(p)) {
