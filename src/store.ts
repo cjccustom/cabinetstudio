@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import type { Cabinet, Project, WallId, WallPanel } from './model/types';
 import { cabinetFromPreset, defaultSettings, presets, sampleProject, uid } from './model/defaults';
 import { findIssues, nextFreeOffset, wallLength } from './model/layout';
-import { defaultCutlist } from './model/cutlist';
+import { defaultCutlist, sheetPrice } from './model/cutlist';
 
 export type ViewMode = '3d' | 'plan' | `elev-${WallId}`;
 
@@ -31,7 +31,9 @@ export function normalize(p: Project): Project {
   const out: Project = { ...sample, ...p, version: 2, settings, cabinets, finishes: { ...sample.finishes, ...p.finishes } };
   const base = defaultCutlist(out);
   const cl = p.cutlist;
-  out.cutlist = cl ? { ...base, ...cl, options: { ...base.options, ...cl.options } } : base;
+  out.cutlist = cl
+    ? { ...base, ...cl, options: { ...base.options, ...cl.options }, stock: cl.stock.map((st) => (st.price ? st : { ...st, price: sheetPrice(st.material) })) }
+    : base;
   return out;
 }
 
