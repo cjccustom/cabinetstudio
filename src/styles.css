@@ -263,3 +263,17 @@ tr.skipped td { opacity: 0.45; }
 .badge-on { margin-left: 8px; padding: 0 6px; border-radius: 3px; background: var(--accent-soft); color: var(--accent); letter-spacing: 0; text-transform: none; }
 select.overridden { border-color: var(--accent); }
 .g-bead { stroke: var(--muted); stroke-width: 0.6; }
+.modal.wide { width: min(980px, 100%); }
+.pp-bar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+.pp-bar select { width: auto; }
+.pp-bar input { width: 120px; }
+.pp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 8px; max-height: 60vh; overflow: auto; }
+.pp-item { flex-direction: column; align-items: center; gap: 2px; padding: 8px 4px; white-space: normal; font-size: 11.5px; }
+.pp-item.on { border-color: var(--accent); background: var(--accent-soft); }
+.pp-num { font-weight: 600; }
+.prof-thumb { background: var(--canvas); border-radius: 4px; flex: none; }
+.prof-shape { fill: var(--surface); stroke: var(--fg); stroke-width: 0.025; }
+.prof-none { fill: var(--muted); font-size: 8px; }
+.mold-slot { display: grid; grid-template-columns: 78px 1fr auto; gap: 8px; align-items: center; padding: 4px 0; }
+.mold-kind { color: var(--muted); font-size: 12px; }
+.mold-pick { justify-content: flex-start; gap: 8px; padding: 3px 8px 3px 3px; }

@@ -50,6 +50,10 @@ export interface Cabinet {
   topFront?: number;
   topLeft?: number;
   topRight?: number;
+  /** Anderson & McQuaid profile numbers. */
+  crown?: string;
+  lightRail?: string;
+  baseMold?: string;
 }
 
 /** Beadboard or other paneling applied to a wall, like a backsplash above a mudroom bench. */
@@ -74,6 +78,8 @@ export interface WallPanel {
   cap: boolean;
   capHeight: number;
   capDepth: number;
+  /** Anderson & McQuaid profile for the cap; a plain solid wood ledge when unset. */
+  capProfile?: string;
 }
 
 export type EndMode = 'auto' | 'exposed' | 'hidden';
@@ -134,6 +140,10 @@ export interface ShopSettings {
   blindClearance: number;
   /** Solid wood species for tops, seats and caps. */
   woodSpecies: string;
+  /** Species for Anderson & McQuaid mouldings, as they list it (Maple, Poplar…). */
+  moldSpecies: string;
+  /** Extra moulding for miters and defects. 0.15 = 15%. */
+  moldWaste: number;
   counterThickness: number;
   counterOverhang: number;
   shelfSetback: number;

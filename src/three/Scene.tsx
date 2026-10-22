@@ -6,6 +6,9 @@ import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import { useStore, type ViewMode } from '../store';
 import type { Cabinet, Finishes, Room, ShopSettings, WallId, WallPanel } from '../model/types';
 import { spacingOf } from '../model/panels';
+import { cabinetMoldings, panelMoldings } from '../model/moldings';
+import { eff } from '../model/parts';
+import { MoldingModel } from './MoldingModel';
 import { buildParts } from '../model/parts';
 import { alongWall, footprint, resolveEnds, snapOffset, wallLength, wallTransform } from '../model/layout';
 import { buildCabinetGeometry } from './cabinetGeometry';
@@ -253,6 +256,9 @@ function CabinetModel(props: {
       <lineSegments geometry={geo.edges}>
         <lineBasicMaterial color={edgeColor} transparent opacity={selected || issue ? 0.95 : 0.55} />
       </lineSegments>
+      {(cab.crown || cab.lightRail || cab.baseMold) && (
+        <MoldingModel pieces={cabinetMoldings(cab, eff(cab, settings), ends)} color={finishes.paint} edgeColor={edgeColor} />
+      )}
     </group>
   );
 }
@@ -340,7 +346,8 @@ function WallPanelModel({ panel: w, room, finishes, selected }: { panel: WallPan
       <lineSegments geometry={beads}>
         <lineBasicMaterial color={selected ? ACCENT : EDGE} transparent opacity={0.35} />
       </lineSegments>
-      {w.cap && (
+      {w.cap && w.capProfile && <MoldingModel pieces={panelMoldings(w)} color={finishes.paint} edgeColor={EDGE} />}
+      {w.cap && !w.capProfile && (
         <mesh position={[w.width / 2, w.bottom + w.height + w.capHeight / 2, w.capDepth / 2]}>
           <boxGeometry args={[w.width, w.capHeight, w.capDepth]} />
           <meshStandardMaterial color={finishes.wood ?? '#b9875a'} roughness={0.6} />

@@ -7,6 +7,8 @@ import { drawerBoxSize } from "../src/model/eagle";
 import { optimize } from "../src/model/optimizer";
 import { defaultFaceFrameStock, faceFrameNeeds, faceFramePieces, roughQuarters, woodPieces } from "../src/model/faceframe";
 import { panelAbove, panelOrder } from "../src/model/panels";
+import { amCatalog } from "../src/model/andersonMcquaid";
+import { cabinetMoldings, moldingOrder, mountShape } from "../src/model/moldings";
 import { optimizerParts } from "../src/model/cutlist";
 import { normalize } from "../src/store";
 
@@ -199,6 +201,25 @@ eq('panel sticks out past frame', panelExtents(b21, s, { left: true, right: fals
   eq('3" o.c. strip has a 9" face', panelOrder({ ...panel, profile: 'standard-bead-strip', spacing: 3 }).qty, 6);
   eq('old projects still read', panelOrder({ ...panel, profile: 'vbead', spacing: undefined }).item.startsWith('4×8 sheet, V-Bead'), true);
   eq('seat and cap on the wood list', woodPieces({ ...proj, panels: [{ ...panel, cap: true }] }).length, 2);
+}
+
+// Anderson & McQuaid mouldings
+{
+  eq('A&M catalog loaded', amCatalog.length > 200, true);
+  const crown = amCatalog.find((p) => p.category === 'Crown' && p.shape)!;
+  const m = mountShape(crown);
+  eq('crown back sits at u = 0', Math.min(...m.pts.map((q) => q[0])) < 0.02, true);
+  const w = { ...cabinetFromPreset(presets.find((x) => x.id === 'wall-2')!, 'back', 30, []), crown: crown.num };
+  const pcs = cabinetMoldings(w, s, { left: true, right: true });
+  eq('crown front + two returns', pcs.length, 3);
+  const ex = panelExtents(w, s, { left: true, right: true });
+  eq('front run wraps both ends and end panels', Math.abs(pcs[0].length - (30 + ex.left + ex.right + 2 * m.depth)) < 1e-6, true);
+  eq('returns run back to the wall', Math.abs(pcs[1].length - (12 + m.depth)) < 1e-6, true);
+  const proj = normalize({ ...sampleProject(), cabinets: [w], panels: [] });
+  const ord = moldingOrder(proj);
+  const inches = 30 + ex.left + ex.right + 2 * m.depth + 2 * (12 + m.depth);
+  eq('order lineal feet with waste', ord[0].feet, Math.ceil((inches / 12) * 1.15));
+  eq('priced', ord[0].price != null, true);
 }
 
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');

@@ -22,6 +22,8 @@ export const defaultSettings: ShopSettings = {
   scribeAllowance: 0.5,
   blindClearance: 3,
   woodSpecies: 'Hard maple',
+  moldSpecies: 'Maple',
+  moldWaste: 0.15,
   stretcherWidth: 4,
   hangingRails: false,
   nailerWidth: 3,

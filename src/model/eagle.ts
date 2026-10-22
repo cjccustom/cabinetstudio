@@ -1,6 +1,5 @@
 // Doors, drawer fronts and drawer boxes are bought from Eagle Woodworking (Methuen, MA).
-// Style names come from Eagle's published catalog. Profiles marked `verify` couldn't be
-// confirmed from their site and are drawn as a plain shaker until checked.
+// Style names and profiles from eaglewoodworking.com, checked Oct 22, 2026.
 
 export type DoorProfile = 'slab' | 'shaker' | 'slim' | 'step' | 'bevel' | 'raised' | 'ogee';
 
@@ -19,18 +18,26 @@ export interface DoorStyle {
   verify?: boolean;
 }
 
+// From eaglewoodworking.com (MDF and wood door style pages), checked Oct 22, 2026.
+// Every style but the slim shakers also comes with a raised center panel.
 export const doorStyles: DoorStyle[] = [
-  { id: 'jefferson', name: 'Jefferson Shaker', line: 'MDF', profile: 'shaker', stile: 2.25, detail: 'Classic shaker, flat panel. Eagle’s most popular style.' },
-  { id: 'franklin', name: 'Franklin', line: 'MDF', profile: 'bevel', stile: 2.25, detail: '22.5° bevel on the frame.' },
-  { id: 'washington', name: 'Washington', line: 'MDF', profile: 'bevel', stile: 2.25, detail: '45° bevel on the frame.' },
-  { id: 'hamilton', name: 'Hamilton', line: 'MDF', profile: 'bevel', stile: 2.25, detail: '60° bevel on the frame.' },
-  { id: 'madison', name: 'Madison Ogee', line: 'MDF', profile: 'ogee', stile: 2.25, detail: 'Ogee profile on the frame.' },
-  { id: 'monroe', name: 'Monroe', line: 'MDF', profile: 'shaker', stile: 2.25, detail: 'Profile not confirmed. Drawn as shaker.', verify: true },
-  { id: 'adams', name: 'Adams', line: 'MDF', profile: 'shaker', stile: 2.25, detail: 'Profile not confirmed. Drawn as shaker.', verify: true },
-  { id: 'providence', name: 'Providence', line: 'Wood', profile: 'shaker', stile: 2.25, detail: 'Wood shaker, cope and stick.' },
-  { id: 'cambridge', name: 'Cambridge Step Shaker', line: 'Wood', profile: 'step', stile: 2.25, detail: 'Shaker with a stepped inside edge.' },
-  { id: 'nantucket', name: 'Nantucket', line: 'Wood', profile: 'bevel', stile: 2.25, panelChoice: true, detail: '30° bevel. Flat or raised center panel.' },
-  { id: 'barharbor', name: 'Bar Harbor', line: 'Wood', profile: 'slim', stile: 1, fixedStile: true, detail: 'Slim mitered shaker, 1" rails and stiles.' },
+  { id: 'jefferson', name: 'Jefferson Shaker', line: 'MDF', profile: 'shaker', stile: 2.25, panelChoice: true, detail: 'Classic shaker. Eagle’s most popular MDF door.' },
+  { id: 'monroe', name: 'Monroe Slim Shaker', line: 'MDF', profile: 'slim', stile: 1.5, detail: 'Contemporary shaker with slender rails and stiles.' },
+  { id: 'adams', name: 'Adams', line: 'MDF', profile: 'step', stile: 2.25, panelChoice: true, detail: '1/4" round-over inside profile.' },
+  { id: 'franklin', name: 'Franklin', line: 'MDF', profile: 'bevel', stile: 2.25, panelChoice: true, detail: '22.5° bevel.' },
+  { id: 'washington', name: 'Washington', line: 'MDF', profile: 'bevel', stile: 2.25, panelChoice: true, detail: '45° bevel.' },
+  { id: 'hamilton', name: 'Hamilton', line: 'MDF', profile: 'bevel', stile: 2.25, panelChoice: true, detail: '60° bevel.' },
+  { id: 'madison', name: 'Madison Ogee', line: 'MDF', profile: 'ogee', stile: 2.25, panelChoice: true, detail: 'Ogee bevel.' },
+  { id: 'boston', name: 'Boston Shaker', line: 'Wood', profile: 'shaker', stile: 2.25, panelChoice: true, detail: 'Classic shaker. Eagle’s most popular wood door.' },
+  { id: 'providence', name: 'Providence', line: 'Wood', profile: 'shaker', stile: 2.25, panelChoice: true, detail: 'Shaker with a shallow center panel.' },
+  { id: 'hartford', name: 'Hartford', line: 'Wood', profile: 'step', stile: 2.25, panelChoice: true, detail: 'Rounded framing bead.' },
+  { id: 'portsmouth', name: 'Portsmouth', line: 'Wood', profile: 'bevel', stile: 2.25, panelChoice: true, detail: '20° beveled framing bead.' },
+  { id: 'nantucket', name: 'Nantucket', line: 'Wood', profile: 'bevel', stile: 2.25, panelChoice: true, detail: '30° bevel.' },
+  { id: 'manchester', name: 'Manchester', line: 'Wood', profile: 'bevel', stile: 2.25, panelChoice: true, detail: '60° bevel.' },
+  { id: 'newport', name: 'Newport Ogee', line: 'Wood', profile: 'ogee', stile: 2.25, panelChoice: true, detail: 'Ogee bevel.' },
+  { id: 'portland', name: 'Portland', line: 'Wood', profile: 'ogee', stile: 2.25, panelChoice: true, detail: 'Cove profile.' },
+  { id: 'cambridge', name: 'Cambridge Step Shaker', line: 'Wood', profile: 'step', stile: 2.25, panelChoice: true, detail: 'Shaker with a stepped inside edge.' },
+  { id: 'barharbor', name: 'Bar Harbor Slim Shaker', line: 'Wood', profile: 'slim', stile: 1, fixedStile: true, detail: 'Slim mitered shaker, 1" rails and stiles. Eagle’s only mitered door.' },
   { id: 'slab', name: 'Slab', line: 'Any', profile: 'slab', stile: 0, detail: 'Flat one-piece door.' },
 ];
 
@@ -52,11 +59,14 @@ export interface Slide {
 }
 
 /**
- * Blum Tandem deductions match Eagle's drawer calculator: 5/8" off the opening width for
- * 1/2" sides, 3/8" for 5/8" sides, and at least 13/16" off the opening height.
+ * Deductions from Eagle's measuring instructions (checked Oct 22, 2026): Tandem takes 5/8" off the
+ * opening width for 1/2" sides, 3/8" for 5/8" sides, at least 13/16" off the height, and needs up to
+ * 1/2" behind the box.
  */
 export const slides: Slide[] = [
   { id: 'tandem', name: 'Blum Tandem (undermount)', widthDeduction: { '0.5': 0.625, '0.625': 0.375 }, heightDeduction: 0.8125, lengths: [9, 12, 15, 18, 21], notch: '1 3/8" notch, bored for Tandem' },
+  // Eagle: side mount takes 1-1/16" off the width regardless of side thickness, at least 1/2" off the height
+  { id: 'sidemount', name: 'Side mount', widthDeduction: { '0.5': 1.0625, '0.625': 1.0625 }, heightDeduction: 0.5, lengths: [10, 12, 14, 16, 18, 20, 22, 24], notch: 'no notch' },
 ];
 export const sideThicknesses = [0.5, 0.625];
 

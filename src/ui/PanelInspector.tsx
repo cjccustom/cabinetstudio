@@ -3,6 +3,7 @@ import type { WallId, WallPanel } from '../model/types';
 import { optionOf, panelMaterials, panelOrder, productOf } from '../model/panels';
 import { beadboardCatalog, type BeadboardProduct } from '../model/nantucket';
 import { fmt } from '../units';
+import { MoldSlot } from './ProfilePicker';
 import { wallNames, wallOrder } from '../model/layout';
 import { Field, LengthInput, Section } from './fields';
 
@@ -10,6 +11,7 @@ export function PanelInspector({ panel: w }: { panel: WallPanel }) {
   const update = useStore((s) => s.updatePanel);
   const remove = useStore((s) => s.removeCabinet);
   const set = (patch: Partial<WallPanel>) => update(w.id, patch);
+  const species = useStore((s) => s.project.settings.moldSpecies);
   const order = panelOrder(w);
   const prod = productOf(w);
   const opt = optionOf(w);
@@ -77,9 +79,12 @@ export function PanelInspector({ panel: w }: { panel: WallPanel }) {
       </Section>
       <Section title="Cap / ledge">
         <div className="checks">
-          <label><input id="pn-cap" type="checkbox" checked={w.cap} onChange={(e) => set({ cap: e.target.checked })} /> Solid wood cap along the top</label>
+          <label><input id="pn-cap" type="checkbox" checked={w.cap} onChange={(e) => set({ cap: e.target.checked })} /> Cap along the top (A&amp;M profile, or a plain shop-made ledge)</label>
         </div>
         {w.cap && (
+          <MoldSlot kind="cap" num={w.capProfile} species={species} onChange={(n) => set({ capProfile: n })} />
+        )}
+        {w.cap && !w.capProfile && (
           <div className="grid2" style={{ marginTop: 8 }}>
             <Field label="Thickness" htmlFor="pn-ch"><LengthInput id="pn-ch" value={w.capHeight} min={0.25} onChange={(v) => set({ capHeight: v! })} /></Field>
             <Field label="Depth off wall" htmlFor="pn-cd"><LengthInput id="pn-cd" value={w.capDepth} min={0.25} onChange={(v) => set({ capDepth: v! })} /></Field>

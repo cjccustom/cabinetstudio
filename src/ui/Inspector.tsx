@@ -8,6 +8,7 @@ import { fmt } from '../units';
 import { Field, LengthInput, Section } from './fields';
 import { OrderList, PartsTable } from './PartsTable';
 import { OverridesSection } from './Overrides';
+import { MoldSlot } from './ProfilePicker';
 
 const kindLabel = { base: 'Base cabinet', wall: 'Wall cabinet', tall: 'Tall cabinet' };
 const rowTypes: { v: FaceRow['type']; label: string }[] = [
@@ -161,6 +162,26 @@ export function Inspector({ cab, issues }: { cab: Cabinet; issues: string[] }) {
           {cab.topKind === 'wood' && cab.countertop && <p className="hint">Solid wood tops and bench seats go on the Solid wood list with board feet to buy.</p>}
         </Section>
       )}
+
+      <Section title="Mouldings (Anderson & McQuaid)">
+        {(['crown', 'lightRail', 'baseMold'] as const)
+          .filter((k) => (k === 'crown' ? cab.kind !== 'base' : k === 'lightRail' ? cab.kind === 'wall' : cab.kind !== 'wall'))
+          .map((k) => (
+            <MoldSlot
+              key={k}
+              kind={k}
+              num={cab[k]}
+              species={settings.moldSpecies}
+              onChange={(n) => set({ [k]: n })}
+              extra={cab[k] && (
+                <button className="mini" title={`Use on every ${cab.kind} cabinet on this wall`} onClick={() =>
+                  useStore.getState().commit((p) => ({ ...p, cabinets: p.cabinets.map((c) => (c.wall === cab.wall && c.kind === cab.kind ? { ...c, [k]: cab[k] } : c)) }))
+                }>Whole wall</button>
+              )}
+            />
+          ))}
+        <p className="hint">Runs across the face and returns to the wall on exposed ends. Lineal footage and cost are on the Orders tab.</p>
+      </Section>
 
       <OverridesSection cab={cab} settings={settings} set={set} />
 

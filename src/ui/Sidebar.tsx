@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useStore } from '../store';
 import { presets } from '../model/defaults';
 import { newPanel, panelAbove } from '../model/panels';
+import { amSpecies } from '../model/moldings';
 import { wallNames, wallOrder } from '../model/layout';
 import type { PanelMode, ShopSettings, WallId } from '../model/types';
 import { fmt } from '../units';
@@ -276,6 +277,19 @@ function ShopPanel() {
           <p className="warn">Inset end panels with overlay doors. Fine if the customer wants it; individual cabinets can still be changed.</p>
         )}
         <p className="hint">End panels are ordered from Eagle in the door style and applied to the case side. Each cabinet can override this per end.</p>
+      </Section>
+
+      <Section title="Mouldings (Anderson & McQuaid)">
+        <div className="grid2">
+          <Field label="Species" htmlFor="shop-mspecies">
+            <select id="shop-mspecies" value={settings.moldSpecies} onChange={(e) => set({ moldSpecies: e.target.value })}>
+              {amSpecies.map((x) => <option key={x}>{x}</option>)}
+            </select>
+          </Field>
+          <Field label="Waste %" htmlFor="shop-mwaste">
+            <input id="shop-mwaste" inputMode="numeric" value={Math.round(settings.moldWaste * 100)} onChange={(e) => set({ moldWaste: (parseFloat(e.target.value) || 0) / 100 })} />
+          </Field>
+        </div>
       </Section>
 
       <Section title="Drawer boxes (Eagle dovetail)">

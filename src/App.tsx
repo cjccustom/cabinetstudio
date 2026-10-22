@@ -8,6 +8,7 @@ import { ProjectDialog } from './ui/ProjectDialog';
 import { DrawerCalculator } from './ui/DrawerCalculator';
 import { PanelInspector } from './ui/PanelInspector';
 import { BeadboardOrder } from './ui/BeadboardOrder';
+import { MoldingOrder } from './ui/MoldingOrder';
 import { CutlistInputs, CutlistLayouts, CutlistSummary } from './ui/Cutlist';
 import { FaceFrameBreakdown, FaceFrameInputs, FaceFrameSummary } from './ui/FaceFrames';
 import { findIssues, wallNames, wallOrder } from './model/layout';
@@ -128,6 +129,7 @@ export default function App() {
               <p><button onClick={() => setDialog('drawer')}>Drawer box calculator…</button></p>
               <OrderList cabinets={project.cabinets} />
               <BeadboardOrder />
+              <MoldingOrder />
             </div>
           )}
         </div>

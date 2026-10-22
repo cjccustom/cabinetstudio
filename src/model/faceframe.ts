@@ -148,7 +148,7 @@ export function woodPieces(p: Project): WoodPiece[] {
       if (part.material === 'solidWood') out.push({ label: `${c.name} ${part.name.toLowerCase()}`, length: part.length, width: part.width, thickness: part.thickness });
     }
   }
-  for (const w of p.panels ?? []) if (w.cap) out.push({ label: `${w.name} beadboard cap`, length: w.width, width: w.capDepth, thickness: w.capHeight });
+  for (const w of p.panels ?? []) if (w.cap && !w.capProfile) out.push({ label: `${w.name} beadboard cap`, length: w.width, width: w.capDepth, thickness: w.capHeight });
   return out;
 }
 
