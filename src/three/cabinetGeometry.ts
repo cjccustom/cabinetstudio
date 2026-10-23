@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import type { Part } from '../model/types';
+import type { CutShape, Part } from '../model/types';
 
 export interface CabinetGeometry {
   /** One merged mesh per material/shade, so a whole kitchen stays cheap to draw. */
@@ -27,6 +27,18 @@ export function buildCabinetGeometry(parts: Part[]): CabinetGeometry {
       g.geos.push(geo);
       pushBoxEdges(edgePts, x, y, z, x + sx, y + sy, z + sz);
     }
+    for (const c of p.shapes ?? []) {
+      const material = p.look === 'paint' ? 'faceframe' : p.look === 'wood' ? 'solidWood' : p.material;
+      const key = `${material}:1:cut`;
+      let g = groups.get(key);
+      if (!g) groups.set(key, (g = { material, shade: 1, geos: [] }));
+      const geo = shapeGeometry(c);
+      g.geos.push(geo);
+      // Edges only where faces meet at a real corner, so the curve reads smooth
+      const e = new THREE.EdgesGeometry(geo, 30);
+      edgePts.push(...(e.getAttribute('position').array as Float32Array));
+      e.dispose();
+    }
   }
   const meshes = [...groups.entries()].map(([key, g]) => {
     const geometry = mergeGeometries(g.geos)!;
@@ -45,4 +57,18 @@ function pushBoxEdges(out: number[], x0: number, y0: number, z0: number, x1: num
   ];
   const e = [0, 1, 1, 2, 2, 3, 3, 0, 4, 5, 5, 6, 6, 7, 7, 4, 0, 4, 1, 5, 2, 6, 3, 7];
   for (const i of e) out.push(...c[i]);
+}
+
+/** Extrude a shaped piece's outline through its thickness and stand it in place. */
+function shapeGeometry(c: CutShape): THREE.BufferGeometry {
+  const shape = new THREE.Shape(c.outline.map(([u, v]) => new THREE.Vector2(u, v)));
+  const geo = new THREE.ExtrudeGeometry(shape, { depth: c.thickness, bevelEnabled: false, curveSegments: 1 }).toNonIndexed();
+  const [x, y, z] = c.min;
+  const m = new THREE.Matrix4();
+  // Along x: outline in the x-y plane, thickness toward +z. Along z: outline in the z-y plane, thickness toward +x.
+  if (c.along === 'x') m.makeTranslation(x, y, z);
+  else m.set(0, 0, -1, x + c.thickness, 0, 1, 0, y, 1, 0, 0, z, 0, 0, 0, 1);
+  geo.applyMatrix4(m);
+  geo.computeVertexNormals();
+  return geo;
 }

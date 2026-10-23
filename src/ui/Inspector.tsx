@@ -12,6 +12,8 @@ import { Field, LengthInput, Section } from './fields';
 import { OrderList, PartsTable } from './PartsTable';
 import { OverridesSection } from './Overrides';
 import { MoldSlot } from './ProfilePicker';
+import { archBuilds, archShapes, baseLayout, baseOf, baseStyles, cutOutline, floorStanding } from '../model/cabinetBase';
+import { profileLabel, profileByNum } from '../model/moldings';
 
 const kindLabel = { base: 'Base cabinet', wall: 'Wall cabinet', tall: 'Tall cabinet', pilaster: 'Pilaster', shelf: 'Floating shelf' };
 const rowTypes: { v: FaceRow['type']; label: string }[] = [
@@ -141,6 +143,7 @@ export function Inspector({ cab, issues }: { cab: Cabinet; issues: string[] }) {
           </div>
         )}
       </Section>
+      {floorStanding(cab) && <BaseSection cab={cab} set={set} />}
 
       </>
       )}
@@ -506,5 +509,68 @@ function FloatingShelfSection({ cab, set }: { cab: Cabinet; set: (patch: Partial
         {f.grade === 'paint' ? ' Solid stock comes from the face frame stock.' : ` Solid stock is ${settings.woodSpecies} on the Solid wood list.`}
       </p>
     </Section>
+  );
+}
+
+function BaseSection({ cab, set }: { cab: Cabinet; set: (patch: Partial<Cabinet>) => void }) {
+  const settings = useStore((s) => s.project.settings);
+  const b = baseOf(cab);
+  const s = cab.overrides ? { ...settings, ...cab.overrides } : settings;
+  const L = baseLayout(cab, s);
+  const put = (patch: Partial<typeof b>) => set({ base: { ...b, ...patch } });
+  const cap = profileByNum(cab.baseMold);
+  return (
+    <Section title="Base">
+      <div className="grid3">
+        <Field label="Base" htmlFor="base-style">
+          <select id="base-style" value={b.style} onChange={(e) => put({ style: e.target.value as typeof b.style })}>
+            {Object.entries(baseStyles).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+          </select>
+        </Field>
+        {b.style !== 'kick' && (
+          <Field label={b.style === 'arch' ? 'Skirt height' : 'Board height'} htmlFor="base-h"><LengthInput id="base-h" value={b.height} onChange={(v) => put({ height: v ?? 4.5 })} /></Field>
+        )}
+        {b.style === 'arch' && (
+          <Field label="Build" htmlFor="base-build">
+            <select id="base-build" value={b.build} onChange={(e) => put({ build: e.target.value as typeof b.build })}>
+              {Object.entries(archBuilds).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+            </select>
+          </Field>
+        )}
+      </div>
+      {b.style === 'arch' && (
+        <div className="grid3">
+          <Field label="Shape" htmlFor="base-shape">
+            <select id="base-shape" value={b.shape} onChange={(e) => put({ shape: e.target.value as typeof b.shape })}>
+              {Object.entries(archShapes).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+            </select>
+          </Field>
+          <Field label="Cutout height" htmlFor="base-rise"><LengthInput id="base-rise" value={b.rise} onChange={(v) => put({ rise: v ?? 3 })} /></Field>
+          <Field label="Foot width" htmlFor="base-foot"><LengthInput id="base-foot" value={b.foot} onChange={(v) => put({ foot: v ?? 2.25 })} /></Field>
+        </div>
+      )}
+      {b.style === 'arch' && <SkirtPreview cab={cab} />}
+      <p className="hint">
+        {b.style === 'kick'
+          ? `Recessed ${fmt(s.toeKickHeight)} toe kick.`
+          : `Cabinet height stays ${fmt(cab.height)}: the base takes ${fmt(L.top)}${cap ? ` (with the ${profileLabel(cap)} cap)` : ''}, a ${fmt(s.bottomRailWidth)} rail shows above it, and the openings shorten to suit.`}
+        {b.style === 'baseboard' && ' The board wraps exposed ends back to the wall; pick a cap under Mouldings → Base.'}
+        {b.style === 'arch' && (b.build === 'applied'
+          ? ' The skirt is applied to the face frame and wraps exposed ends; a recessed toe kick sits behind the cutout.'
+          : ' The stiles run to the floor as feet and the cutout comes out of a wide bottom rail. Exposed ends get a matching cut.')}
+      </p>
+    </Section>
+  );
+}
+
+/** The skirt or rail profile, drawn to scale across the cabinet's width. */
+function SkirtPreview({ cab }: { cab: Cabinet }) {
+  const b = baseOf(cab);
+  const W = cab.width, h = Math.max(b.height, b.rise + 0.75) + 1.5;
+  const pts = cutOutline(W, h, b.foot, W - b.foot, b.shape, Math.min(b.rise, h - 0.75));
+  return (
+    <svg className="skirt-preview" viewBox={`-0.5 -0.5 ${W + 1} ${h + 1}`} role="img" aria-label="Skirt profile" style={{ width: '100%', height: 'auto', maxHeight: 90 }}>
+      <path d={`M${pts.map(([u, v]) => `${u},${h - v}`).join(' L')} Z`} fill="var(--sunk)" stroke="currentColor" strokeWidth={0.12} />
+    </svg>
   );
 }

@@ -542,6 +542,38 @@ eq('panel sticks out past frame', panelExtents(b21, s, { left: true, right: fals
   eq('lock rail near 36"', !!lock && Math.abs(lock.min[1] + 3.875 - 36) < 12, true);
 }
 
+{
+  // Floor cabinet bases: toe kick, baseboard wrap, decorative skirt
+  const bc = cabinetFromPreset(presets.find((x) => x.id === 'base-door')!, 'back', 0, []);
+  const both = { left: true, right: true };
+  const k = buildParts(bc, defaultSettings, both);
+  const kRows = layoutRows(bc, defaultSettings).rows;
+  const bbCab = { ...bc, base: { style: 'baseboard' as const, height: 4.5, build: 'faceframe' as const, shape: 'bracket' as const, rise: 3, foot: 2.25 } };
+  const bb = buildParts(bbCab, defaultSettings, both);
+  const bbRows = layoutRows(bbCab, defaultSettings).rows;
+  eq('baseboard: opening starts at board + 1-1/2" rail', bbRows[bbRows.length - 1].y0, 4.5 + 1.5);
+  eq('baseboard: cabinet height unchanged, opening shorter', [Math.max(...bb.flatMap((x) => x.boxes.map((b) => b.min[1] + b.size[1]))) >= bc.height, bbRows[0].height < kRows[0].height].join(), 'true,true');
+  eq('baseboard: no toe kick', bb.some((x) => x.role === 'toekick'), false);
+  eq('baseboard: front and two returns', bb.filter((x) => x.name.startsWith('Baseboard')).length, 3);
+  eq('baseboard: stiles run to the floor', bb.find((x) => x.name === 'Stile')!.length, bc.height);
+  const capped = { ...bbCab, baseMold: amCatalog.find((x) => x.category === 'Base Board and Base Cap')!.num };
+  const capH = mountShape(amCatalog.find((x) => x.num === capped.baseMold)!).height;
+  eq('cap moulding sits on the board, rail above it', layoutRows(capped, defaultSettings).rows.slice(-1)[0].y0, 4.5 + capH + 1.5);
+  eq('cap on top of the board', cabinetMoldings(capped, defaultSettings, both).find((m) => m.kind === 'baseMold')!.y, 4.5);
+  const ff = { ...bbCab, base: { ...bbCab.base, style: 'arch' as const } };
+  const fp = buildParts(ff, defaultSettings, both);
+  const rail = fp.find((x) => x.name === 'Bottom rail')!;
+  eq('shaped rail: wide, with the cutout', [rail.width, rail.boxes.length > 3, Math.min(...rail.boxes.map((b) => b.min[1]))].join(), '6,true,0');
+  eq('shaped rail: center cut to the full rise', Math.max(...rail.boxes.map((b) => b.min[1])), 3);
+  eq('shaped base: recessed kick behind the cutout', fp.find((x) => x.name === 'Toe kick skin')!.width, 3);
+  eq('shaped base: bare ends cut to match', fp.filter((x) => x.role === 'side' && (x.note ?? '').includes('bracket feet')).length, 2);
+  const ap = buildParts({ ...ff, base: { ...ff.base, build: 'applied' as const } }, defaultSettings, both);
+  eq('applied skirt: front and returns', ap.filter((x) => x.name.startsWith('Skirt')).length, 3);
+  eq('applied skirt: 1-1/2" of rail shows above', ap.find((x) => x.name === 'Bottom rail')!.boxes[0].min[1] + ap.find((x) => x.name === 'Bottom rail')!.width, 4.5 + 1.5);
+  eq('wall cabinets ignore it', layoutRows({ ...bbCab, kind: 'wall' as const, elevation: 54 }, defaultSettings).rows.slice(-1)[0].y0, defaultSettings.bottomRailWidth);
+  eq('quote says so', scopeLine(ff, { ...p, cabinets: [ff] }).includes('bracket feet cut into the face frame'), true);
+}
+
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');
 
 console.log(failed ? `${failed} check(s) failed` : 'All model checks passed');

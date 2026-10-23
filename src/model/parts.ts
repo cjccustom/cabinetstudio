@@ -4,6 +4,8 @@ import { buildCornerParts } from './corner';
 import { pilasterOf, pilasterParts } from './pilaster';
 import { floatingShelfParts } from './floatingShelf';
 import { fmt as fmtShort, fmt } from '../units';
+import { baseLayout, boardT, cutShape, archShapes } from './cabinetBase';
+import type { CutShape } from './types';
 
 export const vb = (x: number, y: number, z: number, sx: number, sy: number, sz: number, shade?: number): VisualBox => ({
   min: [x, y, z], size: [sx, sy, sz], shade,
@@ -17,8 +19,8 @@ export interface RowLayout {
   height: number;
 }
 
-/** Where the face frame starts off the floor of the cabinet (toe kick for base/tall). */
-export const kickOf = (c: Cabinet, s: ShopSettings) => (c.kind === 'wall' ? 0 : eff(c, s).toeKickHeight);
+/** Height of the recessed toe kick under the case (0 for wall cabinets, or a base that runs to the floor). */
+export const kickOf = (c: Cabinet, s: ShopSettings) => (c.kind === 'wall' ? 0 : baseLayout(c, eff(c, s)).kick);
 
 /** The shop standards with this cabinet's own changes applied. */
 export const eff = (c: Cabinet, s: ShopSettings): ShopSettings => (c.overrides ? { ...s, ...c.overrides } : s);
@@ -26,9 +28,9 @@ export const eff = (c: Cabinet, s: ShopSettings): ShopSettings => (c.overrides ?
 /** Resolve each face row's opening height, top to bottom. Auto rows split what's left. */
 export function layoutRows(c: Cabinet, s: ShopSettings): { rows: RowLayout[]; leftover: number } {
   s = eff(c, s);
-  const kick = kickOf(c, s);
+  const bl = baseLayout(c, s);
   const top = c.height - s.topRailWidth;
-  const bottom = kick + s.bottomRailWidth;
+  const bottom = bl.railY + bl.railW;
   const n = c.rows.length;
   const available = top - bottom - Math.max(0, n - 1) * s.midRailWidth;
   const fixed = c.rows.reduce((sum, r) => sum + (r.height ?? 0), 0);
@@ -127,7 +129,11 @@ export function buildParts(c: Cabinet, s: ShopSettings, ends: EndInfo = { left: 
   const tn = s.boxThickness;
   const ta = s.boxActualThickness;
   const dd = s.dadoDepth;
-  const kick = kickOf(c, s);
+  const BL = baseLayout(c, s);
+  const kick = BL.kick;
+  const railTop = BL.railY + BL.railW;
+  // A shaped face frame base cuts its feet into a bare exposed end as well
+  const archSide = (exposed: boolean, panel: string) => BL.style === 'arch' && !BL.applied && exposed && panel === 'none';
   const boxD = D - s.ffThickness;
   // Extended (scribe) stiles widen the face frame past the case instead of a filler.
   const sL = c.scribeLeft ?? 0;
@@ -147,19 +153,24 @@ export function buildParts(c: Cabinet, s: ShopSettings, ends: EndInfo = { left: 
   const dados = fmtShort(dd);
 
   // Sides
-  const sideBoxes = (x: number): VisualBox[] =>
-    kick > 0
+  const sideShapes = (x: number): CutShape[] => [cutShape('z', [x, 0, 0], boxD, BL.top, ta, BL.b.foot, boxD - Math.max(0.75, BL.b.foot - s.ffThickness), BL.b.shape, BL.rise)];
+  const sideBoxes = (x: number, arch = false): VisualBox[] => {
+    if (arch) return [vb(x, BL.top, 0, ta, H - BL.top, boxD)];
+    return kick > 0
       ? [vb(x, kick, 0, ta, H - kick, boxD), vb(x, 0, 0, ta, kick, boxD - notch)]
       : [vb(x, 0, 0, ta, H, boxD)];
+  };
   ([['Left', xi0 - ta, ends.left, pL], ['Right', xi1, ends.right, pR]] as const).forEach(([, x, exposed, panel]) => {
     const notes = [];
-    if (kick > 0) notes.push(`Toe notch ${fmtShort(kick)} × ${fmtShort(notch)}`);
+    const arch = archSide(exposed, panel);
+    if (arch) notes.push(`Cut ${archShapes[BL.b.shape].toLowerCase()} to match the face frame, ${fmtShort(BL.rise)} high`);
+    else if (kick > 0) notes.push(`Toe notch ${fmtShort(kick)} × ${fmtShort(notch)}`);
     const bare = exposed && panel === 'none';
     notes.push(bare ? 'Exposed end: pocket screw from inside' : exposed ? 'Under end panel: glue & staple' : 'Hidden: glue & staple');
     parts.push({
       name: bare ? 'Side, exposed' : 'Side', role: 'side', material: 'box', length: H, width: boxD, thickness: tn, cut: true,
       note: notes.join(' · '),
-      boxes: sideBoxes(x),
+      boxes: sideBoxes(x, arch), shapes: arch ? sideShapes(x) : undefined,
     });
   });
 
@@ -167,7 +178,7 @@ export function buildParts(c: Cabinet, s: ShopSettings, ends: EndInfo = { left: 
   // face frame on wall cabinets hung high enough that the underside shows.
   const flush = c.kind === 'wall' && !!c.bottomFlush;
   const noBottom = c.kind !== 'base' && !!c.noBottom;
-  const botTop = flush ? ta : kick + s.bottomRailWidth - s.bottomReveal;
+  const botTop = flush ? ta : railTop - s.bottomReveal;
   if (!noBottom) parts.push({
     name: 'Bottom', role: 'bottom', material: 'box', length: cutW, width: boxD - rw, thickness: tn, cut: true,
     note: flush ? `In ${dados} dados, flush with bottom of face frame` : `In ${dados} dados`,
@@ -225,7 +236,7 @@ export function buildParts(c: Cabinet, s: ShopSettings, ends: EndInfo = { left: 
     });
     // The skin wraps around exposed ends, tucked under the end panel
     for (const [exposed, x] of [[ends.left, xi0 - ta - s.toeKickSkin], [ends.right, xi1 + ta]] as const) {
-      if (!exposed) continue;
+      if (!exposed || BL.style !== 'kick') continue;
       const len = D - s.toeKickDepth - s.toeKickSkin;
       parts.push({
         name: 'Toe kick return', role: 'toekick', material: 'toeSkin', length: len, width: kick, thickness: s.toeKickSkin, cut: true,
@@ -236,7 +247,7 @@ export function buildParts(c: Cabinet, s: ShopSettings, ends: EndInfo = { left: 
   }
 
   // Face frame: glued and pocket screwed
-  const ffH = H - kick;
+  const ffH = H - BL.stileY;
   const zF = boxD;
   const ft = s.ffThickness;
   const sw = s.stileWidth;
@@ -256,17 +267,55 @@ export function buildParts(c: Cabinet, s: ShopSettings, ends: EndInfo = { left: 
       name: scribed ? 'Stile, extended' : 'Stile', role: 'stile', material: 'faceframe', length: ffH,
       width: sw + extra + (scribed ? s.scribeAllowance : 0), thickness: ft, cut: true,
       note: scribed ? `${fmtShort(sw)} + ${fmtShort(extra)} extension + ${fmtShort(s.scribeAllowance)} to scribe on site` : undefined,
-      boxes: [vb(x, kick, zF, sw + extra, ffH, ft)],
+      boxes: [vb(x, BL.stileY, zF, sw + extra, ffH, ft)],
     });
   }
   parts.push({
     name: 'Top rail', role: 'rail', material: 'faceframe', length: railLen, width: s.topRailWidth, thickness: ft, cut: true,
     boxes: [vb(sL + sw, H - s.topRailWidth, zF, railLen, s.topRailWidth, ft)],
   });
-  parts.push({
-    name: 'Bottom rail', role: 'rail', material: 'faceframe', length: railLen, width: s.bottomRailWidth, thickness: ft, cut: true,
-    boxes: [vb(sL + sw, kick, zF, railLen, s.bottomRailWidth, ft)],
-  });
+  {
+    // On a shaped base the stiles are the feet and the cutout comes out of a wide bottom rail
+    const shaped = BL.style === 'arch' && !BL.applied;
+    const x0 = sL + sw;
+    const a = Math.max(0, BL.b.foot - x0), b = Math.min(railLen, W - BL.b.foot - x0);
+    parts.push({
+      name: 'Bottom rail', role: 'rail', material: 'faceframe', length: railLen, width: BL.railW, thickness: ft, cut: true,
+      note: shaped ? `Cut ${archShapes[BL.b.shape].toLowerCase()}, ${fmtShort(BL.rise)} high, feet ${fmtShort(BL.b.foot)} from the ends`
+        : BL.applied ? `${fmtShort(s.bottomRailWidth)} shows above the ${BL.style === 'baseboard' ? 'baseboard' : 'skirt'}` : undefined,
+      boxes: shaped ? [] : [vb(x0, BL.railY, zF, railLen, BL.railW, ft)],
+      shapes: shaped ? [cutShape('x', [x0, BL.railY, zF], railLen, BL.railW, ft, a, b, BL.b.shape, BL.rise)] : undefined,
+    });
+  }
+  if (BL.applied) {
+    // Baseboard or skirt applied to the face frame, mitered around exposed ends and back to the wall
+    const ext = panelExtents(c, s, ends);
+    const xL = ends.left ? -ext.left - boardT : 0;
+    const xR = W + (ends.right ? ext.right + boardT : 0);
+    const h = BL.flat;
+    const arch = BL.style === 'arch';
+    const name = arch ? 'Skirt' : 'Baseboard';
+    const len = xR - xL;
+    // Plain baseboard is a box; a skirt carries its cutout
+    const piece = (along: 'x' | 'z', min: [number, number, number], n: number, a: number, b: number) => arch
+      ? { boxes: [], shapes: [cutShape(along, min, n, h, boardT, a, b, BL.b.shape, BL.rise)] }
+      : { boxes: [along === 'x' ? vb(min[0], 0, min[2], n, h, boardT) : vb(min[0], 0, min[2], boardT, h, n)] };
+    const note = arch ? `Cut ${archShapes[BL.b.shape].toLowerCase()}, ${fmtShort(BL.rise)} high` : undefined;
+    if (h > 0) {
+      parts.push({
+        name: `${name}, front`, role: 'trim', material: 'faceframe', length: len, width: h, thickness: boardT, cut: true, note,
+        ...piece('x', [xL, 0, D], len, BL.b.foot, len - BL.b.foot),
+      });
+      for (const side of ['left', 'right'] as const) {
+        if (!ends[side]) continue;
+        const x = side === 'left' ? xL : xR - boardT;
+        parts.push({
+          name: `${name}, ${side} return`, role: 'trim', material: 'faceframe', length: D, width: h, thickness: boardT, cut: true, note,
+          ...piece('z', [x, 0, 0], D, BL.b.foot, D - Math.max(0.75, BL.b.foot - boardT)),
+        });
+      }
+    }
+  }
 
   const { rows } = layoutRows(c, s);
   rows.forEach((r, i) => {
@@ -288,12 +337,12 @@ export function buildParts(c: Cabinet, s: ShopSettings, ends: EndInfo = { left: 
     ? `Slab, ${material}`
     : `${style.name}, ${material}, ${fmtShort(doorStile)} stiles${raised ? ', raised panel' : ''}`;
   if (blind) {
-    const openH = H - kick - s.topRailWidth - s.bottomRailWidth;
+    const openH = H - railTop - s.topRailWidth;
     const bx = blind.side === 'left' ? ox0 - bs : ox1;
     parts.push({
       name: 'Blind stile', role: 'stile', material: 'faceframe', length: openH, width: bs, thickness: ft, cut: true,
       note: `${fmtShort(sw)} + ${fmtShort(bs - sw)} clearance; starts ${fmtShort(blind.dead)} from the ${blind.side} end`,
-      boxes: [vb(bx, kick + s.bottomRailWidth, zF, bs, openH, ft)],
+      boxes: [vb(bx, railTop, zF, bs, openH, ft)],
     });
   }
   const inset = s.doorMount === 'inset';
@@ -398,7 +447,9 @@ export function buildParts(c: Cabinet, s: ShopSettings, ends: EndInfo = { left: 
     const depth = mode === 'flush' ? doorFace : mode === 'reveal' ? doorFace - s.endPanelReveal : D;
     const label = mode === 'flush' ? 'flush with door face' : mode === 'reveal' ? `held back ${fmtShort(s.endPanelReveal)} from door face` : 'inset, flush with face frame';
     // Draw the panel face-on, then turn it to face out from the side of the cabinet
-    const [py0, py1] = mode === 'inset' ? [kick, H] : [doorBottom, doorTop];
+    // A baseboard or skirt wraps over the panel down to the floor; a shaped base has its own end skirt under the panel
+    const shapedEnd = BL.style === 'arch' && !BL.applied;
+    const [py0, py1] = BL.applied ? [0, mode === 'inset' ? H : doorTop] : shapedEnd ? [BL.top, mode === 'inset' ? H : doorTop] : mode === 'inset' ? [kick, H] : [doorBottom, doorTop];
     const ph = py1 - py0;
     const flat = frontBoxes(0, py0, 0, depth, ph, pt, style.profile, doorStile, raised);
     const boxes = flat.map((b) => {
@@ -413,6 +464,14 @@ export function buildParts(c: Cabinet, s: ShopSettings, ends: EndInfo = { left: 
       order: { item: 'endPanel', w: depth, h: ph, spec: `${doorSpec}, end panel`, ...(style.profile === 'slab' ? {} : { rail: doorStile, stile: doorStile }) },
       boxes,
     });
+    if (shapedEnd) {
+      const x = side === 'left' ? xi0 - ta - pt : xi1 + ta;
+      parts.push({
+        name: `End skirt, ${side}`, role: 'trim', material: 'faceframe', length: depth, width: BL.top, thickness: pt, cut: true,
+        note: `Under the end panel; cut ${archShapes[BL.b.shape].toLowerCase()} to match the face frame`,
+        boxes: [], shapes: [cutShape('z', [x, 0, 0], depth, BL.top, pt, BL.b.foot, depth - BL.b.foot, BL.b.shape, BL.rise)],
+      });
+    }
   }
 
   if (c.kind === 'base' && c.countertop) parts.push(topPart(c, s, W, D + dt, panelExtents(c, s, ends)));

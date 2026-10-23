@@ -7,6 +7,7 @@ import { crownLayout, panelExtents, type EndInfo } from './parts';
 import { pilasterOf, pilasterOpenings } from './pilaster';
 import { inScope, roomMoldingPieces } from './room';
 import { resolveEnds } from './layout';
+import { baseLayout } from './cabinetBase';
 
 export type MoldKind = 'crown' | 'lightRail' | 'baseMold' | 'cap' | 'panel' | 'roomCrown' | 'roomBase' | 'chairRail' | 'casing' | 'backBand' | 'headCap' | 'stool' | 'apron';
 
@@ -105,9 +106,15 @@ export function cabinetMoldings(c: Cabinet, s: ShopSettings, ends: EndInfo): Mol
   const runs: { kind: MoldKind; num?: string; y: (h: number) => number; z: number; hang?: boolean; out?: number }[] = [
     // Light rail hangs below the bottom, on the face frame
     { kind: 'lightRail', num: c.lightRail, y: () => 0, z: c.depth, hang: true },
-    // Base runs along the floor across the door faces, furniture style
-    { kind: 'baseMold', num: c.baseMold, y: () => 0, z: doorFace },
   ];
+  const bl = baseLayout(c, s);
+  if (bl.style === 'kick') {
+    // Base runs along the floor across the door faces, furniture style
+    runs.push({ kind: 'baseMold', num: c.baseMold, y: () => 0, z: doorFace });
+  } else {
+    // A cap on top of the baseboard or skirt, wrapping its returns
+    runs.push({ kind: 'baseMold', num: c.baseMold, y: () => bl.flat, z: c.depth + bl.out, out: bl.out });
+  }
   if (c.kind !== 'base') {
     // Crown and any extra mouldings stack down from the top of the build, on the sub-crown's face
     const L = crownLayout(c, s);

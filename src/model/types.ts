@@ -31,6 +31,8 @@ export interface Cabinet {
   rightEnd?: EndMode;
   /** Wall cabinets: box bottom flush with the bottom of the face frame instead of tucked behind the rail. */
   bottomFlush?: boolean;
+  /** Floor cabinets: toe kick, baseboard wrap or a decorative skirt. */
+  base?: CabinetBase;
   /** Open bookcase uppers: no case bottom; the sides stand on the countertop below. */
   noBottom?: boolean;
   /** Solid stock applied to the front edge of the adjustable shelves, in place of edgebanding. Top flush with the shelf. */
@@ -318,6 +320,29 @@ export type PartRole =
   | 'side' | 'bottom' | 'top' | 'stretcher' | 'back' | 'nailer' | 'toekick' | 'shelf'
   | 'stile' | 'rail' | 'door' | 'drawerFront' | 'drawerBox' | 'endPanel' | 'counter' | 'woodTop' | 'trim';
 
+export interface CabinetBase {
+  style: 'kick' | 'baseboard' | 'arch';
+  /** Baseboard or skirt height off the floor, not counting a cap moulding on top. */
+  height: number;
+  /** Decorative base: cut into a wide face frame rail, or an applied skirt board. */
+  build: 'faceframe' | 'applied';
+  shape: 'bracket' | 'arch' | 'straight';
+  /** Height of the cutout. */
+  rise: number;
+  /** Foot width at each end, from the outside of the face frame (or end). */
+  foot: number;
+}
+
+/** A flat piece with a shaped edge (an arched skirt or rail): its outline, extruded through its thickness. */
+export interface CutShape {
+  /** Runs along x (across the front) or z (an end, its thickness toward +x). */
+  along: 'x' | 'z';
+  min: [number, number, number];
+  thickness: number;
+  /** Outline in the piece's own (along, up) coordinates. */
+  outline: [number, number][];
+}
+
 export interface VisualBox {
   min: [number, number, number];
   size: [number, number, number];
@@ -348,4 +373,5 @@ export interface Part {
   order?: { item: 'door' | 'drawerFront' | 'drawerBox' | 'endPanel'; w: number; h: number; d?: number; spec: string; /** 5-piece rail and stile widths; absent on slabs. */ rail?: number; stile?: number };
   /** Geometry in cabinet-local inches: x = left→right, y = up, z = wall→front. */
   boxes: VisualBox[];
+  shapes?: CutShape[];
 }

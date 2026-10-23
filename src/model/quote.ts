@@ -13,6 +13,7 @@ import { eaglePrice, hingeTypes } from './eagle';
 import { hardwareOrder } from './hardware';
 import { bracketCount, bracketLength, bracketProduct, finishedEnds } from './floatingShelf';
 import { doorOrder } from './doorOrder';
+import { baseLabel } from './cabinetBase';
 import { defaultSupplies, supplyLines, type SupplyGroup, type SupplyItem } from './supplies';
 
 /** Shop hours per item. Start from these and calibrate against tracked jobs. */
@@ -27,6 +28,8 @@ export interface LaborStandards {
   insetFactor: number;
   perShelf: number;
   shelfFront: number;
+  basePiece: number;
+  archCut: number;
   endPanel: number;
   extendedStile: number;
   woodTop: number;
@@ -61,6 +64,8 @@ export const defaultStandards: LaborStandards = {
   insetFactor: 1.6,
   perShelf: 0.2,
   shelfFront: 0.15,
+  basePiece: 0.25,
+  archCut: 0.5,
   endPanel: 0.5,
   extendedStile: 0.25,
   woodTop: 1.5,
@@ -184,6 +189,9 @@ export function estimateHours(p: Project, q: QuoteSettings): HourLine[] {
     add(inset > 1 ? 'Doors, inset (fit & hang)' : 'Doors (fit & hang)', n('door'), st.perDoor * inset);
     add(inset > 1 ? 'Drawers, inset (slides & fronts)' : 'Drawers (slides & fronts)', n('drawerBox') + parts.filter((x) => x.name === 'False front').length * 0.5, st.perDrawer * inset);
     add('Shelves', n('shelf'), st.perShelf);
+    const baseTrim = parts.filter((x) => /^(Baseboard|Skirt|End skirt)/.test(x.name));
+    add('Baseboard / skirt pieces (fit & miter)', baseTrim.length, st.basePiece ?? 0.25);
+    add('Arched cuts (layout & cut)', parts.filter((x) => (x.note ?? '').startsWith('Cut ') && /feet|arch/i.test(x.note ?? '')).length, st.archCut ?? 0.5);
     add('Applied shelf fronts', parts.filter((x) => x.name === 'Shelf front').length, st.shelfFront ?? 0.15);
     add('End panels', n('endPanel'), st.endPanel);
     add('Extended stiles', parts.filter((x) => x.name === 'Stile, extended').length, st.extendedStile);
@@ -377,7 +385,9 @@ export function scopeLine(c: Cabinet, p: Project): string {
   if (c.countertop && c.topKind === 'wood') bits.push(`${fmtIn(c.topThickness ?? 1.25)} thick solid wood top`);
   if (c.crown) bits.push('crown molding');
   if (c.lightRail) bits.push('light rail');
-  if (c.baseMold) bits.push('baseboard');
+  const bl = baseLabel(c);
+  if (bl) bits.push(bl);
+  else if (c.baseMold) bits.push('baseboard');
   bits.push('prefinished birch plywood interior with paint grade exterior');
   return `${c.name}: ${bits.join('; ')}`;
 }
