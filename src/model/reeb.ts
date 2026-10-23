@@ -1,8 +1,9 @@
 // Interior doors from Reeb Millwork (reeb.com): the popular primed and wood stile & rail designs,
 // described by their panel layout so they can be drawn and ordered. Layouts are read from Reeb's
-// design pictures (Oct 2026). Stile and rail widths are typical interior proportions until Reeb's
-// "In-Stock Dimensions" cut sheets can be read; check the cut sheet before relying on a rail height.
+// design pictures (Oct 2026); stile and rail sizes come from Reeb's In-Stock Dimensions cut sheets and
+// prices from Reeb's interior price catalog (see reebData.ts).
 import type { VisualBox } from './types';
+import { reebDims, reebPrices } from './reebData';
 
 export type PanelFill = 'raised' | 'flat' | 'glass' | 'louver' | 'plank';
 
@@ -26,6 +27,8 @@ export interface ReebDesign {
   /** Species for wood doors. */
   species?: string;
   rows: DoorRow[];
+  /** Catalog code for cut sheet and price lookups, when it differs (Reeb lists PR180 as 180). */
+  ref?: string;
 }
 
 const r = (h: number, cols: number, fill: PanelFill, extra: Partial<DoorRow> = {}): DoorRow => ({ h, cols, fill, ...extra });
@@ -33,7 +36,7 @@ const r = (h: number, cols: number, fill: PanelFill, extra: Partial<DoorRow> = {
 export const reebDesigns: ReebDesign[] = [
   // Primed stile & rail
   { code: 'PR8730', name: '3 panel shaker', line: 'primed', rows: [r(1, 1, 'flat'), r(1, 1, 'flat'), r(1, 1, 'flat')] },
-  { code: 'PR8740', name: '4 panel shaker', line: 'primed', rows: [r(1, 1, 'flat'), r(1, 1, 'flat'), r(1, 1, 'flat'), r(1, 1, 'flat')] },
+  { code: 'PR8740', name: '4 panel shaker', line: 'primed', rows: [r(1, 1, 'flat'), r(1, 1, 'flat'), r(1, 1, 'flat'), r(1, 1, 'flat')], ref: 'PR8744' },
   { code: 'PR8082', name: '2 panel shaker', line: 'primed', rows: [r(1.6, 1, 'flat'), r(1, 1, 'flat')] },
   { code: 'PR8020', name: '1 panel shaker', line: 'primed', rows: [r(1, 1, 'flat')] },
   { code: 'PR8760', name: 'Craftsman, 3 panel', line: 'primed', rows: [r(0.45, 1, 'flat'), r(1.6, 2, 'flat')] },
@@ -41,15 +44,15 @@ export const reebDesigns: ReebDesign[] = [
   { code: 'PR82R', name: '2 panel raised', line: 'primed', rows: [r(1.6, 1, 'raised'), r(1, 1, 'raised')] },
   { code: 'PR82A', name: '2 panel arch top, raised', line: 'primed', rows: [r(1.6, 1, 'raised', { arch: true }), r(1, 1, 'raised')] },
   { code: 'PR66', name: '6 panel colonial, raised', line: 'primed', rows: [r(0.32, 2, 'raised'), r(1.05, 2, 'raised'), r(0.95, 2, 'raised')] },
-  { code: 'PR7321L', name: 'Panel over louver', line: 'primed', rows: [r(1.6, 1, 'raised'), r(1, 1, 'louver')] },
+  { code: 'PR7321L', name: 'Panel over louver', line: 'primed', rows: [r(1.6, 1, 'raised'), r(1, 1, 'louver')], ref: 'PR732L' },
   { code: 'PR732', name: 'Louver over panel', line: 'primed', rows: [r(1.6, 1, 'louver'), r(1, 1, 'raised')] },
-  { code: 'PR730F', name: 'Full louver', line: 'primed', rows: [r(1.6, 1, 'louver'), r(1, 1, 'louver')] },
+  { code: 'PR730F', name: 'Full louver', line: 'primed', rows: [r(1.6, 1, 'louver'), r(1, 1, 'louver')], ref: 'PR730' },
   { code: 'PR8001', name: 'Full lite', line: 'primed', rows: [r(1, 1, 'glass')] },
   { code: 'PR8010', name: '10 lite French', line: 'primed', rows: [r(1, 1, 'glass', { lites: [2, 5] })] },
   { code: 'PR8015', name: '15 lite French', line: 'primed', rows: [r(1, 1, 'glass', { lites: [3, 5] })] },
   { code: 'PR8733F', name: '3 lite shaker, frosted', line: 'primed', rows: [r(1, 1, 'glass'), r(1, 1, 'glass'), r(1, 1, 'glass')] },
-  { code: 'PR180', name: 'Barn, Z brace', line: 'primed', rows: [r(1, 1, 'plank', { brace: 'Z' })] },
-  { code: 'PR181', name: 'Barn, K brace', line: 'primed', rows: [r(1, 1, 'plank'), r(1, 1, 'plank', { brace: 'K' })] },
+  { code: 'PR180', name: 'Barn, Z brace', line: 'primed', rows: [r(1, 1, 'plank', { brace: 'Z' })], ref: '180' },
+  { code: 'PR181', name: 'Barn, K brace', line: 'primed', rows: [r(1, 1, 'plank'), r(1, 1, 'plank', { brace: 'K' })], ref: '181' },
   // Wood stile & rail
   { code: 'MP1022', name: 'Maple 2 panel shaker', line: 'wood', species: 'Maple', rows: [r(1.6, 1, 'flat'), r(1, 1, 'flat')] },
   { code: 'MP1033', name: 'Maple craftsman, 3 panel', line: 'wood', species: 'Maple', rows: [r(0.45, 1, 'flat'), r(1.6, 2, 'flat')] },
@@ -60,10 +63,10 @@ export const reebDesigns: ReebDesign[] = [
   { code: 'F9266', name: 'Fir 6 panel', line: 'wood', species: 'Fir', rows: [r(0.32, 2, 'raised'), r(1.05, 2, 'raised'), r(0.95, 2, 'raised')] },
   { code: 'F82A', name: 'Fir 2 panel arch top', line: 'wood', species: 'Fir', rows: [r(1.6, 1, 'raised', { arch: true }), r(1, 1, 'raised')] },
   { code: 'F1315', name: 'Fir 15 lite French', line: 'wood', species: 'Fir', rows: [r(1, 1, 'glass', { lites: [3, 5] })] },
-  { code: 'KA5082ARP', name: 'Knotty alder 2 panel raised', line: 'wood', species: 'Knotty alder', rows: [r(1.6, 1, 'raised'), r(1, 1, 'raised')] },
-  { code: 'KA5082APRP', name: 'Knotty alder 2 panel arch, plank', line: 'wood', species: 'Knotty alder', rows: [r(1.6, 1, 'plank', { arch: true }), r(1, 1, 'plank')] },
-  { code: 'KA180PLK', name: 'Knotty alder barn, Z brace', line: 'wood', species: 'Knotty alder', rows: [r(1, 1, 'plank', { brace: 'Z' })] },
-  { code: 'KA181PLK', name: 'Knotty alder barn, K brace', line: 'wood', species: 'Knotty alder', rows: [r(1, 1, 'plank'), r(1, 1, 'plank', { brace: 'K' })] },
+  { code: 'KA5082ARP', name: 'Knotty alder 2 panel raised', line: 'wood', species: 'Knotty alder', rows: [r(1.6, 1, 'raised'), r(1, 1, 'raised')], ref: 'KA82ASRR' },
+  { code: 'KA5082APRP', name: 'Knotty alder 2 panel arch, plank', line: 'wood', species: 'Knotty alder', rows: [r(1.6, 1, 'plank', { arch: true }), r(1, 1, 'plank')], ref: 'KA82ASRP' },
+  { code: 'KA180PLK', name: 'Knotty alder barn, Z brace', line: 'wood', species: 'Knotty alder', rows: [r(1, 1, 'plank', { brace: 'Z' })], ref: '180' },
+  { code: 'KA181PLK', name: 'Knotty alder barn, K brace', line: 'wood', species: 'Knotty alder', rows: [r(1, 1, 'plank'), r(1, 1, 'plank', { brace: 'K' })], ref: '181' },
   { code: 'P3912', name: 'Pine 15 lite French', line: 'wood', species: 'Pine', rows: [r(1, 1, 'glass', { lites: [3, 5] })] },
   { code: 'P1053', name: 'Pine 4 panel', line: 'wood', species: 'Pine', rows: [r(1.25, 2, 'raised'), r(1, 2, 'raised')] },
 ];
@@ -85,8 +88,27 @@ export function stockSlab(openingW: number, openingH: number, leaves = 1) {
 }
 
 export interface DoorProportions { stile: number; top: number; lock: number; bottom: number; rail: number; mullion: number; thickness: number }
-/** Typical interior stile & rail proportions (Reeb cut sheets pending). */
+/** Typical interior stile & rail proportions, for designs Reeb's cut sheet doesn't list. */
 export const reebProportions: DoorProportions = { stile: 4.5, top: 4.5, lock: 7.75, bottom: 9, rail: 4.5, mullion: 4.5, thickness: 1.375 };
+
+/** Trade height of a door: 80" is 6/8. */
+const heightKey = (h: number) => tradeSize(h);
+const lookup = <T,>(table: Record<string, T>, d: ReebDesign) => table[d.code] ?? (d.ref ? table[d.ref] : undefined);
+
+/** Stile and rail sizes from Reeb's cut sheet for this design and height, or typical ones. */
+export function proportionsFor(d: ReebDesign, h: number): DoorProportions & { fromSheet: boolean } {
+  const byH = lookup(reebDims, d);
+  const r = byH?.[heightKey(h)] ?? byH?.['6/8'];
+  if (!r || r.stile == null || r.top == null || r.bottom == null) return { ...reebProportions, fromSheet: false };
+  // No lock rail listed means the intermediate rails match the top rail
+  return { stile: r.stile, top: r.top, lock: r.lock ?? r.top, bottom: r.bottom, rail: r.lock ?? r.top, mullion: Math.min(r.stile, 4.5), thickness: 1.375, fromSheet: true };
+}
+
+/** Reeb catalog price for a 1-3/8" door: door only or prehung single unit. */
+export function catalogPrice(d: ReebDesign, w: number, h: number, prehung: boolean): number | null {
+  const v = lookup(reebPrices, d)?.[heightKey(h)]?.[tradeSize(w)];
+  return v ? v[prehung ? 1 : 0] : null;
+}
 
 export interface DoorDrawing { boxes: VisualBox[]; glass: VisualBox[]; braces: { a: [number, number]; b: [number, number]; w: number; z: number; t: number }[] }
 

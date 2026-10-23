@@ -81,15 +81,21 @@ export function DoorOrderList() {
               <td><DoorGlyph d={l.design} size={34} /></td>
               <td>{l.key}<span className="note">{l.design.name}; {l.leaves > 1 ? 'pair' : `hinges ${l.hinge}`}; {l.openings.join(', ')}{l.fits ? '' : '; not a stock size'}</span></td>
               <td className="num">{l.qty}</td>
-              <td className="num"><input className="price-in" aria-label={`${l.key} price`} inputMode="decimal" placeholder="$" defaultValue={project.doorPrices?.[l.key] ?? ''}
-                onBlur={(e) => { const v = parseFloat(e.target.value); setPrice(l.key, Number.isFinite(v) ? v : null); }} /></td>
+              <td className="num"><input className="price-in" aria-label={`${l.key} price`} inputMode="decimal" placeholder={l.priceFrom === 'catalog' ? l.price!.toFixed(0) : '$'} defaultValue={project.doorPrices?.[l.key] ?? ''}
+                onBlur={(e) => { const v = parseFloat(e.target.value); setPrice(l.key, Number.isFinite(v) ? v : null); }} />
+                {l.priceFrom === 'catalog' && <div className="muted check-hint">Reeb catalog</div>}</td>
               <td className="num">{l.price != null ? `$${l.cost.toFixed(2)}` : '—'}</td>
             </tr>
           ))}
           <tr><td /><td>Subtotal</td><td /><td /><td className="num">${total.toFixed(2)}</td></tr>
         </tbody>
       </table>
-      <p className="hint">Reeb’s price pages aren’t reachable from here yet; enter your price for each door and it’s saved with the job and used in the quote.</p>
+      <label className="field" htmlFor="door-adj" style={{ marginTop: 8 }}>
+        <span>Reeb catalog prices up or down (%)</span>
+        <input id="door-adj" inputMode="decimal" defaultValue={project.doorAdjust ? +(project.doorAdjust * 100).toFixed(2) : ''} placeholder="0"
+          onBlur={(e) => { const v = parseFloat(e.target.value); commit((p) => ({ ...p, doorAdjust: Number.isFinite(v) ? v / 100 : undefined })); }} />
+      </label>
+      <p className="hint">Single doors are priced from Reeb’s interior price catalog (effective 8/10/26, 1-3/8" doors; door only or prehung single unit), adjusted by the percentage above for your dealer. Type a price to override it for this job. Pairs and sizes the catalog doesn’t list need a price entered.</p>
     </div>
   );
 }

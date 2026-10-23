@@ -6,7 +6,7 @@ import type { ViewMode } from '../store';
 import type { Floor, Opening, Project, VisualBox, WallId } from '../model/types';
 import { wallLength, wallOrder, wallTransform } from '../model/layout';
 import { floorOf, openingTrim, roomMoldings } from '../model/room';
-import { designByCode, doorDrawing, type ReebDesign } from '../model/reeb';
+import { designByCode, doorDrawing, proportionsFor, type ReebDesign } from '../model/reeb';
 import { doorOf } from '../model/doorOrder';
 import { MoldingModel } from './MoldingModel';
 
@@ -131,7 +131,7 @@ function DoorLeaves({ o, design, leaves, color }: { o: Opening; design: ReebDesi
   const j = 0.75;
   const W = (o.width - 2 * j - 0.25 - (leaves > 1 ? 0.125 : 0)) / leaves;
   const H = o.height - j - 0.625;
-  const dr = useMemo(() => doorDrawing(design, W, H), [design, W, H]);
+  const dr = useMemo(() => doorDrawing(design, W, H, proportionsFor(design, H)), [design, W, H]);
   const tint = design.line === 'wood' ? woodTint(design.species) : color;
   return (
     <>

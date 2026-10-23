@@ -1,10 +1,10 @@
 import { useMemo, useState } from 'react';
-import { doorDrawing, reebDesigns, type ReebDesign } from '../model/reeb';
+import { catalogPrice, doorDrawing, proportionsFor, reebDesigns, type ReebDesign } from '../model/reeb';
 
 /** A face-on drawing of a Reeb design, built from the same layout the 3D view uses. */
 export function DoorGlyph({ d, size = 70 }: { d: ReebDesign; size?: number }) {
   const W = 32, H = 80;
-  const dr = useMemo(() => doorDrawing(d, W, H), [d]);
+  const dr = useMemo(() => doorDrawing(d, W, H, proportionsFor(d, H)), [d]);
   const fill = d.line === 'wood' ? '#d9b58a' : '#f4f2ec';
   return (
     <svg width={size * (W / H) + 4} height={size} viewBox={`-1 -1 ${W + 2} ${H + 2}`} className="door-glyph" aria-hidden="true">
@@ -29,7 +29,7 @@ export function DoorPicker({ current, onPick, onClose }: { current?: string; onP
           <div className="seg" role="group" aria-label="Line">
             {(['primed', 'wood'] as const).map((k) => <button key={k} className={line === k ? 'on' : ''} aria-pressed={line === k} onClick={() => setLine(k)}>{k === 'primed' ? 'Primed stile & rail' : 'Wood stile & rail'}</button>)}
           </div>
-          <span className="muted">Reeb’s popular in-stock designs. Rail and stile sizes are typical until Reeb’s cut sheets can be read.</span>
+          <span className="muted">Reeb’s popular in-stock designs, drawn with the stile and rail sizes from Reeb’s cut sheets. Prices are Reeb’s catalog (2/8 × 6/8, door only / prehung).</span>
         </div>
         <div className="pp-grid">
           {reebDesigns.filter((d) => d.line === line).map((d) => (
@@ -37,6 +37,7 @@ export function DoorPicker({ current, onPick, onClose }: { current?: string; onP
               <DoorGlyph d={d} />
               <span className="pp-num">{d.code}</span>
               <span className="muted">{d.name}</span>
+              {catalogPrice(d, 32, 80, false) != null && <span className="mono">${catalogPrice(d, 32, 80, false)} / ${catalogPrice(d, 32, 80, true)}</span>}
             </button>
           ))}
         </div>
