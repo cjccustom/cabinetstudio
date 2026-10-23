@@ -76,7 +76,7 @@ export function supplyDrivers(p: Project): Record<SupplyDriver, number> {
   const bandFt = optimizerParts(p, data).reduce((t, x) => t + (x.band * x.length) / 12, 0);
   const panelSqFt = (p.panels ?? []).reduce((t, w) => t + (w.width * w.height) / 144, 0);
   return {
-    cabinet: p.cabinets.filter((c) => c.kind !== 'pilaster').length, ffJoint, hinge: hw.hinges, drawer: hw.drawers, bracket, endPanel,
+    cabinet: p.cabinets.filter((c) => c.kind !== 'pilaster' && c.kind !== 'shelf').length, ffJoint, hinge: hw.hinges, drawer: hw.drawers, bracket, endPanel,
     bandFt: Math.ceil(bandFt), woodTop: woodPieces(p).length, panelSqFt: Math.ceil(panelSqFt), job: p.cabinets.length || p.panels?.length ? 1 : 0,
   };
 }

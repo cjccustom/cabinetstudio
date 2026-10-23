@@ -34,6 +34,8 @@ export interface LaborStandards {
   /** Build one pilaster: box, panels, plinth, bands and capital. */
   pilaster: number;
   installPilaster: number;
+  floatingShelf: number;
+  installFloatingShelf: number;
   installTall: number;
   installDay: number;
   moldingInstallPerFt: number;
@@ -59,6 +61,8 @@ export const defaultStandards: LaborStandards = {
   installPerBox: 1,
   pilaster: 2,
   installPilaster: 0.5,
+  floatingShelf: 1.5,
+  installFloatingShelf: 0.75,
   installTall: 0.5,
   installDay: 1,
   moldingInstallPerFt: 0.15,
@@ -139,6 +143,12 @@ export function estimateHours(p: Project, q: QuoteSettings): HourLine[] {
   if (p.cabinets.length || (p.panels ?? []).length) add('Drawings, ordering & setup', 1, st.jobSetup);
   let installHours = 0;
   for (const c of p.cabinets) {
+    if (c.kind === 'shelf') {
+      add('Floating shelves: miter fold & glue-up', 1, st.floatingShelf);
+      add('Install floating shelves', 1, st.installFloatingShelf, 'cabinets', true);
+      installHours += st.installFloatingShelf;
+      continue;
+    }
     if (c.kind === 'pilaster') {
       add('Pilasters: box, panels, plinth & capital', 1, st.pilaster);
       add('Install pilasters', 1, st.installPilaster, 'cabinets', true);
@@ -307,6 +317,7 @@ export const newExtra = (): QuoteExtra => ({ id: uid('extra'), label: 'Additiona
 
 /** The scope line for one cabinet, in the wording the shop uses on its quotes. */
 export function scopeLine(c: Cabinet, p: Project): string {
+  if (c.kind === 'shelf') return `${c.name}: Floating shelf, approx ${fmtIn(c.width)}W x ${fmtIn(c.depth)}D x ${fmtIn(c.height)} thick; mitered ${(c.floating?.grade ?? 'paint') === 'paint' ? 'paint grade' : 'stain grade'} construction with concealed bracket`;
   if (c.kind === 'pilaster') return `${c.name}: Pilaster, approx ${fmtIn(c.width)}W x ${fmtIn(c.height)}H; recessed panel face with plinth and capital${c.crown ? '; crown molding' : ''}${c.baseMold ? '; baseboard' : ''}; paint grade`;
   const s = eff(c, p.settings);
   const parts = buildParts(c, p.settings, resolveEnds(p.room, p.cabinets, c));

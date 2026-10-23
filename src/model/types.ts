@@ -1,5 +1,5 @@
 export type WallId = 'back' | 'left' | 'right' | 'front';
-export type CabinetKind = 'base' | 'wall' | 'tall' | 'pilaster';
+export type CabinetKind = 'base' | 'wall' | 'tall' | 'pilaster' | 'shelf';
 
 /** One horizontal band of the face frame, top to bottom, separated by mid rails. */
 export interface FaceRow {
@@ -58,6 +58,8 @@ export interface Cabinet {
   crownBuild?: CrownBuild;
   /** Pilaster details (kind 'pilaster'). Its depth runs from the wall to the panel face. */
   pilaster?: PilasterSpec;
+  /** Floating shelf details (kind 'shelf'). Height is the shelf thickness. */
+  floating?: FloatingShelfSpec;
 }
 
 /** Full-height pilaster between built-in sections: plywood sides, Eagle panels on the face, solid plinth and capital. */
@@ -72,6 +74,23 @@ export interface PilasterSpec {
   band: number;
   /** How far the plinth, bands and capital stand proud of the panel face. */
   proud: number;
+  /** shop = stiles and rails with the panel let into a rabbet from the back; eagle = panels ordered from Eagle. */
+  face: 'shop' | 'eagle';
+  stile: number;
+  /** Top and bottom rails; rails at breaks use the band height. */
+  rail: number;
+  panelThickness: number;
+  /** Rabbet the panel sits in, each edge. */
+  rabbet: number;
+  /** A&M panel or bead moulding mitered around each panel on the front. */
+  panelMold?: string;
+}
+
+/** Floating shelf: 3/4" plywood top and bottom with a mitered solid face, open in the middle for the bracket. */
+export interface FloatingShelfSpec {
+  grade: 'paint' | 'stain';
+  /** Solid face and end cap thickness. */
+  face: number;
 }
 
 /**
@@ -238,6 +257,10 @@ export interface Part {
   name: string;
   role: PartRole;
   material: MaterialKey;
+  /** Sheet goods other than the job's case and back plywood, e.g. 1/4" MDF or stain-grade plywood. */
+  sheet?: string;
+  /** How it's finished, when that isn't what its material suggests (painted MDF panels, stained shelf plywood). */
+  look?: 'paint' | 'wood';
   length: number;
   width: number;
   thickness: number;

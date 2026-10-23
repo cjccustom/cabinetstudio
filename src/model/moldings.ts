@@ -3,12 +3,12 @@
 import type { Cabinet, Project, ShopSettings, WallPanel } from './types';
 import { amCatalog, type AMProfile } from './andersonMcquaid';
 import { crownLayout, panelExtents, type EndInfo } from './parts';
-import { pilasterOf } from './pilaster';
+import { pilasterOf, pilasterOpenings } from './pilaster';
 import { resolveEnds } from './layout';
 
-export type MoldKind = 'crown' | 'lightRail' | 'baseMold' | 'cap';
+export type MoldKind = 'crown' | 'lightRail' | 'baseMold' | 'cap' | 'panel';
 
-export const moldLabel: Record<MoldKind, string> = { crown: 'Crown', lightRail: 'Light rail', baseMold: 'Base', cap: 'Beadboard cap' };
+export const moldLabel: Record<MoldKind, string> = { crown: 'Crown', lightRail: 'Light rail', baseMold: 'Base', cap: 'Beadboard cap', panel: 'Panel moulding' };
 
 /** Catalog categories that make sense for each spot, listed first in the picker. */
 export const moldCategories: Record<MoldKind, string[]> = {
@@ -16,6 +16,7 @@ export const moldCategories: Record<MoldKind, string[]> = {
   lightRail: ['Base Board and Base Cap', 'Panel', 'Scotia', 'Crown', 'Band'],
   baseMold: ['Base Board and Base Cap', 'Shoe Moulding'],
   cap: ['Chair Rail', 'Panel', 'Base Board and Base Cap', 'Header Cap'],
+  panel: ['Panel', 'Base Board and Base Cap', 'Band'],
 };
 
 export const profileByNum = (num?: string): AMProfile | undefined => (num ? amCatalog.find((p) => p.num === num) : undefined);
@@ -138,6 +139,12 @@ export function moldingOrder(p: Project): MoldOrderLine[] {
     cabinetMoldings(c, s, resolveEnds(p.room, p.cabinets, c)).forEach(add);
   }
   for (const w of p.panels ?? []) panelMoldings(w).forEach(add);
+  // Panel moulding mitered around each opening of a shop-built pilaster
+  for (const c of p.cabinets) {
+    const ps = c.kind === 'pilaster' ? pilasterOf(c) : null;
+    if (!ps?.panelMold || ps.face !== 'shop' || !profileByNum(ps.panelMold)) continue;
+    for (const o of pilasterOpenings(c)) add({ kind: 'panel', num: ps.panelMold, along: 'x', facing: 'front', x: 0, y: 0, z: 0, length: 2 * (o.w + o.h) });
+  }
   return [...totals].map(([num, t]) => {
     const profile = profileByNum(num)!;
     const feet = Math.ceil((t.inches / 12) * (1 + s.moldWaste));

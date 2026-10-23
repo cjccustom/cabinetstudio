@@ -2,6 +2,7 @@ import { useStore } from '../store';
 import type { Cabinet, CrownBuild, EndMode, FaceRow, PanelChoice, PanelMode, WallId } from '../model/types';
 import { buildParts, crownLayout, layoutRows, noCrownBuild, panelOn } from '../model/parts';
 import { defaultPilaster, pilasterOf, pilasterSections } from '../model/pilaster';
+import { bracketGap, floatingOf, shelfPly } from '../model/floatingShelf';
 import { gapBeside, resolveEnds, wallLength, wallNames, wallOrder } from '../model/layout';
 import { panelLabel } from '../model/eagle';
 import { uid } from '../model/defaults';
@@ -11,7 +12,7 @@ import { OrderList, PartsTable } from './PartsTable';
 import { OverridesSection } from './Overrides';
 import { MoldSlot } from './ProfilePicker';
 
-const kindLabel = { base: 'Base cabinet', wall: 'Wall cabinet', tall: 'Tall cabinet', pilaster: 'Pilaster' };
+const kindLabel = { base: 'Base cabinet', wall: 'Wall cabinet', tall: 'Tall cabinet', pilaster: 'Pilaster', shelf: 'Floating shelf' };
 const rowTypes: { v: FaceRow['type']; label: string }[] = [
   { v: 'drawer', label: 'Drawer' },
   { v: 'doors', label: 'Doors' },
@@ -75,7 +76,8 @@ export function Inspector({ cab, issues }: { cab: Cabinet; issues: string[] }) {
 
       {(cab.blind || cab.corner) && <CornerSection cab={cab} set={set} />}
       {cab.kind === 'pilaster' && <PilasterSection cab={cab} set={set} />}
-      {!cab.corner && cab.kind !== 'pilaster' && (
+      {cab.kind === 'shelf' && <FloatingShelfSection cab={cab} set={set} />}
+      {!cab.corner && cab.kind !== 'pilaster' && cab.kind !== 'shelf' && (
       <>
       <Section
         title="Face frame openings"
@@ -165,6 +167,8 @@ export function Inspector({ cab, issues }: { cab: Cabinet; issues: string[] }) {
         </Section>
       )}
 
+      {cab.kind !== 'shelf' && (
+      <>
       <Section title="Mouldings (Anderson & McQuaid)">
         {(['crown', 'lightRail', 'baseMold'] as const)
           .filter((k) => (k === 'crown' ? cab.kind !== 'base' : k === 'lightRail' ? cab.kind === 'wall' : cab.kind !== 'wall'))
@@ -188,8 +192,10 @@ export function Inspector({ cab, issues }: { cab: Cabinet; issues: string[] }) {
       </Section>
 
       <OverridesSection cab={cab} settings={settings} set={set} />
+      </>
+      )}
 
-      {cab.kind !== 'pilaster' && (
+      {cab.kind !== 'pilaster' && cab.kind !== 'shelf' && (
       <>
       <Section title="Ends, panels & scribes">
         <div className="ends">
@@ -374,6 +380,14 @@ function PilasterSection({ cab, set }: { cab: Cabinet; set: (patch: Partial<Cabi
   return (
     <Section title="Pilaster">
       <div className="grid3">
+        <Field label="Face" htmlFor="pil-face">
+          <select id="pil-face" value={ps.face} onChange={(e) => put({ face: e.target.value as 'shop' | 'eagle' })}>
+            <option value="shop">Shop-built frame & panel</option>
+            <option value="eagle">Eagle panels</option>
+          </select>
+        </Field>
+        {ps.face === 'shop' && <Field label="Stiles" htmlFor="pil-stile"><LengthInput id="pil-stile" value={ps.stile} onChange={(v) => put({ stile: v ?? defaultPilaster.stile })} /></Field>}
+        {ps.face === 'shop' && <Field label="Top & bottom rails" htmlFor="pil-rail"><LengthInput id="pil-rail" value={ps.rail} onChange={(v) => put({ rail: v ?? defaultPilaster.rail })} /></Field>}
         <Field label="Plinth block" htmlFor="pil-plinth"><LengthInput id="pil-plinth" value={ps.plinth} onChange={(v) => put({ plinth: v ?? 0 })} /></Field>
         <Field label="Capital block" htmlFor="pil-cap"><LengthInput id="pil-cap" value={ps.capital} onChange={(v) => put({ capital: v ?? 0 })} /></Field>
         <Field label="Blocks proud of panel" htmlFor="pil-proud"><LengthInput id="pil-proud" value={ps.proud} onChange={(v) => put({ proud: v ?? 0 })} /></Field>
@@ -389,10 +403,64 @@ function PilasterSection({ cab, set }: { cab: Cabinet; set: (patch: Partial<Cabi
       <div className="order-actions">
         <button className="mini" onClick={() => put({ breaks: [...ps.breaks, Math.round(cab.height / 2)] })}>Add break</button>
         {tops.map((h) => <button key={h} className="mini" onClick={() => put({ breaks: [...ps.breaks, h] })}>Break at base top ({fmt(h)})</button>)}
-        <Field label="Band at breaks" htmlFor="pil-band"><LengthInput id="pil-band" value={ps.band} onChange={(v) => put({ band: v ?? defaultPilaster.band })} /></Field>
+        <Field label={ps.face === 'shop' ? 'Rail at breaks' : 'Band at breaks'} htmlFor="pil-band"><LengthInput id="pil-band" value={ps.band} onChange={(v) => put({ band: v ?? defaultPilaster.band })} /></Field>
       </div>
+      {ps.face === 'shop' && (
+        <>
+          <div className="grid3">
+            <Field label="Panel" htmlFor="pil-pt"><LengthInput id="pil-pt" value={ps.panelThickness} onChange={(v) => put({ panelThickness: v ?? defaultPilaster.panelThickness })} /></Field>
+            <Field label="Rabbet" htmlFor="pil-rab"><LengthInput id="pil-rab" value={ps.rabbet} onChange={(v) => put({ rabbet: v ?? defaultPilaster.rabbet })} /></Field>
+          </div>
+          <MoldSlot kind="panel" num={ps.panelMold} species={useStore.getState().project.settings.moldSpecies} onChange={(n) => put({ panelMold: n })}
+            extra={ps.panelMold && <button className="mini" onClick={() => put({ panelMold: undefined })}>Remove</button>} />
+        </>
+      )}
       <p className="hint">
-        {pilasterSections(cab).length} recessed panel{pilasterSections(cab).length > 1 ? 's' : ''} ordered from Eagle in the job’s door style, on a 3/4" plywood box. Depth runs from the wall to the panel face; set it so the pilaster stands proud of the cabinets beside it. Base moulding and crown wrap it and return to the neighbours.
+        {ps.face === 'shop'
+          ? `Stiles and rails from the face frame stock (on the Solid wood list), with ${pilasterSections(cab).length} MDF panel${pilasterSections(cab).length > 1 ? 's' : ''} let into a rabbet from the back (on the sheet cutlist), on a 3/4" plywood box.`
+          : `${pilasterSections(cab).length} recessed panel${pilasterSections(cab).length > 1 ? 's' : ''} ordered from Eagle in the job’s door style, on a 3/4" plywood box.`} Depth runs from the wall to the panel face; set it so the pilaster stands proud of the cabinets beside it. Base moulding and crown wrap it and return to the neighbours.
+      </p>
+    </Section>
+  );
+}
+
+/** Grade, face thickness and exposed ends of a floating shelf. */
+function FloatingShelfSection({ cab, set }: { cab: Cabinet; set: (patch: Partial<Cabinet>) => void }) {
+  const settings = useStore((s) => s.project.settings);
+  const room = useStore((s) => s.project.room);
+  const all = useStore((s) => s.project.cabinets);
+  const f = floatingOf(cab);
+  const ends = resolveEnds(room, all, cab);
+  const gap = bracketGap(cab, settings);
+  return (
+    <Section title="Floating shelf">
+      <div className="grid3">
+        <Field label="Grade" htmlFor="fs-grade">
+          <select id="fs-grade" value={f.grade} onChange={(e) => set({ floating: { ...f, grade: e.target.value as 'paint' | 'stain' } })}>
+            <option value="paint">Paint grade</option>
+            <option value="stain">Stain grade ({settings.woodSpecies})</option>
+          </select>
+        </Field>
+        <Field label="Solid face" htmlFor="fs-face"><LengthInput id="fs-face" value={f.face} onChange={(v) => set({ floating: { ...f, face: v ?? 0.75 } })} /></Field>
+      </div>
+      <div className="ends">
+        {(['left', 'right'] as const).map((side) => {
+          const key = side === 'left' ? 'leftEnd' : 'rightEnd';
+          return (
+            <Field key={side} label={`${side === 'left' ? 'Left' : 'Right'} end`} htmlFor={`fs-${side}`}>
+              <select id={`fs-${side}`} value={cab[key] ?? 'auto'} onChange={(e) => set({ [key]: e.target.value as EndMode })}>
+                <option value="auto">Auto ({ends[side] ? 'end cap' : 'against wall'})</option>
+                <option value="exposed">End cap</option>
+                <option value="hidden">Against wall / cabinet</option>
+              </select>
+            </Field>
+          );
+        })}
+      </div>
+      {gap < 0.375 && <p className="warn">Only {fmt(gap)} between the top and bottom for the bracket. Make the shelf thicker.</p>}
+      <p className="hint">
+        {fmt(settings.boxThickness)} plywood top and bottom ({shelfPly(cab, settings)}, on the sheet cutlist) with the solid face{ends.left || ends.right ? ' and end caps' : ''} mitered to them, leaving {fmt(gap)} for the bracket.
+        {f.grade === 'paint' ? ' Solid stock comes from the face frame stock.' : ` Solid stock is ${settings.woodSpecies} on the Solid wood list.`}
       </p>
     </Section>
   );

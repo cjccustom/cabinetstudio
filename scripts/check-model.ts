@@ -382,8 +382,17 @@ eq('panel sticks out past frame', panelExtents(b21, s, { left: true, right: fals
   const ends = resolveEnds(lib.room, lib.cabinets, pil);
   const parts = buildParts(pil, lib.settings, ends);
   eq('pilaster: two panels split at the base top', parts.filter((x) => x.name === 'Pilaster panel').length, 2);
-  eq('pilaster: plinth, band and capital', ['Plinth block', 'Pilaster band', 'Capital block'].every((n) => parts.some((x) => x.name === n)), true);
-  eq('pilaster panels go to Eagle as panels', eagleRequests(lib)[0].lines.filter((l) => l[1] === 'Panel').length >= 1, true);
+  eq('shop-built: stiles and three rails', [parts.filter((x) => x.name === 'Pilaster stile').length, parts.filter((x) => x.name.startsWith('Pilaster') && x.name.endsWith('rail')).length].join(), '2,3');
+  eq('shop-built panels are 1/4" MDF', parts.filter((x) => x.name === 'Pilaster panel').every((x) => x.sheet === '1/4" MDF'), true);
+  const op = parts.find((x) => x.name === 'Pilaster panel')!;
+  eq('panel = opening + rabbet both sides, less 1/16', op.width, 5.5 - 3 + 0.75 - 0.0625);
+  eq('frame is face frame stock', parts.find((x) => x.name === 'Pilaster stile')!.material, 'faceframe');
+  eq('nothing goes to Eagle for a shop-built pilaster', eagleRequests(lib).length ? eagleRequests(lib)[0].lines.some((l) => l[1] === 'Panel') : false, false);
+  eq('pilaster: plinth and capital', ['Plinth block', 'Capital block'].every((n) => parts.some((x) => x.name === n)), true);
+  const eagleLib = { ...lib, cabinets: lib.cabinets.map((c) => (c.kind === 'pilaster' ? { ...c, pilaster: { ...c.pilaster!, face: 'eagle' as const } } : c)) };
+  eq('Eagle face: panels go on the door request', eagleRequests(eagleLib)[0].lines.filter((l) => l[1] === 'Panel').length >= 1, true);
+  const molded = { ...pil, pilaster: { ...pil.pilaster!, panelMold: amCatalog.find((x) => x.category === 'Panel')!.num } };
+  eq('panel moulding ordered from A&M', moldingOrder({ ...lib, cabinets: [molded, lb, up] }).some((m) => m.kinds.includes('panel')), true);
   const ms = cabinetMoldings(pil, lib.settings, ends);
   const baseRet = ms.find((m) => m.facing === 'right' && m.num === baseNum)!;
   eq('base moulding returns to the base cabinet door face', baseRet.z, lb.depth + 0.75);
@@ -392,6 +401,24 @@ eq('panel sticks out past frame', panelExtents(b21, s, { left: true, right: fals
   eq('left return runs to the wall (nothing beside it)', ms.find((m) => m.facing === 'left' && m.num === baseNum)!.z, 0);
   eq('neighbour beside a pilaster is not exposed', resolveEnds(lib.room, lib.cabinets, lb).left, false);
   eq('pilaster labor', priceQuote(lib).hours.some((h) => h.label.startsWith('Pilasters')), true);
+}
+
+// Floating shelves: 3/4 ply top and bottom, mitered solid face, 1/2" bracket gap
+{
+  const job = normalize(sampleProject());
+  const sh = { ...cabinetFromPreset(presets.find((x) => x.id === 'float-shelf')!, 'left', 40, job.cabinets) };
+  const lib = { ...job, cabinets: [...job.cabinets, sh] };
+  const ends = resolveEnds(lib.room, lib.cabinets, sh);
+  const parts = buildParts(sh, lib.settings, ends);
+  eq('2" shelf leaves 1/2" for the bracket', 2 - 2 * lib.settings.boxThickness, 0.5);
+  eq('top and bottom plywood', parts.filter((x) => x.name === 'Shelf top' || x.name === 'Shelf bottom').length, 2);
+  eq('paint grade plywood on the sheet list', parts.find((x) => x.name === 'Shelf top')!.sheet, '3/4" paint-grade plywood');
+  eq('end caps on both exposed ends', parts.filter((x) => x.name === 'Shelf end cap').length, 2);
+  eq('paint grade face from face frame stock', parts.find((x) => x.name === 'Shelf face')!.material, 'faceframe');
+  const stain = buildParts({ ...sh, floating: { grade: 'stain', face: 0.75 } }, lib.settings, ends);
+  eq('stain grade face in the wood species', stain.find((x) => x.name === 'Shelf face')!.material, 'solidWood');
+  eq('stain grade plywood', stain.find((x) => x.name === 'Shelf top')!.sheet, '3/4" hard maple plywood');
+  eq('floating shelf labor', priceQuote(lib).hours.some((h) => h.label.startsWith('Floating shelves')), true);
 }
 
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');

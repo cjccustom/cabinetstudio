@@ -1,3 +1,4 @@
+import { defaultPilaster } from './pilaster';
 import type { Cabinet, CabinetKind, FaceRow, Project, ShopSettings, WallId } from './types';
 
 export const defaultSettings: ShopSettings = {
@@ -73,7 +74,7 @@ export interface Preset {
   blind?: Cabinet['blind'];
   corner?: Cabinet['corner'];
   group?: 'corner' | 'mudroom' | 'library';
-  top?: Pick<Cabinet, 'topKind' | 'topThickness' | 'topFront' | 'topLeft' | 'topRight' | 'pilaster'>;
+  top?: Pick<Cabinet, 'topKind' | 'topThickness' | 'topFront' | 'topLeft' | 'topRight' | 'pilaster' | 'floating'>;
 }
 
 export const presets: Preset[] = [
@@ -117,12 +118,14 @@ export const presets: Preset[] = [
   { id: 'library-upper', label: 'Bookcase upper, open', kind: 'wall', width: 30, height: 56, depth: 12, elevation: 31, group: 'library',
     rows: () => [row('open', null, 1, 4)] },
   { id: 'pilaster', label: 'Pilaster, recessed panel', kind: 'pilaster', width: 5.5, height: 87, depth: 17.5, elevation: 0, group: 'library',
-    top: { pilaster: { plinth: 6, capital: 3.5, breaks: [30.5], band: 1.5, proud: 0.25 } }, rows: () => [] },
+    top: { pilaster: { ...defaultPilaster, breaks: [31] } }, rows: () => [] },
+  { id: 'float-shelf', label: 'Floating shelf', kind: 'shelf', width: 36, height: 2, depth: 10, elevation: 54, group: 'library',
+    top: { floating: { grade: 'paint', face: 0.75 } }, rows: () => [] },
   { id: 'tall-open', label: 'Tall, open shelves', kind: 'tall', width: 18, height: 84, depth: 12, elevation: 0,
     rows: () => [row('open', null, 1, 5)] },
 ];
 
-const prefix: Record<CabinetKind, string> = { base: 'B', wall: 'W', tall: 'T', pilaster: 'P' };
+const prefix: Record<CabinetKind, string> = { base: 'B', wall: 'W', tall: 'T', pilaster: 'P', shelf: 'S' };
 
 export function nextName(kind: CabinetKind, cabinets: Cabinet[]): string {
   const p = prefix[kind];

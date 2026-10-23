@@ -2,6 +2,7 @@ import type { CrownBuild, Cabinet, Part, PanelMode, ShopSettings, VisualBox } fr
 import { drawerBoxSize, narrowRail, narrowRailBelow, styleById, type DoorProfile, panelByCode } from './eagle';
 import { buildCornerParts } from './corner';
 import { pilasterOf, pilasterParts } from './pilaster';
+import { floatingShelfParts } from './floatingShelf';
 import { fmt as fmtShort, fmt } from '../units';
 
 export const vb = (x: number, y: number, z: number, sx: number, sy: number, sz: number, shade?: number): VisualBox => ({
@@ -99,7 +100,7 @@ export function panelOn(c: Cabinet, s: ShopSettings, side: 'left' | 'right', exp
 
 /** How far end panels stick out past the face frame on each side (they sit on the case side, just inside the frame edge). */
 export function panelExtents(c: Cabinet, s: ShopSettings, ends: EndInfo) {
-  if (c.kind === 'pilaster') return { left: 0, right: 0 };
+  if (c.kind === 'pilaster' || c.kind === 'shelf') return { left: 0, right: 0 };
   s = eff(c, s);
   const over = s.ffOverhang + s.boxThickness - s.boxActualThickness;
   const out = (scribe: number) => Math.max(0, s.endPanelThickness - scribe - over);
@@ -120,6 +121,7 @@ export function buildParts(c: Cabinet, s: ShopSettings, ends: EndInfo = { left: 
   s = eff(c, s);
   if (c.corner) return buildCornerParts(c, s);
   if (c.kind === 'pilaster') return [...pilasterParts(c, s), ...crownParts(c, s, ends)];
+  if (c.kind === 'shelf') return floatingShelfParts(c, s, ends);
   const parts: Part[] = [];
   const { width: W, height: H, depth: D } = c;
   const tn = s.boxThickness;

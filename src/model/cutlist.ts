@@ -65,7 +65,7 @@ export function designParts(p: Project, data: CutlistData): DesignPart[] {
     const counts = new Map<string, number>();
     for (const part of buildParts(c, p.settings, resolveEnds(p.room, p.cabinets, c))) {
       if (!part.cut) continue;
-      const material = sheetMaterial(part.material, p);
+      const material = part.sheet ?? sheetMaterial(part.material, p);
       if (!material) continue;
       const n = (counts.get(part.name) ?? 0) + 1;
       counts.set(part.name, n);
