@@ -42,3 +42,15 @@ export const blobToDataUrl = (b: Blob) => new Promise<string>((ok, fail) => {
   r.onerror = () => fail(r.error);
   r.readAsDataURL(b);
 });
+
+/** The page's connector calls (claude.ai's mcp capability). */
+export interface Mcp {
+  callTool(server: string, tool: string, input?: unknown, options?: { signal?: AbortSignal; cache?: false }): Promise<{ content: { type: string; text?: string; data?: string; mimeType?: string }[] }>;
+}
+
+export const base64ToBlob = (b64: string, type: string) => {
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new Blob([bytes], { type });
+};

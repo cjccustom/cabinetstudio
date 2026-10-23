@@ -4,7 +4,7 @@ import { create } from 'zustand';
 import { useStore } from '../store';
 import { uid } from '../model/defaults';
 import { promptRequest, renderOf, revisionRequest, templatePrompt, type RenderImage, type RenderState } from '../model/rendering';
-import { blobToDataUrl, capability, shrinkImage, type Assets, type Downloads, type Sample } from '../runtime';
+import { base64ToBlob, blobToDataUrl, capability, shrinkImage, type Assets, type Downloads, type Mcp, type Sample } from '../runtime';
 import { Field, Section } from './fields';
 
 /** Which picture is on screen, shared by the stage and the list. */
@@ -33,10 +33,41 @@ export const sampleError = (code?: string) =>
       : code === 'cancelled' ? 'Stopped.'
         : 'Couldn’t reach Claude, so here’s the standard prompt instead.';
 
+/** The custom connector's name in claude.ai; it must match exactly. */
+export const GEMINI = 'Gemini Images';
+
+function geminiError(e: { code?: string; message?: string; result?: unknown }): string {
+  switch (e.code) {
+    case 'server_not_connected':
+    case 'server_not_found':
+      return `The “${GEMINI}” connector isn’t added. In claude.ai go to Settings → Connectors → Add custom connector, name it exactly “${GEMINI}”, and paste the address from your Cloudflare connector page.`;
+    case 'selection_required':
+      return `There’s more than one connector named “${GEMINI}”. Pick one when claude.ai asks, or remove the extra one in Settings → Connectors.`;
+    case 'needs_reauth':
+      return `Reconnect “${GEMINI}” in claude.ai Settings → Connectors.`;
+    case 'not_in_manifest':
+    case 'approval_required':
+    case 'not_granted':
+      return `“${GEMINI}” isn’t allowed for this page yet. Press the button again and choose Allow when claude.ai asks.`;
+    case 'blocked_by_policy':
+      return 'Your organization’s settings block this connector.';
+    case 'server_unavailable':
+      return 'Couldn’t reach the connector just now. Try again in a minute.';
+    case 'cancelled':
+      return 'Stopped.';
+    case 'tool_error': {
+      const text = (e.result as { content?: { text?: string }[] } | undefined)?.content?.find((c) => c.text)?.text || e.message || '';
+      return `Gemini couldn’t make that one: ${text.slice(0, 300)}`;
+    }
+    default:
+      return 'Something went wrong reaching Gemini. Try again; if it keeps happening, check the connector page in Cloudflare says it’s running.';
+  }
+}
+
 /** Store a picture: with the artifact's file storage when there is some, else shrunk into the job itself. */
-async function storeImage(file: File, kind: RenderImage['kind'], assets: Assets | null): Promise<RenderImage> {
+async function storeImage(file: Blob, kind: RenderImage['kind'], assets: Assets | null, name = (file as File).name ?? kind): Promise<RenderImage> {
   const blob = await shrinkImage(file, assets ? 2400 : 1400, assets ? 0.9 : 0.8);
-  const base = { id: uid('img'), kind, name: file.name.replace(/\.[^.]+$/, ''), note: '', at: Date.now() };
+  const base = { id: uid('img'), kind, name: name.replace(/\.[^.]+$/, ''), note: '', at: Date.now() };
   if (assets) {
     const a = await assets.upload(blob);
     return { ...base, assetId: a.id, url: a.url };
@@ -103,6 +134,37 @@ export function RenderInputs() {
   const renderings = r.images.filter((i) => i.kind === 'rendering');
   const latest = renderings[renderings.length - 1];
 
+  // Straight to Gemini through the Gemini Images connector, when it's added
+  const mcp = useCapability<Mcp>('mcp');
+  const assets = useCapability<Assets>('assets');
+  const select = useView((s) => s.select);
+  const [gStatus, setGStatus] = useState<{ which: 'render' | 'revise'; text: string; bad?: boolean } | null>(null);
+  const gemini = async (which: 'render' | 'revise') => {
+    if (!mcp) return;
+    const prompt = which === 'render' ? r.prompt.trim() : (r.revisionPrompt || r.revision).trim();
+    const pics = which === 'render' ? photos.slice(0, 1) : [latest].filter(Boolean);
+    if (!prompt || !pics.length) return;
+    setGStatus({ which, text: 'Gemini is rendering. This usually takes 15 to 60 seconds.' });
+    try {
+      // Kept under the connector's 1 MB limit for what's sent
+      const images = await Promise.all(pics.map(async (p) => {
+        const b = await shrinkImage(await (await fetch(p.url)).blob(), 1536, 0.85);
+        return { data: (await blobToDataUrl(b)).split(',')[1], mimeType: 'image/jpeg' };
+      }));
+      const res = await mcp.callTool(GEMINI, 'render_image', { prompt, images }, { cache: false });
+      const img = res.content.find((c) => c.type === 'image' && c.data);
+      if (!img) throw { code: 'tool_error', message: res.content.find((c) => c.text)?.text || 'No image came back.' };
+      const blob = base64ToBlob(img.data!, img.mimeType || 'image/png');
+      const stored = await storeImage(blob, 'rendering', assets, which === 'render' ? 'Gemini rendering' : 'Gemini revision');
+      const note = which === 'revise' ? r.revision.trim().slice(0, 60) : '';
+      set((cur) => ({ images: [...cur.images, { ...stored, note }] }));
+      select(stored.id);
+      setGStatus(null);
+    } catch (e) {
+      setGStatus({ which, text: geminiError(e as { code?: string; message?: string; result?: unknown }), bad: true });
+    }
+  };
+
   const ask = async (which: 'prompt' | 'revision') => {
     if (!sample) {
       if (which === 'prompt') set({ prompt: templatePrompt(r, project) });
@@ -155,7 +217,13 @@ export function RenderInputs() {
 
         <Section title="3. Prompt for ChatGPT or Gemini">
           <CopyBox id="rd-prompt" label="Prompt" value={r.prompt} onChange={(v) => set({ prompt: v })} rows={10} />
-          <p className="hint">Paste it into ChatGPT or Gemini with the photo. Save the image it makes, then add it under Renderings.</p>
+          {mcp && (
+            <div className="order-actions">
+              <button className="primary" disabled={!!gStatus && !gStatus.bad || !r.prompt.trim() || !photos.length} onClick={() => gemini('render')}>Render with Gemini</button>
+            </div>
+          )}
+          {gStatus?.which === 'render' && <p className={gStatus.bad ? 'warn' : 'hint'} role="status">{gStatus.text}</p>}
+          <p className="hint">{mcp ? 'Renders the first photo with this prompt and adds the result under Renderings. Or paste it into ChatGPT or Gemini yourself.' : 'Paste it into ChatGPT or Gemini with the photo. Save the image it makes, then add it under Renderings.'}</p>
         </Section>
 
         <Section title="4. Revise">
@@ -164,7 +232,10 @@ export function RenderInputs() {
           </Field>
           <div className="order-actions">
             <button onClick={() => ask('revision')} disabled={!sample || !!working || !r.revision.trim()}>{working === 'revision' ? 'Writing…' : 'Write the revision'}</button>
+            {mcp && <button className="primary" disabled={!!gStatus && !gStatus.bad || !latest || !r.revision.trim()} onClick={() => gemini('revise')}>Revise with Gemini</button>}
           </div>
+          {gStatus?.which === 'revise' && <p className={gStatus.bad ? 'warn' : 'hint'} role="status">{gStatus.text}</p>}
+          {mcp && latest && <p className="hint">Revise with Gemini sends the newest rendering with {r.revisionPrompt ? 'the revision Claude wrote' : 'your change'}.</p>}
           {!sample && <p className="hint">Revisions are written by Claude, which isn’t available here. Type the change straight into ChatGPT.</p>}
           {r.revisionPrompt && <CopyBox id="rd-revp" label="Send this with the last rendering" value={r.revisionPrompt} onChange={(v) => set({ revisionPrompt: v })} rows={4} />}
         </Section>
