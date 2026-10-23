@@ -3,9 +3,10 @@
 // A tiny MCP server, run as a Cloudflare Worker, that lets Cabinet Studio (on claude.ai) send a
 // room photo and a prompt to Google's Gemini image model and get the rendering back.
 //
-// Two secrets are set in Cloudflare (Settings → Variables and Secrets), never in this file:
+// One secret is set in Cloudflare (Settings → Variables and Secrets), never in this file:
 //   GEMINI_API_KEY    your key from aistudio.google.com
-//   CONNECTOR_SECRET  a long random code; the connector only answers at /<that code>
+// The connector answers only at a private address worked out from that key; open the worker's
+// front page and paste the key to get it.
 // Optional plain variable:
 //   GEMINI_MODEL      which image model to use (default below); the list_models tool shows choices
 
@@ -44,14 +45,33 @@ const TOOLS = [
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
-    const secret = String(env.CONNECTOR_SECRET || '').trim();
-    if (!secret) return new Response('The connector is deployed, but the CONNECTOR_SECRET secret is not set yet (Settings → Variables and Secrets).', { status: 503 });
-    // Forgive a trailing slash and anything the browser encoded in the code
-    let path = url.pathname.replace(/\/+$/, '');
-    try { path = decodeURIComponent(path); } catch { /* leave it */ }
-    if (path !== `/${secret}`) return new Response('Not found', { status: 404 });
+    const key = String(env.GEMINI_API_KEY || '').trim();
+    const path = url.pathname.replace(/\/+$/, '') || '/';
+
+    // The front page: shows whether it's set up, and hands out the private connector address
+    // to whoever can paste the same Gemini key that's stored in Cloudflare.
+    if (path === '/' || path === '/setup') {
+      if (!key) return page('Almost there', '<p>The connector is running, but the Gemini key isn’t saved yet. In Cloudflare open this worker’s <b>Settings → Variables and Secrets</b>, add a <b>Secret</b> named <code>GEMINI_API_KEY</code> with your key, then reload this page.</p>');
+      if (request.method === 'POST') {
+        const form = await request.formData();
+        const pasted = String(form.get('key') || '').trim();
+        if (pasted && (await connectorCode(pasted)) === (await connectorCode(key))) {
+          const address = `${url.origin}/${await connectorCode(key)}`;
+          return page('Your connector address', `<p>Copy this whole address. In claude.ai go to <b>Settings → Connectors → Add custom connector</b>, name it <b>Gemini Images</b> and paste it in.</p><input readonly value="${address}" onclick="this.select()"><p><button onclick="navigator.clipboard.writeText('${address}');this.textContent='Copied'">Copy</button></p><p class="note">Keep it private: anyone with it can make images on your Gemini bill.</p>`);
+        }
+        return page('That key doesn’t match', '<p>Paste the same Gemini key you saved in Cloudflare.</p>' + keyForm());
+      }
+      return page('Cabinet Studio connector is running', '<p>Gemini key saved in Cloudflare: <b>yes</b>. Paste the same key below to get your private connector address.</p>' + keyForm());
+    }
+
+    // The connector itself answers only at its private address
+    const code = key ? await connectorCode(key) : '';
+    const legacy = String(env.CONNECTOR_SECRET || '').trim();
+    let p = path;
+    try { p = decodeURIComponent(p); } catch { /* leave it */ }
+    if (!code || (p !== `/${code}` && !(legacy && p === `/${legacy}`))) return new Response('Not found', { status: 404 });
     if (request.method === 'GET') {
-      return new Response(`Cabinet Studio Gemini connector is running.\nGemini key set: ${env.GEMINI_API_KEY ? 'yes' : 'NO'}\nModel: ${env.GEMINI_MODEL || DEFAULT_MODEL}\n`, { headers: { 'content-type': 'text/plain' } });
+      return new Response(`Cabinet Studio Gemini connector is running.\nModel: ${env.GEMINI_MODEL || DEFAULT_MODEL}\n`, { headers: { 'content-type': 'text/plain' } });
     }
     if (request.method !== 'POST') return new Response('Method not allowed', { status: 405 });
 
@@ -66,6 +86,22 @@ export default {
     return res ? json(res) : new Response(null, { status: 202 });
   },
 };
+
+/** The private part of the connector's address, worked out from the Gemini key so there's nothing else to set. */
+async function connectorCode(key) {
+  const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`cabinet-studio-connector:${key}`));
+  return [...new Uint8Array(hash)].map((b) => b.toString(16).padStart(2, '0')).join('').slice(0, 40);
+}
+
+const keyForm = () => '<form method="post" action="/setup"><input name="key" type="password" placeholder="Gemini API key" autocomplete="off" required><button>Get my connector address</button></form>';
+
+function page(title, body) {
+  return new Response(`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title>
+<style>body{font:16px/1.5 -apple-system,system-ui,sans-serif;max-width:560px;margin:10vh auto;padding:0 16px;color:#1d2127;background:#fbfbfc}
+input{width:100%;box-sizing:border-box;padding:10px;font:inherit;border:1px solid #c9ced6;border-radius:6px;margin:6px 0}
+button{padding:9px 16px;font:inherit;border:0;border-radius:6px;background:#2f62d6;color:#fff;cursor:pointer}.note{color:#646d78;font-size:14px}code{background:#eef0f2;padding:1px 4px;border-radius:4px}</style>
+</head><body><h1>${title}</h1>${body}</body></html>`, { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' } });
+}
 
 async function handle(msg, env) {
   const { id, method, params } = msg || {};
