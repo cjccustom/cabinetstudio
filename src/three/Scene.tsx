@@ -9,6 +9,7 @@ import { spacingOf } from '../model/panels';
 import { cabinetMoldings, panelMoldings } from '../model/moldings';
 import { eff } from '../model/parts';
 import { MoldingModel } from './MoldingModel';
+import { live, onWheel, useNav } from './navigation';
 import { RoomModel } from './RoomModel';
 import { buildParts } from '../model/parts';
 import { alongWall, footprint, resolveEnds, snapOffset, wallLength, wallTransform } from '../model/layout';
@@ -35,6 +36,7 @@ export function Scene({ issueIds }: { issueIds: Set<string> }) {
       onPointerMissed={(e) => e.button === 0 && select(null)}
     >
       <Cameras view={view} room={room} />
+      <NavBridge />
       <ambientLight intensity={0.85} />
       <hemisphereLight args={['#ffffff', '#b9b2a6', 0.6]} />
       <directionalLight position={[room.width * 0.8, room.height * 2.2, room.depth * 2.5]} intensity={1.5} />
@@ -61,15 +63,33 @@ export function Scene({ issueIds }: { issueIds: Set<string> }) {
   );
 }
 
+/** Hands the live controls to the view buttons, and takes the wheel before the controls do. */
+function NavBridge() {
+  const controls = useThree((s) => s.controls) as unknown as OrbitControlsImpl | null;
+  const gl = useThree((s) => s.gl);
+  useEffect(() => {
+    live.controls = controls;
+    live.element = gl.domElement;
+    const host = gl.domElement.parentElement;
+    host?.addEventListener('wheel', onWheel, { capture: true, passive: false });
+    return () => { host?.removeEventListener('wheel', onWheel, { capture: true }); if (live.controls === controls) live.controls = null; };
+  }, [controls, gl]);
+  return null;
+}
+
 function Cameras({ view, room }: { view: ViewMode; room: Room }) {
   const size = useThree((s) => s.size);
+  const nav = useNav();
+  // Left-drag pans in the flat views and in Pan mode; right or middle drag always pans
+  const buttons = (flat: boolean) => ({ LEFT: flat || nav.mode === 'pan' ? THREE.MOUSE.PAN : THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.PAN, RIGHT: THREE.MOUSE.PAN });
+  const k = nav.resetKey;
   const { width: W, depth: D, height: H } = room;
   if (view === '3d') {
     const target: [number, number, number] = [W / 2, 34, D * 0.35];
     return (
       <>
-        <PerspectiveCamera key="persp" makeDefault fov={42} near={1} far={8000} position={[W * 0.78, H * 1.25, D + Math.max(W, D) * 1.05]} />
-        <OrbitControls key="orbit-3d" makeDefault target={target} maxPolarAngle={Math.PI * 0.495} enableDamping={false} />
+        <PerspectiveCamera key={`persp-${k}`} makeDefault fov={42} near={1} far={8000} position={[W * 0.78, H * 1.25, D + Math.max(W, D) * 1.05]} />
+        <OrbitControls key={`orbit-3d-${k}`} makeDefault target={target} maxPolarAngle={Math.PI * 0.495} enableDamping={false} zoomToCursor screenSpacePanning mouseButtons={buttons(false)} />
       </>
     );
   }
@@ -77,8 +97,8 @@ function Cameras({ view, room }: { view: ViewMode; room: Room }) {
     const zoom = Math.min(size.width / (W + 48), size.height / (D + 48));
     return (
       <>
-        <OrthographicCamera key="plan" makeDefault position={[W / 2, 2000, D / 2]} up={[0, 0, -1]} zoom={zoom} near={1} far={5000} />
-        <OrbitControls key="orbit-plan" makeDefault target={[W / 2, 0, D / 2]} enableRotate={false} screenSpacePanning />
+        <OrthographicCamera key={`plan-${k}`} makeDefault position={[W / 2, 2000, D / 2]} up={[0, 0, -1]} zoom={zoom} near={1} far={5000} />
+        <OrbitControls key={`orbit-plan-${k}`} makeDefault target={[W / 2, 0, D / 2]} enableRotate={false} screenSpacePanning zoomToCursor mouseButtons={buttons(true)} />
       </>
     );
   }
@@ -94,8 +114,8 @@ function Cameras({ view, room }: { view: ViewMode; room: Room }) {
   };
   return (
     <>
-      <OrthographicCamera key={`elev-${wall}`} makeDefault position={cam[wall].pos} zoom={zoom} near={1} far={5000} />
-      <OrbitControls key={`orbit-${wall}`} makeDefault target={cam[wall].target} enableRotate={false} screenSpacePanning />
+      <OrthographicCamera key={`elev-${wall}-${k}`} makeDefault position={cam[wall].pos} zoom={zoom} near={1} far={5000} />
+      <OrbitControls key={`orbit-${wall}-${k}`} makeDefault target={cam[wall].target} enableRotate={false} screenSpacePanning zoomToCursor mouseButtons={buttons(true)} />
     </>
   );
 }
@@ -136,6 +156,8 @@ function CabinetModel(props: {
 
   const onDown = (e: ThreeEvent<PointerEvent>) => {
     if (e.button !== 0) return;
+    // In Pan mode a drag slides the view, even over a cabinet; pressing still selects it
+    if (view === '3d' && useNav.getState().mode === 'pan') { useStore.getState().select(cab.id); return; }
     e.stopPropagation();
     const st = useStore.getState();
     st.select(cab.id);

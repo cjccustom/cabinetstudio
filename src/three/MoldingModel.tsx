@@ -10,7 +10,9 @@ function buildGeometry(pieces: MoldPiece[]) {
     const p = profileByNum(pc.num);
     if (!p || pc.length <= 0) continue;
     const m = mountShape(p);
-    const shape = new THREE.Shape(m.pts.map(([u, v]) => new THREE.Vector2(u, pc.hang ? -v : v)));
+    // Casing turns its thicker edge (drawn at the bottom) out, away from the opening
+    const flip = pc.kind === 'casing';
+    const shape = new THREE.Shape(m.pts.map(([u, v]) => new THREE.Vector2(u, pc.hang ? -v : flip ? m.height - v : v)));
     const g = new THREE.ExtrudeGeometry(shape, { depth: pc.length, bevelEnabled: false, curveSegments: 1 });
     // Shape x = out from the face, shape y = up, extrusion = along the run
     const mat = new THREE.Matrix4();

@@ -600,6 +600,17 @@ eq('panel sticks out past frame', panelExtents(b21, s, { left: true, right: fals
   eq('garbage in, sensible room out', [cleanDraft(null).room.height, cleanDraft('x').openings.length].join(), '96,0');
 }
 
+{
+  // Casings and baseboards drawn lying down are stood up: the face is the wide side
+  const casing = amCatalog.find((x) => x.num === '2001')!;
+  const ms = mountShape(casing);
+  eq('casing 2001 projects its thickness, face is its width', [ms.depth, ms.height].join(), [casing.sh, casing.sw].join());
+  const lying = [...amCatalog, ...broscoCatalog].filter((x) => x.category === 'Window and Door Casing' && x.shape && x.sw && x.sh);
+  eq('every casing projects less than it is wide', lying.every((x) => mountShape(x).depth < mountShape(x).height), true);
+  const crown = amCatalog.find((x) => x.category === 'Crown' && x.shape && x.sw && x.sh)!;
+  eq('crowns are left as drawn', mountShape(crown).depth, crown.sw);
+}
+
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');
 
 console.log(failed ? `${failed} check(s) failed` : 'All model checks passed');

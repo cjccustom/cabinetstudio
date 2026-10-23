@@ -67,6 +67,19 @@ export function mountShape(p: AMProfile): { pts: [number, number][]; depth: numb
     return { pts: [[0, 0], [d, 0], [d, h], [0, h]], depth: d, height: h };
   }
   const { sw, sh } = p;
+  // Casings, baseboards and the like are often drawn lying down (wide and thin, back on the
+  // bottom). Stand those up: the drawing's width becomes the face, its thickness the projection.
+  if (lyingDown(p)) {
+    const along = (axis: 0 | 1, at: number) => edgeRun(p.shape!, axis, at);
+    const backBottom = along(1, 0) >= along(1, sh);
+    // The thicker end goes at the bottom (a baseboard's foot, a casing's outer edge)
+    const thick = (lo: boolean) => Math.max(0, ...p.shape!.filter(([x]) => (lo ? x < sw * 0.1 : x > sw * 0.9)).map(([, y]) => (backBottom ? y : sh - y)));
+    const thickLeft = thick(true) >= thick(false);
+    return {
+      pts: p.shape!.map(([x, y]) => [backBottom ? y : sh - y, thickLeft ? x : sw - x]),
+      depth: sh, height: sw,
+    };
+  }
   const flat = (atX: number) => {
     let len = 0;
     for (let i = 0; i < p.shape!.length; i++) {
@@ -78,6 +91,26 @@ export function mountShape(p: AMProfile): { pts: [number, number][]; depth: numb
   };
   const backRight = flat(sw) > flat(0);
   return { pts: p.shape.map(([x, y]) => [backRight ? sw - x : x, y]), depth: sw, height: sh };
+}
+
+/** Total length of the outline's edges lying on one line (x = at, or y = at). */
+function edgeRun(shape: [number, number][], axis: 0 | 1, at: number) {
+  let len = 0;
+  for (let i = 0; i < shape.length; i++) {
+    const a = shape[i], b = shape[(i + 1) % shape.length];
+    if (Math.abs(a[axis] - at) < 0.02 && Math.abs(b[axis] - at) < 0.02) len += Math.abs(b[1 - axis] - a[1 - axis]);
+  }
+  return len;
+}
+
+/** Kinds of moulding that lie flat on a wall, and whose drawings are sometimes made lying down. */
+const flatKinds = ['Window and Door Casing', 'Base Board and Base Cap', 'Chair Rail', 'Apron', 'Back Band', 'Band', 'Panel', 'Brick Mould', 'Window Stops'];
+function lyingDown(p: AMProfile) {
+  if (!p.shape || !p.sw || !p.sh || !flatKinds.includes(p.category)) return false;
+  if (p.sw < p.sh * 1.5) return false;
+  const vertical = Math.max(edgeRun(p.shape, 0, 0), edgeRun(p.shape, 0, p.sw));
+  const horizontal = Math.max(edgeRun(p.shape, 1, 0), edgeRun(p.shape, 1, p.sh));
+  return horizontal > vertical;
 }
 
 export interface MoldPiece {
