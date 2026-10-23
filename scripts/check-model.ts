@@ -22,6 +22,7 @@ import { broscoCatalog } from "../src/model/brosco";
 import { designByCode, doorDrawing, proportionsFor, stockSlab, tradeSize } from "../src/model/reeb";
 import { doorOrder } from "../src/model/doorOrder";
 import { applyDraft, cleanDraft, closestProfile, draftRequest } from "../src/model/photoRoom";
+import { clientInfoDoc, folderName, ordersDoc, parseFolderName, quoteDoc, stageByFolder } from "../src/model/client";
 import { blockedAlong, casingReach, freeRuns, newOpening, openingIssues, openingTrim, roomMoldings } from "../src/model/room";
 
 let failed = 0;
@@ -609,6 +610,21 @@ eq('panel sticks out past frame', panelExtents(b21, s, { left: true, right: fals
   eq('every casing projects less than it is wide', lying.every((x) => mountShape(x).depth < mountShape(x).height), true);
   const crown = amCatalog.find((x) => x.category === 'Crown' && x.shape && x.sw && x.sh)!;
   eq('crowns are left as drawn', mountShape(crown).depth, crown.sw);
+}
+
+{
+  // Clients and their Dropbox folders
+  const c = { first: 'Melissa', last: 'Pope', location: 'West Boylston' } as any;
+  eq('folder name: Last, First - Location', folderName(c), 'Pope, Melissa - West Boylston');
+  eq('no slashes in folder names', folderName({ ...c, location: 'Sterling/Leominster' }), 'Pope, Melissa - SterlingLeominster');
+  eq('old folders are just a last name', JSON.stringify(parseFolderName('Lavin')), JSON.stringify({ last: 'Lavin', first: '', location: '' }));
+  eq('new folders read back', parseFolderName('Pope, Melissa - West Boylston').location, 'West Boylston');
+  eq('stage from folder name, any case', stageByFolder('not sold')?.id, 'notsold');
+  const cp = { ...p, client: { ...c, phone: '(508) 555-0100', scope: 'Library wall', measurements: [{ id: 'm', what: 'Back wall', size: '158"', note: '' }] } };
+  eq('client info sheet has contact, scope and measurements', ['Melissa Pope', '(508) 555-0100', 'Library wall', '| Back wall | 158" |'].every((t) => clientInfoDoc(cp).includes(t)), true);
+  const qd = quoteDoc(cp);
+  eq('quote has scope, agreement and total', ['PROJECT SCOPE OF WORK', 'PURCHASE AGREEMENT', 'Total Project Investment', 'HIC License #207489'].every((t) => qd.includes(t)), true);
+  eq('orders doc lists Eagle requests', ordersDoc(cp).includes('Eagle'), true);
 }
 
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');

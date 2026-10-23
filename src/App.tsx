@@ -1,3 +1,4 @@
+import { ClientMain, ClientPanel, ClientsSide } from './ui/Clients';
 import { ViewTools, navHint } from './ui/ViewTools';
 import { useNav } from './three/navigation';
 import { DesignRenderButton } from './ui/DesignRender';
@@ -63,6 +64,7 @@ export default function App() {
           <span className="job">{project.name}</span>
         </div>
         <div className="seg mode" role="tablist" aria-label="Workspace">
+          <button role="tab" aria-selected={mode === 'clients'} className={mode === 'clients' ? 'on' : ''} onClick={() => setMode('clients')}>Clients</button>
           <button role="tab" aria-selected={mode === 'design'} className={mode === 'design' ? 'on' : ''} onClick={() => setMode('design')}>Design</button>
           <button role="tab" aria-selected={mode === 'cutlist'} className={mode === 'cutlist' ? 'on' : ''} onClick={() => setMode('cutlist')}>Sheet cutlist</button>
           <button role="tab" aria-selected={mode === 'faceframe'} className={mode === 'faceframe' ? 'on' : ''} onClick={() => setMode('faceframe')}>Solid wood</button>
@@ -96,6 +98,12 @@ export default function App() {
           <JobClock />
           <JobMain />
           <JobSide />
+        </>
+      ) : mode === 'clients' ? (
+        <>
+          <ClientsSide />
+          <ClientMain />
+          <ClientPanel />
         </>
       ) : mode === 'render' ? (
         <>

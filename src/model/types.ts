@@ -316,6 +316,9 @@ export interface Project {
   doorAdjust?: number;
   /** Photo-based renderings for selling the job. */
   render?: Partial<import('./rendering').RenderState>;
+  /** The customer, and their folder in Dropbox. */
+  client?: Partial<import('./client').ClientInfo>;
+  dropbox?: import('./client').DropboxLink;
 }
 
 export type MaterialKey = 'box' | 'back' | 'toeSkin' | 'faceframe' | 'door' | 'drawerBox' | 'counter' | 'solidWood';
