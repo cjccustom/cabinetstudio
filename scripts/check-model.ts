@@ -23,6 +23,7 @@ import { designByCode, doorDrawing, proportionsFor, stockSlab, tradeSize } from 
 import { doorOrder } from "../src/model/doorOrder";
 import { applyDraft, cleanDraft, closestProfile, draftRequest } from "../src/model/photoRoom";
 import { clientInfoDoc, folderName, ordersDoc, parseFolderName, quoteDoc, stageByFolder } from "../src/model/client";
+import { readScan, scanToDraft } from "../src/model/roomScan";
 import { blockedAlong, casingReach, freeRuns, newOpening, openingIssues, openingTrim, roomMoldings } from "../src/model/room";
 
 let failed = 0;
@@ -625,6 +626,28 @@ eq('panel sticks out past frame', panelExtents(b21, s, { left: true, right: fals
   const qd = quoteDoc(cp);
   eq('quote has scope, agreement and total', ['PROJECT SCOPE OF WORK', 'PURCHASE AGREEMENT', 'Total Project Investment', 'HIC License #207489'].every((t) => qd.includes(t)), true);
   eq('orders doc lists Eagle requests', ordersDoc(cp).includes('Eagle'), true);
+}
+
+{
+  // LiDAR scans: a 150" x 120" room, turned 30 degrees and moved, as RoomPlan might report it
+  const a = Math.PI / 6, at = ([x, z]: number[]) => [x * Math.cos(a) - z * Math.sin(a) + 40, x * Math.sin(a) + z * Math.cos(a) - 25];
+  const wall = (id: string, s: number[], e: number[]) => ({ id, start: at(s), end: at(e), length: Math.hypot(e[0] - s[0], e[1] - s[1]), height: 97 });
+  const open = (id: string, kind: string, w: string, c: number[], width: number, height: number, sill: number) => { const p2 = at([c[0], c[1]]); return { id, kind, wall: w, center: [p2[0], sill + height / 2, p2[1]], width, height, sill }; };
+  const scan = readScan(JSON.stringify({ app: 'CJC Room Scan', version: 1, name: 'Test', scannedAt: '2026-10-23T12:00:00Z', units: 'inches', ceilingHeight: 97,
+    walls: [wall('N', [0, 0], [150, 0]), wall('E', [150, 0], [150, 120]), wall('S', [150, 120], [0, 120]), wall('W', [0, 120], [0, 0])],
+    openings: [open('w1', 'window', 'N', [58, 0], 36, 54, 30), open('d1', 'door', 'E', [150, 36], 32, 80, 0), open('w2', 'window', undefined as any, [0, 85], 30, 48, 34)] }));
+  const d = scanToDraft(scan, 'N');
+  eq('scan: room size from the walls', [Math.round(d.room.width), Math.round(d.room.depth), d.room.height].join(), '150,120,97');
+  const byName = (k: string) => d.openings.find((o) => o.kind === k && o.name.endsWith('1'))!;
+  eq('scan: window on the back wall, 40" from its left end', [byName('window').wall, Math.round(byName('window').offset), byName('window').sill].join(), 'back,40,30');
+  eq('scan: door on the right wall, 20" from the back corner', [byName('door').wall, Math.round(byName('door').offset)].join(), 'right,20');
+  const w2 = d.openings.find((o) => o.name === 'Window 2')!;
+  eq('scan: window with no wall id goes to the nearest (left), measured from the front corner', [w2.wall, Math.round(w2.offset)].join(), 'left,20');
+  const d2 = scanToDraft(scan, 'E');
+  eq('scan: another back wall turns the room', [Math.round(d2.room.width), Math.round(d2.room.depth), d2.openings.find((o) => o.kind === 'door')!.wall].join(), '120,150,back');
+  eq('scan: everything marked measured', d.openings.every((o) => o.measured) && d.measured.width, true);
+  let bad = ''; try { readScan('{"app":"Polycam"}'); } catch (e) { bad = (e as Error).message; }
+  eq('only CJC Room Scan files', bad.includes('CJC Room Scan'), true);
 }
 
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');

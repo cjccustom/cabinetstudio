@@ -1,4 +1,4 @@
-import { PhotoRoomButton } from './PhotoRoom';
+import { PhotoRoomButton, ScanImportButton } from './PhotoRoom';
 import { useState } from 'react';
 import { useStore } from '../store';
 import { doorOf } from '../model/doorOrder';
@@ -36,7 +36,8 @@ export function RoomDetails() {
     <>
       <Section title="Start from photos">
         <p className="hint">Photos of the existing space and your measurements: Claude drafts the room, doors, windows and trim for you to check.</p>
-        <PhotoRoomButton className="primary" />
+        <div className="order-actions"><PhotoRoomButton className="primary" /><ScanImportButton /></div>
+        <p className="hint">Room scan: from the CJC Room Scan app on your iPhone Pro (LiDAR), saved to Dropbox or AirDropped here.</p>
       </Section>
       <Section title="Doors & windows">
         <div className="order-actions">

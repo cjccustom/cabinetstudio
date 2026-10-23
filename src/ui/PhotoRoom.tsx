@@ -9,6 +9,7 @@ import { fmt } from '../units';
 import { AddButton, imageBlob, useCapability, useRender } from './Rendering';
 import { Field, LengthInput } from './fields';
 import type { Sample } from '../runtime';
+import { defaultBackWall, readScan, scanToDraft, type ScanFile } from '../model/roomScan';
 
 const failCopy = (code?: string) =>
   code === 'not_granted' ? 'Claude wasn’t allowed for this page. Allow it from the page’s permissions to build rooms from photos.'
@@ -18,14 +19,16 @@ const failCopy = (code?: string) =>
           : 'Claude couldn’t read the room from those photos. Try again, or add a measurement or two.';
 
 /** Read the room from photos and site measurements, check the draft, and apply it to the design. */
-export function PhotoRoomDialog({ onClose }: { onClose: () => void }) {
+export function PhotoRoomDialog({ onClose, scan }: { onClose: () => void; scan?: ScanFile }) {
   const { project, r, set } = useRender();
   const commit = useStore((s) => s.commit);
   const sample = useCapability<Sample>('sample');
   const [maxPhotos, setMaxPhotos] = useState(5);
   const photos = r.images.filter((i) => i.kind === 'photo');
   const [skip, setSkip] = useState<Set<string>>(new Set());
-  const [draft, setDraft] = useState<RoomDraft | null>(null);
+  // A LiDAR scan skips straight to the check, with a choice of which scanned wall is the back wall
+  const [backId, setBackId] = useState(() => (scan ? defaultBackWall(scan) : ''));
+  const [draft, setDraft] = useState<RoomDraft | null>(() => (scan ? scanToDraft(scan) : null));
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
   const [replace, setReplace] = useState(true);
@@ -62,7 +65,7 @@ export function PhotoRoomDialog({ onClose }: { onClose: () => void }) {
   return (
     <div className="modal-back" onClick={onClose}>
       <div className="modal wide photo-room" role="dialog" aria-modal="true" aria-labelledby="pr-title" onClick={(e) => e.stopPropagation()}>
-        <h2 id="pr-title">Build the room from photos</h2>
+        <h2 id="pr-title">{scan ? 'Import room scan' : 'Build the room from photos'}</h2>
         {!draft ? (
           <>
             <p>Add photos of the existing space, ideally one of each wall, plus your site measurements. Claude drafts the room size, doors and windows and the existing trim. You check everything before it goes into the design.</p>
@@ -90,7 +93,18 @@ export function PhotoRoomDialog({ onClose }: { onClose: () => void }) {
           </>
         ) : (
           <>
-            <p>Here’s the draft. Anything marked <span className="est">est.</span> was estimated from the photos; change any number before applying. Editing a value marks it as yours.</p>
+            {scan ? (
+              <>
+                <p>Here’s the room from the scan. Pick which scanned wall is the back wall (the one the work goes on); the others follow from it.</p>
+                <Field label="Back wall" htmlFor="pr-back">
+                  <select id="pr-back" value={backId} onChange={(e) => { setBackId(e.target.value); setDraft(scanToDraft(scan, e.target.value)); }}>
+                    {scan.walls.map((w, i) => <option key={w.id} value={w.id}>Wall {i + 1}: {fmt(w.length)}</option>)}
+                  </select>
+                </Field>
+              </>
+            ) : (
+              <p>Here’s the draft. Anything marked <span className="est">est.</span> was estimated from the photos; change any number before applying. Editing a value marks it as yours.</p>
+            )}
             <div className="grid3">
               {(['width', 'depth', 'height'] as const).map((k) => (
                 <Field key={k} label={k === 'width' ? 'Back wall length' : k === 'depth' ? 'Side wall length' : 'Ceiling height'} htmlFor={`pr-${k}`}>
@@ -138,7 +152,7 @@ export function PhotoRoomDialog({ onClose }: { onClose: () => void }) {
               <label className="check-inline"><input type="checkbox" checked={replace} onChange={(e) => setReplace(e.target.checked)} /> Replace the {project.openings!.length} door{project.openings!.length > 1 ? 's' : ''} and window{project.openings!.length > 1 ? 's' : ''} already in the design</label>
             )}
             <div className="modal-actions">
-              <button onClick={() => setDraft(null)}>Back</button>
+              {scan ? <button onClick={onClose}>Cancel</button> : <button onClick={() => setDraft(null)}>Back</button>}
               <button className="primary" onClick={apply}>Apply to the design</button>
             </div>
           </>
@@ -155,6 +169,25 @@ export function PhotoRoomButton({ label = 'Build the room from photos', classNam
     <>
       <button className={className} onClick={() => setOpen(true)}>{label}</button>
       {open && <PhotoRoomDialog onClose={() => setOpen(false)} />}
+    </>
+  );
+}
+
+/** Pick a scan file from CJC Room Scan and check it before it goes into the design. */
+export function ScanImportButton({ className = '' }: { className?: string }) {
+  const [scan, setScan] = useState<ScanFile | null>(null);
+  const [msg, setMsg] = useState('');
+  const ref = useRef<HTMLInputElement>(null);
+  const pick = async (f?: File) => {
+    if (!f) return;
+    try { setScan(readScan(await f.text())); setMsg(''); } catch (e) { setMsg((e as Error).message); }
+  };
+  return (
+    <>
+      <button className={className} onClick={() => ref.current?.click()}>Import room scan</button>
+      <input ref={ref} type="file" accept=".json,application/json" hidden onChange={(e) => { pick(e.target.files?.[0]); e.target.value = ''; }} />
+      {msg && <p className="warn">{msg}</p>}
+      {scan && <PhotoRoomDialog scan={scan} onClose={() => setScan(null)} />}
     </>
   );
 }
