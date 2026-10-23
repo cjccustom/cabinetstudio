@@ -8,6 +8,7 @@ import { ReleasePanel } from './ui/Release';
 import { EagleRequests } from './ui/EagleRequests';
 import { HardwareOrder } from './ui/HardwareOrder';
 import { JobClock, JobMain, JobSide } from './ui/Job';
+import { openingIssues } from './model/room';
 import { ProjectDialog } from './ui/ProjectDialog';
 import { DrawerCalculator } from './ui/DrawerCalculator';
 import { PanelInspector } from './ui/PanelInspector';
@@ -39,7 +40,7 @@ export default function App() {
   const [panel, setPanel] = useState<'cabinet' | 'cutlist' | 'order'>('cabinet');
   const [dialog, setDialog] = useState<null | 'file' | 'new' | 'drawer'>(null);
 
-  const issues = useMemo(() => findIssues(project.room, project.cabinets, project.settings), [project]);
+  const issues = useMemo(() => [...findIssues(project.room, project.cabinets, project.settings), ...openingIssues(project)], [project]);
   const issueIds = useMemo(() => new Set(issues.map((i) => i.cabinetId)), [issues]);
   const summary = issues.filter((i) => !i.echo).map((i) => i.message);
   const selectedPanel = (project.panels ?? []).find((w) => w.id === selectedId) ?? null;

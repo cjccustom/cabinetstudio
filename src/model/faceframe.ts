@@ -3,6 +3,7 @@
 import type { Project } from './types';
 import { buildParts } from './parts';
 import { resolveEnds } from './layout';
+import { roomFlatStock } from './room';
 
 export interface FaceFrameStock {
   species: string;
@@ -52,6 +53,8 @@ export function faceFramePieces(p: Project): FFPiece[] {
       out.push({ cabinet: c.name, name: part.name, width: part.width, length: part.length });
     }
   }
+  // Flat casing boards around doors and windows come out of the same stock
+  for (const f of roomFlatStock(p)) out.push({ cabinet: 'Room', name: f.label, width: f.width, length: f.length });
   return out;
 }
 

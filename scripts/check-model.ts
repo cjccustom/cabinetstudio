@@ -17,6 +17,7 @@ import { eagleFraction, eagleRequests, requestText } from "../src/model/eagleReq
 import { hardwareOrder, tierPrice } from "../src/model/hardware";
 import { defaultSupplies, supplyDrivers, supplyLines } from "../src/model/supplies";
 import { jobNumbers, phaseOf, starterTodos } from "../src/shop/fromDesign";
+import { blockedAlong, casingReach, freeRuns, newOpening, openingIssues, openingTrim, roomMoldings } from "../src/model/room";
 
 let failed = 0;
 const eq = (label: string, got: unknown, want: unknown) => {
@@ -435,6 +436,35 @@ eq('panel sticks out past frame', panelExtents(b21, s, { left: true, right: fals
   eq('to-dos: three Eagle requests', todos.filter((t) => t.startsWith('Eagle quote request')).length, 3);
   eq('to-dos: hardware and sheet goods', todos.some((t) => t.includes('Woodworker Express')) && todos.some((t) => t.startsWith('Buy sheet goods')), true);
   console.log('  todos:', todos.join(' | '));
+}
+
+// Room: openings, casing and trim that breaks at cabinets and doors
+{
+  const job = normalize(sampleProject());
+  const base = amCatalog.find((x) => x.category.startsWith('Base Board') && x.shape)!.num;
+  const crown = amCatalog.find((x) => x.category === 'Crown' && x.shape)!.num;
+  const bb = amCatalog.find((x) => x.category === 'Back Band')!.num;
+  const win = { ...newOpening('window', 'back', job), offset: 54, width: 24, height: 40, sill: 42, trim: { flat: 3.5, backBand: bb } };
+  const door = { ...newOpening('door', 'right', job), offset: 60, width: 32, height: 80, trim: { flat: 3.5 } };
+  const room = { ...job, openings: [win, door], roomTrim: { base, crown, chairHeight: 34, walls: ['back', 'left', 'right', 'front'] as any } };
+  eq('free runs skip blocked stretches', JSON.stringify(freeRuns(100, [[10, 20], [15, 30], [90, 100]])), JSON.stringify([[0, 10], [30, 90]]));
+  eq('back wall base: only the 30" range gap', roomMoldings(room, 'back').filter((m) => m.kind === 'roomBase').map((m) => m.length).join(), '30');
+  const rightBase = roomMoldings(room, 'right').filter((m) => m.kind === 'roomBase');
+  eq('base on the right wall breaks at the door casing', rightBase.length, 2);
+  eq('base stops at the casing', Math.abs(rightBase[0].x + rightBase[0].length - (60 - casingReach(door).side)) < 1e-6, true);
+  eq('crown runs the open front wall full length', roomMoldings(room, 'front').filter((m) => m.kind === 'roomCrown').map((m) => m.length).join(), String(job.room.width));
+  const t = openingTrim(win);
+  eq('flat casing: two legs and a head', t.boxes.length, 3);
+  eq('back band on both legs and the head', t.pieces.filter((x) => x.kind === 'backBand').length, 3);
+  eq('flat casing goes on the stock list', faceFramePieces(room).filter((x) => x.cabinet === 'Room').length, 6);
+  eq('room trim on the A&M order', moldingOrder(room).some((m) => m.kinds.includes('roomBase')), true);
+  eq('room trim priced under its own group', priceQuote(room).groups.some((g) => g.group === 'room'), true);
+  eq('window between the uppers over the sink is fine', openingIssues(room).length, 0);
+  eq('wider window: its casing runs into the uppers', openingIssues({ ...room, openings: [{ ...win, offset: 50, width: 32 }] }).some((i) => i.message.includes('casing')), true);
+  const blocked = { ...room, openings: [{ ...win, sill: 30 }] };
+  eq('window low enough to hit the counter run flags it', openingIssues(blocked).length > 0, true);
+  eq('cabinets block the wall where they sit', blockedAlong(room, 'back', 0, 4).length >= 5, true);
+  eq('window position goes on the site check', fieldChecks(room).some((c) => c.id === `door:${win.id}:sill`), true);
 }
 
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');

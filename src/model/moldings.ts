@@ -4,11 +4,18 @@ import type { Cabinet, Project, ShopSettings, WallPanel } from './types';
 import { amCatalog, type AMProfile } from './andersonMcquaid';
 import { crownLayout, panelExtents, type EndInfo } from './parts';
 import { pilasterOf, pilasterOpenings } from './pilaster';
+import { roomMoldingPieces } from './room';
 import { resolveEnds } from './layout';
 
-export type MoldKind = 'crown' | 'lightRail' | 'baseMold' | 'cap' | 'panel';
+export type MoldKind = 'crown' | 'lightRail' | 'baseMold' | 'cap' | 'panel' | 'roomCrown' | 'roomBase' | 'chairRail' | 'casing' | 'backBand' | 'headCap' | 'stool' | 'apron';
 
-export const moldLabel: Record<MoldKind, string> = { crown: 'Crown', lightRail: 'Light rail', baseMold: 'Base', cap: 'Beadboard cap', panel: 'Panel moulding' };
+/** Room trim, as opposed to mouldings on the cabinets themselves. */
+export const roomKinds: MoldKind[] = ['roomCrown', 'roomBase', 'chairRail', 'casing', 'backBand', 'headCap', 'stool', 'apron'];
+
+export const moldLabel: Record<MoldKind, string> = {
+  crown: 'Crown', lightRail: 'Light rail', baseMold: 'Base', cap: 'Beadboard cap', panel: 'Panel moulding',
+  roomCrown: 'Crown', roomBase: 'Baseboard', chairRail: 'Chair rail', casing: 'Casing', backBand: 'Back band', headCap: 'Header cap', stool: 'Stool', apron: 'Apron',
+};
 
 /** Catalog categories that make sense for each spot, listed first in the picker. */
 export const moldCategories: Record<MoldKind, string[]> = {
@@ -17,6 +24,14 @@ export const moldCategories: Record<MoldKind, string[]> = {
   baseMold: ['Base Board and Base Cap', 'Shoe Moulding'],
   cap: ['Chair Rail', 'Panel', 'Base Board and Base Cap', 'Header Cap'],
   panel: ['Panel', 'Base Board and Base Cap', 'Band'],
+  roomCrown: ['Crown', 'Header Cap', 'Band'],
+  roomBase: ['Base Board and Base Cap', 'Shoe Moulding'],
+  chairRail: ['Chair Rail', 'Panel', 'Picture Moulding'],
+  casing: ['Window and Door Casing', 'Brick Mould'],
+  backBand: ['Back Band', 'Panel'],
+  headCap: ['Header Cap', 'Crown'],
+  stool: ['Stool Cap'],
+  apron: ['Apron', 'Window and Door Casing'],
 };
 
 export const profileByNum = (num?: string): AMProfile | undefined => (num ? amCatalog.find((p) => p.num === num) : undefined);
@@ -67,6 +82,8 @@ export interface MoldPiece {
   length: number;
   /** Turn the profile upside down (light rail hanging under a cabinet). */
   hang?: boolean;
+  /** Run straight up from (x, y) instead of along x: a casing leg, its face widening to the left or right. */
+  vertical?: 'left' | 'right';
 }
 
 /** Moulding pieces for one cabinet, in its own coordinates. */
@@ -139,6 +156,7 @@ export function moldingOrder(p: Project): MoldOrderLine[] {
     cabinetMoldings(c, s, resolveEnds(p.room, p.cabinets, c)).forEach(add);
   }
   for (const w of p.panels ?? []) panelMoldings(w).forEach(add);
+  roomMoldingPieces(p).forEach(add);
   // Panel moulding mitered around each opening of a shop-built pilaster
   for (const c of p.cabinets) {
     const ps = c.kind === 'pilaster' ? pilasterOf(c) : null;

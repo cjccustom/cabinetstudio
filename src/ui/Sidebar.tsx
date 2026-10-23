@@ -5,6 +5,7 @@ import { newPanel, panelAbove } from '../model/panels';
 import { amSpecies } from '../model/moldings';
 import { wallNames, wallOrder } from '../model/layout';
 import type { PanelMode, ShopSettings, WallId } from '../model/types';
+import { RoomDetails } from './RoomDetails';
 import { fmt } from '../units';
 import { centerPanels, doorMaterials, doorStyles, hingeTypes, outsideEdges, panelLabel, sideThicknesses, slides, stileWidths, styleById, type HingeType, type OutsideEdge } from '../model/eagle';
 import { realOverhang } from '../model/parts';
@@ -144,14 +145,15 @@ function RoomPanel() {
       </Section>
       <Section title="Finishes">
         <div className="swatches">
-          {([['paint', 'Paint / stain'], ['box', 'Case interior'], ['counter', 'Stone top'], ['wood', 'Solid wood']] as const).map(([k, label]) => (
+          {([['paint', 'Paint / stain'], ['box', 'Case interior'], ['counter', 'Stone top'], ['wood', 'Solid wood'], ['wall', 'Walls'], ['trim', 'Room trim']] as const).map(([k, label]) => (
             <label key={k} className="swatch" htmlFor={`fin-${k}`}>
-              <input id={`fin-${k}`} type="color" value={finishes[k] ?? '#b9875a'} onChange={(e) => commit((p) => ({ ...p, finishes: { ...p.finishes, [k]: e.target.value } }))} />
+              <input id={`fin-${k}`} type="color" value={finishes[k] ?? (k === 'wall' ? '#f1efea' : k === 'trim' ? '#f7f5ef' : '#b9875a')} onChange={(e) => commit((p) => ({ ...p, finishes: { ...p.finishes, [k]: e.target.value } }))} />
               <span>{label}</span>
             </label>
           ))}
         </div>
       </Section>
+      <RoomDetails />
     </div>
   );
 }

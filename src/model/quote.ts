@@ -6,7 +6,7 @@ import { resolveEnds } from './layout';
 import { defaultCutlist, optimizerParts } from './cutlist';
 import { optimize } from './optimizer';
 import { defaultFaceFrameStock, faceFrameNeeds, faceFramePieces, woodNeeds, woodPieces } from './faceframe';
-import { moldingOrder } from './moldings';
+import { moldLabel, moldingOrder, roomKinds, type MoldKind } from './moldings';
 import { panelOrder } from './panels';
 import { uid } from './defaults';
 import { eaglePrice, hingeTypes } from './eagle';
@@ -122,8 +122,9 @@ export const quoteOf = (p: Project): QuoteSettings => {
   return { ...q, standards: { ...defaultStandards, ...p.quote?.standards }, workloadAdj: { ...defaultQuote.workloadAdj, ...p.quote?.workloadAdj } };
 };
 
-export type Group = 'cabinets' | 'tops' | 'paneling';
-export const groupLabel: Record<Group, string> = { cabinets: 'Cabinets', tops: 'Solid wood tops & seats', paneling: 'Wall paneling' };
+export type Group = 'cabinets' | 'tops' | 'paneling' | 'room';
+export const groupLabel: Record<Group, string> = { cabinets: 'Cabinets', tops: 'Solid wood tops & seats', paneling: 'Wall paneling', room: 'Room trim' };
+const moldGroup = (kinds: MoldKind[]): Group => (kinds.includes('cap') ? 'paneling' : kinds.every((k) => roomKinds.includes(k)) ? 'room' : 'cabinets');
 
 export interface HourLine { group: Group; label: string; qty: number; each: number; hours: number; install?: boolean }
 export interface MaterialLine { group: Group; label: string; cost: number; detail: string; missing?: string }
@@ -181,7 +182,7 @@ export function estimateHours(p: Project, q: QuoteSettings): HourLine[] {
   }
   for (const m of moldingOrder(p)) {
     const ft = Math.round((m.inches / 12) * 10) / 10;
-    const group: Group = m.kinds.includes('cap') ? 'paneling' : 'cabinets';
+    const group = moldGroup(m.kinds);
     add('Mouldings: cut & prep (ft)', ft, st.moldingPerFt, group);
     add('Mouldings: install (ft)', ft, st.moldingInstallPerFt, group, true);
     installHours += ft * st.moldingInstallPerFt;
@@ -243,7 +244,7 @@ export function estimateMaterials(p: Project, q: QuoteSettings): MaterialLine[] 
   if (hw.hinges) out.push({ group: 'cabinets', label: `Hinges (${[...hingeKinds].join(' & ')})`, cost: hwCost('hinges'), detail: `${hw.hinges} hinges on ${doors} doors`, missing: hwMissing('hinges') });
   if (hw.drawers) out.push({ group: 'cabinets', label: 'Blum Tandem slides & locking devices', cost: hwCost('slides'), detail: `${hw.drawers} drawers`, missing: hwMissing('slides') });
   for (const m of moldingOrder(p)) {
-    out.push({ group: m.kinds.includes('cap') ? 'paneling' : 'cabinets', label: `A&M ${m.num} moulding`, cost: m.cost, detail: `${m.feet} lin ft`, missing: m.price == null ? 'No A&M price' : undefined });
+    out.push({ group: moldGroup(m.kinds), label: `A&M ${m.num} ${m.kinds.every((k) => roomKinds.includes(k)) ? m.kinds.map((k) => moldLabel[k].toLowerCase()).join(' & ') : 'moulding'}`, cost: m.cost, detail: `${m.feet} lin ft`, missing: m.price == null ? 'No A&M price' : undefined });
   }
   const bb = (p.panels ?? []).map(panelOrder).reduce((t, l) => t + (l.item.startsWith('4×8') ? l.qty : 0), 0);
   if (bb) out.push({ group: 'paneling', label: 'Nantucket beadboard sheets', cost: bb * q.beadboardSheet, detail: `${bb} sheets`, missing: q.beadboardSheet ? undefined : 'Enter your beadboard sheet price' });
@@ -287,7 +288,7 @@ export function priceQuote(p: Project): QuoteResult {
     const b = h * q.billRate + mt * (1 + q.materialMarkup);
     return { a, b, chosen: q.method === 'multiplier' ? a : b };
   };
-  const groups = (['cabinets', 'tops', 'paneling'] as Group[])
+  const groups = (['cabinets', 'tops', 'paneling', 'room'] as Group[])
     .map((g) => {
       const h = hours.filter((x) => x.group === g).reduce((t, x) => t + x.hours, 0);
       const m = materials.filter((x) => x.group === g).reduce((t, x) => t + x.cost, 0);

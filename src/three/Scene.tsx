@@ -9,6 +9,7 @@ import { spacingOf } from '../model/panels';
 import { cabinetMoldings, panelMoldings } from '../model/moldings';
 import { eff } from '../model/parts';
 import { MoldingModel } from './MoldingModel';
+import { RoomModel } from './RoomModel';
 import { buildParts } from '../model/parts';
 import { alongWall, footprint, resolveEnds, snapOffset, wallLength, wallTransform } from '../model/layout';
 import { buildCabinetGeometry } from './cabinetGeometry';
@@ -38,7 +39,7 @@ export function Scene({ issueIds }: { issueIds: Set<string> }) {
       <hemisphereLight args={['#ffffff', '#b9b2a6', 0.6]} />
       <directionalLight position={[room.width * 0.8, room.height * 2.2, room.depth * 2.5]} intensity={1.5} />
       <directionalLight position={[-room.width, room.height, room.depth]} intensity={0.35} />
-      <RoomShell room={room} view={view} />
+      <RoomModel project={project} view={view} />
       {visible.map((c) => (
         <CabinetModel
           key={c.id}
@@ -100,52 +101,6 @@ function Cameras({ view, room }: { view: ViewMode; room: Room }) {
 }
 
 /** Walls only face inward, so the ones between you and the cabinets disappear on their own. */
-function RoomShell({ room, view }: { room: Room; view: ViewMode }) {
-  const { width: W, depth: D, height: H } = room;
-  const wallMat = <meshStandardMaterial color="#f1efea" roughness={0.95} />;
-  const T = 4.5;
-  return (
-    <group>
-      <mesh rotation-x={-Math.PI / 2} position={[W / 2, 0, D / 2]}>
-        <planeGeometry args={[W, D]} />
-        <meshStandardMaterial color="#cdbfa8" roughness={0.9} />
-      </mesh>
-      <mesh position={[W / 2, H / 2, 0]}>
-        <planeGeometry args={[W, H]} />
-        {wallMat}
-      </mesh>
-      <mesh position={[W / 2, H / 2, D]} rotation-y={Math.PI}>
-        <planeGeometry args={[W, H]} />
-        {wallMat}
-      </mesh>
-      <mesh position={[0, H / 2, D / 2]} rotation-y={Math.PI / 2}>
-        <planeGeometry args={[D, H]} />
-        {wallMat}
-      </mesh>
-      <mesh position={[W, H / 2, D / 2]} rotation-y={-Math.PI / 2}>
-        <planeGeometry args={[D, H]} />
-        {wallMat}
-      </mesh>
-      {view === 'plan' && (
-        <>
-          <gridHelper args={[Math.max(W, D) + 48, Math.round((Math.max(W, D) + 48) / 12), '#b3a68f', '#c4b8a3']} position={[W / 2, 0.05, D / 2]} />
-          {[
-            [W / 2, -T / 2, W + 2 * T, T],
-            [W / 2, D + T / 2, W + 2 * T, T],
-            [-T / 2, D / 2, T, D],
-            [W + T / 2, D / 2, T, D],
-          ].map(([x, z, sx, sz], i) => (
-            <mesh key={i} position={[x, H / 2, z]}>
-              <boxGeometry args={[sx, H, sz]} />
-              <meshBasicMaterial color="#5b5f66" />
-            </mesh>
-          ))}
-        </>
-      )}
-    </group>
-  );
-}
-
 interface DragState {
   pointerId: number;
   plane: THREE.Plane;

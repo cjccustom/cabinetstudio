@@ -33,6 +33,13 @@ export function fieldChecks(p: Project): FieldCheck[] {
   if (p.cabinets.some((c) => c.elevation + c.height > 60)) {
     out.push({ id: 'ceiling', label: 'Ceiling height', design: p.room.height, hint: 'Lowest point over the wall and tall cabinets' });
   }
+  // Doors and windows on a wall with cabinets: where they sit decides what fits beside them
+  for (const o of p.openings ?? []) {
+    if (!p.cabinets.some((c) => c.wall === o.wall)) continue;
+    out.push({ id: `door:${o.id}:at`, label: `${wallName[o.wall]} corner to ${o.name}`, design: o.offset, hint: 'Left corner to the edge of the opening (jamb), not the casing' });
+    out.push({ id: `door:${o.id}:w`, label: `${o.name} width`, design: o.width, hint: 'Jamb to jamb' });
+    if (o.kind === 'window') out.push({ id: `door:${o.id}:sill`, label: `${o.name} sill height`, design: o.sill, hint: 'Floor to the top of the sill' });
+  }
   // Appliance openings between base cabinets, wall ends included
   for (const w of walls) {
     const runs = p.cabinets

@@ -217,6 +217,54 @@ export interface Finishes {
   box: string;
   counter: string;
   wood: string;
+  /** Room walls. */
+  wall?: string;
+  /** Room trim: casing, baseboard, crown. */
+  trim?: string;
+}
+
+/** A door, window or cased opening cut into a wall. Offset and sill are to the rough opening's edge, like a cabinet. */
+export interface Opening {
+  id: string;
+  name: string;
+  kind: 'door' | 'window' | 'cased';
+  wall: WallId;
+  offset: number;
+  width: number;
+  height: number;
+  /** Off the floor; 0 for doors and cased openings. */
+  sill: number;
+  trim: OpeningTrim;
+}
+
+/** Casing on the room side of an opening: a profiled casing, or flat stock with a back band and header cap. */
+export interface OpeningTrim {
+  /** A&M casing profile. Leave empty to use flat stock. */
+  casing?: string;
+  /** Flat casing width when there's no profile; 0 = no casing. */
+  flat: number;
+  backBand?: string;
+  headCap?: string;
+  /** Windows: stool across the sill and apron under it. */
+  stool?: string;
+  apron?: string;
+}
+
+/** Mouldings run around the room, broken at cabinets and door casings. */
+export interface RoomTrim {
+  crown?: string;
+  base?: string;
+  chairRail?: string;
+  /** Top of the chair rail off the floor. */
+  chairHeight: number;
+  walls: WallId[];
+}
+
+export interface Floor {
+  kind: 'hardwood' | 'tile' | 'vinyl' | 'carpet' | 'concrete';
+  color: string;
+  /** Plank width or tile size. */
+  size: number;
 }
 
 export interface Room {
@@ -239,6 +287,9 @@ export interface Project {
   release?: Partial<import('./release').ReleaseState>;
   /** This design's job on the shop clock. */
   shopJobId?: string;
+  openings?: Opening[];
+  roomTrim?: RoomTrim;
+  floor?: Floor;
 }
 
 export type MaterialKey = 'box' | 'back' | 'toeSkin' | 'faceframe' | 'door' | 'drawerBox' | 'counter' | 'solidWood';
