@@ -16,7 +16,7 @@ export const defaultSettings: ShopSettings = {
   toeKickHeight: 4,
   toeKickDepth: 3,
   toeKickSkin: 0.5,
-  endPanel: 'flush',
+  endPanel: 'none',
   endPanelReveal: 0.25,
   endPanelThickness: 0.75,
   scribeAllowance: 0.5,

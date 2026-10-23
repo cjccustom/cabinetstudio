@@ -54,6 +54,24 @@ export interface Cabinet {
   crown?: string;
   lightRail?: string;
   baseMold?: string;
+  /** How the crown is built up on top of the cabinet. */
+  crownBuild?: CrownBuild;
+}
+
+/**
+ * Crown built up on a wall or tall cabinet: an optional flat sub-crown (solid stock, face flush with
+ * the doors), raised above the case on a plywood nailer if needed, with the crown and any extra
+ * mouldings stacked down its face.
+ */
+export interface CrownBuild {
+  /** Height of the flat sub-crown; 0 = none, crown goes straight on the face frame. */
+  subCrown: number;
+  /** How far the build rises above the cabinet top, on a 3/4" plywood nailer. */
+  rise: number;
+  /** How far the crown's top sits below the top of the build. */
+  drop: number;
+  /** More A&M profiles stacked under the crown, top to bottom (bed mould, bead, ...). */
+  extra: string[];
 }
 
 /** Beadboard or other paneling applied to a wall, like a backsplash above a mudroom bench. */
@@ -190,7 +208,7 @@ export type MaterialKey = 'box' | 'back' | 'toeSkin' | 'faceframe' | 'door' | 'd
 
 export type PartRole =
   | 'side' | 'bottom' | 'top' | 'stretcher' | 'back' | 'nailer' | 'toekick' | 'shelf'
-  | 'stile' | 'rail' | 'door' | 'drawerFront' | 'drawerBox' | 'endPanel' | 'counter' | 'woodTop';
+  | 'stile' | 'rail' | 'door' | 'drawerFront' | 'drawerBox' | 'endPanel' | 'counter' | 'woodTop' | 'trim';
 
 export interface VisualBox {
   min: [number, number, number];

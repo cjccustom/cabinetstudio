@@ -315,3 +315,5 @@ tr.missing td { color: var(--warn); }
 .supply-row input.unit { width: 64px; }
 .supply-row select { flex: 1; min-width: 0; }
 .supply-row > span { white-space: nowrap; }
+.crown-build { margin-top: 10px; border-top: 1px solid var(--line, #e3e3e3); padding-top: 8px; }
+.crown-build h4 { margin: 0 0 6px; font-size: 12px; }

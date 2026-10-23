@@ -1,6 +1,6 @@
 import { useStore } from '../store';
-import type { Cabinet, EndMode, FaceRow, PanelChoice, PanelMode, WallId } from '../model/types';
-import { layoutRows, panelOn } from '../model/parts';
+import type { Cabinet, CrownBuild, EndMode, FaceRow, PanelChoice, PanelMode, WallId } from '../model/types';
+import { buildParts, crownLayout, layoutRows, noCrownBuild, panelOn } from '../model/parts';
 import { gapBeside, resolveEnds, wallLength, wallNames, wallOrder } from '../model/layout';
 import { panelLabel } from '../model/eagle';
 import { uid } from '../model/defaults';
@@ -175,11 +175,12 @@ export function Inspector({ cab, issues }: { cab: Cabinet; issues: string[] }) {
               onChange={(n) => set({ [k]: n })}
               extra={cab[k] && (
                 <button className="mini" title={`Use on every ${cab.kind} cabinet on this wall`} onClick={() =>
-                  useStore.getState().commit((p) => ({ ...p, cabinets: p.cabinets.map((c) => (c.wall === cab.wall && c.kind === cab.kind ? { ...c, [k]: cab[k] } : c)) }))
+                  useStore.getState().commit((p) => ({ ...p, cabinets: p.cabinets.map((c) => (c.wall === cab.wall && c.kind === cab.kind ? { ...c, [k]: cab[k], ...(k === 'crown' ? { crownBuild: cab.crownBuild } : {}) } : c)) }))
                 }>Whole wall</button>
               )}
             />
           ))}
+        {cab.kind !== 'base' && <CrownBuildEditor cab={cab} set={set} species={settings.moldSpecies} />}
         <p className="hint">Runs across the face and returns to the wall on exposed ends. Lineal footage and cost are on the Orders tab.</p>
       </Section>
 
@@ -304,5 +305,54 @@ function CornerSection({ cab, set }: { cab: Cabinet; set: (p: Partial<Cabinet>) 
           : 'An L-shaped case with a face frame on each wall and a bifold pair of doors. Bottom, top and shelves are cut as rectangles with the front corner notched out.'}
       </p>
     </Section>
+  );
+}
+
+/** Sub-crown, raise and extra mouldings that build up the crown on a wall or tall cabinet. */
+function CrownBuildEditor({ cab, set, species }: { cab: Cabinet; set: (patch: Partial<Cabinet>) => void; species: string }) {
+  const settings = useStore((s) => s.project.settings);
+  const b = { ...noCrownBuild, ...cab.crownBuild };
+  const put = (patch: Partial<CrownBuild>) => set({ crownBuild: { ...b, ...patch } });
+  const L = crownLayout(cab, settings);
+  // Fronts' top edge, so a sub-crown that laps down over the doors gets flagged
+  const frontTop = Math.max(0, ...buildParts(cab, settings).filter((p) => p.role === 'door' || p.role === 'drawerFront').flatMap((p) => p.boxes.map((x) => x.min[1] + x.size[1])));
+  const overlap = b.subCrown > 0 ? frontTop - L.subBottom : 0;
+  return (
+    <div className="crown-build">
+      <h4>Crown build</h4>
+      <div className="grid3">
+        <Field label="Flat sub-crown" htmlFor="cb-sub">
+          <LengthInput id="cb-sub" value={b.subCrown || null} allowAuto placeholder="none" onChange={(v) => put({ subCrown: v ?? 0 })} />
+        </Field>
+        <Field label="Raise above top" htmlFor="cb-rise">
+          <LengthInput id="cb-rise" value={b.rise || null} allowAuto placeholder="0" onChange={(v) => put({ rise: v ?? 0 })} />
+        </Field>
+        <Field label="Crown down from top" htmlFor="cb-drop">
+          <LengthInput id="cb-drop" value={b.drop || null} allowAuto placeholder="0" onChange={(v) => put({ drop: v ?? 0 })} />
+        </Field>
+      </div>
+      {b.extra.map((num, i) => (
+        <MoldSlot
+          key={i}
+          kind="crown"
+          label={`Under crown ${i + 1}`}
+          num={num}
+          species={species}
+          onChange={(n) => put({ extra: n ? b.extra.map((x, j) => (j === i ? n : x)) : b.extra.filter((_, j) => j !== i) })}
+          extra={<button className="mini" onClick={() => put({ extra: b.extra.filter((_, j) => j !== i) })}>Remove</button>}
+        />
+      ))}
+      <div className="order-actions">
+        <button className="mini" onClick={() => put({ extra: [...b.extra, ''] })}>Add moulding under crown</button>
+        {frontTop > 0 && L.top - frontTop > 0.25 && Math.abs(b.subCrown - (L.top - frontTop)) > 1e-3 && (
+          <button className="mini" title="Sub-crown from the top of the doors to the top of the build" onClick={() => put({ subCrown: Math.round((L.top - frontTop) * 16) / 16 })}>Fit sub-crown above doors ({fmt(L.top - frontTop)})</button>
+        )}
+      </div>
+      {overlap > 1e-3 && <p className="warn">The sub-crown laps {fmt(overlap)} down over the doors. Make it shorter or raise it.</p>}
+      <p className="hint">
+        The sub-crown is flat stock with its face flush with the doors; it’s on the Solid wood list with the face frames. Raising the build adds a 3/4" plywood nailer on the cabinet top.
+        {' '}Crown top: {fmt(L.crownTop)} off the cabinet bottom{L.top !== cab.height ? `, ${fmt(L.top - cab.height)} above the case` : ''}.
+      </p>
+    </div>
   );
 }

@@ -2,7 +2,7 @@
 // beadboard. Each run follows the cabinet face and returns along exposed ends.
 import type { Cabinet, Project, ShopSettings, WallPanel } from './types';
 import { amCatalog, type AMProfile } from './andersonMcquaid';
-import { panelExtents } from './parts';
+import { crownLayout, panelExtents } from './parts';
 import { resolveEnds } from './layout';
 
 export type MoldKind = 'crown' | 'lightRail' | 'baseMold' | 'cap';
@@ -72,25 +72,38 @@ export function cabinetMoldings(c: Cabinet, s: ShopSettings, ends: { left: boole
   const out: MoldPiece[] = [];
   const ext = panelExtents(c, s, ends);
   const doorFace = c.depth + s.doorThickness * (s.doorMount === 'inset' ? 0 : 1);
-  const runs: { kind: MoldKind; num?: string; y: (h: number) => number; z: number; hang?: boolean }[] = [
-    // Crown sits on the face frame with its top at the cabinet top
-    { kind: 'crown', num: c.crown, y: (h) => c.height - h, z: c.depth },
+  const runs: { kind: MoldKind; num?: string; y: (h: number) => number; z: number; hang?: boolean; out?: number }[] = [
     // Light rail hangs below the bottom, on the face frame
     { kind: 'lightRail', num: c.lightRail, y: () => 0, z: c.depth, hang: true },
     // Base runs along the floor across the door faces, furniture style
     { kind: 'baseMold', num: c.baseMold, y: () => 0, z: doorFace },
   ];
+  if (c.kind !== 'base') {
+    // Crown and any extra mouldings stack down from the top of the build, on the sub-crown's face
+    const L = crownLayout(c, s);
+    let cursor = L.crownTop;
+    for (const num of [c.crown, ...L.build.extra]) {
+      const p = profileByNum(num);
+      if (!p) continue;
+      const top = cursor;
+      runs.push({ kind: 'crown', num, y: (h) => top - h, z: L.face, out: L.subT });
+      cursor -= mountShape(p).height;
+    }
+  }
   for (const r of runs) {
     const p = profileByNum(r.num);
     if (!p) continue;
     const m = mountShape(p);
     const y = r.y(m.height);
-    const x0 = -ext.left - (ends.left ? m.depth : 0);
-    const x1 = c.width + ext.right + (ends.right ? m.depth : 0);
+    const o = r.out ?? 0;
+    const xl = -ext.left - (ends.left ? o : 0);
+    const xr = c.width + ext.right + (ends.right ? o : 0);
+    const x0 = xl - (ends.left ? m.depth : 0);
+    const x1 = xr + (ends.right ? m.depth : 0);
     out.push({ kind: r.kind, num: p.num, along: 'x', facing: 'front', x: x0, y, z: r.z, length: x1 - x0, hang: r.hang });
     // Returns back to the wall on exposed ends
-    if (ends.left) out.push({ kind: r.kind, num: p.num, along: 'z', facing: 'left', x: -ext.left, y, z: 0, length: r.z + m.depth, hang: r.hang });
-    if (ends.right) out.push({ kind: r.kind, num: p.num, along: 'z', facing: 'right', x: c.width + ext.right, y, z: 0, length: r.z + m.depth, hang: r.hang });
+    if (ends.left) out.push({ kind: r.kind, num: p.num, along: 'z', facing: 'left', x: xl, y, z: 0, length: r.z + m.depth, hang: r.hang });
+    if (ends.right) out.push({ kind: r.kind, num: p.num, along: 'z', facing: 'right', x: xr, y, z: 0, length: r.z + m.depth, hang: r.hang });
   }
   return out;
 }
@@ -115,7 +128,7 @@ export function moldingOrder(p: Project): MoldOrderLine[] {
     totals.set(pc.num, t);
   };
   for (const c of p.cabinets) {
-    if (!c.crown && !c.lightRail && !c.baseMold) continue;
+    if (!c.crown && !c.lightRail && !c.baseMold && !c.crownBuild?.extra.length) continue;
     cabinetMoldings(c, s, resolveEnds(p.room, p.cabinets, c)).forEach(add);
   }
   for (const w of p.panels ?? []) panelMoldings(w).forEach(add);

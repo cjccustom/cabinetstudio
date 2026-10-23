@@ -69,12 +69,12 @@ export function ProfilePicker({ kind, current, species, onPick, onClose }: {
 }
 
 /** One moulding slot in an inspector: the chosen profile with buttons to change or clear it. */
-export function MoldSlot({ kind, num, species, onChange, extra }: { kind: MoldKind; num?: string; species: string; onChange: (n: string | undefined) => void; extra?: React.ReactNode }) {
+export function MoldSlot({ kind, num, species, onChange, extra, label }: { kind: MoldKind; num?: string; species: string; onChange: (n: string | undefined) => void; extra?: React.ReactNode; label?: string }) {
   const [open, setOpen] = useState(false);
   const p = amCatalog.find((x) => x.num === num);
   return (
     <div className="mold-slot">
-      <span className="mold-kind">{moldLabel[kind]}</span>
+      <span className="mold-kind">{label ?? moldLabel[kind]}</span>
       {p ? (
         <button className="mold-pick" onClick={() => setOpen(true)}>
           <ProfileThumb p={p} size={36} />

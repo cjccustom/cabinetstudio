@@ -1,4 +1,4 @@
-import type { Cabinet, Part, PanelMode, ShopSettings, VisualBox } from './types';
+import type { CrownBuild, Cabinet, Part, PanelMode, ShopSettings, VisualBox } from './types';
 import { drawerBoxSize, narrowRail, narrowRailBelow, styleById, type DoorProfile, panelByCode } from './eagle';
 import { buildCornerParts } from './corner';
 import { fmt as fmtShort, fmt } from '../units';
@@ -398,11 +398,58 @@ export function buildParts(c: Cabinet, s: ShopSettings, ends: EndInfo = { left: 
   }
 
   if (c.kind === 'base' && c.countertop) parts.push(topPart(c, s, W, D + dt, panelExtents(c, s, ends)));
+  if (c.kind !== 'base') parts.push(...crownParts(c, s, ends));
   return parts;
+}
+
+export const noCrownBuild: CrownBuild = { subCrown: 0, rise: 0, drop: 0, extra: [] };
+
+/** Where the crown build sits on a cabinet: its top, the face the mouldings go on, and the sub-crown. */
+export function crownLayout(c: Cabinet, s: ShopSettings) {
+  s = eff(c, s);
+  const b = { ...noCrownBuild, ...c.crownBuild };
+  // The sub-crown's face lines up with the door faces (or sits a door's thickness proud on inset jobs)
+  const subT = b.subCrown > 0 ? s.doorThickness : 0;
+  const top = c.height + b.rise;
+  return { build: b, top, subT, subBottom: top - b.subCrown, face: c.depth + subT, crownTop: top - b.drop };
 }
 
 /** How far the face frame actually sticks out past each case side once real plywood thickness is counted. */
 export const realOverhang = (s: ShopSettings) => s.ffOverhang + (s.boxThickness - s.boxActualThickness);
+
+/** Flat sub-crown (solid stock, ripped with the face frames) and the plywood nailer that raises it. */
+function crownParts(c: Cabinet, s: ShopSettings, ends: EndInfo): Part[] {
+  const L = crownLayout(c, s);
+  const { build: b, subT } = L;
+  const out: Part[] = [];
+  const ext = panelExtents(c, s, ends);
+  const x0 = -ext.left, x1 = c.width + ext.right;
+  const nt = s.boxActualThickness;
+  if (b.rise > 0) {
+    // Nailer screwed to the cabinet top, behind the face frame, for the sub-crown and crown to land on
+    out.push({ name: 'Crown nailer', role: 'nailer', material: 'box', length: c.width, width: b.rise, thickness: s.boxThickness, cut: true,
+      note: `on the cabinet top, raises the crown ${fmtShort(b.rise)}`,
+      boxes: [vb(0, c.height, c.depth - nt, c.width, b.rise, nt)] });
+    for (const side of ['left', 'right'] as const) {
+      if (!ends[side]) continue;
+      out.push({ name: 'Crown nailer return', role: 'nailer', material: 'box', length: c.depth - nt, width: b.rise, thickness: s.boxThickness, cut: true,
+        boxes: [vb(side === 'left' ? 0 : c.width - nt, c.height, 0, nt, b.rise, c.depth - nt)] });
+    }
+  }
+  if (subT > 0) {
+    const h = b.subCrown;
+    const xl = x0 - (ends.left ? subT : 0), xr = x1 + (ends.right ? subT : 0);
+    out.push({ name: 'Sub-crown', role: 'trim', material: 'faceframe', length: xr - xl, width: h, thickness: subT, cut: true,
+      note: 'flat, face flush with the doors; crown goes on its face',
+      boxes: [vb(xl, L.subBottom, c.depth, xr - xl, h, subT)] });
+    for (const side of ['left', 'right'] as const) {
+      if (!ends[side]) continue;
+      out.push({ name: 'Sub-crown return', role: 'trim', material: 'faceframe', length: c.depth, width: h, thickness: subT, cut: true,
+        boxes: [vb(side === 'left' ? xl : x1, L.subBottom, 0, subT, h, c.depth)] });
+    }
+  }
+  return out;
+}
 
 /**
  * The top of a base cabinet: stone by others, or a solid wood top / bench seat glued up in the shop.

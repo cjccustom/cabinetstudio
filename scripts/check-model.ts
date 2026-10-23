@@ -33,7 +33,7 @@ eq('fmt 3/32', fmt(3 / 32), '3/32"');
 eq('fmt rounds odd values to 1/16', fmt(0.7), '11/16"');
 
 const p = sampleProject();
-const s = defaultSettings;
+const s = { ...defaultSettings, endPanel: 'flush' as const };
 
 // Cody's example: a 21" base, nominal 3/4" stock, 1/4" dados -> bottom & stretchers at 20"
 const b21 = { ...p.cabinets.find((c) => c.name === 'B1')!, width: 21 };
@@ -284,7 +284,9 @@ eq('panel sticks out past frame', panelExtents(b21, s, { left: true, right: fals
   eq('rail and stile', cfg['Rail and Stile Width'], '2-1/4"');
   eq('framing bead', cfg['Framing Bead'], '5pc - C (Hartford)');
   eq('hinge holes', cfg['Hinge Holes'], 'A-03 (cup only 3mm tab (1/8"))');
-  eq('end panels go on the door request as Panel', reqs[0].lines.some((l) => l[1] === 'Panel'), true);
+  eq('no end panels by default', reqs[0].lines.some((l) => l[1] === 'Panel'), false);
+  const paneled = eagleRequests({ ...job, settings: { ...job.settings, endPanel: 'flush' } });
+  eq('end panels go on the door request as Panel', paneled[0].lines.some((l) => l[1] === 'Panel'), true);
   eq('fronts have no hinge holes', Object.fromEntries(reqs[1].config)['Hinge Holes'], 'None');
   eq('box columns', reqs[2].columns.slice(1, 5).join(), 'Qty,Height,Width,Depth');
   eq('box material', Object.fromEntries(reqs[2].config)['Drawer material'], '1/2 maple');
@@ -338,6 +340,29 @@ eq('panel sticks out past frame', panelExtents(b21, s, { left: true, right: fals
   const sup = priceQuote(job).materials.find((m) => m.label.startsWith('Shop supplies'))!;
   eq('quote carries shop supplies', Math.abs(sup.cost - lines.filter((l) => l.group === 'cabinets').reduce((t, l) => t + l.cost, 0)) < 0.01, true);
   console.log('  supplies:', lines.filter((l) => l.qty).map((l) => `${l.item.label} ${l.qty.toFixed(0)} = $${l.cost.toFixed(2)}`).join('; '));
+}
+
+// Crown build: sub-crown flush with the doors, raised on a nailer, crown and a bed mould stacked on it
+{
+  const job = normalize(sampleProject());
+  const w = job.cabinets.find((c) => c.name === 'W1')!;
+  const crownNum = amCatalog.find((x) => x.category === 'Crown' && x.shape)!.num;
+  const bed = amCatalog.find((x) => x.category === 'Crown' && x.shape && x.num !== crownNum)!.num;
+  const built = { ...w, crown: crownNum, crownBuild: { subCrown: 3, rise: 1.5, drop: 0, extra: [bed] } };
+  const ends = resolveEnds(job.room, job.cabinets, w);
+  const parts = buildParts(built, job.settings, ends);
+  const sub = parts.find((x) => x.name === 'Sub-crown')!;
+  eq('sub-crown is face frame stock', sub.material, 'faceframe');
+  eq('sub-crown face flush with doors', sub.boxes[0].min[2] + sub.boxes[0].size[2], w.depth + job.settings.doorThickness);
+  eq('sub-crown top at the raised top', sub.boxes[0].min[1] + sub.boxes[0].size[1], w.height + 1.5);
+  eq('nailer raises the build', parts.find((x) => x.name === 'Crown nailer')!.width, 1.5);
+  const ms = cabinetMoldings(built, job.settings, ends).filter((m) => m.facing === 'front');
+  eq('crown and bed mould both run', ms.length, 2);
+  eq('crown on the sub-crown face', ms[0].z, w.depth + job.settings.doorThickness);
+  eq('crown top at the top of the build', Math.abs(ms[0].y + mountShape(amCatalog.find((x) => x.num === crownNum)!).height - (w.height + 1.5)) < 1e-9, true);
+  eq('bed mould right under the crown', Math.abs(ms[1].y + mountShape(amCatalog.find((x) => x.num === bed)!).height - ms[0].y) < 1e-9, true);
+  const plain = cabinetMoldings({ ...w, crown: crownNum }, job.settings, ends).find((m) => m.facing === 'front')!;
+  eq('no build: crown on the face frame, top at cabinet top', plain.z, w.depth);
 }
 
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');
