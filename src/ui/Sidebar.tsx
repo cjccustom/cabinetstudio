@@ -94,7 +94,8 @@ function PresetGlyph({ rows, w, h, kind }: { rows: { type: string; doors: number
   const scale = 40 / Math.max(h, 34.5);
   const W = Math.max(14, w * scale);
   const H = h * scale;
-  const kick = kind === 'wall' ? 0 : 4 * scale;
+  // Pilasters and floating shelves have no toe kick or face frame openings
+  const kick = kind === 'base' || kind === 'tall' ? 4 * scale : 0;
   const fixed = rows.reduce((s, r) => s + (r.h ?? 0), 0) * scale;
   const autos = rows.filter((r) => r.h == null).length || 1;
   const inner = H - kick - 3;
@@ -103,7 +104,7 @@ function PresetGlyph({ rows, w, h, kind }: { rows: { type: string; doors: number
   return (
     <svg className="glyph" width="44" height="44" viewBox="0 0 44 44" aria-hidden="true">
       <g transform={`translate(${(44 - W) / 2} ${(44 - H) / 2})`}>
-      <rect x="0" y="0" width={W} height={H - kick} className="g-frame" />
+      <rect x="0" y="0" width={W} height={Math.max(1, H - kick)} className="g-frame" />
       {kick > 0 && <rect x="1.5" y={H - kick} width={W - 3} height={kick} className="g-kick" />}
       {rows.map((r, i) => {
         const rh = r.h != null ? r.h * scale : autoH;

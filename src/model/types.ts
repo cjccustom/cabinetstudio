@@ -237,6 +237,8 @@ export interface Project {
   faceFrame?: Partial<import('./faceframe').FaceFrameStock>;
   quote?: Partial<import('./quote').QuoteSettings>;
   release?: Partial<import('./release').ReleaseState>;
+  /** This design's job on the shop clock. */
+  shopJobId?: string;
 }
 
 export type MaterialKey = 'box' | 'back' | 'toeSkin' | 'faceframe' | 'door' | 'drawerBox' | 'counter' | 'solidWood';

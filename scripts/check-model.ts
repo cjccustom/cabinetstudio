@@ -16,6 +16,7 @@ import { fieldChecks, releaseStatus } from "../src/model/release";
 import { eagleFraction, eagleRequests, requestText } from "../src/model/eagleRequest";
 import { hardwareOrder, tierPrice } from "../src/model/hardware";
 import { defaultSupplies, supplyDrivers, supplyLines } from "../src/model/supplies";
+import { jobNumbers, phaseOf, starterTodos } from "../src/shop/fromDesign";
 
 let failed = 0;
 const eq = (label: string, got: unknown, want: unknown) => {
@@ -419,6 +420,21 @@ eq('panel sticks out past frame', panelExtents(b21, s, { left: true, right: fals
   eq('stain grade face in the wood species', stain.find((x) => x.name === 'Shelf face')!.material, 'solidWood');
   eq('stain grade plywood', stain.find((x) => x.name === 'Shelf top')!.sheet, '3/4" hard maple plywood');
   eq('floating shelf labor', priceQuote(lib).hours.some((h) => h.label.startsWith('Floating shelves')), true);
+}
+
+// Shop clock: job numbers and to-dos from the design
+{
+  const job = normalize(sampleProject());
+  const r = priceQuote(job);
+  const n = jobNumbers(job);
+  eq('clock quote = quote total', n.quote, Math.round(r.total));
+  eq('estimate split by task adds up', Math.abs(Object.values(n.estByPhase!).reduce((t, v) => t + v!, 0) - n.estHours) < 0.5, true);
+  eq('install lines go to Install', phaseOf({ group: 'cabinets', label: 'Install cabinets', qty: 1, each: 1, hours: 1, install: true }), 'Install');
+  eq('doors go to Doors & drawers', phaseOf({ group: 'cabinets', label: 'Doors (fit & hang)', qty: 1, each: 1, hours: 1 }), 'Doors & drawers');
+  const todos = starterTodos(job);
+  eq('to-dos: three Eagle requests', todos.filter((t) => t.startsWith('Eagle quote request')).length, 3);
+  eq('to-dos: hardware and sheet goods', todos.some((t) => t.includes('Woodworker Express')) && todos.some((t) => t.startsWith('Buy sheet goods')), true);
+  console.log('  todos:', todos.join(' | '));
 }
 
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');

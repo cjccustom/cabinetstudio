@@ -7,6 +7,7 @@ import { OrderList, PartsTable } from './ui/PartsTable';
 import { ReleasePanel } from './ui/Release';
 import { EagleRequests } from './ui/EagleRequests';
 import { HardwareOrder } from './ui/HardwareOrder';
+import { JobClock, JobMain, JobSide } from './ui/Job';
 import { ProjectDialog } from './ui/ProjectDialog';
 import { DrawerCalculator } from './ui/DrawerCalculator';
 import { PanelInspector } from './ui/PanelInspector';
@@ -48,7 +49,7 @@ export default function App() {
   useKeyboard();
 
   return (
-    <div className="app">
+    <div className={`app mode-${mode}`}>
       <header className="topbar">
         <div className="brand">
           <span className="mark" aria-hidden="true" />
@@ -60,6 +61,7 @@ export default function App() {
           <button role="tab" aria-selected={mode === 'cutlist'} className={mode === 'cutlist' ? 'on' : ''} onClick={() => setMode('cutlist')}>Sheet cutlist</button>
           <button role="tab" aria-selected={mode === 'faceframe'} className={mode === 'faceframe' ? 'on' : ''} onClick={() => setMode('faceframe')}>Solid wood</button>
           <button role="tab" aria-selected={mode === 'quote'} className={mode === 'quote' ? 'on' : ''} onClick={() => setMode('quote')}>Quote</button>
+          <button role="tab" aria-selected={mode === 'job'} className={mode === 'job' ? 'on' : ''} onClick={() => setMode('job')}>Job & clock</button>
         </div>
         {mode === 'design' && <div className="seg views" role="tablist" aria-label="View">
           {views.map((v, i) => (
@@ -81,6 +83,12 @@ export default function App() {
           <CutlistInputs />
           <CutlistLayouts />
           <CutlistSummary />
+        </>
+      ) : mode === 'job' ? (
+        <>
+          <JobClock />
+          <JobMain />
+          <JobSide />
         </>
       ) : mode === 'quote' ? (
         <>

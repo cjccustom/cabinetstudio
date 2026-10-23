@@ -320,3 +320,64 @@ tr.missing td { color: var(--warn); }
 .row-inline { display: flex; gap: 6px; align-items: center; margin: 4px 0; }
 .row-inline input.len { width: 90px; }
 h4.sub { margin: 10px 0 4px; font-size: 12px; }
+
+/* Job & shop clock */
+.shop-clock { padding: 14px 16px; overflow: auto; }
+.clock-top { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 10px; }
+.clock-top h3 { margin: 2px 0 0; }
+.clock-top .today { text-align: right; }
+.eyebrow { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.row-between { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.clock-card { display: flex; flex-direction: column; gap: 10px; border: 1px solid var(--line, #ddd); border-radius: 10px; padding: 12px; }
+.clock-card.running { border-color: var(--ok); }
+.elapsed { font-size: 34px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.pill { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: var(--line, #e5e5e5); }
+.pill.live { background: var(--ok); color: #fff; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { font-size: 12px; padding: 5px 9px; border-radius: 999px; }
+.chip[aria-pressed="true"], .jobpick[aria-pressed="true"] { outline: 2px solid var(--accent, #2563eb); outline-offset: -1px; }
+.joblist { display: flex; flex-direction: column; gap: 6px; }
+.jobpick { display: flex; justify-content: space-between; gap: 8px; text-align: left; padding: 8px 10px; }
+button.big { padding: 12px; font-size: 15px; font-weight: 600; }
+button.big.stop { background: var(--warn); color: #fff; border-color: var(--warn); }
+.entries { display: flex; flex-direction: column; gap: 4px; margin: 4px 0 10px; }
+.entry { display: flex; justify-content: space-between; gap: 8px; text-align: left; padding: 6px 8px; }
+.entry b { display: block; }
+.entry small { color: var(--muted); }
+.entry-form { display: flex; flex-direction: column; gap: 6px; border: 1px solid var(--line, #ddd); border-radius: 8px; padding: 8px; margin: 6px 0; }
+.job-stage { padding: 20px 24px; overflow: auto; display: block; }
+.job-stage h3 { margin: 22px 0 8px; }
+.job-start { max-width: 640px; }
+.job-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+.job-head .name-input { font-size: 22px; font-weight: 600; display: block; }
+.client-input { display: block; margin-top: 4px; }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin: 12px 0; }
+.stat { display: flex; flex-direction: column; gap: 2px; border: 1px solid var(--line, #ddd); border-radius: 8px; padding: 10px; }
+.stat b { font-size: 20px; }
+.good { color: var(--ok); }
+.bad { color: var(--warn); }
+.tape { position: relative; height: 14px; border-radius: 7px; background: var(--line, #e5e5e5); overflow: hidden; }
+.tape .used { position: absolute; inset: 0 auto 0 0; background: var(--accent, #2563eb); }
+.tape .mark { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--muted); }
+.tape .mark.be { background: var(--warn); }
+.tape-legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; margin-top: 6px; }
+.tape-legend .k { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+.tape-legend .k.used { background: var(--accent, #2563eb); }
+.tape-legend .k.est { background: var(--muted); }
+.tape-legend .k.be { background: var(--warn); }
+tr.total td { font-weight: 600; }
+.todos { list-style: none; padding: 0; margin: 0 0 8px; display: flex; flex-direction: column; gap: 4px; }
+.todos li { display: flex; justify-content: space-between; align-items: flex-start; gap: 6px; font-size: 13px; }
+.todos li label { display: flex; gap: 6px; align-items: flex-start; }
+.todos li.done span { text-decoration: line-through; color: var(--muted); }
+.todo-add { display: flex; gap: 6px; }
+.todo-add input { flex: 1; min-width: 0; }
+.job-notes { width: 100%; box-sizing: border-box; font: inherit; }
+button.danger { color: var(--warn); }
+
+.job-head > div:first-child { flex: 1; min-width: 240px; }
+.job-head .name-input { width: 100%; box-sizing: border-box; }
+@media (max-width: 860px) {
+  /* On a phone the clock comes first */
+  .app.mode-job { grid-template-rows: auto auto auto auto; grid-template-areas: "top" "side" "stage" "panel"; }
+}
