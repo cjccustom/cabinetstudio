@@ -365,6 +365,35 @@ eq('panel sticks out past frame', panelExtents(b21, s, { left: true, right: fals
   eq('no build: crown on the face frame, top at cabinet top', plain.z, w.depth);
 }
 
+// Library pilasters between base + bookcase bays
+{
+  const job = normalize(sampleProject());
+  const P = (id: string) => presets.find((x) => x.id === id)!;
+  const crownNum = amCatalog.find((x) => x.category === 'Crown' && x.shape)!.num;
+  const baseNum = amCatalog.find((x) => x.category.startsWith('Base Board') && x.shape)!.num;
+  const cabs: any[] = [];
+  const pil = { ...cabinetFromPreset(P('pilaster'), 'back', 0, cabs), baseMold: baseNum, crown: crownNum };
+  cabs.push(pil);
+  const lb = { ...cabinetFromPreset(P('library-base'), 'back', 5.5, cabs) };
+  cabs.push(lb);
+  const up = { ...cabinetFromPreset(P('library-upper'), 'back', 5.5, cabs) };
+  cabs.push(up);
+  const lib = { ...job, cabinets: cabs };
+  const ends = resolveEnds(lib.room, lib.cabinets, pil);
+  const parts = buildParts(pil, lib.settings, ends);
+  eq('pilaster: two panels split at the base top', parts.filter((x) => x.name === 'Pilaster panel').length, 2);
+  eq('pilaster: plinth, band and capital', ['Plinth block', 'Pilaster band', 'Capital block'].every((n) => parts.some((x) => x.name === n)), true);
+  eq('pilaster panels go to Eagle as panels', eagleRequests(lib)[0].lines.filter((l) => l[1] === 'Panel').length >= 1, true);
+  const ms = cabinetMoldings(pil, lib.settings, ends);
+  const baseRet = ms.find((m) => m.facing === 'right' && m.num === baseNum)!;
+  eq('base moulding returns to the base cabinet door face', baseRet.z, lb.depth + 0.75);
+  const crownRet = ms.find((m) => m.facing === 'right' && m.num === crownNum)!;
+  eq('crown returns to the bookcase face', crownRet.z, up.depth + 0.75);
+  eq('left return runs to the wall (nothing beside it)', ms.find((m) => m.facing === 'left' && m.num === baseNum)!.z, 0);
+  eq('neighbour beside a pilaster is not exposed', resolveEnds(lib.room, lib.cabinets, lb).left, false);
+  eq('pilaster labor', priceQuote(lib).hours.some((h) => h.label.startsWith('Pilasters')), true);
+}
+
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');
 
 console.log(failed ? `${failed} check(s) failed` : 'All model checks passed');

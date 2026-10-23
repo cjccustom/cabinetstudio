@@ -1,5 +1,5 @@
 export type WallId = 'back' | 'left' | 'right' | 'front';
-export type CabinetKind = 'base' | 'wall' | 'tall';
+export type CabinetKind = 'base' | 'wall' | 'tall' | 'pilaster';
 
 /** One horizontal band of the face frame, top to bottom, separated by mid rails. */
 export interface FaceRow {
@@ -56,6 +56,22 @@ export interface Cabinet {
   baseMold?: string;
   /** How the crown is built up on top of the cabinet. */
   crownBuild?: CrownBuild;
+  /** Pilaster details (kind 'pilaster'). Its depth runs from the wall to the panel face. */
+  pilaster?: PilasterSpec;
+}
+
+/** Full-height pilaster between built-in sections: plywood sides, Eagle panels on the face, solid plinth and capital. */
+export interface PilasterSpec {
+  /** Plinth block at the floor; the base moulding wraps it. */
+  plinth: number;
+  /** Capital block at the top, under the frieze and crown. */
+  capital: number;
+  /** Heights off the floor where the panel breaks with a solid band (e.g. at the base cabinet top). */
+  breaks: number[];
+  /** Height of each band at a break. */
+  band: number;
+  /** How far the plinth, bands and capital stand proud of the panel face. */
+  proud: number;
 }
 
 /**

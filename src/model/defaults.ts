@@ -72,8 +72,8 @@ export interface Preset {
   countertop?: boolean;
   blind?: Cabinet['blind'];
   corner?: Cabinet['corner'];
-  group?: 'corner' | 'mudroom';
-  top?: Pick<Cabinet, 'topKind' | 'topThickness' | 'topFront' | 'topLeft' | 'topRight'>;
+  group?: 'corner' | 'mudroom' | 'library';
+  top?: Pick<Cabinet, 'topKind' | 'topThickness' | 'topFront' | 'topLeft' | 'topRight' | 'pilaster'>;
 }
 
 export const presets: Preset[] = [
@@ -111,11 +111,18 @@ export const presets: Preset[] = [
     rows: () => [row('doors', null, 2, 0)] },
   { id: 'tall-pantry', label: 'Tall pantry', kind: 'tall', width: 24, height: 84, depth: 24, elevation: 0,
     rows: () => [row('doors', null, 2, 2), row('doors', 46, 2, 3)] },
+  // Library: base cabinets with a paint-grade top, open bookcases sitting on them, pilasters between
+  { id: 'library-base', label: 'Library base, 2 doors', kind: 'base', width: 30, height: 30, depth: 16, elevation: 0, countertop: true, group: 'library',
+    top: { topKind: 'wood', topThickness: 1, topFront: 0.5 }, rows: () => [row('doors', null, 2, 1)] },
+  { id: 'library-upper', label: 'Bookcase upper, open', kind: 'wall', width: 30, height: 56, depth: 12, elevation: 31, group: 'library',
+    rows: () => [row('open', null, 1, 4)] },
+  { id: 'pilaster', label: 'Pilaster, recessed panel', kind: 'pilaster', width: 5.5, height: 87, depth: 17.5, elevation: 0, group: 'library',
+    top: { pilaster: { plinth: 6, capital: 3.5, breaks: [30.5], band: 1.5, proud: 0.25 } }, rows: () => [] },
   { id: 'tall-open', label: 'Tall, open shelves', kind: 'tall', width: 18, height: 84, depth: 12, elevation: 0,
     rows: () => [row('open', null, 1, 5)] },
 ];
 
-const prefix: Record<CabinetKind, string> = { base: 'B', wall: 'W', tall: 'T' };
+const prefix: Record<CabinetKind, string> = { base: 'B', wall: 'W', tall: 'T', pilaster: 'P' };
 
 export function nextName(kind: CabinetKind, cabinets: Cabinet[]): string {
   const p = prefix[kind];

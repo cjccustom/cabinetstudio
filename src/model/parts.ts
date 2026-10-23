@@ -1,6 +1,7 @@
 import type { CrownBuild, Cabinet, Part, PanelMode, ShopSettings, VisualBox } from './types';
 import { drawerBoxSize, narrowRail, narrowRailBelow, styleById, type DoorProfile, panelByCode } from './eagle';
 import { buildCornerParts } from './corner';
+import { pilasterOf, pilasterParts } from './pilaster';
 import { fmt as fmtShort, fmt } from '../units';
 
 export const vb = (x: number, y: number, z: number, sx: number, sy: number, sz: number, shade?: number): VisualBox => ({
@@ -81,7 +82,12 @@ export function frontBoxes(x: number, y: number, z: number, w: number, h: number
   return out;
 }
 
-export interface EndInfo { left: boolean; right: boolean }
+export interface EndInfo {
+  left: boolean;
+  right: boolean;
+  /** Pilasters: how far out from the wall the neighbour's face is at a height, so returns die into it. */
+  faceAt?: (side: 'left' | 'right', y: number) => number;
+}
 
 /** The end panel actually used on one side: only exposed ends get one. */
 export function panelOn(c: Cabinet, s: ShopSettings, side: 'left' | 'right', exposed: boolean): PanelMode {
@@ -93,6 +99,7 @@ export function panelOn(c: Cabinet, s: ShopSettings, side: 'left' | 'right', exp
 
 /** How far end panels stick out past the face frame on each side (they sit on the case side, just inside the frame edge). */
 export function panelExtents(c: Cabinet, s: ShopSettings, ends: EndInfo) {
+  if (c.kind === 'pilaster') return { left: 0, right: 0 };
   s = eff(c, s);
   const over = s.ffOverhang + s.boxThickness - s.boxActualThickness;
   const out = (scribe: number) => Math.max(0, s.endPanelThickness - scribe - over);
@@ -112,6 +119,7 @@ export function panelExtents(c: Cabinet, s: ShopSettings, ends: EndInfo) {
 export function buildParts(c: Cabinet, s: ShopSettings, ends: EndInfo = { left: false, right: false }): Part[] {
   s = eff(c, s);
   if (c.corner) return buildCornerParts(c, s);
+  if (c.kind === 'pilaster') return [...pilasterParts(c, s), ...crownParts(c, s, ends)];
   const parts: Part[] = [];
   const { width: W, height: H, depth: D } = c;
   const tn = s.boxThickness;
@@ -411,7 +419,10 @@ export function crownLayout(c: Cabinet, s: ShopSettings) {
   // The sub-crown's face lines up with the door faces (or sits a door's thickness proud on inset jobs)
   const subT = b.subCrown > 0 ? s.doorThickness : 0;
   const top = c.height + b.rise;
-  return { build: b, top, subT, subBottom: top - b.subCrown, face: c.depth + subT, crownTop: top - b.drop };
+  // On a pilaster the frieze breaks out flush with the capital block
+  const back = c.kind === 'pilaster' ? c.depth + pilasterOf(c).proud - subT : c.depth;
+  const face = c.kind === 'pilaster' && !subT ? c.depth + pilasterOf(c).proud : back + subT;
+  return { build: b, top, subT, back, subBottom: top - b.subCrown, face, crownTop: top - b.drop };
 }
 
 /** How far the face frame actually sticks out past each case side once real plywood thickness is counted. */
@@ -441,11 +452,13 @@ function crownParts(c: Cabinet, s: ShopSettings, ends: EndInfo): Part[] {
     const xl = x0 - (ends.left ? subT : 0), xr = x1 + (ends.right ? subT : 0);
     out.push({ name: 'Sub-crown', role: 'trim', material: 'faceframe', length: xr - xl, width: h, thickness: subT, cut: true,
       note: 'flat, face flush with the doors; crown goes on its face',
-      boxes: [vb(xl, L.subBottom, c.depth, xr - xl, h, subT)] });
+      boxes: [vb(xl, L.subBottom, L.back, xr - xl, h, subT)] });
     for (const side of ['left', 'right'] as const) {
       if (!ends[side]) continue;
-      out.push({ name: 'Sub-crown return', role: 'trim', material: 'faceframe', length: c.depth, width: h, thickness: subT, cut: true,
-        boxes: [vb(side === 'left' ? xl : x1, L.subBottom, 0, subT, h, c.depth)] });
+      const z0 = ends.faceAt ? ends.faceAt(side, L.subBottom + h / 2) : 0;
+      if (L.back - z0 < 0.25) continue;
+      out.push({ name: 'Sub-crown return', role: 'trim', material: 'faceframe', length: L.back - z0, width: h, thickness: subT, cut: true,
+        boxes: [vb(side === 'left' ? xl : x1, L.subBottom, z0, subT, h, L.back - z0)] });
     }
   }
   return out;

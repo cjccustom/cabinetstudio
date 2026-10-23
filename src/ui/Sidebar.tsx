@@ -47,6 +47,7 @@ function Library() {
     { kind: 'tall', title: 'Tall', corner: false },
     { kind: 'corner', title: 'Corners', corner: true },
     { kind: 'mudroom', title: 'Mudroom & built-ins', corner: true },
+    { kind: 'library', title: 'Library & pilasters', corner: true },
   ] as const;
   return (
     <div>

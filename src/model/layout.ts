@@ -1,3 +1,4 @@
+import type { EndInfo } from './parts';
 import type { Cabinet, Room, ShopSettings, WallId } from './types';
 import { panelExtents } from './parts';
 
@@ -146,7 +147,8 @@ function toRoom(room: Room, c: Cabinet, lx: number, lz: number): [number, number
  * another cabinet (on any wall, so corners count), the side is hidden; otherwise it's a
  * finished end, unless the cabinet says otherwise.
  */
-export function resolveEnds(room: Room, cabinets: Cabinet[], c: Cabinet): { left: boolean; right: boolean } {
+export function resolveEnds(room: Room, cabinets: Cabinet[], c: Cabinet): EndInfo {
+  if (c.kind === 'pilaster') return { left: true, right: true, faceAt: (side, y) => neighbourFace(cabinets, c, side, y) };
   const probe = 0.0625;
   const tol = 0.125;
   const others = cabinets
@@ -168,6 +170,20 @@ export function resolveEnds(room: Room, cabinets: Cabinet[], c: Cabinet): { left
   const autoRight = !covered(toRoom(room, c, ...rightPt));
   const pick = (mode: Cabinet['leftEnd'], auto: boolean) => (mode === 'exposed' ? true : mode === 'hidden' ? false : auto);
   return { left: pick(c.leftEnd, autoLeft), right: pick(c.rightEnd, autoRight) };
+}
+
+/** Front of whatever butts against a cabinet's side at a height: face frame plus an overlay door, or 0. */
+export function neighbourFace(cabinets: Cabinet[], c: Cabinet, side: 'left' | 'right', y: number, tol = 0.25): number {
+  const edge = side === 'left' ? c.offset : c.offset + c.width;
+  let face = 0;
+  for (const o of cabinets) {
+    if (o.id === c.id || o.wall !== c.wall || y < o.elevation - 1e-6 || y > o.elevation + o.height + 1e-6) continue;
+    const touch = side === 'left' ? Math.abs(o.offset + o.width - edge) <= tol : Math.abs(o.offset - edge) <= tol;
+    if (!touch) continue;
+    const front = o.kind === 'pilaster' ? o.depth : o.depth + 0.75;
+    face = Math.max(face, front);
+  }
+  return Math.min(face, c.depth);
 }
 
 /**

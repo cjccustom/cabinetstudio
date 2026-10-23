@@ -1,6 +1,7 @@
 import { useStore } from '../store';
 import type { Cabinet, CrownBuild, EndMode, FaceRow, PanelChoice, PanelMode, WallId } from '../model/types';
 import { buildParts, crownLayout, layoutRows, noCrownBuild, panelOn } from '../model/parts';
+import { defaultPilaster, pilasterOf, pilasterSections } from '../model/pilaster';
 import { gapBeside, resolveEnds, wallLength, wallNames, wallOrder } from '../model/layout';
 import { panelLabel } from '../model/eagle';
 import { uid } from '../model/defaults';
@@ -10,7 +11,7 @@ import { OrderList, PartsTable } from './PartsTable';
 import { OverridesSection } from './Overrides';
 import { MoldSlot } from './ProfilePicker';
 
-const kindLabel = { base: 'Base cabinet', wall: 'Wall cabinet', tall: 'Tall cabinet' };
+const kindLabel = { base: 'Base cabinet', wall: 'Wall cabinet', tall: 'Tall cabinet', pilaster: 'Pilaster' };
 const rowTypes: { v: FaceRow['type']; label: string }[] = [
   { v: 'drawer', label: 'Drawer' },
   { v: 'doors', label: 'Doors' },
@@ -73,7 +74,8 @@ export function Inspector({ cab, issues }: { cab: Cabinet; issues: string[] }) {
       </Section>
 
       {(cab.blind || cab.corner) && <CornerSection cab={cab} set={set} />}
-      {!cab.corner && (
+      {cab.kind === 'pilaster' && <PilasterSection cab={cab} set={set} />}
+      {!cab.corner && cab.kind !== 'pilaster' && (
       <>
       <Section
         title="Face frame openings"
@@ -166,6 +168,7 @@ export function Inspector({ cab, issues }: { cab: Cabinet; issues: string[] }) {
       <Section title="Mouldings (Anderson & McQuaid)">
         {(['crown', 'lightRail', 'baseMold'] as const)
           .filter((k) => (k === 'crown' ? cab.kind !== 'base' : k === 'lightRail' ? cab.kind === 'wall' : cab.kind !== 'wall'))
+          .filter((k) => cab.kind !== 'pilaster' || k !== 'lightRail')
           .map((k) => (
             <MoldSlot
               key={k}
@@ -186,6 +189,8 @@ export function Inspector({ cab, issues }: { cab: Cabinet; issues: string[] }) {
 
       <OverridesSection cab={cab} settings={settings} set={set} />
 
+      {cab.kind !== 'pilaster' && (
+      <>
       <Section title="Ends, panels & scribes">
         <div className="ends">
           {(['left', 'right'] as const).map((side) => {
@@ -236,6 +241,8 @@ export function Inspector({ cab, issues }: { cab: Cabinet; issues: string[] }) {
           {panels.length > 0 && <li>End panel{panels.length > 1 ? 's' : ''}: {panels.join('; ')}.</li>}
         </ul>
       </Section>
+      </>
+      )}
 
       <Section title="Cut parts">
         <PartsTable cabinets={[cab]} compact />
@@ -354,5 +361,39 @@ function CrownBuildEditor({ cab, set, species }: { cab: Cabinet; set: (patch: Pa
         {' '}Crown top: {fmt(L.crownTop)} off the cabinet bottom{L.top !== cab.height ? `, ${fmt(L.top - cab.height)} above the case` : ''}.
       </p>
     </div>
+  );
+}
+
+/** Plinth, capital and panel breaks on a pilaster. */
+function PilasterSection({ cab, set }: { cab: Cabinet; set: (patch: Partial<Cabinet>) => void }) {
+  const ps = pilasterOf(cab);
+  const all = useStore((s) => s.project.cabinets);
+  const put = (patch: Partial<typeof ps>) => set({ pilaster: { ...ps, ...patch } });
+  // Neighbours' tops on this wall, offered as break heights (the base cabinet top, typically)
+  const tops = [...new Set(all.filter((c) => c.wall === cab.wall && c.id !== cab.id && c.kind === 'base').map((c) => c.height + (c.countertop ? c.topThickness ?? 1.25 : 0)))].filter((h) => !ps.breaks.some((b) => Math.abs(b - h) < 1e-3));
+  return (
+    <Section title="Pilaster">
+      <div className="grid3">
+        <Field label="Plinth block" htmlFor="pil-plinth"><LengthInput id="pil-plinth" value={ps.plinth} onChange={(v) => put({ plinth: v ?? 0 })} /></Field>
+        <Field label="Capital block" htmlFor="pil-cap"><LengthInput id="pil-cap" value={ps.capital} onChange={(v) => put({ capital: v ?? 0 })} /></Field>
+        <Field label="Blocks proud of panel" htmlFor="pil-proud"><LengthInput id="pil-proud" value={ps.proud} onChange={(v) => put({ proud: v ?? 0 })} /></Field>
+      </div>
+      <h4 className="sub">Panel breaks</h4>
+      {ps.breaks.map((b, i) => (
+        <div key={i} className="row-inline">
+          <LengthInput id={`pil-brk-${i}`} value={b} onChange={(v) => put({ breaks: ps.breaks.map((x, j) => (j === i ? v ?? x : x)) })} />
+          <span className="muted">off the floor</span>
+          <button className="mini" onClick={() => put({ breaks: ps.breaks.filter((_, j) => j !== i) })}>Remove</button>
+        </div>
+      ))}
+      <div className="order-actions">
+        <button className="mini" onClick={() => put({ breaks: [...ps.breaks, Math.round(cab.height / 2)] })}>Add break</button>
+        {tops.map((h) => <button key={h} className="mini" onClick={() => put({ breaks: [...ps.breaks, h] })}>Break at base top ({fmt(h)})</button>)}
+        <Field label="Band at breaks" htmlFor="pil-band"><LengthInput id="pil-band" value={ps.band} onChange={(v) => put({ band: v ?? defaultPilaster.band })} /></Field>
+      </div>
+      <p className="hint">
+        {pilasterSections(cab).length} recessed panel{pilasterSections(cab).length > 1 ? 's' : ''} ordered from Eagle in the job’s door style, on a 3/4" plywood box. Depth runs from the wall to the panel face; set it so the pilaster stands proud of the cabinets beside it. Base moulding and crown wrap it and return to the neighbours.
+      </p>
+    </Section>
   );
 }

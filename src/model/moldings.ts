@@ -2,7 +2,8 @@
 // beadboard. Each run follows the cabinet face and returns along exposed ends.
 import type { Cabinet, Project, ShopSettings, WallPanel } from './types';
 import { amCatalog, type AMProfile } from './andersonMcquaid';
-import { crownLayout, panelExtents } from './parts';
+import { crownLayout, panelExtents, type EndInfo } from './parts';
+import { pilasterOf } from './pilaster';
 import { resolveEnds } from './layout';
 
 export type MoldKind = 'crown' | 'lightRail' | 'baseMold' | 'cap';
@@ -68,10 +69,11 @@ export interface MoldPiece {
 }
 
 /** Moulding pieces for one cabinet, in its own coordinates. */
-export function cabinetMoldings(c: Cabinet, s: ShopSettings, ends: { left: boolean; right: boolean }): MoldPiece[] {
+export function cabinetMoldings(c: Cabinet, s: ShopSettings, ends: EndInfo): MoldPiece[] {
   const out: MoldPiece[] = [];
   const ext = panelExtents(c, s, ends);
-  const doorFace = c.depth + s.doorThickness * (s.doorMount === 'inset' ? 0 : 1);
+  // Base runs on the door faces, or on a pilaster's plinth block
+  const doorFace = c.kind === 'pilaster' ? c.depth + pilasterOf(c).proud : c.depth + s.doorThickness * (s.doorMount === 'inset' ? 0 : 1);
   const runs: { kind: MoldKind; num?: string; y: (h: number) => number; z: number; hang?: boolean; out?: number }[] = [
     // Light rail hangs below the bottom, on the face frame
     { kind: 'lightRail', num: c.lightRail, y: () => 0, z: c.depth, hang: true },
@@ -101,9 +103,13 @@ export function cabinetMoldings(c: Cabinet, s: ShopSettings, ends: { left: boole
     const x0 = xl - (ends.left ? m.depth : 0);
     const x1 = xr + (ends.right ? m.depth : 0);
     out.push({ kind: r.kind, num: p.num, along: 'x', facing: 'front', x: x0, y, z: r.z, length: x1 - x0, hang: r.hang });
-    // Returns back to the wall on exposed ends
-    if (ends.left) out.push({ kind: r.kind, num: p.num, along: 'z', facing: 'left', x: xl, y, z: 0, length: r.z + m.depth, hang: r.hang });
-    if (ends.right) out.push({ kind: r.kind, num: p.num, along: 'z', facing: 'right', x: xr, y, z: 0, length: r.z + m.depth, hang: r.hang });
+    // Returns back to the wall on exposed ends, or back to the neighbour's face beside a pilaster
+    for (const side of ['left', 'right'] as const) {
+      if (!ends[side]) continue;
+      const z0 = ends.faceAt ? ends.faceAt(side, y + m.height / 2) : 0;
+      const len = r.z + m.depth - z0;
+      if (len > 0.01) out.push({ kind: r.kind, num: p.num, along: 'z', facing: side, x: side === 'left' ? xl : xr, y, z: z0, length: len, hang: r.hang });
+    }
   }
   return out;
 }

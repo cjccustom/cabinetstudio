@@ -31,6 +31,9 @@ export interface LaborStandards {
   moldingPerFt: number;
   beadboardPerSqFt: number;
   installPerBox: number;
+  /** Build one pilaster: box, panels, plinth, bands and capital. */
+  pilaster: number;
+  installPilaster: number;
   installTall: number;
   installDay: number;
   moldingInstallPerFt: number;
@@ -54,6 +57,8 @@ export const defaultStandards: LaborStandards = {
   moldingPerFt: 0.05,
   beadboardPerSqFt: 0.06,
   installPerBox: 1,
+  pilaster: 2,
+  installPilaster: 0.5,
   installTall: 0.5,
   installDay: 1,
   moldingInstallPerFt: 0.15,
@@ -134,6 +139,12 @@ export function estimateHours(p: Project, q: QuoteSettings): HourLine[] {
   if (p.cabinets.length || (p.panels ?? []).length) add('Drawings, ordering & setup', 1, st.jobSetup);
   let installHours = 0;
   for (const c of p.cabinets) {
+    if (c.kind === 'pilaster') {
+      add('Pilasters: box, panels, plinth & capital', 1, st.pilaster);
+      add('Install pilasters', 1, st.installPilaster, 'cabinets', true);
+      installHours += st.installPilaster;
+      continue;
+    }
     const s = eff(c, p.settings);
     const parts = buildParts(c, p.settings, resolveEnds(p.room, p.cabinets, c));
     const tall = c.height > 60;
@@ -296,6 +307,7 @@ export const newExtra = (): QuoteExtra => ({ id: uid('extra'), label: 'Additiona
 
 /** The scope line for one cabinet, in the wording the shop uses on its quotes. */
 export function scopeLine(c: Cabinet, p: Project): string {
+  if (c.kind === 'pilaster') return `${c.name}: Pilaster, approx ${fmtIn(c.width)}W x ${fmtIn(c.height)}H; recessed panel face with plinth and capital${c.crown ? '; crown molding' : ''}${c.baseMold ? '; baseboard' : ''}; paint grade`;
   const s = eff(c, p.settings);
   const parts = buildParts(c, p.settings, resolveEnds(p.room, p.cabinets, c));
   const n = (role: string) => parts.filter((x) => x.role === role).length;

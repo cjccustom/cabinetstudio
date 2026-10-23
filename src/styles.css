@@ -317,3 +317,6 @@ tr.missing td { color: var(--warn); }
 .supply-row > span { white-space: nowrap; }
 .crown-build { margin-top: 10px; border-top: 1px solid var(--line, #e3e3e3); padding-top: 8px; }
 .crown-build h4 { margin: 0 0 6px; font-size: 12px; }
+.row-inline { display: flex; gap: 6px; align-items: center; margin: 4px 0; }
+.row-inline input.len { width: 90px; }
+h4.sub { margin: 10px 0 4px; font-size: 12px; }
