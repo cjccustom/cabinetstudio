@@ -43,18 +43,19 @@ export const defaultFaceFrameStock: FaceFrameStock = {
   pricePerBF: 0,
 };
 
-export interface FFPiece { cabinet: string; name: string; width: number; length: number }
+export interface FFPiece { cabinet: string; name: string; width: number; length: number; species?: string }
 
-export function faceFramePieces(p: Project): FFPiece[] {
+/** Face frame stock pieces: the job's main species, or with `species`, the pieces called out in that one. */
+export function faceFramePieces(p: Project, species?: string): FFPiece[] {
   const out: FFPiece[] = [];
   for (const c of p.cabinets) {
     for (const part of buildParts(c, p.settings, resolveEnds(p.room, p.cabinets, c))) {
-      if (part.material !== 'faceframe' || !part.cut) continue;
-      out.push({ cabinet: c.name, name: part.name, width: part.width, length: part.length });
+      if (part.material !== 'faceframe' || !part.cut || (part.species ?? undefined) !== species) continue;
+      out.push({ cabinet: c.name, name: part.name, width: part.width, length: part.length, species });
     }
   }
   // Flat casing boards around doors and windows come out of the same stock
-  if (inScope(p, 'roomTrim')) for (const f of roomFlatStock(p)) out.push({ cabinet: 'Room', name: f.label, width: f.width, length: f.length });
+  if (!species && inScope(p, 'roomTrim')) for (const f of roomFlatStock(p)) out.push({ cabinet: 'Room', name: f.label, width: f.width, length: f.length });
   return out;
 }
 
@@ -172,3 +173,13 @@ export function woodNeeds(pieces: WoodPiece[], s: FaceFrameStock): WoodGroup[] {
     return { quarters: q, pieces: mine, roughBF, buyBF: roughBF * (1 + s.waste) };
   });
 }
+
+/** Other species called out on parts (poplar pilasters on a maple job), each with its own stock settings. */
+export function otherSpecies(p: Project): string[] {
+  const seen = new Set<string>();
+  for (const c of p.cabinets) for (const part of buildParts(c, p.settings, resolveEnds(p.room, p.cabinets, c))) if (part.species && part.material === 'faceframe') seen.add(part.species);
+  return [...seen].sort();
+}
+
+/** The face frame stock settings with another species and its price. */
+export const stockFor = (p: Project, species: string): FaceFrameStock => ({ ...defaultFaceFrameStock, ...p.faceFrame, species: `${species}, 4/4`, pricePerBF: p.speciesPrices?.[species] ?? 0 });

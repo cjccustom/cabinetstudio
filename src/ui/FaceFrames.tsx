@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useStore } from '../store';
-import { defaultFaceFrameStock, faceFrameNeeds, faceFramePieces, woodNeeds, woodPieces, type FaceFrameResult, type FaceFrameStock } from '../model/faceframe';
+import { defaultFaceFrameStock, faceFrameNeeds, faceFramePieces, otherSpecies, stockFor, woodNeeds, woodPieces, type FaceFrameResult, type FaceFrameStock } from '../model/faceframe';
 import { fmt, fmtFeet } from '../units';
 import { Field, LengthInput, Section } from './fields';
 
@@ -116,6 +116,8 @@ export function FaceFrameBreakdown() {
         </section>
       )}
 
+      <OtherSpecies />
+
       <section className="mat-block">
         <header><h2>Rip plan</h2><span className="muted">{result.boards.length} boards, {fmt(stock.boardWidth)} × {fmtFeet(stock.boardLength)}</span></header>
         <p className="hint" style={{ marginTop: -4 }}>Each bar is one rough board, widest strips first. Boards rarely come in one width, so treat this as a count. Your actual boards will lay out differently.</p>
@@ -132,6 +134,38 @@ export function FaceFrameBreakdown() {
         </div>
       </section>
     </main>
+  );
+}
+
+/** Pilasters (or anything else) built in a different species from the face frames, each with its own price. */
+function OtherSpecies() {
+  const project = useStore((s) => s.project);
+  const commit = useStore((s) => s.commit);
+  const list = useMemo(() => otherSpecies(project).map((sp) => {
+    const st = stockFor(project, sp);
+    return { sp, st, r: faceFrameNeeds(faceFramePieces(project, sp), st) };
+  }), [project]);
+  const [open, setOpen] = useState<string | null>(null);
+  return (
+    <>
+      {list.map(({ sp, st, r }) => (
+        <section key={sp} className="mat-block">
+          <header><h2>{sp}</h2><span className="muted">{Math.ceil(r.buyBF)} BF to buy · {r.boards.length} boards</span></header>
+          <div className="table-wrap">
+            <table className="ff-table">
+              <thead><tr><th className="num">Finished width</th><th className="num">Rip to</th><th className="num">Pieces</th><th className="num">Total length</th><th className="num">With allowances</th><th className="num">Longest</th><th className="num">{fmtFeet(st.boardLength)} strips</th><th /></tr></thead>
+              <tbody>{r.groups.map((g) => <FFRow key={g.width} g={g} open={open === `${sp}${g.width}`} toggle={() => setOpen(open === `${sp}${g.width}` ? null : `${sp}${g.width}`)} />)}</tbody>
+            </table>
+          </div>
+          <label className="field" htmlFor={`sp-${sp}`} style={{ maxWidth: 200 }}>
+            <span>{sp} $ per board foot</span>
+            <input id={`sp-${sp}`} inputMode="decimal" defaultValue={st.pricePerBF || ''}
+              onBlur={(e) => { const v = parseFloat(e.target.value); commit((p) => ({ ...p, speciesPrices: { ...p.speciesPrices, [sp]: Number.isFinite(v) ? v : 0 } })); }} />
+          </label>
+          <p className="hint">Milled with the same allowances and board size as the face frame stock. Used for pilasters set to {sp.toLowerCase()}.</p>
+        </section>
+      ))}
+    </>
   );
 }
 
@@ -168,6 +202,8 @@ function FFRow({ g, open, toggle }: { g: FaceFrameResult['groups'][number]; open
 
 export function FaceFrameSummary() {
   const { result: r, stock: s, jobName, wood } = useFF();
+  const project = useStore((st) => st.project);
+  const others = useMemo(() => otherSpecies(project).map((sp) => ({ sp, bf: faceFrameNeeds(faceFramePieces(project, sp), stockFor(project, sp)).buyBF })), [project]);
   const woodBF = wood.reduce((t, g) => t + g.buyBF, 0);
   const tax = useStore((st) => st.project.settings.purchaseTax);
   const [copied, setCopied] = useState('');
@@ -187,6 +223,7 @@ export function FaceFrameSummary() {
           <div className="big-stat"><span className="mono">{Math.ceil(r.buyBF + woodBF)}</span> board feet</div>
           {wood.map((g) => <p key={g.quarters} className="hint" style={{ marginTop: 0 }}>{g.quarters}/4 for tops, seats & caps: {Math.ceil(g.buyBF)} BF</p>)}
           <p className="hint" style={{ marginTop: 0 }}>Face frames (4/4): {Math.ceil(r.buyBF)} BF</p>
+          {others.map((o) => <p key={o.sp} className="hint" style={{ marginTop: 0 }}>{o.sp} (4/4): {Math.ceil(o.bf)} BF, listed separately</p>)}
           <table className="totals">
             <tbody>
               <tr><td>Finished face frames</td><td className="num">{r.netBF.toFixed(1)} BF</td></tr>

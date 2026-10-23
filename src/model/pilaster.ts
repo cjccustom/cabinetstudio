@@ -85,11 +85,11 @@ export function pilasterParts(c: Cabinet, settings: ShopSettings): Part[] {
     const y0 = ps.plinth, y1 = H - ps.capital;
     const railLen = W - 2 * ps.stile;
     for (const side of ['Left', 'Right'] as const) {
-      parts.push({ name: 'Pilaster stile', role: 'stile', material: 'faceframe', length: y1 - y0, width: ps.stile, thickness: ft, cut: true, note: side,
+      parts.push({ name: 'Pilaster stile', role: 'stile', material: 'faceframe', species: ps.species, length: y1 - y0, width: ps.stile, thickness: ft, cut: true, note: side,
         boxes: [vb(side === 'Left' ? 0 : W - ps.stile, y0, fz, ps.stile, y1 - y0, ft)] });
     }
     for (const r of pilasterRails(c)) {
-      parts.push({ name: r.name, role: 'rail', material: 'faceframe', length: railLen, width: r.y1 - r.y0, thickness: ft, cut: true,
+      parts.push({ name: r.name, role: 'rail', material: 'faceframe', species: ps.species, length: railLen, width: r.y1 - r.y0, thickness: ft, cut: true,
         boxes: [vb(ps.stile, r.y0, fz, railLen, r.y1 - r.y0, ft)] });
     }
     for (const o of pilasterOpenings(c)) {
@@ -106,7 +106,7 @@ export function pilasterParts(c: Cabinet, settings: ShopSettings): Part[] {
     }
   }
   const block = (name: string, y0: number, h: number, note: string): Part => ({
-    name, role: 'trim', material: 'faceframe', length: W, width: h, thickness: faceT + ps.proud, cut: true, note,
+    name, role: 'trim', material: 'faceframe', species: ps.species, length: W, width: h, thickness: faceT + ps.proud, cut: true, note,
     boxes: [vb(0, y0, back, W, h, faceT + ps.proud)],
   });
   if (ps.plinth > 0) parts.push(block('Plinth block', 0, ps.plinth, 'base moulding wraps it'));

@@ -74,6 +74,7 @@ export function QuoteInputs() {
           <div className="grid2">
             <Num id="q-eagle" label="Eagle prices, up or down" suffix="%" value={q.eagleAdjust * 100} onChange={(v) => set({ eagleAdjust: v / 100 })} />
             <Num id="q-bb" label="Beadboard sheet" suffix="$" value={q.beadboardSheet} onChange={(v) => set({ beadboardSheet: v })} />
+            <Num id="q-brk" label="Floating shelf bracket" suffix="$ each" value={q.shelfBracketEach} onChange={(v) => set({ shelfBracketEach: v })} />
           </div>
           <p className="hint">Plywood, maple and A&amp;M mouldings come from their own tabs. Blum hinges, slides and clips are priced from Woodworker Express’s price list. Eagle doors, fronts and drawer boxes are priced piece by piece from your 2026 Eagle orders (paint-grade maple, 5-piece). Raise the percentage after a price increase or for a pricier species.</p>
         </Section>

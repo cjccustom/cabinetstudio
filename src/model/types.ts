@@ -84,6 +84,8 @@ export interface PilasterSpec {
   rabbet: number;
   /** A&M panel or bead moulding mitered around each panel on the front. */
   panelMold?: string;
+  /** Stiles, rails, plinth and capital in this species; empty = the job's face frame stock. */
+  species?: string;
 }
 
 /** Floating shelf: 3/4" plywood top and bottom with a mitered solid face, open in the middle for the bracket. */
@@ -91,6 +93,8 @@ export interface FloatingShelfSpec {
   grade: 'paint' | 'stain';
   /** Solid face and end cap thickness. */
   face: number;
+  /** Floating shelf brackets; empty = one per stud at 16" centers. */
+  brackets?: number;
 }
 
 /**
@@ -291,6 +295,8 @@ export interface Project {
   shopJobId?: string;
   openings?: Opening[];
   roomTrim?: RoomTrim;
+  /** Price per board foot for solid stock in species other than the face frame stock, by species. */
+  speciesPrices?: Record<string, number>;
   /** Doors and room trim are drawn for the design; these put them in the quote and orders on jobs that include them. */
   scope?: { doors?: boolean; roomTrim?: boolean };
   floor?: Floor;
@@ -324,6 +330,8 @@ export interface Part {
   sheet?: string;
   /** How it's finished, when that isn't what its material suggests (painted MDF panels, stained shelf plywood). */
   look?: 'paint' | 'wood';
+  /** Solid stock in a different species from the job's face frame stock (poplar pilasters on a maple job). */
+  species?: string;
   length: number;
   width: number;
   thickness: number;

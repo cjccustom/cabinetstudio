@@ -5,7 +5,7 @@ import { findIssues, gapBeside, nextFreeOffset, resolveEnds } from "../src/model
 import { fmt, parseLength } from "../src/units";
 import { drawerBoxSize, eaglePrice, hingeHoles } from "../src/model/eagle";
 import { optimize } from "../src/model/optimizer";
-import { defaultFaceFrameStock, faceFrameNeeds, faceFramePieces, roughQuarters, woodPieces } from "../src/model/faceframe";
+import { defaultFaceFrameStock, faceFrameNeeds, faceFramePieces, otherSpecies, roughQuarters, woodPieces } from "../src/model/faceframe";
 import { panelAbove, panelOrder } from "../src/model/panels";
 import { amCatalog } from "../src/model/andersonMcquaid";
 import { cabinetMoldings, moldingOrder, mountShape } from "../src/model/moldings";
@@ -17,6 +17,7 @@ import { eagleFraction, eagleRequests, requestText } from "../src/model/eagleReq
 import { hardwareOrder, tierPrice } from "../src/model/hardware";
 import { defaultSupplies, supplyDrivers, supplyLines } from "../src/model/supplies";
 import { jobNumbers, phaseOf, starterTodos } from "../src/shop/fromDesign";
+import { bracketCount } from "../src/model/floatingShelf";
 import { broscoCatalog } from "../src/model/brosco";
 import { designByCode, doorDrawing, proportionsFor, stockSlab, tradeSize } from "../src/model/reeb";
 import { doorOrder } from "../src/model/doorOrder";
@@ -406,6 +407,11 @@ eq('panel sticks out past frame', panelExtents(b21, s, { left: true, right: fals
   eq('left return runs to the wall (nothing beside it)', ms.find((m) => m.facing === 'left' && m.num === baseNum)!.z, 0);
   eq('neighbour beside a pilaster is not exposed', resolveEnds(lib.room, lib.cabinets, lb).left, false);
   eq('pilaster labor', priceQuote(lib).hours.some((h) => h.label.startsWith('Pilasters')), true);
+  const poplar = { ...lib, cabinets: lib.cabinets.map((c: any) => (c.kind === 'pilaster' ? { ...c, pilaster: { ...c.pilaster, species: 'Poplar' } } : c)) };
+  eq('poplar pilaster: its own species on the Solid wood list', otherSpecies(poplar).join(), 'Poplar');
+  eq('poplar pieces leave the maple list', faceFramePieces(poplar).some((x) => x.name.startsWith('Pilaster')), false);
+  eq('poplar pieces counted', faceFramePieces(poplar, 'Poplar').filter((x) => x.name === 'Pilaster stile').length, 2);
+  eq('poplar priced in the quote', priceQuote({ ...poplar, speciesPrices: { Poplar: 4 } }).materials.some((m) => m.label.startsWith('Poplar') && m.cost > 0), true);
 }
 
 // Floating shelves: 3/4 ply top and bottom, mitered solid face, 1/2" bracket gap
@@ -423,6 +429,9 @@ eq('panel sticks out past frame', panelExtents(b21, s, { left: true, right: fals
   const stain = buildParts({ ...sh, floating: { grade: 'stain', face: 0.75 } }, lib.settings, ends);
   eq('stain grade face in the wood species', stain.find((x) => x.name === 'Shelf face')!.material, 'solidWood');
   eq('stain grade plywood', stain.find((x) => x.name === 'Shelf top')!.sheet, '3/4" hard maple plywood');
+  eq('36" shelf: 3 brackets at 16" studs', bracketCount(sh), 3);
+  eq('72" shelf: 5 brackets', bracketCount({ ...sh, width: 72 }), 5);
+  eq('brackets on the quote', priceQuote(lib).materials.some((m) => m.label === 'Floating shelf brackets'), true);
   eq('floating shelf labor', priceQuote(lib).hours.some((h) => h.label.startsWith('Floating shelves')), true);
 }
 

@@ -5,12 +5,13 @@ import { buildParts, eff } from './parts';
 import { resolveEnds } from './layout';
 import { defaultCutlist, optimizerParts } from './cutlist';
 import { optimize } from './optimizer';
-import { defaultFaceFrameStock, faceFrameNeeds, faceFramePieces, woodNeeds, woodPieces } from './faceframe';
+import { defaultFaceFrameStock, faceFrameNeeds, faceFramePieces, otherSpecies, stockFor, woodNeeds, woodPieces } from './faceframe';
 import { moldLabel, moldingOrder, profileLabel, roomKinds, type MoldKind } from './moldings';
 import { panelOrder } from './panels';
 import { uid } from './defaults';
 import { eaglePrice, hingeTypes } from './eagle';
 import { hardwareOrder } from './hardware';
+import { bracketCount } from './floatingShelf';
 import { doorOrder } from './doorOrder';
 import { defaultSupplies, supplyLines, type SupplyGroup, type SupplyItem } from './supplies';
 
@@ -90,6 +91,8 @@ export interface QuoteSettings {
   /** Purchased parts not yet in the app's price lists. */
   /** Up or down from the fitted Eagle prices, for a price increase or a pricier species. 0.05 = 5%. */
   eagleAdjust: number;
+  /** Floating shelf bracket, each. */
+  shelfBracketEach: number;
   beadboardSheet: number;
   /** Screws, glue, banding, abrasives and install sundries. */
   supplies: SupplyItem[];
@@ -112,6 +115,7 @@ export const defaultQuote: QuoteSettings = {
   workload: 'normal',
   workloadAdj: { full: 0.08, normal: 0, light: -0.06 },
   eagleAdjust: 0,
+  shelfBracketEach: 0,
   beadboardSheet: 0,
   supplies: defaultSupplies,
   installPulls: true,
@@ -223,6 +227,11 @@ export function estimateMaterials(p: Project, q: QuoteSettings): MaterialLine[] 
   if (ff.groups.length) {
     out.push({ group: 'cabinets', label: `Face frame stock (${ffStock.species})`, cost: ff.buyBF * ffStock.pricePerBF, detail: `${Math.ceil(ff.buyBF)} BF`, missing: ffStock.pricePerBF ? undefined : 'Enter $/BF on the Solid wood tab' });
   }
+  for (const sp of otherSpecies(p)) {
+    const st = stockFor(p, sp);
+    const need = faceFrameNeeds(faceFramePieces(p, sp), st);
+    out.push({ group: 'cabinets', label: `${sp} stock (pilasters)`, cost: need.buyBF * st.pricePerBF, detail: `${Math.ceil(need.buyBF)} BF`, missing: st.pricePerBF ? undefined : `Enter $/BF for ${sp.toLowerCase()} on the Solid wood tab` });
+  }
   const wood = woodNeeds(woodPieces(p), ffStock);
   const woodBF = wood.reduce((t, g) => t + g.buyBF, 0);
   if (woodBF) out.push({ group: 'tops', label: 'Solid wood for tops, seats & caps', cost: woodBF * ffStock.pricePerBF, detail: `${Math.ceil(woodBF)} BF`, missing: ffStock.pricePerBF ? undefined : 'Enter $/BF on the Solid wood tab' });
@@ -250,6 +259,8 @@ export function estimateMaterials(p: Project, q: QuoteSettings): MaterialLine[] 
   }
   if (fronts) out.push({ group: 'cabinets', label: 'Eagle doors, fronts & end panels', cost: frontCost, detail: `${fronts} pcs, ${frontArea.toFixed(1)} sq ft` });
   if (drawers) out.push({ group: 'cabinets', label: 'Eagle dovetail drawer boxes', cost: boxCost, detail: `${drawers} boxes` });
+  const brackets = p.cabinets.filter((c) => c.kind === 'shelf').reduce((t, c) => t + bracketCount(c), 0);
+  if (brackets) out.push({ group: 'cabinets', label: 'Floating shelf brackets', cost: brackets * q.shelfBracketEach, detail: `${brackets} brackets`, missing: q.shelfBracketEach ? undefined : 'Enter your bracket price' });
   const hw = hardwareOrder(p);
   const hwCost = (g: 'hinges' | 'slides') => hw.lines.filter((l) => l.group === g).reduce((t, l) => t + l.total, 0);
   const hwMissing = (g: 'hinges' | 'slides') => hw.problems.filter((x) => x.group === g).map((x) => x.text).join('; ') || undefined;

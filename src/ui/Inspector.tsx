@@ -1,11 +1,12 @@
+import { useState } from 'react';
 import { useStore } from '../store';
 import type { Cabinet, CrownBuild, EndMode, FaceRow, PanelChoice, PanelMode, WallId } from '../model/types';
 import { buildParts, crownLayout, layoutRows, noCrownBuild, panelOn } from '../model/parts';
 import { defaultPilaster, pilasterOf, pilasterSections } from '../model/pilaster';
-import { bracketGap, floatingOf, shelfPly } from '../model/floatingShelf';
+import { bracketCount, bracketGap, floatingOf, shelfPly } from '../model/floatingShelf';
 import { gapBeside, resolveEnds, wallLength, wallNames, wallOrder } from '../model/layout';
 import { panelLabel } from '../model/eagle';
-import { uid } from '../model/defaults';
+import { nextName, uid } from '../model/defaults';
 import { fmt } from '../units';
 import { Field, LengthInput, Section } from './fields';
 import { OrderList, PartsTable } from './PartsTable';
@@ -390,6 +391,12 @@ function PilasterSection({ cab, set }: { cab: Cabinet; set: (patch: Partial<Cabi
         {ps.face === 'shop' && <Field label="Top & bottom rails" htmlFor="pil-rail"><LengthInput id="pil-rail" value={ps.rail} onChange={(v) => put({ rail: v ?? defaultPilaster.rail })} /></Field>}
         <Field label="Plinth block" htmlFor="pil-plinth"><LengthInput id="pil-plinth" value={ps.plinth} onChange={(v) => put({ plinth: v ?? 0 })} /></Field>
         <Field label="Capital block" htmlFor="pil-cap"><LengthInput id="pil-cap" value={ps.capital} onChange={(v) => put({ capital: v ?? 0 })} /></Field>
+        <Field label="Frame stock" htmlFor="pil-species">
+          <select id="pil-species" value={ps.species ?? ''} onChange={(e) => put({ species: e.target.value || undefined })}>
+            <option value="">Job face frame stock</option>
+            {['Poplar', 'Hard maple', 'Soft maple'].map((x) => <option key={x} value={x}>{x}</option>)}
+          </select>
+        </Field>
         <Field label="Blocks proud of panel" htmlFor="pil-proud"><LengthInput id="pil-proud" value={ps.proud} onChange={(v) => put({ proud: v ?? 0 })} /></Field>
       </div>
       <h4 className="sub">Panel breaks</h4>
@@ -417,7 +424,7 @@ function PilasterSection({ cab, set }: { cab: Cabinet; set: (patch: Partial<Cabi
       )}
       <p className="hint">
         {ps.face === 'shop'
-          ? `Stiles and rails from the face frame stock (on the Solid wood list), with ${pilasterSections(cab).length} MDF panel${pilasterSections(cab).length > 1 ? 's' : ''} let into a rabbet from the back (on the sheet cutlist), on a 3/4" plywood box.`
+          ? `Stiles and rails from ${ps.species ? ps.species.toLowerCase() : 'the face frame stock'} (on the Solid wood list), with ${pilasterSections(cab).length} MDF panel${pilasterSections(cab).length > 1 ? 's' : ''} let into a rabbet from the back (on the sheet cutlist), on a 3/4" plywood box.`
           : `${pilasterSections(cab).length} recessed panel${pilasterSections(cab).length > 1 ? 's' : ''} ordered from Eagle in the job’s door style, on a 3/4" plywood box.`} Depth runs from the wall to the panel face; set it so the pilaster stands proud of the cabinets beside it. Base moulding and crown wrap it and return to the neighbours.
       </p>
     </Section>
@@ -431,6 +438,17 @@ function FloatingShelfSection({ cab, set }: { cab: Cabinet; set: (patch: Partial
   const all = useStore((s) => s.project.cabinets);
   const f = floatingOf(cab);
   const ends = resolveEnds(room, all, cab);
+  const [gap2, setGap2] = useState(14);
+  // Another shelf the same size, the spacing above or below this one (top to top)
+  const stack = (dir: 1 | -1) => useStore.getState().commit((p) => {
+    // Step past shelves already stacked there, so the new one lands in the next open spot
+    const clash = (y: number) => p.cabinets.some((o) => o.id !== cab.id && o.wall === cab.wall && o.offset < cab.offset + cab.width && cab.offset < o.offset + o.width && o.elevation < y + cab.height && y < o.elevation + o.height);
+    let y = cab.elevation + dir * gap2;
+    while (clash(y) && y > 0 && y < p.room.height) y += dir * gap2;
+    if (y < 0 || y + cab.height > p.room.height) return p;
+    const copy = { ...cab, id: uid('cab'), name: nextName('shelf', p.cabinets), elevation: y };
+    return { ...p, cabinets: [...p.cabinets, copy] };
+  });
   const gap = bracketGap(cab, settings);
   return (
     <Section title="Floating shelf">
@@ -442,6 +460,16 @@ function FloatingShelfSection({ cab, set }: { cab: Cabinet; set: (patch: Partial
           </select>
         </Field>
         <Field label="Solid face" htmlFor="fs-face"><LengthInput id="fs-face" value={f.face} onChange={(v) => set({ floating: { ...f, face: v ?? 0.75 } })} /></Field>
+        <Field label="Brackets" htmlFor="fs-brk">
+          <input id="fs-brk" inputMode="numeric" placeholder={`${bracketCount({ ...cab, floating: { ...f, brackets: undefined } })} (auto)`} value={f.brackets ?? ''}
+            onChange={(e) => { const n = parseInt(e.target.value, 10); set({ floating: { ...f, brackets: Number.isFinite(n) && n > 0 ? n : undefined } }); }} />
+        </Field>
+      </div>
+      <div className="order-actions">
+        <span className="muted">Stack another:</span>
+        <button className="mini" onClick={() => stack(1)}>Above</button>
+        <button className="mini" onClick={() => stack(-1)}>Below</button>
+        <Field label="Spacing" htmlFor="fs-gap"><LengthInput id="fs-gap" value={gap2} onChange={(v) => setGap2(v ?? 14)} /></Field>
       </div>
       <div className="ends">
         {(['left', 'right'] as const).map((side) => {
@@ -457,6 +485,7 @@ function FloatingShelfSection({ cab, set }: { cab: Cabinet; set: (patch: Partial
           );
         })}
       </div>
+      <p className="hint">{bracketCount(cab)} brackets, on studs at 16" centers unless set. Bracket price is on the Quote tab.</p>
       {gap < 0.375 && <p className="warn">Only {fmt(gap)} between the top and bottom for the bracket. Make the shelf thicker.</p>}
       <p className="hint">
         {fmt(settings.boxThickness)} plywood top and bottom ({shelfPly(cab, settings)}, on the sheet cutlist) with the solid face{ends.left || ends.right ? ' and end caps' : ''} mitered to them, leaving {fmt(gap)} for the bracket.

@@ -42,3 +42,6 @@ export function floatingShelfParts(c: Cabinet, settings: ShopSettings, ends: End
   }
   return out;
 }
+
+/** Brackets for a floating shelf: what's set, or one per stud at 16" centers with 2" clear at each end. */
+export const bracketCount = (c: Cabinet) => floatingOf(c).brackets ?? Math.max(2, Math.floor((c.width - 4) / 16) + 1);

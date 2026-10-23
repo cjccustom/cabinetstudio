@@ -7,7 +7,7 @@ import { hardwareOrder } from '../model/hardware';
 import { moldingOrder, supplierName } from '../model/moldings';
 import { optimize } from '../model/optimizer';
 import { defaultCutlist, optimizerParts } from '../model/cutlist';
-import { defaultFaceFrameStock, faceFrameNeeds, faceFramePieces } from '../model/faceframe';
+import { defaultFaceFrameStock, faceFrameNeeds, faceFramePieces, otherSpecies, stockFor } from '../model/faceframe';
 import { panelOrder } from '../model/panels';
 import { doorOrder } from '../model/doorOrder';
 import { fieldChecks } from '../model/release';
@@ -53,6 +53,7 @@ export function starterTodos(p: Project): string[] {
   if (sheets.length) out.push(`Buy sheet goods: ${sheets.map((m) => `${m.sheets.length} × ${m.material}`).join(', ')}`);
   const ff = faceFrameNeeds(faceFramePieces(p), { ...defaultFaceFrameStock, ...p.faceFrame });
   if (ff.groups.length) out.push(`Buy face frame lumber: about ${Math.ceil(ff.buyBF)} BF ${({ ...defaultFaceFrameStock, ...p.faceFrame }).species}`);
+  for (const sp of otherSpecies(p)) out.push(`Buy ${sp.toLowerCase()}: about ${Math.ceil(faceFrameNeeds(faceFramePieces(p, sp), stockFor(p, sp)).buyBF)} BF for pilasters`);
   const molds = moldingOrder(p);
   for (const sup of ['am', 'brosco'] as const) {
     const mine = molds.filter((m) => m.supplier === sup);
