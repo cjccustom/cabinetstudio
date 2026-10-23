@@ -565,7 +565,7 @@ eq('panel sticks out past frame', panelExtents(b21, s, { left: true, right: fals
   const rail = fp.find((x) => x.name === 'Bottom rail')!;
   const ol = rail.shapes![0].outline;
   eq('shaped rail: wide, with the cutout', [rail.width, ol.length > 10, Math.min(...ol.map((q) => q[1]))].join(), '6,true,0');
-  eq('shaped rail: center cut to the full rise', Math.max(...ol.filter((q) => Math.abs(q[0] - rail.length / 2) < 1).map((q) => q[1])), 3);
+  eq('shaped rail: center cut to the full rise', Math.max(...ol.map((q) => q[1]).filter((v) => v < rail.width)), 3);
   eq('shaped base: recessed kick behind the cutout', fp.find((x) => x.name === 'Toe kick skin')!.width, 3);
   eq('shaped base: bare ends cut to match', fp.filter((x) => x.role === 'side' && (x.note ?? '').includes('bracket feet')).length, 2);
   const ap = buildParts({ ...ff, base: { ...ff.base, build: 'applied' as const } }, defaultSettings, both);
