@@ -35,7 +35,7 @@ export function QuoteInputs() {
     ['perShelf', 'Per shelf'], ['endPanel', 'Per end panel'], ['extendedStile', 'Per extended stile'], ['woodTop', 'Per wood top / seat'],
     ['woodTopPerSqFt', 'Wood top per sq ft'], ['moldingPerFt', 'Moulding prep per ft'], ['beadboardPerSqFt', 'Beadboard per sq ft'],
     ['installPerBox', 'Install per cabinet'], ['installTall', 'Install tall extra'], ['installDay', 'Per install day (load-in, cleanup)'],
-    ['moldingInstallPerFt', 'Moulding install per ft'], ['pullInstall', 'Per pull/knob'], ['pilaster', 'Per pilaster'], ['installPilaster', 'Install per pilaster'], ['floatingShelf', 'Per floating shelf'], ['installFloatingShelf', 'Install per floating shelf'],
+    ['moldingInstallPerFt', 'Moulding install per ft'], ['pullInstall', 'Per pull/knob'], ['pilaster', 'Per pilaster'], ['installPilaster', 'Install per pilaster'], ['floatingShelf', 'Per floating shelf'], ['installFloatingShelf', 'Install per floating shelf'], ['installDoor', 'Install interior door'], ['hangSlab', 'Fit & hang a slab (extra)'],
   ];
   return (
     <aside className="sidebar">

@@ -5,6 +5,7 @@ import type { Cabinet, Part, PilasterSpec, ShopSettings } from './types';
 import { eff, frontBoxes, vb } from './parts';
 import { panelByCode, styleById } from './eagle';
 import { fmt } from '../units';
+import { profileByNum, profileLabel } from './moldings';
 
 export const defaultPilaster: PilasterSpec = { plinth: 6, capital: 3.5, breaks: [], band: 1.5, proud: 0.25, face: 'shop', stile: 1.5, rail: 2, panelThickness: 0.25, rabbet: 0.375 };
 export const pilasterOf = (c: Cabinet): PilasterSpec => ({ ...defaultPilaster, ...c.pilaster });
@@ -99,7 +100,7 @@ export function pilasterParts(c: Cabinet, settings: ShopSettings): Part[] {
       if (ps.panelMold) {
         const m = 0.5;
         parts.push({ name: 'Panel moulding', role: 'trim', material: 'faceframe', length: 2 * (o.w + o.h), width: m, thickness: m, cut: false,
-          note: `A&M ${ps.panelMold}, mitered around the panel`,
+          note: `${profileByNum(ps.panelMold) ? profileLabel(profileByNum(ps.panelMold)!) : ps.panelMold}, mitered around the panel`,
           boxes: [vb(ps.stile, o.y0, fz, o.w, m, m), vb(ps.stile, o.y0 + o.h - m, fz, o.w, m, m), vb(ps.stile, o.y0 + m, fz, m, o.h - 2 * m, m), vb(ps.stile + o.w - m, o.y0 + m, fz, m, o.h - 2 * m, m)] });
       }
     }

@@ -2,6 +2,7 @@
 // beadboard. Each run follows the cabinet face and returns along exposed ends.
 import type { Cabinet, Project, ShopSettings, WallPanel } from './types';
 import { amCatalog, type AMProfile } from './andersonMcquaid';
+import { broscoCatalog } from './brosco';
 import { crownLayout, panelExtents, type EndInfo } from './parts';
 import { pilasterOf, pilasterOpenings } from './pilaster';
 import { roomMoldingPieces } from './room';
@@ -34,7 +35,16 @@ export const moldCategories: Record<MoldKind, string[]> = {
   apron: ['Apron', 'Window and Door Casing'],
 };
 
-export const profileByNum = (num?: string): AMProfile | undefined => (num ? amCatalog.find((p) => p.num === num) : undefined);
+/** A moulding profile from either supplier. Brosco numbers are stored as BR-<number> so they never collide with A&M's. */
+export type Profile = AMProfile & { supplier?: 'am' | 'brosco'; code?: string; name?: string; wm?: string };
+export type Supplier = 'am' | 'brosco';
+export const supplierName: Record<Supplier, string> = { am: 'Anderson & McQuaid', brosco: 'Brosco' };
+export const catalog: Profile[] = [...amCatalog, ...broscoCatalog];
+export const supplierOf = (p: Profile): Supplier => p.supplier ?? 'am';
+/** How a profile is named on an order: "A&M 1827" or "Brosco 8712". */
+export const profileLabel = (p: Profile) => (supplierOf(p) === 'brosco' ? `Brosco ${p.code}` : `A&M ${p.num}`);
+
+export const profileByNum = (num?: string): Profile | undefined => (num ? catalog.find((p) => p.num === num) : undefined);
 
 export const amSpecies = [...new Set(amCatalog.flatMap((p) => Object.keys(p.prices)))].sort();
 
@@ -139,7 +149,7 @@ export function panelMoldings(w: WallPanel): MoldPiece[] {
   return [{ kind: 'cap', num: p.num, along: 'x', facing: 'front', x: 0, y: w.bottom + w.height, z: 0, length: w.width }];
 }
 
-export interface MoldOrderLine { num: string; profile: AMProfile; kinds: MoldKind[]; inches: number; feet: number; species: string; price: number | null; cost: number }
+export interface MoldOrderLine { num: string; supplier: Supplier; profile: Profile; kinds: MoldKind[]; inches: number; feet: number; species: string; price: number | null; cost: number }
 
 /** Lineal feet to order from Anderson & McQuaid, by profile, with waste for miters and defects. */
 export function moldingOrder(p: Project): MoldOrderLine[] {
@@ -166,7 +176,9 @@ export function moldingOrder(p: Project): MoldOrderLine[] {
   return [...totals].map(([num, t]) => {
     const profile = profileByNum(num)!;
     const feet = Math.ceil((t.inches / 12) * (1 + s.moldWaste));
-    const pr = priceOf(profile, s.moldSpecies);
-    return { num, profile, kinds: [...t.kinds], inches: t.inches, feet, species: pr?.species ?? s.moldSpecies, price: pr?.price ?? null, cost: pr ? pr.price * feet : 0 };
+    // A price entered for the job (Brosco, or an A&M quote) beats the list price
+    const own = p.moldPrices?.[num];
+    const pr = own != null ? { species: s.moldSpecies, price: own } : priceOf(profile, s.moldSpecies);
+    return { num, supplier: supplierOf(profile), profile, kinds: [...t.kinds], inches: t.inches, feet, species: pr?.species ?? s.moldSpecies, price: pr?.price ?? null, cost: pr ? pr.price * feet : 0 };
   });
 }

@@ -6,6 +6,8 @@ import type { ViewMode } from '../store';
 import type { Floor, Opening, Project, VisualBox, WallId } from '../model/types';
 import { wallLength, wallOrder, wallTransform } from '../model/layout';
 import { floorOf, openingTrim, roomMoldings } from '../model/room';
+import { designByCode, doorDrawing, type ReebDesign } from '../model/reeb';
+import { doorOf } from '../model/doorOrder';
 import { MoldingModel } from './MoldingModel';
 
 const T = 4.5;
@@ -97,8 +99,10 @@ function OpeningModel({ o, trim }: { o: Opening; trim: string }) {
   if (o.kind === 'window') jambs.push(vb(x0, y0, -T, w, j, T));
   const t = openingTrim(o);
   const inner: VisualBox[] = [];
-  if (o.kind === 'door') {
-    // Slab set back in the jamb, with a knob
+  const d = doorOf(o);
+  const design = o.kind === 'door' ? designByCode(d.design) : undefined;
+  if (o.kind === 'door' && !design) {
+    // No design chosen: a plain slab set back in the jamb
     inner.push(vb(x0 + j, 0.5, -T + 1, w - 2 * j, h - j - 0.5, 1.375));
   } else if (o.kind === 'window') {
     // Double-hung: sash frame and meeting rail
@@ -112,7 +116,8 @@ function OpeningModel({ o, trim }: { o: Opening; trim: string }) {
     <group>
       {jambs.map((b, i) => <Box key={`j${i}`} b={b} color={trim} />)}
       {inner.map((b, i) => <Box key={`i${i}`} b={b} color={trim} />)}
-      {o.kind === 'door' && <Box b={vb(x0 + w - j - 3, 36, -T + 2.375, 1.25, 1.25, 1.5)} color="#b49a5a" edges={false} />}
+      {design && <DoorLeaves o={o} design={design} leaves={d.leaves} color={trim} />}
+      {o.kind === 'door' && d.leaves === 1 && <Box b={vb(d.hinge === 'left' ? x0 + w - j - 3.5 : x0 + j + 2.25, 36, -T + 2.375, 1.25, 1.25, 1.5)} color="#b49a5a" edges={false} />}
       {o.kind === 'window' && <Box b={vb(x0 + j, y0 + j, -T + 2, w - 2 * j, h - 2 * j, 0.1)} color="#cfe1ea" edges={false} opacity={0.55} />}
       {o.kind !== 'window' && <Box b={vb(x0, 0, -T - 0.2, w, h, 0.1)} color={o.kind === 'door' ? '#8c8f94' : '#565a60'} edges={false} />}
       {t.boxes.map((b, i) => <Box key={`c${i}`} b={b} color={trim} />)}
@@ -120,6 +125,41 @@ function OpeningModel({ o, trim }: { o: Opening; trim: string }) {
     </group>
   );
 }
+
+/** Reeb door leaves in the jamb, drawn from the design's panel layout. */
+function DoorLeaves({ o, design, leaves, color }: { o: Opening; design: ReebDesign; leaves: 1 | 2; color: string }) {
+  const j = 0.75;
+  const W = (o.width - 2 * j - 0.25 - (leaves > 1 ? 0.125 : 0)) / leaves;
+  const H = o.height - j - 0.625;
+  const dr = useMemo(() => doorDrawing(design, W, H), [design, W, H]);
+  const tint = design.line === 'wood' ? woodTint(design.species) : color;
+  return (
+    <>
+      {Array.from({ length: leaves }, (_, k) => {
+        const x = o.offset + j + 0.125 + k * (W + 0.125);
+        return (
+          <group key={k} position={[x, 0.5, -T + 1]}>
+            {dr.boxes.map((b, i) => <Box key={i} b={{ ...b }} color={b.shade ? shade(tint, b.shade) : tint} />)}
+            {dr.glass.map((b, i) => <Box key={`g${i}`} b={b} color="#cfe1ea" edges={false} opacity={0.55} />)}
+            {dr.braces.map((br, i) => {
+              const dx = br.b[0] - br.a[0], dy = br.b[1] - br.a[1];
+              const len = Math.hypot(dx, dy);
+              return (
+                <mesh key={`b${i}`} position={[(br.a[0] + br.b[0]) / 2, (br.a[1] + br.b[1]) / 2, br.z + br.t / 2]} rotation-z={Math.atan2(dy, dx)}>
+                  <boxGeometry args={[len, br.w, br.t]} />
+                  <meshStandardMaterial color={tint} roughness={0.75} />
+                  <Edges color={EDGE} threshold={15} />
+                </mesh>
+              );
+            })}
+          </group>
+        );
+      })}
+    </>
+  );
+}
+
+const woodTint = (species?: string) => ({ Maple: '#e2c49a', 'Red oak': '#c99a66', Fir: '#cf9a5f', 'Knotty alder': '#b97a4c', Pine: '#e0b97f' } as Record<string, string>)[species ?? ''] ?? '#c99a66';
 
 /** Wood, tile and the rest drawn as a repeating texture, one tile = 8'. */
 function FloorModel({ floor, W, D }: { floor: Floor; W: number; D: number }) {
@@ -220,13 +260,18 @@ function PlanWalls({ project }: { project: Project }) {
       ))}
       {openings.map((o) => {
         const { pos, rotY } = wallTransform(project.room, o.wall, 0);
-        const r = o.width;
-        // Doors swing into the room from the hinge on the left jamb
-        const arc = o.kind === 'door' ? Array.from({ length: 17 }, (_, i) => { const a = (Math.PI / 2) * (i / 16); return [o.offset + r * Math.cos(a), H + 1, r * Math.sin(a)] as [number, number, number]; }) : null;
+        const d = doorOf(o);
+        // Doors swing into the room from the hinge jamb; pairs swing from both
+        const swings: { hx: number; r: number; dir: 1 | -1 }[] = o.kind !== 'door' ? [] : d.leaves === 2
+          ? [{ hx: o.offset, r: o.width / 2, dir: 1 }, { hx: o.offset + o.width, r: o.width / 2, dir: -1 }]
+          : [{ hx: d.hinge === 'left' ? o.offset : o.offset + o.width, r: o.width, dir: d.hinge === 'left' ? 1 : -1 }];
         return (
           <group key={o.id} position={pos} rotation-y={rotY}>
             {o.kind === 'window' && <Line points={[[o.offset, H + 1, -T / 2], [o.offset + o.width, H + 1, -T / 2]]} color="#7fb3d0" lineWidth={3} />}
-            {arc && <Line points={[[o.offset, H + 1, 0], [o.offset, H + 1, r], ...arc.reverse()]} color="#8a8f96" lineWidth={1.5} />}
+            {swings.map((sw, i) => {
+              const arc = Array.from({ length: 17 }, (_, k) => { const a = (Math.PI / 2) * (k / 16); return [sw.hx + sw.dir * sw.r * Math.cos(a), H + 1, sw.r * Math.sin(a)] as [number, number, number]; });
+              return <Line key={i} points={[[sw.hx, H + 1, 0], [sw.hx, H + 1, sw.r], ...arc.reverse()]} color="#8a8f96" lineWidth={1.5} />;
+            })}
           </group>
         );
       })}

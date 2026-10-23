@@ -6,11 +6,12 @@ import { resolveEnds } from './layout';
 import { defaultCutlist, optimizerParts } from './cutlist';
 import { optimize } from './optimizer';
 import { defaultFaceFrameStock, faceFrameNeeds, faceFramePieces, woodNeeds, woodPieces } from './faceframe';
-import { moldLabel, moldingOrder, roomKinds, type MoldKind } from './moldings';
+import { moldLabel, moldingOrder, profileLabel, roomKinds, type MoldKind } from './moldings';
 import { panelOrder } from './panels';
 import { uid } from './defaults';
 import { eaglePrice, hingeTypes } from './eagle';
 import { hardwareOrder } from './hardware';
+import { doorOrder } from './doorOrder';
 import { defaultSupplies, supplyLines, type SupplyGroup, type SupplyItem } from './supplies';
 
 /** Shop hours per item. Start from these and calibrate against tracked jobs. */
@@ -36,6 +37,9 @@ export interface LaborStandards {
   installPilaster: number;
   floatingShelf: number;
   installFloatingShelf: number;
+  /** Hang an interior door: a prehung unit, plus extra to fit a slab into an existing jamb. */
+  installDoor: number;
+  hangSlab: number;
   installTall: number;
   installDay: number;
   moldingInstallPerFt: number;
@@ -63,6 +67,8 @@ export const defaultStandards: LaborStandards = {
   installPilaster: 0.5,
   floatingShelf: 1.5,
   installFloatingShelf: 0.75,
+  installDoor: 1.5,
+  hangSlab: 1,
   installTall: 0.5,
   installDay: 1,
   moldingInstallPerFt: 0.15,
@@ -187,6 +193,12 @@ export function estimateHours(p: Project, q: QuoteSettings): HourLine[] {
     add('Mouldings: install (ft)', ft, st.moldingInstallPerFt, group, true);
     installHours += ft * st.moldingInstallPerFt;
   }
+  for (const d of doorOrder(p)) {
+    const n = d.qty * d.leaves;
+    add('Install interior doors', n, st.installDoor, 'room', true);
+    if (!d.prehung) add('Fit & hang slab doors', n, st.hangSlab, 'room', true);
+    installHours += n * (st.installDoor + (d.prehung ? 0 : st.hangSlab));
+  }
   for (const w of p.panels ?? []) {
     const a = Math.round(sqft(w.width, w.height) * 10) / 10;
     add('Beadboard: cut & install (sq ft)', a, st.beadboardPerSqFt, 'paneling', true);
@@ -244,7 +256,12 @@ export function estimateMaterials(p: Project, q: QuoteSettings): MaterialLine[] 
   if (hw.hinges) out.push({ group: 'cabinets', label: `Hinges (${[...hingeKinds].join(' & ')})`, cost: hwCost('hinges'), detail: `${hw.hinges} hinges on ${doors} doors`, missing: hwMissing('hinges') });
   if (hw.drawers) out.push({ group: 'cabinets', label: 'Blum Tandem slides & locking devices', cost: hwCost('slides'), detail: `${hw.drawers} drawers`, missing: hwMissing('slides') });
   for (const m of moldingOrder(p)) {
-    out.push({ group: moldGroup(m.kinds), label: `A&M ${m.num} ${m.kinds.every((k) => roomKinds.includes(k)) ? m.kinds.map((k) => moldLabel[k].toLowerCase()).join(' & ') : 'moulding'}`, cost: m.cost, detail: `${m.feet} lin ft`, missing: m.price == null ? 'No A&M price' : undefined });
+    out.push({ group: moldGroup(m.kinds), label: `${profileLabel(m.profile)} ${m.kinds.every((k) => roomKinds.includes(k)) ? m.kinds.map((k) => moldLabel[k].toLowerCase()).join(' & ') : 'moulding'}`, cost: m.cost, detail: `${m.feet} lin ft`, missing: m.price == null ? (m.supplier === 'brosco' ? 'Enter the Brosco price per foot on the Orders tab' : 'No A&M price') : undefined });
+  }
+  const reeb = doorOrder(p);
+  if (reeb.length) {
+    const unpriced = reeb.filter((d) => d.price == null);
+    out.push({ group: 'room', label: 'Reeb interior doors', cost: reeb.reduce((t, d) => t + d.cost, 0), detail: `${reeb.reduce((t, d) => t + d.qty, 0)} doors`, missing: unpriced.length ? `Enter Reeb prices on the Orders tab (${unpriced.map((d) => d.key).join(', ')})` : undefined });
   }
   const bb = (p.panels ?? []).map(panelOrder).reduce((t, l) => t + (l.item.startsWith('4×8') ? l.qty : 0), 0);
   if (bb) out.push({ group: 'paneling', label: 'Nantucket beadboard sheets', cost: bb * q.beadboardSheet, detail: `${bb} sheets`, missing: q.beadboardSheet ? undefined : 'Enter your beadboard sheet price' });

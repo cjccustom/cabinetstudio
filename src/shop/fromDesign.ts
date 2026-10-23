@@ -4,11 +4,12 @@ import type { Project } from '../model/types';
 import { priceQuote, quoteOf, type HourLine } from '../model/quote';
 import { eagleRequests, requestTitle } from '../model/eagleRequest';
 import { hardwareOrder } from '../model/hardware';
-import { moldingOrder } from '../model/moldings';
+import { moldingOrder, supplierName } from '../model/moldings';
 import { optimize } from '../model/optimizer';
 import { defaultCutlist, optimizerParts } from '../model/cutlist';
 import { defaultFaceFrameStock, faceFrameNeeds, faceFramePieces } from '../model/faceframe';
 import { panelOrder } from '../model/panels';
+import { doorOrder } from '../model/doorOrder';
 import { fieldChecks } from '../model/release';
 import type { Phase, ShopJob } from './shop';
 
@@ -53,8 +54,13 @@ export function starterTodos(p: Project): string[] {
   const ff = faceFrameNeeds(faceFramePieces(p), { ...defaultFaceFrameStock, ...p.faceFrame });
   if (ff.groups.length) out.push(`Buy face frame lumber: about ${Math.ceil(ff.buyBF)} BF ${({ ...defaultFaceFrameStock, ...p.faceFrame }).species}`);
   const molds = moldingOrder(p);
-  if (molds.length) out.push(`Order A&M mouldings: ${molds.map((m) => `${m.num} (${m.feet}')`).join(', ')}`);
+  for (const sup of ['am', 'brosco'] as const) {
+    const mine = molds.filter((m) => m.supplier === sup);
+    if (mine.length) out.push(`Order ${supplierName[sup]} mouldings: ${mine.map((m) => `${m.profile.code ?? m.num} (${m.feet}')`).join(', ')}`);
+  }
   if ((p.panels ?? []).some((w) => panelOrder(w).qty)) out.push('Order Nantucket beadboard');
+  const doors = doorOrder(p);
+  if (doors.length) out.push(`Order Reeb interior doors: ${doors.map((d) => `${d.qty} × ${d.key}, hinge ${d.hinge}`).join('; ')}`);
   if (quoteOf(p).painter) out.push('Schedule the painter');
   out.push('Schedule install with the customer');
   return out;

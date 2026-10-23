@@ -17,6 +17,9 @@ import { eagleFraction, eagleRequests, requestText } from "../src/model/eagleReq
 import { hardwareOrder, tierPrice } from "../src/model/hardware";
 import { defaultSupplies, supplyDrivers, supplyLines } from "../src/model/supplies";
 import { jobNumbers, phaseOf, starterTodos } from "../src/shop/fromDesign";
+import { broscoCatalog } from "../src/model/brosco";
+import { designByCode, doorDrawing, stockSlab, tradeSize } from "../src/model/reeb";
+import { doorOrder } from "../src/model/doorOrder";
 import { blockedAlong, casingReach, freeRuns, newOpening, openingIssues, openingTrim, roomMoldings } from "../src/model/room";
 
 let failed = 0;
@@ -465,6 +468,33 @@ eq('panel sticks out past frame', panelExtents(b21, s, { left: true, right: fals
   eq('window low enough to hit the counter run flags it', openingIssues(blocked).length > 0, true);
   eq('cabinets block the wall where they sit', blockedAlong(room, 'back', 0, 4).length >= 5, true);
   eq('window position goes on the site check', fieldChecks(room).some((c) => c.id === `door:${win.id}:sill`), true);
+}
+
+// Brosco mouldings next to A&M; Reeb interior doors
+{
+  const job = normalize(sampleProject());
+  eq('Brosco catalog loaded', broscoCatalog.length > 80, true);
+  const bBase = broscoCatalog.find((x) => x.code === '8712')!;
+  eq('Brosco 8712 is a 9/16 x 3 1/2 base', [bBase.category, bBase.t, bBase.w].join(), 'Base Board and Base Cap,0.5625,3.5');
+  eq('traced Brosco outline snapped to size', Math.abs(Math.max(bBase.sw!, bBase.sh!) - 3.5) < 1e-6, true);
+  const withB = { ...job, roomTrim: { base: bBase.num, chairHeight: 34, walls: ['front'] as any } };
+  const line = moldingOrder(withB).find((m) => m.num === bBase.num)!;
+  eq('Brosco on its own order, unpriced', [line.supplier, line.price].join(), 'brosco,');
+  const priced = moldingOrder({ ...withB, moldPrices: { [bBase.num]: 1.85 } }).find((m) => m.num === bBase.num)!;
+  eq('job price for Brosco used', Math.abs(priced.cost - 1.85 * priced.feet) < 1e-9, true);
+  eq('door trade size', tradeSize(32) + ' ' + tradeSize(80), '2/8 6/8');
+  eq('32 1/4 x 80 1/8 opening takes a stock 2/8 x 6/8', JSON.stringify(stockSlab(32.25, 80.125)), JSON.stringify({ w: 32, h: 80, fits: true }));
+  eq('odd opening flagged', stockSlab(34.5, 80.125).fits, false);
+  const door = { ...newOpening('door', 'right', job), offset: 60, width: 32.25, height: 80.125, trim: { flat: 3.5 }, door: { design: 'PR8730', hinge: 'left' as const, leaves: 1 as const, prehung: true } };
+  const room = { ...job, openings: [door] };
+  const dl = doorOrder(room);
+  eq('door order key', dl.map((l) => l.key).join(), 'PR8730 2/8x6/8 prehung');
+  eq('unpriced door flagged in the quote', priceQuote(room).materials.some((m) => m.label === 'Reeb interior doors' && !!m.missing), true);
+  eq('door install labor', priceQuote(room).hours.some((h) => h.label === 'Install interior doors'), true);
+  const dr = doorDrawing(designByCode('PR66')!, 32, 80);
+  eq('6 panel door: raised fields drawn', dr.boxes.filter((b) => b.shade === 1).length, 6);
+  const lock = doorDrawing(designByCode('PR82R')!, 32, 80).boxes.find((b) => b.size[1] === 7.75);
+  eq('lock rail near 36"', !!lock && Math.abs(lock.min[1] + 3.875 - 36) < 12, true);
 }
 
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');

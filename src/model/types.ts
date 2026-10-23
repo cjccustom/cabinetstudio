@@ -235,6 +235,8 @@ export interface Opening {
   /** Off the floor; 0 for doors and cased openings. */
   sill: number;
   trim: OpeningTrim;
+  /** Doors: the Reeb design hung in it, which side the hinges are on (facing it from the room), and how many leaves. */
+  door?: { design?: string; hinge: 'left' | 'right'; leaves: 1 | 2; prehung: boolean };
 }
 
 /** Casing on the room side of an opening: a profiled casing, or flat stock with a back band and header cap. */
@@ -290,6 +292,10 @@ export interface Project {
   openings?: Opening[];
   roomTrim?: RoomTrim;
   floor?: Floor;
+  /** $ per lineal foot for this job by profile number, where there's no list price (Brosco) or a quoted one. */
+  moldPrices?: Record<string, number>;
+  /** $ per door for this job by Reeb design and size, e.g. "PR8730 2/8x6/8 prehung". */
+  doorPrices?: Record<string, number>;
 }
 
 export type MaterialKey = 'box' | 'back' | 'toeSkin' | 'faceframe' | 'door' | 'drawerBox' | 'counter' | 'solidWood';

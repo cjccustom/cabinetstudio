@@ -1,4 +1,8 @@
+import { useState } from 'react';
 import { useStore } from '../store';
+import { doorOf } from '../model/doorOrder';
+import { designByCode, stockSlab, tradeSize } from '../model/reeb';
+import { DoorGlyph, DoorPicker } from './DoorPicker';
 import type { Floor, Opening, OpeningTrim, RoomTrim, WallId } from '../model/types';
 import { wallLength, wallNames, wallOrder } from '../model/layout';
 import { defaultFloor, floorOf, newOpening, openingKinds, roomTrimOf } from '../model/room';
@@ -95,6 +99,7 @@ function OpeningEditor({ o, species, put, remove }: { o: Opening; species: strin
         {!t.casing && <Field label="Flat casing" htmlFor={`op-fc-${o.id}`}><LengthInput id={`op-fc-${o.id}`} value={t.flat || null} allowAuto placeholder="none" onChange={(v) => setTrim({ flat: v ?? 0 })} /></Field>}
       </div>
       <p className="hint">Sizes are the finished opening, jamb to jamb; casing goes around it.</p>
+      {o.kind === 'door' && <DoorChoice o={o} put={put} />}
       <MoldSlot kind="casing" label="Profiled casing" num={t.casing} species={species} onChange={(n) => setTrim({ casing: n })} extra={t.casing && <button className="mini" onClick={() => setTrim({ casing: undefined })}>Use flat stock</button>} />
       {!t.casing && <MoldSlot kind="backBand" num={t.backBand} species={species} onChange={(n) => setTrim({ backBand: n })} extra={t.backBand && <button className="mini" onClick={() => setTrim({ backBand: undefined })}>Remove</button>} />}
       <MoldSlot kind="headCap" num={t.headCap} species={species} onChange={(n) => setTrim({ headCap: n })} extra={t.headCap && <button className="mini" onClick={() => setTrim({ headCap: undefined })}>Remove</button>} />
@@ -106,5 +111,44 @@ function OpeningEditor({ o, species, put, remove }: { o: Opening; species: strin
       )}
       <button className="mini danger" onClick={remove}>Remove {openingKinds[o.kind].toLowerCase()}</button>
     </details>
+  );
+}
+
+function DoorChoice({ o, put }: { o: Opening; put: (p: Partial<Opening>) => void }) {
+  const [open, setOpen] = useState(false);
+  const d = doorOf(o);
+  const design = designByCode(d.design);
+  const set = (patch: Partial<typeof d>) => put({ door: { ...d, ...patch } });
+  const slab = stockSlab(o.width, o.height, d.leaves);
+  return (
+    <div className="door-choice">
+      <div className="mold-slot">
+        <span className="mold-kind">Door</span>
+        <button className="mold-pick" onClick={() => setOpen(true)}>
+          {design ? <><DoorGlyph d={design} size={44} /><span><strong>Reeb {design.code}</strong><span className="muted"> {design.name}</span></span></> : <span>Choose a Reeb design…</span>}
+        </button>
+      </div>
+      <div className="grid3">
+        <Field label="Hinges on" htmlFor={`dr-h-${o.id}`}>
+          <select id={`dr-h-${o.id}`} value={d.hinge} disabled={d.leaves === 2} onChange={(e) => set({ hinge: e.target.value as 'left' | 'right' })}>
+            <option value="left">Left</option><option value="right">Right</option>
+          </select>
+        </Field>
+        <Field label="Leaves" htmlFor={`dr-l-${o.id}`}>
+          <select id={`dr-l-${o.id}`} value={d.leaves} onChange={(e) => set({ leaves: Number(e.target.value) as 1 | 2 })}>
+            <option value={1}>Single</option><option value={2}>Pair</option>
+          </select>
+        </Field>
+        <Field label="Unit" htmlFor={`dr-p-${o.id}`}>
+          <select id={`dr-p-${o.id}`} value={d.prehung ? 'prehung' : 'slab'} onChange={(e) => set({ prehung: e.target.value === 'prehung' })}>
+            <option value="prehung">Prehung</option><option value="slab">Slab only</option>
+          </select>
+        </Field>
+      </div>
+      <p className={slab.fits ? 'hint' : 'warn'}>
+        {slab.fits ? 'Stock' : 'Nearest stock'} {d.leaves > 1 ? 'pair of ' : ''}{tradeSize(slab.w)} × {tradeSize(slab.h)} ({slab.w}" × {slab.h}"){slab.fits ? '' : `; this opening wants ${fmt((o.width - 0.25) / d.leaves)} × ${fmt(o.height - 0.125)}. Size the opening to a stock door or plan on a custom one.`} Hinges side is as you face the door from the room it swings into.
+      </p>
+      {open && <DoorPicker current={d.design} onPick={(c) => set({ design: c })} onClose={() => setOpen(false)} />}
+    </div>
   );
 }

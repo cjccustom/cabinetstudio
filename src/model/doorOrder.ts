@@ -1,0 +1,33 @@
+// Reeb interior doors for the openings in a design: which slab or prehung unit, its size and
+// handing, and what it costs at the price entered for this job.
+import type { Opening, Project } from './types';
+import { designByCode, stockSlab, tradeSize, type ReebDesign } from './reeb';
+
+export const doorOf = (o: Opening) => ({ hinge: 'left' as const, leaves: 1 as const, prehung: true, ...o.door });
+
+export interface DoorLine { key: string; design: ReebDesign; w: number; h: number; hinge: 'left' | 'right'; leaves: 1 | 2; prehung: boolean; qty: number; openings: string[]; fits: boolean; price: number | null; cost: number }
+
+/** Trade description of one door, also the key its price is saved under. */
+export const doorKey = (code: string, w: number, h: number, leaves: number, prehung: boolean) =>
+  `${code} ${leaves > 1 ? 'pair ' : ''}${tradeSize(w)}x${tradeSize(h)} ${prehung ? 'prehung' : 'slab'}`;
+
+export function doorOrder(p: Project): DoorLine[] {
+  const lines = new Map<string, DoorLine>();
+  for (const o of p.openings ?? []) {
+    if (o.kind !== 'door') continue;
+    const d = doorOf(o);
+    const design = designByCode(d.design);
+    if (!design) continue;
+    const slab = stockSlab(o.width, o.height, d.leaves);
+    const key = doorKey(design.code, slab.w, slab.h, d.leaves, d.prehung);
+    const id = `${key}|${d.hinge}`;
+    const price = p.doorPrices?.[key] ?? null;
+    const line = lines.get(id) ?? { key, design, w: slab.w, h: slab.h, hinge: d.hinge, leaves: d.leaves, prehung: d.prehung, qty: 0, openings: [], fits: slab.fits, price, cost: 0 };
+    line.qty++;
+    line.openings.push(o.name);
+    line.fits = line.fits && slab.fits;
+    line.cost = price == null ? 0 : price * line.qty;
+    lines.set(id, line);
+  }
+  return [...lines.values()];
+}

@@ -387,3 +387,7 @@ details.opening summary { display: flex; gap: 8px; align-items: center; cursor: 
 details.opening summary input { flex: 1; min-width: 0; font-weight: 600; }
 details.opening .grid3 { margin-top: 8px; }
 .checks { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 8px 0; font-size: 13px; }
+.price-in { width: 64px; text-align: right; }
+.pp-bar .seg button { font-size: 12px; }
+.door-choice { margin: 8px 0; }
+.door-glyph { display: block; }
