@@ -74,7 +74,7 @@ export interface Preset {
   blind?: Cabinet['blind'];
   corner?: Cabinet['corner'];
   group?: 'corner' | 'mudroom' | 'library';
-  top?: Pick<Cabinet, 'topKind' | 'topThickness' | 'topFront' | 'topLeft' | 'topRight' | 'pilaster' | 'floating'>;
+  top?: Pick<Cabinet, 'topKind' | 'topThickness' | 'topFront' | 'topLeft' | 'topRight' | 'pilaster' | 'floating' | 'noBottom'>;
 }
 
 export const presets: Preset[] = [
@@ -116,7 +116,7 @@ export const presets: Preset[] = [
   { id: 'library-base', label: 'Library base, 2 doors', kind: 'base', width: 30, height: 30, depth: 16, elevation: 0, countertop: true, group: 'library',
     top: { topKind: 'wood', topThickness: 1, topFront: 0.5 }, rows: () => [row('doors', null, 2, 1)] },
   { id: 'library-upper', label: 'Bookcase upper, open', kind: 'wall', width: 30, height: 56, depth: 12, elevation: 31, group: 'library',
-    rows: () => [row('open', null, 1, 4)] },
+    top: { noBottom: true }, rows: () => [row('open', null, 1, 4)] },
   { id: 'pilaster', label: 'Pilaster, recessed panel', kind: 'pilaster', width: 5.5, height: 87, depth: 17.5, elevation: 0, group: 'library',
     top: { pilaster: { ...defaultPilaster, breaks: [31] } }, rows: () => [] },
   { id: 'float-shelf', label: 'Floating shelf', kind: 'shelf', width: 36, height: 2, depth: 12, elevation: 54, group: 'library',

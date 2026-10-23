@@ -26,6 +26,7 @@ export interface LaborStandards {
   perDrawer: number;
   insetFactor: number;
   perShelf: number;
+  shelfFront: number;
   endPanel: number;
   extendedStile: number;
   woodTop: number;
@@ -59,6 +60,7 @@ export const defaultStandards: LaborStandards = {
   perDrawer: 0.6,
   insetFactor: 1.6,
   perShelf: 0.2,
+  shelfFront: 0.15,
   endPanel: 0.5,
   extendedStile: 0.25,
   woodTop: 1.5,
@@ -182,6 +184,7 @@ export function estimateHours(p: Project, q: QuoteSettings): HourLine[] {
     add(inset > 1 ? 'Doors, inset (fit & hang)' : 'Doors (fit & hang)', n('door'), st.perDoor * inset);
     add(inset > 1 ? 'Drawers, inset (slides & fronts)' : 'Drawers (slides & fronts)', n('drawerBox') + parts.filter((x) => x.name === 'False front').length * 0.5, st.perDrawer * inset);
     add('Shelves', n('shelf'), st.perShelf);
+    add('Applied shelf fronts', parts.filter((x) => x.name === 'Shelf front').length, st.shelfFront ?? 0.15);
     add('End panels', n('endPanel'), st.endPanel);
     add('Extended stiles', parts.filter((x) => x.name === 'Stile, extended').length, st.extendedStile);
     for (const t of parts.filter((x) => x.role === 'woodTop')) {

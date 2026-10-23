@@ -31,6 +31,10 @@ export interface Cabinet {
   rightEnd?: EndMode;
   /** Wall cabinets: box bottom flush with the bottom of the face frame instead of tucked behind the rail. */
   bottomFlush?: boolean;
+  /** Open bookcase uppers: no case bottom; the sides stand on the countertop below. */
+  noBottom?: boolean;
+  /** Solid stock applied to the front edge of the adjustable shelves, in place of edgebanding. Top flush with the shelf. */
+  shelfFront?: { height: number; thickness: number };
   /** End panel on an exposed end. default = the job's standard. */
   leftPanel?: PanelChoice;
   rightPanel?: PanelChoice;
@@ -336,6 +340,8 @@ export interface Part {
   width: number;
   thickness: number;
   note?: string;
+  /** Shelves: false when a solid front is applied instead of edgebanding. */
+  banded?: boolean;
   /** false for anything not cut in the shop (bought doors, drawer boxes, countertops). */
   cut: boolean;
   /** Ordered from Eagle. Sizes are finished W × H (× D for drawer boxes). */

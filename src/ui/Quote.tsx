@@ -32,7 +32,7 @@ export function QuoteInputs() {
   const stdFields: [keyof LaborStandards, string][] = [
     ['jobSetup', 'Drawings, ordering, setup (per job)'], ['perBox', 'Case (per cabinet)'], ['tallBox', 'Tall case extra'], ['faceFrame', 'Face frame (per cabinet)'],
     ['perOpening', 'Per face frame opening'], ['perDoor', 'Per door'], ['perDrawer', 'Per drawer'], ['insetFactor', 'Inset multiplier (×)'],
-    ['perShelf', 'Per shelf'], ['endPanel', 'Per end panel'], ['extendedStile', 'Per extended stile'], ['woodTop', 'Per wood top / seat'],
+    ['perShelf', 'Per shelf'], ['shelfFront', 'Per applied shelf front'], ['endPanel', 'Per end panel'], ['extendedStile', 'Per extended stile'], ['woodTop', 'Per wood top / seat'],
     ['woodTopPerSqFt', 'Wood top per sq ft'], ['moldingPerFt', 'Moulding prep per ft'], ['beadboardPerSqFt', 'Beadboard per sq ft'],
     ['installPerBox', 'Install per cabinet'], ['installTall', 'Install tall extra'], ['installDay', 'Per install day (load-in, cleanup)'],
     ['moldingInstallPerFt', 'Moulding install per ft'], ['pullInstall', 'Per pull/knob'], ['pilaster', 'Per pilaster'], ['installPilaster', 'Install per pilaster'], ['floatingShelf', 'Per floating shelf'], ['shelfFinishedEnd', 'Per finished shelf end'], ['installFloatingShelf', 'Install per floating shelf'], ['installDoor', 'Install interior door'], ['hangSlab', 'Fit & hang a slab (extra)'],

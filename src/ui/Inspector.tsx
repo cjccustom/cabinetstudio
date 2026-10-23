@@ -121,11 +121,25 @@ export function Inspector({ cab, issues }: { cab: Cabinet; issues: string[] }) {
         {leftover > 0.01 && <p className="warn">{fmt(leftover)} of face frame is unused. Make one row auto.</p>}
         <div className="checks">
           <label><input id="cab-cstile" type="checkbox" checked={cab.centerStile} onChange={(e) => set({ centerStile: e.target.checked })} /> Center stile between pairs of doors</label>
-          {cab.kind === 'wall' && (
+          {cab.kind !== 'base' && (
+            <label><input id="cab-bottom" type="checkbox" checked={!cab.noBottom} onChange={(e) => set({ noBottom: !e.target.checked })} /> Case bottom (off for a bookcase whose sides stand on the countertop)</label>
+          )}
+          {cab.kind === 'wall' && !cab.noBottom && (
             <label><input id="cab-flush" type="checkbox" checked={!!cab.bottomFlush} onChange={(e) => set({ bottomFlush: e.target.checked })} /> Box bottom flush with bottom of face frame (for cabinets hung high)</label>
           )}
 
         </div>
+        {cab.rows.some((r) => (r.type === 'open' || r.type === 'doors') && r.shelves > 0) && (
+          <div className="checks">
+            <label><input id="cab-sfront" type="checkbox" checked={!!cab.shelfFront} onChange={(e) => set({ shelfFront: e.target.checked ? { height: 1.5, thickness: 0.75 } : undefined })} /> Applied solid shelf fronts (wider than the plywood)</label>
+            {cab.shelfFront && (
+              <div className="grid3">
+                <Field label="Front height" htmlFor="sf-h"><LengthInput id="sf-h" value={cab.shelfFront.height} onChange={(v) => set({ shelfFront: { ...cab.shelfFront!, height: v ?? 1.5 } })} /></Field>
+                <Field label="Thickness" htmlFor="sf-t"><LengthInput id="sf-t" value={cab.shelfFront.thickness} onChange={(v) => set({ shelfFront: { ...cab.shelfFront!, thickness: v ?? 0.75 } })} /></Field>
+              </div>
+            )}
+          </div>
+        )}
       </Section>
 
       </>

@@ -80,7 +80,7 @@ export function designParts(p: Project, data: CutlistData): DesignPart[] {
         length: part.length,
         width: part.width,
         grain: data.grain[id] ?? grainByRole[part.role] ?? true,
-        band: part.role === 'shelf' && data.options.bandShelves ? 1 : 0,
+        band: part.role === 'shelf' && part.banded !== false && data.options.bandShelves ? 1 : 0,
       });
     }
   }

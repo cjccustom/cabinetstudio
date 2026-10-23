@@ -384,6 +384,19 @@ eq('panel sticks out past frame', panelExtents(b21, s, { left: true, right: fals
   cabs.push(lb);
   const up = { ...cabinetFromPreset(P('library-upper'), 'back', 5.5, cabs) };
   cabs.push(up);
+  {
+    const ue = resolveEnds(job.room, cabs, up);
+    const up1 = buildParts(up, job.settings, ue);
+    eq('bookcase upper: no bottom by default', up1.some((x) => x.name === 'Bottom'), false);
+    eq('bookcase upper: back runs to the countertop', up1.find((x) => x.name === 'Back')!.length, up.height);
+    eq('bottom toggles back on', buildParts({ ...up, noBottom: false }, job.settings, ue).some((x) => x.name === 'Bottom'), true);
+    const sf = buildParts({ ...up, shelfFront: { height: 1.75, thickness: 0.75 } }, job.settings, ue);
+    const sh = sf.filter((x) => x.role === 'shelf'), fr = sf.filter((x) => x.name === 'Shelf front');
+    eq('a solid front per shelf', [sh.length, fr.length].join(), '4,4');
+    eq('shelf is shorter by the front', sh[0].width, up1.find((x) => x.role === 'shelf')!.width - 0.75);
+    eq('front tops flush with the shelf', fr[0].boxes[0].min[1] + fr[0].boxes[0].size[1], sh[0].boxes[0].min[1] + sh[0].boxes[0].size[1]);
+    eq('no banding behind a solid front', sh.every((x) => x.banded === false), true);
+  }
   const lib = { ...job, cabinets: cabs };
   const ends = resolveEnds(lib.room, lib.cabinets, pil);
   const parts = buildParts(pil, lib.settings, ends);

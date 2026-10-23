@@ -166,8 +166,9 @@ export function buildParts(c: Cabinet, s: ShopSettings, ends: EndInfo = { left: 
   // Bottom: in dados, a hair below the top of the bottom rail, or flush with the bottom of the
   // face frame on wall cabinets hung high enough that the underside shows.
   const flush = c.kind === 'wall' && !!c.bottomFlush;
+  const noBottom = c.kind !== 'base' && !!c.noBottom;
   const botTop = flush ? ta : kick + s.bottomRailWidth - s.bottomReveal;
-  parts.push({
+  if (!noBottom) parts.push({
     name: 'Bottom', role: 'bottom', material: 'box', length: cutW, width: boxD - rw, thickness: tn, cut: true,
     note: flush ? `In ${dados} dados, flush with bottom of face frame` : `In ${dados} dados`,
     boxes: [vb(xi0, botTop - ta, rw, innerW, ta, boxD - rw)],
@@ -195,7 +196,8 @@ export function buildParts(c: Cabinet, s: ShopSettings, ends: EndInfo = { left: 
   }
 
   // Back, in a rabbet at the back of the sides
-  const backBottom = botTop - ta;
+  // With no bottom the back runs down to the countertop with the sides
+  const backBottom = noBottom ? 0 : botTop - ta;
   parts.push({
     name: 'Back', role: 'back', material: 'back', length: H - backBottom, width: cutW, thickness: bt, cut: true,
     note: `In ${fmtShort(rw)} × ${dados} rabbet`,
@@ -366,13 +368,19 @@ export function buildParts(c: Cabinet, s: ShopSettings, ends: EndInfo = { left: 
     }
     if ((row.type === 'doors' || row.type === 'open') && row.shelves > 0) {
       const shelfW = innerW - s.shelfClearance;
-      const shelfD = boxD - rw - s.shelfSetback;
+      const sf = c.shelfFront && c.shelfFront.thickness > 0 && c.shelfFront.height > 0 ? c.shelfFront : null;
+      const fullD = boxD - rw - s.shelfSetback;
+      const shelfD = fullD - (sf?.thickness ?? 0);
       const lo = Math.max(r.y0, botTop);
       const hi = Math.min(r.y1, topUnder);
       for (let k = 1; k <= row.shelves; k++) {
         const y = lo + ((hi - lo) * k) / (row.shelves + 1) - ta / 2;
         parts.push({ name: 'Adjustable shelf', role: 'shelf', material: 'box', length: shelfW, width: shelfD, thickness: tn, cut: true,
+          note: sf ? 'Solid front applied, no banding' : undefined, banded: !sf,
           boxes: [vb(xi0 + s.shelfClearance / 2, y, rw, shelfW, ta, shelfD)] });
+        if (sf) parts.push({ name: 'Shelf front', role: 'trim', material: 'faceframe', length: shelfW, width: sf.height, thickness: sf.thickness, cut: true,
+          note: 'Glued and nailed to the shelf edge, top flush',
+          boxes: [vb(xi0 + s.shelfClearance / 2, y + ta - sf.height, rw + shelfD, shelfW, sf.height, sf.thickness)] });
       }
     }
   });
