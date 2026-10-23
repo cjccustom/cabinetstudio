@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { create } from 'zustand';
 import { useStore } from '../store';
 import { uid } from '../model/defaults';
-import { promptRequest, renderOf, revisionRequest, templatePrompt, type RenderImage, type RenderState } from '../model/rendering';
+import { geminiModels, promptRequest, renderOf, revisionRequest, templatePrompt, type RenderImage, type RenderState } from '../model/rendering';
 import { base64ToBlob, blobToDataUrl, capability, shrinkImage, type Assets, type Downloads, type Mcp, type Sample } from '../runtime';
 import { Field, Section } from './fields';
 
@@ -151,7 +151,7 @@ export function RenderInputs() {
         const b = await shrinkImage(await (await fetch(p.url)).blob(), 1536, 0.85);
         return { data: (await blobToDataUrl(b)).split(',')[1], mimeType: 'image/jpeg' };
       }));
-      const res = await mcp.callTool(GEMINI, 'render_image', { prompt, images }, { cache: false });
+      const res = await mcp.callTool(GEMINI, 'render_image', { prompt, images, model: r.geminiModel || geminiModels[0].id }, { cache: false });
       const img = res.content.find((c) => c.type === 'image' && c.data);
       if (!img) throw { code: 'tool_error', message: res.content.find((c) => c.text)?.text || 'No image came back.' };
       const blob = base64ToBlob(img.data!, img.mimeType || 'image/png');
@@ -215,13 +215,16 @@ export function RenderInputs() {
           {sample && !photos.length && <p className="hint">Add the photo first so Claude can place the work in the room.</p>}
         </Section>
 
-        <Section title="3. Prompt for ChatGPT or Gemini">
+        <Section title="3. Prompt and render">
           <CopyBox id="rd-prompt" label="Prompt" value={r.prompt} onChange={(v) => set({ prompt: v })} rows={10} />
-          {mcp && (
-            <div className="order-actions">
-              <button className="primary" disabled={!!gStatus && !gStatus.bad || !r.prompt.trim() || !photos.length} onClick={() => gemini('render')}>Render with Gemini</button>
-            </div>
-          )}
+          <div className="order-actions">
+            <button className="primary" disabled={!mcp || !!gStatus && !gStatus.bad || !r.prompt.trim() || !photos.length} onClick={() => gemini('render')}>Render with Gemini</button>
+            <select aria-label="Gemini model" value={r.geminiModel || geminiModels[0].id} onChange={(e) => set({ geminiModel: e.target.value })}>
+              {geminiModels.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
+            </select>
+          </div>
+          {!mcp && <p className="hint">Render with Gemini works when the app is open on claude.ai with the “{GEMINI}” connector added. Reload the page if you just added it.</p>}
+          {mcp && (!photos.length || !r.prompt.trim()) && <p className="hint">Add a photo and write the prompt first.</p>}
           {gStatus?.which === 'render' && <p className={gStatus.bad ? 'warn' : 'hint'} role="status">{gStatus.text}</p>}
           <p className="hint">{mcp ? 'Renders the first photo with this prompt and adds the result under Renderings. Or paste it into ChatGPT or Gemini yourself.' : 'Paste it into ChatGPT or Gemini with the photo. Save the image it makes, then add it under Renderings.'}</p>
         </Section>
@@ -232,7 +235,7 @@ export function RenderInputs() {
           </Field>
           <div className="order-actions">
             <button onClick={() => ask('revision')} disabled={!sample || !!working || !r.revision.trim()}>{working === 'revision' ? 'Writing…' : 'Write the revision'}</button>
-            {mcp && <button className="primary" disabled={!!gStatus && !gStatus.bad || !latest || !r.revision.trim()} onClick={() => gemini('revise')}>Revise with Gemini</button>}
+            <button className="primary" disabled={!mcp || !!gStatus && !gStatus.bad || !latest || !r.revision.trim()} onClick={() => gemini('revise')}>Revise with Gemini</button>
           </div>
           {gStatus?.which === 'revise' && <p className={gStatus.bad ? 'warn' : 'hint'} role="status">{gStatus.text}</p>}
           {mcp && latest && <p className="hint">Revise with Gemini sends the newest rendering with {r.revisionPrompt ? 'the revision Claude wrote' : 'your change'}.</p>}

@@ -31,7 +31,16 @@ export interface RenderState {
   measurements: string;
   /** The rendering that goes out with the quote. */
   quoteId?: string;
+  /** Which Gemini image model renders. */
+  geminiModel?: string;
 }
+
+/** Gemini image models, best for selling first. */
+export const geminiModels = [
+  { id: 'gemini-3-pro-image', label: 'Nano Banana Pro (best quality)' },
+  { id: 'gemini-3.1-flash-image', label: 'Nano Banana 2 (faster, cheaper)' },
+  { id: 'gemini-2.5-flash-image', label: 'Nano Banana (original)' },
+];
 
 export const defaultRender: RenderState = { images: [], brief: '', useDesign: true, prompt: '', revision: '', revisionPrompt: '', measurements: '' };
 export const renderOf = (p: Project): RenderState => ({ ...defaultRender, ...p.render });
