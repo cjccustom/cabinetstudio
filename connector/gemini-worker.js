@@ -44,7 +44,12 @@ const TOOLS = [
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
-    if (!env.CONNECTOR_SECRET || url.pathname !== `/${env.CONNECTOR_SECRET}`) return new Response('Not found', { status: 404 });
+    const secret = String(env.CONNECTOR_SECRET || '').trim();
+    if (!secret) return new Response('The connector is deployed, but the CONNECTOR_SECRET secret is not set yet (Settings → Variables and Secrets).', { status: 503 });
+    // Forgive a trailing slash and anything the browser encoded in the code
+    let path = url.pathname.replace(/\/+$/, '');
+    try { path = decodeURIComponent(path); } catch { /* leave it */ }
+    if (path !== `/${secret}`) return new Response('Not found', { status: 404 });
     if (request.method === 'GET') {
       return new Response(`Cabinet Studio Gemini connector is running.\nGemini key set: ${env.GEMINI_API_KEY ? 'yes' : 'NO'}\nModel: ${env.GEMINI_MODEL || DEFAULT_MODEL}\n`, { headers: { 'content-type': 'text/plain' } });
     }
