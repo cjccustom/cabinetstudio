@@ -1,9 +1,9 @@
 // Interior doors from Reeb Millwork (reeb.com): the popular primed and wood stile & rail designs,
 // described by their panel layout so they can be drawn and ordered. Layouts are read from Reeb's
-// design pictures (Oct 2026); stile and rail sizes come from Reeb's In-Stock Dimensions cut sheets and
-// prices from Reeb's interior price catalog (see reebData.ts).
+// design pictures (Oct 2026); stile and rail sizes come from Reeb's In-Stock Dimensions cut sheets
+// (see reebData.ts). Doors are for the design only: they aren't priced or ordered here.
 import type { VisualBox } from './types';
-import { reebDims, reebPrices } from './reebData';
+import { reebDims } from './reebData';
 
 export type PanelFill = 'raised' | 'flat' | 'glass' | 'louver' | 'plank';
 
@@ -27,7 +27,7 @@ export interface ReebDesign {
   /** Species for wood doors. */
   species?: string;
   rows: DoorRow[];
-  /** Catalog code for cut sheet and price lookups, when it differs (Reeb lists PR180 as 180). */
+  /** Catalog code for cut sheet lookups, when it differs (Reeb lists PR180 as 180). */
   ref?: string;
 }
 
@@ -104,11 +104,6 @@ export function proportionsFor(d: ReebDesign, h: number): DoorProportions & { fr
   return { stile: r.stile, top: r.top, lock: r.lock ?? r.top, bottom: r.bottom, rail: r.lock ?? r.top, mullion: Math.min(r.stile, 4.5), thickness: 1.375, fromSheet: true };
 }
 
-/** Reeb catalog price for a 1-3/8" door: door only or prehung single unit. */
-export function catalogPrice(d: ReebDesign, w: number, h: number, prehung: boolean): number | null {
-  const v = lookup(reebPrices, d)?.[heightKey(h)]?.[tradeSize(w)];
-  return v ? v[prehung ? 1 : 0] : null;
-}
 
 export interface DoorDrawing { boxes: VisualBox[]; glass: VisualBox[]; braces: { a: [number, number]; b: [number, number]; w: number; z: number; t: number }[] }
 

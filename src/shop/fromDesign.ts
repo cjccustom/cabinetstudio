@@ -9,7 +9,6 @@ import { optimize } from '../model/optimizer';
 import { defaultCutlist, optimizerParts } from '../model/cutlist';
 import { defaultFaceFrameStock, faceFrameNeeds, faceFramePieces } from '../model/faceframe';
 import { panelOrder } from '../model/panels';
-import { doorOrder } from '../model/doorOrder';
 import { fieldChecks } from '../model/release';
 import type { Phase, ShopJob } from './shop';
 
@@ -59,8 +58,6 @@ export function starterTodos(p: Project): string[] {
     if (mine.length) out.push(`Order ${supplierName[sup]} mouldings: ${mine.map((m) => `${m.profile.code ?? m.num} (${m.feet}')`).join(', ')}`);
   }
   if ((p.panels ?? []).some((w) => panelOrder(w).qty)) out.push('Order Nantucket beadboard');
-  const doors = doorOrder(p);
-  if (doors.length) out.push(`Order Reeb interior doors: ${doors.map((d) => `${d.qty} × ${d.key}, hinge ${d.hinge}`).join('; ')}`);
   if (quoteOf(p).painter) out.push('Schedule the painter');
   out.push('Schedule install with the customer');
   return out;

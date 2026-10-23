@@ -13,7 +13,7 @@ import { ProjectDialog } from './ui/ProjectDialog';
 import { DrawerCalculator } from './ui/DrawerCalculator';
 import { PanelInspector } from './ui/PanelInspector';
 import { BeadboardOrder } from './ui/BeadboardOrder';
-import { DoorOrderList, MoldingOrder } from './ui/MoldingOrder';
+import { MoldingOrder } from './ui/MoldingOrder';
 import { QuoteBreakdown, QuoteInputs, QuoteSummary } from './ui/Quote';
 import { CutlistInputs, CutlistLayouts, CutlistSummary } from './ui/Cutlist';
 import { FaceFrameBreakdown, FaceFrameInputs, FaceFrameSummary } from './ui/FaceFrames';
@@ -153,7 +153,6 @@ export default function App() {
               <HardwareOrder />
               <BeadboardOrder />
               <MoldingOrder />
-              <DoorOrderList />
             </div>
           )}
         </div>

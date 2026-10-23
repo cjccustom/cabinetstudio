@@ -294,10 +294,6 @@ export interface Project {
   floor?: Floor;
   /** $ per lineal foot for this job by profile number, where there's no list price (Brosco) or a quoted one. */
   moldPrices?: Record<string, number>;
-  /** $ per door for this job by Reeb design and size, e.g. "PR8730 2/8x6/8 prehung". */
-  doorPrices?: Record<string, number>;
-  /** Up or down from Reeb's catalog prices, e.g. your dealer's discount. -0.1 = 10% off. */
-  doorAdjust?: number;
 }
 
 export type MaterialKey = 'box' | 'back' | 'toeSkin' | 'faceframe' | 'door' | 'drawerBox' | 'counter' | 'solidWood';

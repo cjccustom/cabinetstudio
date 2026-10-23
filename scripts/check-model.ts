@@ -19,7 +19,6 @@ import { defaultSupplies, supplyDrivers, supplyLines } from "../src/model/suppli
 import { jobNumbers, phaseOf, starterTodos } from "../src/shop/fromDesign";
 import { broscoCatalog } from "../src/model/brosco";
 import { designByCode, doorDrawing, proportionsFor, stockSlab, tradeSize } from "../src/model/reeb";
-import { doorOrder } from "../src/model/doorOrder";
 import { blockedAlong, casingReach, freeRuns, newOpening, openingIssues, openingTrim, roomMoldings } from "../src/model/room";
 
 let failed = 0;
@@ -487,16 +486,9 @@ eq('panel sticks out past frame', panelExtents(b21, s, { left: true, right: fals
   eq('odd opening flagged', stockSlab(34.5, 80.125).fits, false);
   const door = { ...newOpening('door', 'right', job), offset: 60, width: 32.25, height: 80.125, trim: { flat: 3.5 }, door: { design: 'PR8730', hinge: 'left' as const, leaves: 1 as const, prehung: true } };
   const room = { ...job, openings: [door] };
-  const dl = doorOrder(room);
-  eq('door order key', dl.map((l) => l.key).join(), 'PR8730 2/8x6/8 prehung');
-  eq('PR8730 2/8 x 6/8 prehung at Reeb catalog price', [dl[0].price, dl[0].priceFrom].join(), '375,catalog');
-  eq('dealer adjustment applies to catalog prices', doorOrder({ ...room, doorAdjust: -0.1 })[0].price, 337.5);
-  eq('job price overrides the catalog', doorOrder({ ...room, doorPrices: { 'PR8730 2/8x6/8 prehung': 310 } })[0].price, 310);
-  const pair = { ...room, openings: [{ ...door, width: 60.375, door: { ...door.door, leaves: 2 as const } }] };
-  eq('pairs need a price entered', priceQuote(pair).materials.some((m) => m.label === 'Reeb interior doors' && !!m.missing), true);
+  eq('doors are design only: not in the quote', priceQuote(room).materials.some((m) => m.label.includes('Reeb')) || priceQuote(room).hours.some((h) => h.label.includes('door')), false);
   const sheet = proportionsFor(designByCode('PR8730')!, 80);
   eq('PR8730 from Reeb cut sheet: 4-7/16 stile, 4-5/16 top, 9-3/16 bottom', [sheet.fromSheet, sheet.stile, sheet.top, sheet.bottom].join(), 'true,4.4375,4.3125,9.1875');
-  eq('door install labor', priceQuote(room).hours.some((h) => h.label === 'Install interior doors'), true);
   const dr = doorDrawing(designByCode('PR66')!, 32, 80);
   eq('6 panel door: raised fields drawn', dr.boxes.filter((b) => b.shade === 1).length, 6);
   const lock = doorDrawing(designByCode('PR82R')!, 32, 80).boxes.find((b) => b.size[1] === 7.75);
