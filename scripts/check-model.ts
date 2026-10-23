@@ -21,6 +21,7 @@ import { bracketCount, bracketLength, finishedEnds } from "../src/model/floating
 import { broscoCatalog } from "../src/model/brosco";
 import { designByCode, doorDrawing, proportionsFor, stockSlab, tradeSize } from "../src/model/reeb";
 import { doorOrder } from "../src/model/doorOrder";
+import { applyDraft, cleanDraft, closestProfile, draftRequest } from "../src/model/photoRoom";
 import { blockedAlong, casingReach, freeRuns, newOpening, openingIssues, openingTrim, roomMoldings } from "../src/model/room";
 
 let failed = 0;
@@ -576,6 +577,27 @@ eq('panel sticks out past frame', panelExtents(b21, s, { left: true, right: fals
   eq('applied skirt: 1-1/2" of rail shows above', ap.find((x) => x.name === 'Bottom rail')!.boxes[0].min[1] + ap.find((x) => x.name === 'Bottom rail')!.width, 4.5 + 1.5);
   eq('wall cabinets ignore it', layoutRows({ ...bbCab, kind: 'wall' as const, elevation: 54 }, defaultSettings).rows.slice(-1)[0].y0, defaultSettings.bottomRailWidth);
   eq('quote says so', scopeLine(ff, { ...p, cabinets: [ff] }).includes('bracket feet cut into the face frame'), true);
+}
+
+{
+  // Room from photos: tidy Claude's draft and apply it
+  const d = cleanDraft({ room: { width: '158', depth: 140, height: 96 }, measured: { width: true }, openings: [
+    { kind: 'window', wall: 'right', offset: 18, width: 34, height: 60, sill: 30, measured: true },
+    { kind: 'door', wall: 'front', offset: 500, width: 32, height: 80, sill: 12 },
+    { kind: 'skylight', wall: 'ceiling', width: 'x' },
+  ], trim: { crown: 4.25, base: 5.5, chairRail: null, casing: { style: 'flat', width: 3.5, backBand: true } }, floor: 'hardwood', wallColor: '#C9BFAE', notes: ['Measure the left wall'] });
+  eq('draft: numbers parsed and clamped', [d.room.width, d.openings.length, d.openings[1].offset, d.openings[1].sill].join(), `158,3,${158 - 32},0`);
+  eq('draft: unknown kinds and walls fall back', [d.openings[2].kind, d.openings[2].wall].join(), 'window,back');
+  eq('draft: measured flags', [d.measured.width, d.measured.depth, d.openings[0].measured, d.openings[1].measured].join(), 'true,false,true,false');
+  const base = closestProfile('roomBase', 5.5)!;
+  eq('closest baseboard is near 5-1/2"', Math.abs(mountShape(base).height - 5.5) < 1, true);
+  const applied = applyDraft(p, d, true);
+  eq('applied: room, openings, trim, wall color', [applied.room.width, applied.openings!.length, !!applied.roomTrim!.base, !!applied.roomTrim!.crown, applied.roomTrim!.chairRail ?? 'none', applied.finishes.wall].join(), '158,3,true,true,none,#c9bfae');
+  eq('applied: flat casing with back band', [applied.openings![0].trim.flat, !!applied.openings![0].trim.backBand, applied.openings![0].trim.casing ?? 'flat'].join(), '3.5,true,flat');
+  eq('applied: door gets a swing', applied.openings![1].door?.hinge, 'left');
+  eq('cabinets stay', applied.cabinets.length, p.cabinets.length);
+  eq('request names the photos and measurements', draftRequest('Back wall 158"', ['back', 'right']).includes('2 "right"') && draftRequest('Back wall 158"', ['a']).includes('Back wall 158"'), true);
+  eq('garbage in, sensible room out', [cleanDraft(null).room.height, cleanDraft('x').openings.length].join(), '96,0');
 }
 
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');

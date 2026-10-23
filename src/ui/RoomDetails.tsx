@@ -1,3 +1,4 @@
+import { PhotoRoomButton } from './PhotoRoom';
 import { useState } from 'react';
 import { useStore } from '../store';
 import { doorOf } from '../model/doorOrder';
@@ -33,6 +34,10 @@ export function RoomDetails() {
   const add = (kind: Opening['kind']) => commit((p) => ({ ...p, openings: [...(p.openings ?? []), newOpening(kind, 'back', p)] }));
   return (
     <>
+      <Section title="Start from photos">
+        <p className="hint">Photos of the existing space and your measurements: Claude drafts the room, doors, windows and trim for you to check.</p>
+        <PhotoRoomButton className="primary" />
+      </Section>
       <Section title="Doors & windows">
         <div className="order-actions">
           {(Object.keys(openingKinds) as Opening['kind'][]).map((k) => <button key={k} className="mini" onClick={() => add(k)}>Add {openingKinds[k].toLowerCase()}</button>)}

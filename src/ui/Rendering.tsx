@@ -1,3 +1,4 @@
+import { PhotoRoomButton } from './PhotoRoom';
 import { useEffect, useRef, useState } from 'react';
 import { create } from 'zustand';
 import { useStore } from '../store';
@@ -9,7 +10,7 @@ import { Field, Section } from './fields';
 /** Which picture is on screen, shared by the stage and the list. */
 const useView = create<{ selected?: string; select: (id?: string) => void }>((set) => ({ select: (selected) => set({ selected }) }));
 
-function useRender() {
+export function useRender() {
   const project = useStore((s) => s.project);
   const commit = useStore((s) => s.commit);
   const r = renderOf(project);
@@ -19,13 +20,14 @@ function useRender() {
 }
 
 /** Resolve a capability once for a component; null until (and unless) it's there. */
-function useCapability<T>(name: string): T | null {
+export function useCapability<T>(name: string): T | null {
   const [v, setV] = useState<T | null>(null);
-  useEffect(() => { let live = true; capability<T>(name).then((x) => { if (live) setV(x); }); return () => { live = false; }; }, [name]);
+  // Wrapped, because sample is itself a function and React would call it as an updater
+  useEffect(() => { let live = true; capability<T>(name).then((x) => { if (live) setV(() => x); }); return () => { live = false; }; }, [name]);
   return v;
 }
 
-const sampleError = (code?: string) =>
+export const sampleError = (code?: string) =>
   code === 'not_granted' ? 'Claude wasn’t allowed for this page, so here’s the standard prompt instead.'
     : code === 'rate_limited' ? 'Claude is busy. Wait a minute and try again.'
       : code === 'cancelled' ? 'Stopped.'
@@ -64,7 +66,7 @@ function useAddImages(kind: RenderImage['kind']) {
   return { add, busy, stored: !!assets };
 }
 
-function AddButton({ kind, label }: { kind: RenderImage['kind']; label: string }) {
+export function AddButton({ kind, label }: { kind: RenderImage['kind']; label: string }) {
   const { add, busy } = useAddImages(kind);
   const ref = useRef<HTMLInputElement>(null);
   return (
@@ -87,7 +89,7 @@ function CopyBox({ id, label, value, onChange, rows = 9 }: { id: string; label: 
   );
 }
 
-const imageBlob = async (img: RenderImage, maxEdge = 1568) => shrinkImage(await (await fetch(img.url)).blob(), maxEdge, 0.85);
+export const imageBlob = async (img: RenderImage, maxEdge = 1568) => shrinkImage(await (await fetch(img.url)).blob(), maxEdge, 0.85);
 
 /* ---------- Left: photo, brief, prompt ---------- */
 
@@ -132,6 +134,7 @@ export function RenderInputs() {
         <Section title="1. Photo of the space">
           <p className="hint">A straight-on photo of the wall, taken from where the customer will stand, renders best.</p>
           <AddButton kind="photo" label={photos.length ? 'Add another photo' : 'Add photo'} />
+          {photos.length > 0 && <div className="order-actions"><PhotoRoomButton label="Build the room from these photos" /></div>}
         </Section>
 
         <Section title="2. What to add">

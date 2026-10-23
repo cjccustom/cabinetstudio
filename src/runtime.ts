@@ -13,7 +13,8 @@ export function capability<T>(name: string): Promise<T | null> {
 
 export interface Sample {
   (input: string, opts?: { images?: Blob[]; onText?: (u: { text: string }) => void; signal?: AbortSignal; modelTier?: 'quick' | 'default' | 'complex'; cache?: boolean }): Promise<{ text: string; truncated: boolean }>;
-  limits?: () => Promise<{ images?: unknown }>;
+  json: (input: string, opts?: { images?: Blob[]; signal?: AbortSignal; modelTier?: 'quick' | 'default' | 'complex'; cache?: boolean }) => Promise<unknown>;
+  limits?: () => Promise<{ images?: { maxCount: number } }>;
 }
 export interface Assets {
   upload(blob: Blob): Promise<{ id: string; url: string }>;

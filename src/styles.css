@@ -423,3 +423,18 @@ details.opening .grid3 { margin-top: 8px; }
 @media (max-width: 860px) { .render-stage { min-height: 62vh; } }
 .check-inline { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; margin-top: 6px; }
 .render-list .check-inline { margin-top: 0; white-space: nowrap; }
+
+/* Build the room from photos */
+.photo-room .pr-photos { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; margin: 8px 0; }
+.photo-room .pr-photos label { display: grid; gap: 4px; font-size: 12px; cursor: pointer; }
+.photo-room .pr-photos label.off img { opacity: 0.35; }
+.photo-room .pr-photos img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 6px; }
+.photo-room .pr-h { font: 600 14px/1.2 var(--font-display); margin: 16px 0 6px; }
+.photo-room .pr-val { display: flex; gap: 6px; align-items: center; }
+.photo-room .pr-table-wrap { overflow-x: auto; }
+.photo-room .pr-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.photo-room .pr-table th { text-align: left; font-weight: 500; color: var(--muted); padding: 4px; }
+.photo-room .pr-table td { padding: 3px 4px; }
+.photo-room .pr-table td:first-child { display: flex; gap: 4px; align-items: center; min-width: 140px; }
+.photo-room .pr-table input, .photo-room .pr-table select { width: 100%; min-width: 64px; }
+.est { font-size: 11px; color: var(--warn); background: var(--warn-soft); border-radius: 4px; padding: 0 5px; white-space: nowrap; }

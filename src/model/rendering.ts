@@ -27,11 +27,13 @@ export interface RenderState {
   prompt: string;
   revision: string;
   revisionPrompt: string;
+  /** Site measurements typed in for building the room from the photos. */
+  measurements: string;
   /** The rendering that goes out with the quote. */
   quoteId?: string;
 }
 
-export const defaultRender: RenderState = { images: [], brief: '', useDesign: true, prompt: '', revision: '', revisionPrompt: '' };
+export const defaultRender: RenderState = { images: [], brief: '', useDesign: true, prompt: '', revision: '', revisionPrompt: '', measurements: '' };
 export const renderOf = (p: Project): RenderState => ({ ...defaultRender, ...p.render });
 
 /** What the design says about the look, for the prompt. Empty when nothing is drawn yet. */
