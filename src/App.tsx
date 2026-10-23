@@ -1,3 +1,4 @@
+import { DesignRenderButton } from './ui/DesignRender';
 import { RenderInputs, RenderSide, RenderStage } from './ui/Rendering';
 import { useEffect, useMemo, useState } from 'react';
 import { useStore, type ViewMode } from './store';
@@ -120,6 +121,7 @@ export default function App() {
           {view === '3d' ? 'Drag empty space to orbit, right-drag to pan, scroll to zoom' : view === 'plan' ? 'Plan view · back wall at top' : `${wallNames[view.slice(5) as keyof typeof wallNames]} elevation`}
         </div>
         <Scene issueIds={issueIds} />
+        {view !== 'plan' && <div className="render-view"><DesignRenderButton /></div>}
         {issues.length > 0 && (
           <div className="issue-bar" role="status">
             <strong>{summary.length} layout issue{summary.length > 1 ? 's' : ''}</strong>

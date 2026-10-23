@@ -105,3 +105,39 @@ ${r.revision.trim()}
 
 Write the follow-up message to send the image editor: say exactly what to change, by location in the image, and tell it to keep everything else in the image the same. Reply with only that message, under 90 words.`;
 }
+
+/** A few plain words for a color, so the image model doesn't have to read hex. */
+export function colorWords(hex?: string): string {
+  const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex ?? '');
+  if (!m) return '';
+  const [r, g, b] = m.slice(1).map((x) => parseInt(x, 16) / 255);
+  const max = Math.max(r, g, b), min = Math.min(r, g, b), l = (max + min) / 2, d = max - min;
+  const sat = d === 0 ? 0 : d / (1 - Math.abs(2 * l - 1));
+  let h = 0;
+  if (d) h = max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  h = (h * 60 + 360) % 360;
+  const tone = l > 0.88 ? 'very light' : l > 0.7 ? 'light' : l > 0.45 ? 'medium' : l > 0.25 ? 'dark' : 'very dark';
+  if (l > 0.84 && sat < 0.45) return `${l > 0.95 ? 'bright white' : `${h < 70 || h > 300 ? 'warm' : 'cool'} off-white`} (${hex})`;
+  if (sat < 0.12) return `${tone} ${l > 0.88 ? 'white' : 'gray'}${sat > 0.04 ? (h < 70 || h > 300 ? ', warm' : ', cool') : ''} (${hex})`;
+  const hue = h < 15 || h >= 345 ? 'red' : h < 40 ? 'orange-brown' : h < 65 ? 'tan / yellow' : h < 160 ? 'green' : h < 200 ? 'teal' : h < 255 ? 'blue' : h < 290 ? 'purple' : 'pink';
+  return `${tone} ${sat < 0.3 ? 'muted ' : ''}${hue} (${hex})`;
+}
+
+/** The prompt for turning a screenshot of the 3D design (and maybe a photo of the room) into a photograph. */
+export function designRenderPrompt(p: Project, notes: string, withPhoto: boolean): string {
+  const f = p.finishes;
+  const s = p.settings;
+  const style = styleById(s.doorStyleId);
+  const facts = designFacts(p).slice(1);
+  return [
+    `The ${withPhoto ? 'first ' : ''}image is a screenshot of a 3D model of custom built-in cabinetry from a cabinet shop's design software. Turn it into a photorealistic interior photograph of the finished work.`,
+    'Keep exactly: the camera angle and framing, the layout, the number and position of every cabinet, door, drawer, shelf and opening, their proportions and sizes. Do not add or remove cabinets, doors or drawers.',
+    'Replace the flat model look with real materials, soft natural light, true shadows and reflections. Ignore the thin outline lines of the model; they are not part of the design.',
+    `Cabinets: painted ${colorWords(f.paint)}, ${style.name} style ${style.profile === 'slab' ? 'flat slab doors' : 'frame-and-panel (shaker type) doors'}, ${s.doorMount === 'inset' ? 'inset within the face frame' : 'overlay on the face frame'}, face-frame construction.`,
+    `Countertops shown in dark: stone, ${colorWords(f.counter)}. Solid wood tops or shelves shown in wood tones: real wood, ${colorWords(f.wood)}. Open cabinet interiors: ${colorWords(f.box)} prefinished wood.`,
+    `Walls ${colorWords(f.wall ?? '#ece8e0')}, room trim ${colorWords(f.trim ?? '#f4f1ea')}.`,
+    ...(withPhoto ? ['The second image is a photo of the customer’s actual room: match its flooring, wall color, windows, lighting and character, so it looks like the cabinetry was built in that room. Keep the camera angle of the first image.'] : []),
+    ...(facts.length ? ['Details from the design:', ...facts.map((x) => `- ${x}`)] : []),
+    ...(notes.trim() ? [`Also: ${notes.trim()}`] : []),
+  ].join('\n');
+}

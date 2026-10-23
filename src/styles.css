@@ -438,3 +438,16 @@ details.opening .grid3 { margin-top: 8px; }
 .photo-room .pr-table td:first-child { display: flex; gap: 4px; align-items: center; min-width: 140px; }
 .photo-room .pr-table input, .photo-room .pr-table select { width: 100%; min-width: 64px; }
 .est { font-size: 11px; color: var(--warn); background: var(--warn-soft); border-radius: 4px; padding: 0 5px; white-space: nowrap; }
+
+/* Render this view */
+.render-view { position: absolute; z-index: 3; top: 8px; right: 12px; display: flex; gap: 8px; align-items: center; }
+.render-view-btn { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); box-shadow: 0 2px 8px rgb(0 0 0 / 0.15); }
+.render-view-msg { font-size: 12px; color: var(--warn); }
+.design-render .dr-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+.design-render figure { margin: 0; }
+.design-render figure img, .design-render .dr-wait { width: 100%; aspect-ratio: 4 / 3; object-fit: contain; background: var(--sunk); border-radius: 6px; display: block; }
+.design-render .dr-wait { display: grid; place-items: center; color: var(--muted); font-size: 14px; text-align: center; padding: 12px; box-sizing: border-box; }
+.design-render figcaption { font-size: 12px; color: var(--muted); margin-top: 4px; }
+.design-render .dr-prompt pre { white-space: pre-wrap; font: 12px/1.45 var(--font-mono); background: var(--sunk); padding: 8px; border-radius: 6px; max-height: 180px; overflow: auto; }
+@media (max-width: 700px) { .design-render .dr-pair { grid-template-columns: 1fr; } }
+.design-render textarea { height: auto; font: inherit; }

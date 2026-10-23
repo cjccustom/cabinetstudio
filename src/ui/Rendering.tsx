@@ -8,7 +8,7 @@ import { base64ToBlob, blobToDataUrl, capability, shrinkImage, type Assets, type
 import { Field, Section } from './fields';
 
 /** Which picture is on screen, shared by the stage and the list. */
-const useView = create<{ selected?: string; select: (id?: string) => void }>((set) => ({ select: (selected) => set({ selected }) }));
+export const useView = create<{ selected?: string; select: (id?: string) => void }>((set) => ({ select: (selected) => set({ selected }) }));
 
 export function useRender() {
   const project = useStore((s) => s.project);
@@ -36,7 +36,7 @@ export const sampleError = (code?: string) =>
 /** The custom connector's name in claude.ai; it must match exactly. */
 export const GEMINI = 'Gemini Images';
 
-function geminiError(e: { code?: string; message?: string; result?: unknown }): string {
+export function geminiError(e: { code?: string; message?: string; result?: unknown }): string {
   switch (e.code) {
     case 'server_not_connected':
     case 'server_not_found':
@@ -65,7 +65,7 @@ function geminiError(e: { code?: string; message?: string; result?: unknown }): 
 }
 
 /** Store a picture: with the artifact's file storage when there is some, else shrunk into the job itself. */
-async function storeImage(file: Blob, kind: RenderImage['kind'], assets: Assets | null, name = (file as File).name ?? kind): Promise<RenderImage> {
+export async function storeImage(file: Blob, kind: RenderImage['kind'], assets: Assets | null, name = (file as File).name ?? kind): Promise<RenderImage> {
   const blob = await shrinkImage(file, assets ? 2400 : 1400, assets ? 0.9 : 0.8);
   const base = { id: uid('img'), kind, name: name.replace(/\.[^.]+$/, ''), note: '', at: Date.now() };
   if (assets) {
