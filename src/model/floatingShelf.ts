@@ -45,3 +45,20 @@ export function floatingShelfParts(c: Cabinet, settings: ShopSettings, ends: End
 
 /** Brackets for a floating shelf: what's set, or one per stud at 16" centers with 2" clear at each end. */
 export const bracketCount = (c: Cabinet) => floatingOf(c).brackets ?? Math.max(2, Math.floor((c.width - 4) / 16) + 1);
+
+/**
+ * The bracket CJC buys: Amazon B088PQTYJT, black solid steel, 12 mm rod on a 2" x 1-1/8" plate,
+ * 120 lb on a stud, sold in packs of 8 ($16.16 for the 10" pack, checked Oct 23, 2026).
+ */
+export const bracketProduct = {
+  name: 'Solid steel floating shelf bracket',
+  url: 'https://www.amazon.com/dp/B088PQTYJT',
+  rods: [4, 5, 6, 8, 10, 11, 12],
+  perPack: 8,
+};
+
+/** Rod length for a shelf: the longest that's at least 2" shorter than the shelf is deep (12" shelf, 10" rod). */
+export const bracketLength = (c: Cabinet) => [...bracketProduct.rods].reverse().find((r) => r <= c.depth - 2) ?? bracketProduct.rods[0];
+
+/** Finished ends on a shelf: each exposed end gets a mitered end cap. */
+export const finishedEnds = (ends: EndInfo) => Number(ends.left) + Number(ends.right);

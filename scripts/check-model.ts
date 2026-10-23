@@ -17,7 +17,7 @@ import { eagleFraction, eagleRequests, requestText } from "../src/model/eagleReq
 import { hardwareOrder, tierPrice } from "../src/model/hardware";
 import { defaultSupplies, supplyDrivers, supplyLines } from "../src/model/supplies";
 import { jobNumbers, phaseOf, starterTodos } from "../src/shop/fromDesign";
-import { bracketCount } from "../src/model/floatingShelf";
+import { bracketCount, bracketLength, finishedEnds } from "../src/model/floatingShelf";
 import { broscoCatalog } from "../src/model/brosco";
 import { designByCode, doorDrawing, proportionsFor, stockSlab, tradeSize } from "../src/model/reeb";
 import { doorOrder } from "../src/model/doorOrder";
@@ -432,6 +432,18 @@ eq('panel sticks out past frame', panelExtents(b21, s, { left: true, right: fals
   eq('36" shelf: 3 brackets at 16" studs', bracketCount(sh), 3);
   eq('72" shelf: 5 brackets', bracketCount({ ...sh, width: 72 }), 5);
   eq('brackets on the quote', priceQuote(lib).materials.some((m) => m.label === 'Floating shelf brackets'), true);
+  eq('12" shelf takes the 10" bracket', [sh.depth, bracketLength(sh)].join(), '12,10');
+  eq('9" shelf takes a 6" rod (no 7")', bracketLength({ ...sh, depth: 9 }), 6);
+  const brk = priceQuote(lib).materials.find((m) => m.label === 'Floating shelf brackets')!;
+  eq('3 brackets = one 8-pack at $16.16', brk.cost, 16.16);
+  // Like the garage bar: one shelf floating free, one running into the side wall
+  const free = { ...sh, wall: 'back' as const, offset: 30 };
+  const toWall = { ...sh, id: 'sh-wall', name: 'S9', wall: 'back' as const, offset: job.room.width - 36 };
+  const bar = { ...job, cabinets: [free, toWall] };
+  eq('free shelf: two finished ends', finishedEnds(resolveEnds(bar.room, bar.cabinets, free)), 2);
+  eq('shelf against the wall: one finished end', finishedEnds(resolveEnds(bar.room, bar.cabinets, toWall)), 1);
+  const endHours = priceQuote(bar).hours.find((h) => h.label === 'Floating shelves: finished ends')!;
+  eq('finished ends add labor: 3 ends', endHours.qty, 3);
   eq('floating shelf labor', priceQuote(lib).hours.some((h) => h.label.startsWith('Floating shelves')), true);
 }
 

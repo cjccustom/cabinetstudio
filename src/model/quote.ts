@@ -11,7 +11,7 @@ import { panelOrder } from './panels';
 import { uid } from './defaults';
 import { eaglePrice, hingeTypes } from './eagle';
 import { hardwareOrder } from './hardware';
-import { bracketCount } from './floatingShelf';
+import { bracketCount, bracketLength, bracketProduct, finishedEnds } from './floatingShelf';
 import { doorOrder } from './doorOrder';
 import { defaultSupplies, supplyLines, type SupplyGroup, type SupplyItem } from './supplies';
 
@@ -37,6 +37,8 @@ export interface LaborStandards {
   pilaster: number;
   installPilaster: number;
   floatingShelf: number;
+  /** Each finished end on a floating shelf: the end cap, its miters and the extra sanding. */
+  shelfFinishedEnd: number;
   installFloatingShelf: number;
   /** Hang an interior door: a prehung unit, plus extra to fit a slab into an existing jamb. */
   installDoor: number;
@@ -66,7 +68,8 @@ export const defaultStandards: LaborStandards = {
   installPerBox: 1,
   pilaster: 2,
   installPilaster: 0.5,
-  floatingShelf: 1.5,
+  floatingShelf: 1.25,
+  shelfFinishedEnd: 0.5,
   installFloatingShelf: 0.75,
   installDoor: 1.5,
   hangSlab: 1,
@@ -91,8 +94,8 @@ export interface QuoteSettings {
   /** Purchased parts not yet in the app's price lists. */
   /** Up or down from the fitted Eagle prices, for a price increase or a pricier species. 0.05 = 5%. */
   eagleAdjust: number;
-  /** Floating shelf bracket, each. */
-  shelfBracketEach: number;
+  /** Floating shelf brackets: price of a pack (8 to a pack). */
+  shelfBracketPack: number;
   beadboardSheet: number;
   /** Screws, glue, banding, abrasives and install sundries. */
   supplies: SupplyItem[];
@@ -115,7 +118,7 @@ export const defaultQuote: QuoteSettings = {
   workload: 'normal',
   workloadAdj: { full: 0.08, normal: 0, light: -0.06 },
   eagleAdjust: 0,
-  shelfBracketEach: 0,
+  shelfBracketPack: 16.16,
   beadboardSheet: 0,
   supplies: defaultSupplies,
   installPulls: true,
@@ -156,6 +159,7 @@ export function estimateHours(p: Project, q: QuoteSettings): HourLine[] {
   for (const c of p.cabinets) {
     if (c.kind === 'shelf') {
       add('Floating shelves: miter fold & glue-up', 1, st.floatingShelf);
+      add('Floating shelves: finished ends', finishedEnds(resolveEnds(p.room, p.cabinets, c)), st.shelfFinishedEnd);
       add('Install floating shelves', 1, st.installFloatingShelf, 'cabinets', true);
       installHours += st.installFloatingShelf;
       continue;
@@ -259,8 +263,13 @@ export function estimateMaterials(p: Project, q: QuoteSettings): MaterialLine[] 
   }
   if (fronts) out.push({ group: 'cabinets', label: 'Eagle doors, fronts & end panels', cost: frontCost, detail: `${fronts} pcs, ${frontArea.toFixed(1)} sq ft` });
   if (drawers) out.push({ group: 'cabinets', label: 'Eagle dovetail drawer boxes', cost: boxCost, detail: `${drawers} boxes` });
-  const brackets = p.cabinets.filter((c) => c.kind === 'shelf').reduce((t, c) => t + bracketCount(c), 0);
-  if (brackets) out.push({ group: 'cabinets', label: 'Floating shelf brackets', cost: brackets * q.shelfBracketEach, detail: `${brackets} brackets`, missing: q.shelfBracketEach ? undefined : 'Enter your bracket price' });
+  // Brackets by length: a 12" shelf takes the 10" bracket
+  const byLen = new Map<number, number>();
+  for (const c of p.cabinets) if (c.kind === 'shelf') byLen.set(bracketLength(c), (byLen.get(bracketLength(c)) ?? 0) + bracketCount(c));
+  const brackets = [...byLen.values()].reduce((t, n) => t + n, 0);
+  // Bought in packs of 8 for each rod length
+  const packs = [...byLen.values()].reduce((t, n) => t + Math.ceil(n / bracketProduct.perPack), 0);
+  if (brackets) out.push({ group: 'cabinets', label: 'Floating shelf brackets', cost: packs * q.shelfBracketPack, detail: `${[...byLen].map(([l, n]) => `${n} × ${l}"`).join(', ')}; ${packs} pack${packs > 1 ? 's' : ''} of ${bracketProduct.perPack}`, missing: q.shelfBracketPack ? undefined : 'Enter your bracket pack price' });
   const hw = hardwareOrder(p);
   const hwCost = (g: 'hinges' | 'slides') => hw.lines.filter((l) => l.group === g).reduce((t, l) => t + l.total, 0);
   const hwMissing = (g: 'hinges' | 'slides') => hw.problems.filter((x) => x.group === g).map((x) => x.text).join('; ') || undefined;
@@ -346,7 +355,10 @@ export const newExtra = (): QuoteExtra => ({ id: uid('extra'), label: 'Additiona
 
 /** The scope line for one cabinet, in the wording the shop uses on its quotes. */
 export function scopeLine(c: Cabinet, p: Project): string {
-  if (c.kind === 'shelf') return `${c.name}: Floating shelf, approx ${fmtIn(c.width)}W x ${fmtIn(c.depth)}D x ${fmtIn(c.height)} thick; mitered ${(c.floating?.grade ?? 'paint') === 'paint' ? 'paint grade' : 'stain grade'} construction with concealed bracket`;
+  if (c.kind === 'shelf') {
+    const n = finishedEnds(resolveEnds(p.room, p.cabinets, c));
+    return `${c.name}: Floating shelf, approx ${fmtIn(c.width)}W x ${fmtIn(c.depth)}D x ${fmtIn(c.height)} thick; mitered ${(c.floating?.grade ?? 'paint') === 'paint' ? 'paint grade' : 'stain grade'} construction with concealed bracket; ${n === 2 ? 'both ends finished' : n === 1 ? 'one end finished, one against the wall' : 'fits wall to wall'}`;
+  }
   if (c.kind === 'pilaster') return `${c.name}: Pilaster, approx ${fmtIn(c.width)}W x ${fmtIn(c.height)}H; recessed panel face with plinth and capital${c.crown ? '; crown molding' : ''}${c.baseMold ? '; baseboard' : ''}; paint grade`;
   const s = eff(c, p.settings);
   const parts = buildParts(c, p.settings, resolveEnds(p.room, p.cabinets, c));

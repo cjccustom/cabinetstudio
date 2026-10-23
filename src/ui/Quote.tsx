@@ -35,7 +35,7 @@ export function QuoteInputs() {
     ['perShelf', 'Per shelf'], ['endPanel', 'Per end panel'], ['extendedStile', 'Per extended stile'], ['woodTop', 'Per wood top / seat'],
     ['woodTopPerSqFt', 'Wood top per sq ft'], ['moldingPerFt', 'Moulding prep per ft'], ['beadboardPerSqFt', 'Beadboard per sq ft'],
     ['installPerBox', 'Install per cabinet'], ['installTall', 'Install tall extra'], ['installDay', 'Per install day (load-in, cleanup)'],
-    ['moldingInstallPerFt', 'Moulding install per ft'], ['pullInstall', 'Per pull/knob'], ['pilaster', 'Per pilaster'], ['installPilaster', 'Install per pilaster'], ['floatingShelf', 'Per floating shelf'], ['installFloatingShelf', 'Install per floating shelf'], ['installDoor', 'Install interior door'], ['hangSlab', 'Fit & hang a slab (extra)'],
+    ['moldingInstallPerFt', 'Moulding install per ft'], ['pullInstall', 'Per pull/knob'], ['pilaster', 'Per pilaster'], ['installPilaster', 'Install per pilaster'], ['floatingShelf', 'Per floating shelf'], ['shelfFinishedEnd', 'Per finished shelf end'], ['installFloatingShelf', 'Install per floating shelf'], ['installDoor', 'Install interior door'], ['hangSlab', 'Fit & hang a slab (extra)'],
   ];
   return (
     <aside className="sidebar">
@@ -74,9 +74,9 @@ export function QuoteInputs() {
           <div className="grid2">
             <Num id="q-eagle" label="Eagle prices, up or down" suffix="%" value={q.eagleAdjust * 100} onChange={(v) => set({ eagleAdjust: v / 100 })} />
             <Num id="q-bb" label="Beadboard sheet" suffix="$" value={q.beadboardSheet} onChange={(v) => set({ beadboardSheet: v })} />
-            <Num id="q-brk" label="Floating shelf bracket" suffix="$ each" value={q.shelfBracketEach} onChange={(v) => set({ shelfBracketEach: v })} />
+            <Num id="q-brk" label="Shelf brackets" suffix="$ / 8-pack" value={q.shelfBracketPack} onChange={(v) => set({ shelfBracketPack: v })} />
           </div>
-          <p className="hint">Plywood, maple and A&amp;M mouldings come from their own tabs. Blum hinges, slides and clips are priced from Woodworker Express’s price list. Eagle doors, fronts and drawer boxes are priced piece by piece from your 2026 Eagle orders (paint-grade maple, 5-piece). Raise the percentage after a price increase or for a pricier species.</p>
+          <p className="hint">Plywood, maple and A&amp;M mouldings come from their own tabs. Blum hinges, slides and clips are priced from Woodworker Express’s price list. Floating shelf brackets are the <a href="https://www.amazon.com/dp/B088PQTYJT" target="_blank" rel="noreferrer">Amazon bracket</a>, 2" shorter than the shelf is deep. Eagle doors, fronts and drawer boxes are priced piece by piece from your 2026 Eagle orders (paint-grade maple, 5-piece). Raise the percentage after a price increase or for a pricier species.</p>
         </Section>
 
         <SuppliesEditor />

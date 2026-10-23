@@ -119,7 +119,7 @@ export const presets: Preset[] = [
     rows: () => [row('open', null, 1, 4)] },
   { id: 'pilaster', label: 'Pilaster, recessed panel', kind: 'pilaster', width: 5.5, height: 87, depth: 17.5, elevation: 0, group: 'library',
     top: { pilaster: { ...defaultPilaster, breaks: [31] } }, rows: () => [] },
-  { id: 'float-shelf', label: 'Floating shelf', kind: 'shelf', width: 36, height: 2, depth: 10, elevation: 54, group: 'library',
+  { id: 'float-shelf', label: 'Floating shelf', kind: 'shelf', width: 36, height: 2, depth: 12, elevation: 54, group: 'library',
     top: { floating: { grade: 'paint', face: 0.75 } }, rows: () => [] },
   { id: 'tall-open', label: 'Tall, open shelves', kind: 'tall', width: 18, height: 84, depth: 12, elevation: 0,
     rows: () => [row('open', null, 1, 5)] },

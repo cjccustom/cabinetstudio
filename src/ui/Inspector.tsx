@@ -3,7 +3,7 @@ import { useStore } from '../store';
 import type { Cabinet, CrownBuild, EndMode, FaceRow, PanelChoice, PanelMode, WallId } from '../model/types';
 import { buildParts, crownLayout, layoutRows, noCrownBuild, panelOn } from '../model/parts';
 import { defaultPilaster, pilasterOf, pilasterSections } from '../model/pilaster';
-import { bracketCount, bracketGap, floatingOf, shelfPly } from '../model/floatingShelf';
+import { bracketCount, bracketGap, bracketLength, bracketProduct, finishedEnds, floatingOf, shelfPly } from '../model/floatingShelf';
 import { gapBeside, resolveEnds, wallLength, wallNames, wallOrder } from '../model/layout';
 import { panelLabel } from '../model/eagle';
 import { nextName, uid } from '../model/defaults';
@@ -485,7 +485,7 @@ function FloatingShelfSection({ cab, set }: { cab: Cabinet; set: (patch: Partial
           );
         })}
       </div>
-      <p className="hint">{bracketCount(cab)} brackets, on studs at 16" centers unless set. Bracket price is on the Quote tab.</p>
+      <p className="hint">{bracketCount(cab)} × {bracketLength(cab)}" brackets (<a href={bracketProduct.url} target="_blank" rel="noreferrer">Amazon</a>), on studs at 16" centers unless set; the bracket is 2" shorter than the shelf is deep. {finishedEnds(ends) === 2 ? 'Both ends finished.' : finishedEnds(ends) === 1 ? 'One finished end.' : 'No finished ends.'} Bracket price is on the Quote tab.</p>
       {gap < 0.375 && <p className="warn">Only {fmt(gap)} between the top and bottom for the bracket. Make the shelf thicker.</p>}
       <p className="hint">
         {fmt(settings.boxThickness)} plywood top and bottom ({shelfPly(cab, settings)}, on the sheet cutlist) with the solid face{ends.left || ends.right ? ' and end caps' : ''} mitered to them, leaving {fmt(gap)} for the bracket.
