@@ -44,7 +44,9 @@ export function baseLayout(c: Cabinet, s: ShopSettings): BaseLayout {
   const b = baseOf(c);
   if (!floorStanding(c) || b.style === 'kick') {
     const k = c.kind === 'wall' || c.kind === 'shelf' || c.kind === 'pilaster' ? 0 : s.toeKickHeight;
-    return { style: 'kick', kick: k, stileY: k, railY: k, railW: R, flat: 0, top: k, rise: 0, applied: false, out: 0, b };
+    // A bookcase standing on a countertop has no case bottom, and by default no bottom rail either
+    const rail = c.kind !== 'base' && c.noBottom ? c.bottomRail ?? false : true;
+    return { style: 'kick', kick: k, stileY: k, railY: k, railW: rail ? R : 0, flat: 0, top: k, rise: 0, applied: false, out: 0, b };
   }
   const cap = profileByNum(c.baseMold);
   const flat = Math.max(0, b.height);

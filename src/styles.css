@@ -394,3 +394,5 @@ details.opening .grid3 { margin-top: 8px; }
 .scope-toggle { margin-top: 10px; padding: 8px; border: 1px dashed var(--line, #ccc); border-radius: 8px; }
 .scope-toggle.on { border-style: solid; border-color: var(--ok); }
 .scope-toggle label { font-weight: 600; font-size: 13px; }
+
+.parts-toggle { display: block; margin: 12px 0; }

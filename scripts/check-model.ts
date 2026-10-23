@@ -389,6 +389,9 @@ eq('panel sticks out past frame', panelExtents(b21, s, { left: true, right: fals
     const up1 = buildParts(up, job.settings, ue);
     eq('bookcase upper: no bottom by default', up1.some((x) => x.name === 'Bottom'), false);
     eq('bookcase upper: back runs to the countertop', up1.find((x) => x.name === 'Back')!.length, up.height);
+    eq('bookcase upper: no face frame bottom rail', up1.some((x) => x.name === 'Bottom rail'), false);
+    eq('openings run to the bottom of the face frame', layoutRows(up, job.settings).rows.slice(-1)[0].y0, 0);
+    eq('rail toggles back on', buildParts({ ...up, bottomRail: true }, job.settings, ue).some((x) => x.name === 'Bottom rail'), true);
     eq('bottom toggles back on', buildParts({ ...up, noBottom: false }, job.settings, ue).some((x) => x.name === 'Bottom'), true);
     const sf = buildParts({ ...up, shelfFront: { height: 1.75, thickness: 0.75 } }, job.settings, ue);
     const sh = sf.filter((x) => x.role === 'shelf'), fr = sf.filter((x) => x.name === 'Shelf front');

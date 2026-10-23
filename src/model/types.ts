@@ -35,6 +35,8 @@ export interface Cabinet {
   base?: CabinetBase;
   /** Open bookcase uppers: no case bottom; the sides stand on the countertop below. */
   noBottom?: boolean;
+  /** Face frame bottom rail on a cabinet with no case bottom (left off unless turned on). */
+  bottomRail?: boolean;
   /** Solid stock applied to the front edge of the adjustable shelves, in place of edgebanding. Top flush with the shelf. */
   shelfFront?: { height: number; thickness: number };
   /** End panel on an exposed end. default = the job's standard. */

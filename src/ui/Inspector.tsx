@@ -24,6 +24,9 @@ const rowTypes: { v: FaceRow['type']; label: string }[] = [
 ];
 
 export function Inspector({ cab, issues }: { cab: Cabinet; issues: string[] }) {
+  // Parts detail stays tucked away until asked for; remembered for this browser
+  const [showParts, setShowParts] = useState(() => { try { return localStorage.getItem('cabinet-studio.showParts') === '1'; } catch { return false; } });
+  const toggleParts = (v: boolean) => { setShowParts(v); try { localStorage.setItem('cabinet-studio.showParts', v ? '1' : '0'); } catch { /* storage blocked */ } };
   const update = useStore((s) => s.updateCabinet);
   const remove = useStore((s) => s.removeCabinet);
   const duplicate = useStore((s) => s.duplicateCabinet);
@@ -125,6 +128,9 @@ export function Inspector({ cab, issues }: { cab: Cabinet; issues: string[] }) {
           <label><input id="cab-cstile" type="checkbox" checked={cab.centerStile} onChange={(e) => set({ centerStile: e.target.checked })} /> Center stile between pairs of doors</label>
           {cab.kind !== 'base' && (
             <label><input id="cab-bottom" type="checkbox" checked={!cab.noBottom} onChange={(e) => set({ noBottom: !e.target.checked })} /> Case bottom (off for a bookcase whose sides stand on the countertop)</label>
+          )}
+          {cab.kind !== 'base' && cab.noBottom && (
+            <label><input id="cab-brail" type="checkbox" checked={!!cab.bottomRail} onChange={(e) => set({ bottomRail: e.target.checked })} /> Face frame bottom rail</label>
           )}
           {cab.kind === 'wall' && !cab.noBottom && (
             <label><input id="cab-flush" type="checkbox" checked={!!cab.bottomFlush} onChange={(e) => set({ bottomFlush: e.target.checked })} /> Box bottom flush with bottom of face frame (for cabinets hung high)</label>
@@ -268,13 +274,20 @@ export function Inspector({ cab, issues }: { cab: Cabinet; issues: string[] }) {
       </>
       )}
 
-      <Section title="Cut parts">
-        <PartsTable cabinets={[cab]} compact />
-      </Section>
+      <button id="toggle-parts" className="mini parts-toggle" aria-expanded={showParts} onClick={() => toggleParts(!showParts)}>
+        {showParts ? 'Hide' : 'Show'} cut parts & Eagle order
+      </button>
+      {showParts && (
+        <>
+          <Section title="Cut parts">
+            <PartsTable cabinets={[cab]} compact />
+          </Section>
 
-      <Section title="Order from Eagle">
-        <OrderList cabinets={[cab]} compact />
-      </Section>
+          <Section title="Order from Eagle">
+            <OrderList cabinets={[cab]} compact />
+          </Section>
+        </>
+      )}
 
       <div className="insp-actions">
         <button onClick={() => duplicate(cab.id)}>Duplicate</button>
