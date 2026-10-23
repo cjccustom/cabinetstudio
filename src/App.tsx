@@ -1,3 +1,4 @@
+import { RenderInputs, RenderSide, RenderStage } from './ui/Rendering';
 import { useEffect, useMemo, useState } from 'react';
 import { useStore, type ViewMode } from './store';
 import { Scene } from './three/Scene';
@@ -62,6 +63,7 @@ export default function App() {
           <button role="tab" aria-selected={mode === 'cutlist'} className={mode === 'cutlist' ? 'on' : ''} onClick={() => setMode('cutlist')}>Sheet cutlist</button>
           <button role="tab" aria-selected={mode === 'faceframe'} className={mode === 'faceframe' ? 'on' : ''} onClick={() => setMode('faceframe')}>Solid wood</button>
           <button role="tab" aria-selected={mode === 'quote'} className={mode === 'quote' ? 'on' : ''} onClick={() => setMode('quote')}>Quote</button>
+          <button role="tab" aria-selected={mode === 'render'} className={mode === 'render' ? 'on' : ''} onClick={() => setMode('render')}>Rendering</button>
           <button role="tab" aria-selected={mode === 'job'} className={mode === 'job' ? 'on' : ''} onClick={() => setMode('job')}>Job & clock</button>
         </div>
         {mode === 'design' && <div className="seg views" role="tablist" aria-label="View">
@@ -90,6 +92,12 @@ export default function App() {
           <JobClock />
           <JobMain />
           <JobSide />
+        </>
+      ) : mode === 'render' ? (
+        <>
+          <RenderInputs />
+          <RenderStage />
+          <RenderSide />
         </>
       ) : mode === 'quote' ? (
         <>

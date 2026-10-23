@@ -396,3 +396,30 @@ details.opening .grid3 { margin-top: 8px; }
 .scope-toggle label { font-weight: 600; font-size: 13px; }
 
 .parts-toggle { display: block; margin: 12px 0; }
+
+/* Rendering tab */
+.render-stage { display: flex; flex-direction: column; overflow: hidden; }
+.render-bar { display: flex; align-items: center; gap: 12px; padding: 8px 14px; border-bottom: 1px solid var(--line); background: var(--surface); flex-wrap: wrap; }
+.render-bar .grow { flex: 1; }
+.render-bar .order-actions { margin: 0; }
+.render-single, .render-compare { flex: 1; min-height: 0; position: relative; display: grid; place-items: center; padding: 14px; }
+.render-single img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 6px; box-shadow: 0 2px 14px rgb(0 0 0 / 0.18); }
+.render-compare img { position: absolute; inset: 14px; width: calc(100% - 28px); height: calc(100% - 28px); object-fit: contain; }
+.render-compare .divider { position: absolute; top: 14px; bottom: 14px; width: 2px; background: #fff; box-shadow: 0 0 4px rgb(0 0 0 / 0.5); pointer-events: none; }
+.render-compare input[type=range] { position: absolute; left: 14px; right: 14px; bottom: 18px; width: calc(100% - 28px); }
+.render-compare .tag { position: absolute; top: 22px; background: rgb(0 0 0 / 0.55); color: #fff; font-size: 12px; padding: 2px 8px; border-radius: 4px; }
+.render-compare .before { left: 22px; } .render-compare .after { right: 22px; }
+.render-empty { max-width: 460px; margin: 12vh auto 0; padding: 0 16px; }
+.render-empty h2 { margin: 0 0 10px; }
+.render-empty ol { padding-left: 20px; line-height: 1.6; color: var(--muted); }
+.render-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.render-list li { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 10px; align-items: start; padding: 6px; border-radius: 8px; border: 1px solid transparent; }
+.render-list li.on { border-color: var(--accent); background: var(--accent-soft); }
+.render-list .thumb { padding: 0; border: 0; background: none; cursor: pointer; }
+.render-list .thumb img { width: 96px; height: 72px; object-fit: cover; border-radius: 4px; display: block; }
+.render-list .meta input { width: 100%; }
+.render-list .order-actions { margin-top: 6px; flex-wrap: wrap; }
+.quote-render { width: 100%; border-radius: 6px; display: block; margin-bottom: 8px; }
+@media (max-width: 860px) { .render-stage { min-height: 62vh; } }
+.check-inline { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; margin-top: 6px; }
+.render-list .check-inline { margin-top: 0; white-space: nowrap; }

@@ -45,8 +45,8 @@ interface State {
   project: Project;
   selectedId: string | null;
   view: ViewMode;
-  mode: 'design' | 'cutlist' | 'faceframe' | 'quote' | 'job';
-  setMode: (m: 'design' | 'cutlist' | 'faceframe' | 'quote' | 'job') => void;
+  mode: 'design' | 'cutlist' | 'faceframe' | 'quote' | 'job' | 'render';
+  setMode: (m: 'design' | 'cutlist' | 'faceframe' | 'quote' | 'job' | 'render') => void;
   dragging: boolean;
   past: Project[];
   future: Project[];
@@ -76,7 +76,7 @@ export const useStore = create<State>((set, get) => ({
   project: loadSaved() ?? normalize(sampleProject()),
   selectedId: null,
   view: '3d',
-  mode: (() => { try { const m = localStorage.getItem('cabinet-studio.mode'); return m === 'job' || m === 'quote' || m === 'cutlist' || m === 'faceframe' ? m : 'design'; } catch { return 'design'; } })(),
+  mode: (() => { try { const m = localStorage.getItem('cabinet-studio.mode'); return m === 'job' || m === 'render' || m === 'quote' || m === 'cutlist' || m === 'faceframe' ? m : 'design'; } catch { return 'design'; } })(),
   setMode: (mode) => { try { localStorage.setItem('cabinet-studio.mode', mode); } catch { /* storage blocked */ } set({ mode }); },
   dragging: false,
   past: [],

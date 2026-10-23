@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { useStore } from '../store';
 import { defaultStandards, groupLabel, newExtra, priceQuote, quoteOf, scopeLine, type LaborStandards, type QuoteSettings, type Workload } from '../model/quote';
 import { Field, Section } from './fields';
+import { QuoteRendering } from './Rendering';
 import { defaultSupplies, driverLabel, newSupply, supplyLines, type SupplyDriver, type SupplyItem } from '../model/supplies';
 
 const money = (v: number) => `$${Math.round(v).toLocaleString('en-US')}`;
@@ -211,6 +212,8 @@ export function QuoteSummary() {
             </div>
           ))}
         </Section>
+
+        <QuoteRendering />
 
         <Section title="Scope of work">
           <ul className="assembly">{scope.map((s) => <li key={s}>{s}</li>)}</ul>

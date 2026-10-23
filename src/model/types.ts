@@ -314,6 +314,8 @@ export interface Project {
   doorPrices?: Record<string, number>;
   /** Up or down from Reeb's catalog prices, e.g. your dealer's discount. -0.1 = 10% off. */
   doorAdjust?: number;
+  /** Photo-based renderings for selling the job. */
+  render?: Partial<import('./rendering').RenderState>;
 }
 
 export type MaterialKey = 'box' | 'back' | 'toeSkin' | 'faceframe' | 'door' | 'drawerBox' | 'counter' | 'solidWood';
