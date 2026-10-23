@@ -5,7 +5,7 @@ import { designByCode, stockSlab, tradeSize } from '../model/reeb';
 import { DoorGlyph, DoorPicker } from './DoorPicker';
 import type { Floor, Opening, OpeningTrim, RoomTrim, WallId } from '../model/types';
 import { wallLength, wallNames, wallOrder } from '../model/layout';
-import { defaultFloor, floorOf, newOpening, openingKinds, roomTrimOf } from '../model/room';
+import { defaultFloor, floorOf, inScope, newOpening, openingKinds, roomTrimOf } from '../model/room';
 import { fmt } from '../units';
 import { Field, LengthInput, Section } from './fields';
 import { MoldSlot } from './ProfilePicker';
@@ -29,6 +29,7 @@ export function RoomDetails() {
   const putOpening = (id: string, patch: Partial<Opening>) => commit((p) => ({ ...p, openings: (p.openings ?? []).map((o) => (o.id === id ? { ...o, ...patch } : o)) }));
   const putTrim = (patch: Partial<RoomTrim>) => commit((p) => ({ ...p, roomTrim: { ...roomTrimOf(p), ...patch } }));
   const putFloor = (patch: Partial<Floor>) => commit((p) => ({ ...p, floor: { ...floorOf(p), ...patch } }));
+  const putScope = (what: 'doors' | 'roomTrim', on: boolean) => commit((p) => ({ ...p, scope: { ...p.scope, [what]: on } }));
   const add = (kind: Opening['kind']) => commit((p) => ({ ...p, openings: [...(p.openings ?? []), newOpening(kind, 'back', p)] }));
   return (
     <>
@@ -39,6 +40,9 @@ export function RoomDetails() {
         {openings.map((o) => <OpeningEditor key={o.id} o={o} species={species} put={(patch) => putOpening(o.id, patch)}
           remove={() => commit((p) => ({ ...p, openings: (p.openings ?? []).filter((x) => x.id !== o.id) }))} />)}
         {!openings.length && <p className="hint">Add the room’s doors and windows so cabinets, casing and trim fit around them.</p>}
+        <ScopeToggle id="scope-doors" on={inScope(project, 'doors')} set={(v) => putScope('doors', v)}
+          label="This job supplies and installs the doors"
+          note="Off: doors are drawn for the design only. On: they go on the Orders tab, priced from Reeb’s catalog, with install labor in the quote." />
       </Section>
 
       <Section title="Room trim">
@@ -55,7 +59,10 @@ export function RoomDetails() {
             </label>
           ))}
         </div>
-        <p className="hint">Runs each wall corner to corner and stops at cabinets, panels and door casing; base and chair rail run under windows. Footage goes on the A&amp;M order and the quote under Room trim.</p>
+        <p className="hint">Runs each wall corner to corner and stops at cabinets, panels and door casing; base and chair rail run under windows.</p>
+        <ScopeToggle id="scope-trim" on={inScope(project, 'roomTrim')} set={(v) => putScope('roomTrim', v)}
+          label="This job supplies and installs room trim & casing"
+          note="Off: crown, base, chair rail and door and window casing are drawn for the design only. On: footage goes on the moulding orders, flat casing on the Solid wood list, and both into the quote under Room trim." />
       </Section>
 
       <Section title="Floor">
@@ -149,6 +156,16 @@ function DoorChoice({ o, put }: { o: Opening; put: (p: Partial<Opening>) => void
         {slab.fits ? 'Stock' : 'Nearest stock'} {d.leaves > 1 ? 'pair of ' : ''}{tradeSize(slab.w)} × {tradeSize(slab.h)} ({slab.w}" × {slab.h}"){slab.fits ? '' : `; this opening wants ${fmt((o.width - 0.25) / d.leaves)} × ${fmt(o.height - 0.125)}. Size the opening to a stock door or plan on a custom one.`} Hinges side is as you face the door from the room it swings into.
       </p>
       {open && <DoorPicker current={d.design} onPick={(c) => set({ design: c })} onClose={() => setOpen(false)} />}
+    </div>
+  );
+}
+
+/** Switch between showing something in the design only and including it in the quote and orders. */
+function ScopeToggle({ id, on, set, label, note }: { id: string; on: boolean; set: (v: boolean) => void; label: string; note: string }) {
+  return (
+    <div className={`scope-toggle${on ? ' on' : ''}`}>
+      <label htmlFor={id}><input id={id} type="checkbox" checked={on} onChange={(e) => set(e.target.checked)} /> {label}</label>
+      <p className="hint">{note}</p>
     </div>
   );
 }

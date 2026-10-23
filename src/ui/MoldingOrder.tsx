@@ -3,6 +3,8 @@ import { useStore } from '../store';
 import { moldLabel, moldingOrder, profileLabel, supplierName, type Supplier } from '../model/moldings';
 import { fmt } from '../units';
 import { ProfileThumb } from './ProfilePicker';
+import { DoorGlyph } from './DoorPicker';
+import { doorOrder } from '../model/doorOrder';
 
 /** What to order from Anderson & McQuaid and Brosco, by profile, in lineal feet. */
 export function MoldingOrder() {
@@ -56,3 +58,44 @@ function SupplierOrder({ sup, lines }: { sup: Supplier; lines: ReturnType<typeof
   );
 }
 
+/** Reeb interior doors: design, trade size, handing and the price entered for this job. */
+export function DoorOrderList() {
+  const project = useStore((s) => s.project);
+  const commit = useStore((s) => s.commit);
+  const lines = useMemo(() => doorOrder(project), [project]);
+  if (!lines.length) return null;
+  const total = lines.reduce((t, l) => t + l.cost, 0);
+  const setPrice = (key: string, v: number | null) => commit((p) => {
+    const next = { ...p.doorPrices };
+    if (v == null) delete next[key]; else next[key] = v;
+    return { ...p, doorPrices: next };
+  });
+  return (
+    <div className="pgroup" style={{ marginTop: 18 }}>
+      <div className="pgroup-head"><span>Reeb interior doors</span><span className="muted">{lines.reduce((t, l) => t + l.qty, 0)} doors</span></div>
+      <table>
+        <thead><tr><th /><th>Door</th><th className="num">Qty</th><th className="num">$ each</th><th className="num">Cost</th></tr></thead>
+        <tbody>
+          {lines.map((l) => (
+            <tr key={`${l.key}|${l.hinge}`}>
+              <td><DoorGlyph d={l.design} size={34} /></td>
+              <td>{l.key}<span className="note">{l.design.name}; {l.leaves > 1 ? 'pair' : `hinges ${l.hinge}`}; {l.openings.join(', ')}{l.fits ? '' : '; not a stock size'}</span></td>
+              <td className="num">{l.qty}</td>
+              <td className="num"><input className="price-in" aria-label={`${l.key} price`} inputMode="decimal" placeholder={l.priceFrom === 'catalog' ? l.price!.toFixed(0) : '$'} defaultValue={project.doorPrices?.[l.key] ?? ''}
+                onBlur={(e) => { const v = parseFloat(e.target.value); setPrice(l.key, Number.isFinite(v) ? v : null); }} />
+                {l.priceFrom === 'catalog' && <div className="muted check-hint">Reeb catalog</div>}</td>
+              <td className="num">{l.price != null ? `$${l.cost.toFixed(2)}` : '—'}</td>
+            </tr>
+          ))}
+          <tr><td /><td>Subtotal</td><td /><td /><td className="num">${total.toFixed(2)}</td></tr>
+        </tbody>
+      </table>
+      <label className="field" htmlFor="door-adj" style={{ marginTop: 8 }}>
+        <span>Reeb catalog prices up or down (%)</span>
+        <input id="door-adj" inputMode="decimal" defaultValue={project.doorAdjust ? +(project.doorAdjust * 100).toFixed(2) : ''} placeholder="0"
+          onBlur={(e) => { const v = parseFloat(e.target.value); commit((p) => ({ ...p, doorAdjust: Number.isFinite(v) ? v / 100 : undefined })); }} />
+      </label>
+      <p className="hint">Single doors are priced from Reeb’s interior price catalog (effective 8/10/26, 1-3/8" doors; door only or prehung single unit), adjusted by the percentage above for your dealer. Type a price to override it for this job. Pairs and sizes the catalog doesn’t list need a price entered.</p>
+    </div>
+  );
+}

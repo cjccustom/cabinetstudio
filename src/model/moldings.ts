@@ -5,7 +5,7 @@ import { amCatalog, type AMProfile } from './andersonMcquaid';
 import { broscoCatalog } from './brosco';
 import { crownLayout, panelExtents, type EndInfo } from './parts';
 import { pilasterOf, pilasterOpenings } from './pilaster';
-import { roomMoldingPieces } from './room';
+import { inScope, roomMoldingPieces } from './room';
 import { resolveEnds } from './layout';
 
 export type MoldKind = 'crown' | 'lightRail' | 'baseMold' | 'cap' | 'panel' | 'roomCrown' | 'roomBase' | 'chairRail' | 'casing' | 'backBand' | 'headCap' | 'stool' | 'apron';
@@ -166,7 +166,8 @@ export function moldingOrder(p: Project): MoldOrderLine[] {
     cabinetMoldings(c, s, resolveEnds(p.room, p.cabinets, c)).forEach(add);
   }
   for (const w of p.panels ?? []) panelMoldings(w).forEach(add);
-  roomMoldingPieces(p).forEach(add);
+  // Room trim and casing are design-only unless the job includes them
+  if (inScope(p, 'roomTrim')) roomMoldingPieces(p).forEach(add);
   // Panel moulding mitered around each opening of a shop-built pilaster
   for (const c of p.cabinets) {
     const ps = c.kind === 'pilaster' ? pilasterOf(c) : null;

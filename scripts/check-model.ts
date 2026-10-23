@@ -19,6 +19,7 @@ import { defaultSupplies, supplyDrivers, supplyLines } from "../src/model/suppli
 import { jobNumbers, phaseOf, starterTodos } from "../src/shop/fromDesign";
 import { broscoCatalog } from "../src/model/brosco";
 import { designByCode, doorDrawing, proportionsFor, stockSlab, tradeSize } from "../src/model/reeb";
+import { doorOrder } from "../src/model/doorOrder";
 import { blockedAlong, casingReach, freeRuns, newOpening, openingIssues, openingTrim, roomMoldings } from "../src/model/room";
 
 let failed = 0;
@@ -448,7 +449,11 @@ eq('panel sticks out past frame', panelExtents(b21, s, { left: true, right: fals
   const bb = amCatalog.find((x) => x.category === 'Back Band')!.num;
   const win = { ...newOpening('window', 'back', job), offset: 54, width: 24, height: 40, sill: 42, trim: { flat: 3.5, backBand: bb } };
   const door = { ...newOpening('door', 'right', job), offset: 60, width: 32, height: 80, trim: { flat: 3.5 } };
-  const room = { ...job, openings: [win, door], roomTrim: { base, crown, chairHeight: 34, walls: ['back', 'left', 'right', 'front'] as any } };
+  const room = { ...job, openings: [win, door], roomTrim: { base, crown, chairHeight: 34, walls: ['back', 'left', 'right', 'front'] as any }, scope: { roomTrim: true } };
+  const designOnly = { ...room, scope: {} };
+  eq('room trim is design only by default: not ordered', moldingOrder(designOnly).length, 0);
+  eq('room trim is design only by default: no flat casing stock', faceFramePieces(designOnly).filter((x) => x.cabinet === 'Room').length, 0);
+  eq('room trim is design only by default: no quote group', priceQuote(designOnly).groups.some((g) => g.group === 'room'), false);
   eq('free runs skip blocked stretches', JSON.stringify(freeRuns(100, [[10, 20], [15, 30], [90, 100]])), JSON.stringify([[0, 10], [30, 90]]));
   eq('back wall base: only the 30" range gap', roomMoldings(room, 'back').filter((m) => m.kind === 'roomBase').map((m) => m.length).join(), '30');
   const rightBase = roomMoldings(room, 'right').filter((m) => m.kind === 'roomBase');
@@ -476,7 +481,7 @@ eq('panel sticks out past frame', panelExtents(b21, s, { left: true, right: fals
   const bBase = broscoCatalog.find((x) => x.code === '8712')!;
   eq('Brosco 8712 is a 9/16 x 3 1/2 base', [bBase.category, bBase.t, bBase.w].join(), 'Base Board and Base Cap,0.5625,3.5');
   eq('traced Brosco outline snapped to size', Math.abs(Math.max(bBase.sw!, bBase.sh!) - 3.5) < 1e-6, true);
-  const withB = { ...job, roomTrim: { base: bBase.num, chairHeight: 34, walls: ['front'] as any } };
+  const withB = { ...job, roomTrim: { base: bBase.num, chairHeight: 34, walls: ['front'] as any }, scope: { roomTrim: true } };
   const line = moldingOrder(withB).find((m) => m.num === bBase.num)!;
   eq('Brosco on its own order, unpriced', [line.supplier, line.price].join(), 'brosco,');
   const priced = moldingOrder({ ...withB, moldPrices: { [bBase.num]: 1.85 } }).find((m) => m.num === bBase.num)!;
@@ -485,10 +490,18 @@ eq('panel sticks out past frame', panelExtents(b21, s, { left: true, right: fals
   eq('32 1/4 x 80 1/8 opening takes a stock 2/8 x 6/8', JSON.stringify(stockSlab(32.25, 80.125)), JSON.stringify({ w: 32, h: 80, fits: true }));
   eq('odd opening flagged', stockSlab(34.5, 80.125).fits, false);
   const door = { ...newOpening('door', 'right', job), offset: 60, width: 32.25, height: 80.125, trim: { flat: 3.5 }, door: { design: 'PR8730', hinge: 'left' as const, leaves: 1 as const, prehung: true } };
-  const room = { ...job, openings: [door] };
-  eq('doors are design only: not in the quote', priceQuote(room).materials.some((m) => m.label.includes('Reeb')) || priceQuote(room).hours.some((h) => h.label.includes('door')), false);
+  const room = { ...job, openings: [door], scope: { doors: true } };
+  eq('doors are design only by default', doorOrder({ ...room, scope: {} }).length + priceQuote({ ...room, scope: {} }).hours.filter((h) => h.label.includes('door')).length, 0);
+  const dl = doorOrder(room);
+  eq('door order key', dl.map((l) => l.key).join(), 'PR8730 2/8x6/8 prehung');
+  eq('PR8730 2/8 x 6/8 prehung at Reeb catalog price', [dl[0].price, dl[0].priceFrom].join(), '375,catalog');
+  eq('dealer adjustment applies to catalog prices', doorOrder({ ...room, doorAdjust: -0.1 })[0].price, 337.5);
+  eq('job price overrides the catalog', doorOrder({ ...room, doorPrices: { 'PR8730 2/8x6/8 prehung': 310 } })[0].price, 310);
+  const pair = { ...room, openings: [{ ...door, width: 60.375, door: { ...door.door, leaves: 2 as const } }] };
+  eq('pairs need a price entered', priceQuote(pair).materials.some((m) => m.label === 'Reeb interior doors' && !!m.missing), true);
   const sheet = proportionsFor(designByCode('PR8730')!, 80);
   eq('PR8730 from Reeb cut sheet: 4-7/16 stile, 4-5/16 top, 9-3/16 bottom', [sheet.fromSheet, sheet.stile, sheet.top, sheet.bottom].join(), 'true,4.4375,4.3125,9.1875');
+  eq('door install labor', priceQuote(room).hours.some((h) => h.label === 'Install interior doors'), true);
   const dr = doorDrawing(designByCode('PR66')!, 32, 80);
   eq('6 panel door: raised fields drawn', dr.boxes.filter((b) => b.shade === 1).length, 6);
   const lock = doorDrawing(designByCode('PR82R')!, 32, 80).boxes.find((b) => b.size[1] === 7.75);

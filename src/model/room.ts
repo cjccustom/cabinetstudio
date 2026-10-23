@@ -12,6 +12,9 @@ export const defaultFloor: Floor = { kind: 'hardwood', color: '#b98b5e', size: 3
 export const roomTrimOf = (p: Project): RoomTrim => ({ ...defaultRoomTrim, ...p.roomTrim });
 export const floorOf = (p: Project): Floor => ({ ...defaultFloor, ...p.floor });
 
+/** Whether this job supplies and installs its doors or room trim, rather than only showing them in the design. */
+export const inScope = (p: Project, what: 'doors' | 'roomTrim') => !!p.scope?.[what];
+
 export const openingKinds = { door: 'Door', window: 'Window', cased: 'Cased opening' } as const;
 
 export function newOpening(kind: Opening['kind'], wall: WallId, p: Project): Opening {

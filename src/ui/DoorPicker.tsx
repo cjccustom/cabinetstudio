@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react';
-import { doorDrawing, proportionsFor, reebDesigns, type ReebDesign } from '../model/reeb';
+import { useStore } from '../store';
+import { inScope } from '../model/room';
+import { catalogPrice, doorDrawing, proportionsFor, reebDesigns, type ReebDesign } from '../model/reeb';
 
 /** A face-on drawing of a Reeb design, built from the same layout the 3D view uses. */
 export function DoorGlyph({ d, size = 70 }: { d: ReebDesign; size?: number }) {
@@ -20,6 +22,8 @@ export function DoorGlyph({ d, size = 70 }: { d: ReebDesign; size?: number }) {
 }
 
 export function DoorPicker({ current, onPick, onClose }: { current?: string; onPick: (code: string | undefined) => void; onClose: () => void }) {
+  // Prices only matter on jobs that supply the doors
+  const showPrices = useStore((s) => inScope(s.project, 'doors'));
   const [line, setLine] = useState<'primed' | 'wood'>(() => reebDesigns.find((d) => d.code === current)?.line ?? 'primed');
   return (
     <div className="modal-back" onClick={onClose}>
@@ -29,7 +33,7 @@ export function DoorPicker({ current, onPick, onClose }: { current?: string; onP
           <div className="seg" role="group" aria-label="Line">
             {(['primed', 'wood'] as const).map((k) => <button key={k} className={line === k ? 'on' : ''} aria-pressed={line === k} onClick={() => setLine(k)}>{k === 'primed' ? 'Primed stile & rail' : 'Wood stile & rail'}</button>)}
           </div>
-          <span className="muted">Reeb’s popular in-stock designs, drawn with the stile and rail sizes from Reeb’s cut sheets.</span>
+          <span className="muted">Reeb’s popular in-stock designs, drawn with the stile and rail sizes from Reeb’s cut sheets.{showPrices ? ' Prices are Reeb’s catalog (2/8 × 6/8, door only / prehung).' : ''}</span>
         </div>
         <div className="pp-grid">
           {reebDesigns.filter((d) => d.line === line).map((d) => (
@@ -37,6 +41,7 @@ export function DoorPicker({ current, onPick, onClose }: { current?: string; onP
               <DoorGlyph d={d} />
               <span className="pp-num">{d.code}</span>
               <span className="muted">{d.name}</span>
+              {showPrices && catalogPrice(d, 32, 80, false) != null && <span className="mono">${catalogPrice(d, 32, 80, false)} / ${catalogPrice(d, 32, 80, true)}</span>}
             </button>
           ))}
         </div>
