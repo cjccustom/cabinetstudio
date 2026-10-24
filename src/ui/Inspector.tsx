@@ -12,7 +12,7 @@ import { Field, LengthInput, Section } from './fields';
 import { OrderList, PartsTable } from './PartsTable';
 import { OverridesSection } from './Overrides';
 import { MoldSlot } from './ProfilePicker';
-import { applianceKinds, newAppliance, openingFor, placedAppliances, type Appliance, type ApplianceKind } from '../model/appliances';
+import { applianceKinds, appliancePresets, newAppliance, openingFor, placedAppliances, type Appliance, type ApplianceKind } from '../model/appliances';
 import { cabinetCallouts } from '../drawings/notes';
 import { archBuilds, archShapes, baseLayout, baseOf, baseStyles, cutOutline, floorStanding } from '../model/cabinetBase';
 import { profileLabel, profileByNum } from '../model/moldings';
@@ -664,8 +664,9 @@ function FrameWidths({ cab, settings, set, setRow }: { cab: Cabinet; settings: S
 /** What goes in an appliance row: the kind, its size and clearances, and sizing the opening to it. */
 function ApplianceEditor({ a, openingH, problems, onChange }: { a: Appliance; openingH: number; problems: string[]; onChange: (a: Appliance, height?: number) => void }) {
   const put = (patch: Partial<Appliance>) => onChange({ ...a, ...patch });
+  // Typing a size of your own means it's no longer the picked model's
   const len = (k: 'w' | 'h' | 'd' | 'side' | 'top' | 'back', label: string) => (
-    <Field label={label} htmlFor={`ap-${k}`}><LengthInput id={`ap-${k}`} value={a[k]} onChange={(v) => put({ [k]: v ?? 0 })} /></Field>
+    <Field label={label} htmlFor={`ap-${k}`}><LengthInput id={`ap-${k}`} value={a[k]} onChange={(v) => put({ [k]: v ?? 0, source: undefined })} /></Field>
   );
   const fit = openingFor(a);
   return (
@@ -678,6 +679,16 @@ function ApplianceEditor({ a, openingH, problems, onChange }: { a: Appliance; op
         </Field>
         <Field label="Make & model" htmlFor="ap-model"><input id="ap-model" value={a.model ?? ''} placeholder="From the spec sheet" onChange={(e) => put({ model: e.target.value || undefined })} /></Field>
       </div>
+      <Field label="Common sizes" htmlFor="ap-preset">
+        <select id="ap-preset" value="" onChange={(e) => {
+          const pr = appliancePresets[Number(e.target.value)];
+          if (pr) { const n: Appliance = { kind: pr.kind, model: pr.model, source: pr.note, ...pr.size }; onChange(n, openingFor(n)); }
+        }}>
+          <option value="">Pick a size to fill these in…</option>
+          {appliancePresets.map((pr, i) => pr.kind === a.kind ? <option key={i} value={i}>{pr.label}</option> : null)}
+        </select>
+      </Field>
+      {a.source && <p className="hint">{a.source}.</p>}
       <div className="grid3">
         {len('w', 'Width')}{len('h', 'Height')}{len('d', 'Depth')}
         {len('side', 'Clear each side')}{len('top', 'Clear above')}{len('back', 'Clear behind')}

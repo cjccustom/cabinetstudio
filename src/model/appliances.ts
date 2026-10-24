@@ -13,6 +13,8 @@ export interface Appliance {
   kind: ApplianceKind;
   /** Make and model, once picked. */
   model?: string;
+  /** Where the size came from (a common-size pick), shown with it. */
+  source?: string;
   /** The appliance's own size (for a trim kit or a fireplace with a frame: the part that goes in the opening). */
   w: number;
   h: number;
@@ -38,6 +40,32 @@ export const applianceKinds: Record<ApplianceKind, { label: string; short: strin
 };
 
 export const newAppliance = (kind: ApplianceKind): Appliance => ({ kind, ...applianceKinds[kind].size });
+
+/**
+ * Common sizes to start from. Named models come from the maker's sheets or retailer listings
+ * (Oct 2026) and say so; "typical" ones are class sizes. Every one still gets checked against the
+ * installation manual for the exact model before the opening is built.
+ */
+export interface AppliancePreset { kind: ApplianceKind; label: string; model?: string; size: Omit<Appliance, 'kind' | 'model'>; note: string }
+export const appliancePresets: AppliancePreset[] = [
+  { kind: 'microwave', label: 'Compact countertop (typical)', size: { w: 18, h: 10.5, d: 14, side: 1, top: 2, back: 1, mount: 'shelf' }, note: 'Typical 0.7 cu ft class' },
+  { kind: 'microwave', label: 'Mid-size countertop (typical)', size: { w: 22, h: 13, d: 17, side: 1, top: 2, back: 1, mount: 'shelf' }, note: 'Typical 1.2–1.6 cu ft class' },
+  { kind: 'microwave', label: 'Large countertop (typical)', size: { w: 24, h: 14.25, d: 19.5, side: 1, top: 2, back: 1, mount: 'shelf' }, note: 'Typical 2.0–2.2 cu ft class' },
+  { kind: 'builtInMicrowave', label: 'GE 30" trim kit (JX830)', model: 'GE JX830 trim kit', size: { w: 24.875, h: 15, d: 18, side: 0, top: 0, back: 0, mount: 'flush' }, note: 'Cutout 24 7/8 W × 15 H, 16" deep minimum (18" with the outlet in the cutout); trim 29 7/8 × 16 1/2 covers it. Bottom of trim 36" or more off the floor (GE install sheet)' },
+  { kind: 'microwaveDrawer', label: 'Sharp 24" drawer (SMD2470ASY)', model: 'Sharp SMD2470ASY', size: { w: 22.125, h: 15.5625, d: 23.5, side: 0, top: 0, back: 0, mount: 'flush' }, note: 'Retailer cutout 22 1/8 × 15 9/16 × 23 1/2; Sharp\'s guide says 14 13/16 high, so check the manual. Unit 23 7/8 × 15 7/8 × 23; needs about 41" in front to open' },
+  { kind: 'microwaveDrawer', label: 'Sharp 30" drawer (SMD3070ASY)', model: 'Sharp SMD3070ASY', size: { w: 29.875, h: 15.875, d: 23, side: 0, top: 0, back: 0, mount: 'flush' }, note: 'Unit size 29 7/8 × 15 7/8 × 23 (Sharp); cutout not published where I looked; get it from the manual' },
+  { kind: 'oven', label: '27" single wall oven (typical)', size: { w: 25.5, h: 28, d: 23.5, side: 0, top: 0, back: 0, mount: 'flush' }, note: 'Typical 27" cutout; varies by brand' },
+  { kind: 'oven', label: '30" single wall oven (typical)', size: { w: 28.5, h: 28, d: 23.5, side: 0, top: 0, back: 0, mount: 'flush' }, note: 'Typical 30" cutout; varies by brand' },
+  { kind: 'oven', label: '30" double wall oven (typical)', size: { w: 28.5, h: 50.5, d: 23.5, side: 0, top: 0, back: 0, mount: 'flush' }, note: 'Typical 30" double cutout; varies by brand' },
+  { kind: 'fireplace', label: 'Dimplex Revillusion 30" (RBF30)', model: 'Dimplex RBF30', size: { w: 31.25, h: 26.625, d: 12.125, side: 0, top: 2, back: 0, mount: 'flush' }, note: 'Outside 31 1/4 W × 26 5/8 H × 12 1/8 D (retailer listing); 2" above the top. Frame to the manual\'s opening' },
+  { kind: 'fireplace', label: 'Dimplex Revillusion 36" (RBF36)', model: 'Dimplex RBF36', size: { w: 36.625, h: 26.25, d: 12.125, side: 0, top: 0, back: 0, mount: 'flush' }, note: 'Framing opening 36 5/8 × 26 1/4 from the sell sheet (unit 37 1/4 wide with a 1/2" self-trimming flange); 12 1/8 deep' },
+  { kind: 'fireplace', label: 'Dimplex Revillusion 42" (RBF42)', model: 'Dimplex RBF42', size: { w: 43.25, h: 31, d: 12.125, side: 0, top: 2, back: 0, mount: 'flush' }, note: 'Outside 43 1/4 W × 31 H × 12 1/8 D (retailer; brochure may show 30 1/4 high); 2" above the top. Frame to the manual\'s opening' },
+  { kind: 'beverage', label: '15" undercounter (typical)', size: { w: 14.875, h: 34, d: 23.5, side: 0.125, top: 0.25, back: 1, mount: 'flush' }, note: 'Typical 15" beverage center or ice maker' },
+  { kind: 'beverage', label: '24" undercounter (typical)', size: { w: 23.875, h: 34, d: 23.5, side: 0.125, top: 0.25, back: 1, mount: 'flush' }, note: 'Typical 24" beverage or wine fridge' },
+  { kind: 'tv', label: '55" TV (typical)', size: { w: 48.5, h: 28, d: 3, side: 1, top: 1, back: 0, mount: 'shelf' }, note: 'Typical 55" set without the stand' },
+  { kind: 'tv', label: '65" TV (typical)', size: { w: 57.25, h: 33, d: 3, side: 1, top: 1, back: 0, mount: 'shelf' }, note: 'Typical 65" set without the stand' },
+  { kind: 'tv', label: '75" TV (typical)', size: { w: 66.25, h: 38, d: 3, side: 1, top: 1, back: 0, mount: 'shelf' }, note: 'Typical 75" set without the stand' },
+];
 export const applianceName = (a: Appliance) => applianceKinds[a.kind].short + (a.model ? ` (${a.model})` : '');
 
 /** The opening height that fits it: the appliance plus its top clearance. */
@@ -90,6 +118,6 @@ export function applianceNotes(c: Cabinet, s: ShopSettings): string[] {
   return placedAppliances(c, s).map((p) => {
     const k = applianceKinds[p.a.kind];
     const o = p.opening;
-    return `${applianceName(p.a)} by owner, ${fmt(p.a.w)} W × ${fmt(p.a.h)} H × ${fmt(p.a.d)} D, in a ${fmt(o.x1 - o.x0)} × ${fmt(o.y1 - o.y0)} opening. ${k.note}. Verify with the spec sheet before building.`;
+    return `${applianceName(p.a)} by owner, ${fmt(p.a.w)} W × ${fmt(p.a.h)} H × ${fmt(p.a.d)} D, in a ${fmt(o.x1 - o.x0)} × ${fmt(o.y1 - o.y0)} opening. ${p.a.source ? `${p.a.source}. ` : ''}${k.note}. Verify with the spec sheet before building.`;
   });
 }
