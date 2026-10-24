@@ -6,6 +6,7 @@ import { priceQuote, quoteOf, scopeLine, groupLabel } from './quote';
 import { eagleRequests, requestText } from './eagleRequest';
 import { hardwareOrder, hardwareText } from './hardware';
 import { releaseOf } from './release';
+import { LOGO } from '../drawings/logo';
 
 export const JOBS_ROOT = '/CJC/Jobs';
 
@@ -122,7 +123,7 @@ export function quoteDoc(p: Project): string {
   const rounded = lines.map((l) => ({ ...l, price: Math.round(((l.price / sum) * r.total) / 10) * 10 }));
   if (rounded.length) rounded[0].price += r.total - rounded.reduce((t, l) => t + l.price, 0);
   const deposit = Math.round(r.total * 0.3);
-  const head = `<div class="co">${COMPANY.map(esc).join('<br>')}</div>`;
+  const head = `<div class="co"><img src="${LOGO}" alt="CJC Custom Carpentry" style="height:.62in;display:block;margin-bottom:6px">${COMPANY.slice(1).map(esc).join('<br>')}</div>`;
   const who = `<table class="who"><tr><th>Client Name</th><td>${esc(clientName(c))}</td></tr><tr><th>Project Address</th><td>${esc(c.address)}</td></tr>`;
   return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(clientName(c) || 'Quote')} - ${esc(p.name)}</title>
 <style>body{font:11pt/1.45 Georgia,serif;max-width:7.5in;margin:.6in auto;color:#111}.co{font-size:10pt;margin-bottom:18px}h1{font-size:15pt;text-align:center;letter-spacing:.06em;margin:18px 0}

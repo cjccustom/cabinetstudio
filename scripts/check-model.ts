@@ -25,6 +25,8 @@ import { applyDraft, cleanDraft, closestProfile, draftRequest } from "../src/mod
 import { clientInfoDoc, folderName, ordersDoc, parseFolderName, quoteDoc, stageByFolder } from "../src/model/client";
 import { readScan, scanToDraft } from "../src/model/roomScan";
 import { customerSet, drawingsOf, setDocument, shopSet } from "../src/drawings/sheets";
+import { cabinetCallouts, forAudience } from "../src/drawings/notes";
+import { hardwareItems, partsOf } from "../src/drawings/views";
 import { blockedAlong, casingReach, freeRuns, newOpening, openingIssues, openingTrim, roomMoldings } from "../src/model/room";
 
 let failed = 0;
@@ -664,6 +666,20 @@ eq('panel sticks out past frame', panelExtents(b21, s, { left: true, right: fals
   const doc = setDocument('Test', cust, 'letter');
   eq('printable document, letter pages', doc.includes('size:11in 8.5in') && (doc.match(/class="page"/g) ?? []).length === cust.length, true);
   eq('sheets are true size', cust[1].svg.includes('width="17in"'), true);
+}
+
+{
+  // Notes and assumed hardware on the drawings
+  const c0 = { ...p.cabinets[0], notes: [{ id: 'n1', text: 'Outlet in the back', for: 'shop' as const }, { id: 'n2', text: 'Glass doors', for: 'customer' as const }] };
+  const notes = cabinetCallouts(p, c0);
+  eq('own notes go to their audience', [forAudience(notes, 'shop').some((n) => n.text === 'Outlet in the back'), forAudience(notes, 'customer').some((n) => n.text === 'Outlet in the back'), forAudience(notes, 'customer').some((n) => n.text === 'Glass doors')].join(), 'true,false,true');
+  const panelCab = { ...p.cabinets[0], leftPanel: 'flush' as const };
+  const pp = { ...p, cabinets: [panelCab, ...p.cabinets.slice(1)] };
+  eq('end panels are called out when exposed', cabinetCallouts(pp, panelCab).some((n) => n.text.startsWith('Finished end panel')) || !resolveEnds(pp.room, pp.cabinets, panelCab).left, true);
+  const two = p.cabinets.find((c) => c.rows.some((r) => r.type === 'doors' && r.doors === 2))!;
+  const hw = hardwareItems(p, two, partsOf(p, two));
+  const doorsN = partsOf(p, two).filter((x) => x.role === 'door').length;
+  eq('a knob on every door', hw.filter((h) => h.circle).length >= doorsN, true);
 }
 
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');

@@ -31,6 +31,8 @@ export interface Cabinet {
   rightEnd?: EndMode;
   /** Wall cabinets: box bottom flush with the bottom of the face frame instead of tucked behind the rail. */
   bottomFlush?: boolean;
+  /** Notes for the drawings: for the customer, the shop, or both. */
+  notes?: CabinetNote[];
   /** Floor cabinets: toe kick, baseboard wrap or a decorative skirt. */
   base?: CabinetBase;
   /** Open bookcase uppers: no case bottom; the sides stand on the countertop below. */
@@ -328,6 +330,8 @@ export type MaterialKey = 'box' | 'back' | 'toeSkin' | 'faceframe' | 'door' | 'd
 export type PartRole =
   | 'side' | 'bottom' | 'top' | 'stretcher' | 'back' | 'nailer' | 'toekick' | 'shelf'
   | 'stile' | 'rail' | 'door' | 'drawerFront' | 'drawerBox' | 'endPanel' | 'counter' | 'woodTop' | 'trim';
+
+export interface CabinetNote { id: string; text: string; for: 'both' | 'customer' | 'shop' }
 
 export interface CabinetBase {
   style: 'kick' | 'baseboard' | 'arch';

@@ -62,6 +62,7 @@ export class View {
     this.out.push(`<polygon class="${cls}" points="${pts.map(([x, y]) => `${this.X(x)},${this.Y(y)}`).join(' ')}"/>`);
   }
   path(d: string, cls = 'o') { this.out.push(`<path class="${cls}" d="${d}"/>`); }
+  circle(x: number, y: number, r: number, cls = 'o') { this.out.push(`<circle class="${cls}" cx="${this.X(x)}" cy="${this.Y(y)}" r="${n(r * this.k)}"/>`); }
   /** Text at a world point; size in paper inches. */
   text(x: number, y: number, s: string, size = 0.1, anchor: 'start' | 'middle' | 'end' = 'middle', cls = 't', rotate = 0) {
     const X = this.X(x), Y = this.Y(y);
@@ -152,6 +153,7 @@ export const drawingCss = `
 .dwg .d{stroke:#333;stroke-width:.005}
 .dwg .tk{stroke:#111;stroke-width:.011}
 .dwg .tag{fill:#fff;stroke:#111;stroke-width:.008}
+.dwg .hw{fill:#555;stroke:#111;stroke-width:.004}
 .dwg text{font-family:"Helvetica Neue",Arial,sans-serif;fill:#111}
 .dwg .dt{font-weight:500}
 .dwg .tagt{font-weight:700}

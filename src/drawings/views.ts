@@ -11,7 +11,38 @@ export const partsOf = (p: Project, c: Cabinet) => buildParts(c, p.settings, res
 export const cabinetsOn = (p: Project, wall: WallId) => p.cabinets.filter((c) => c.wall === wall).sort((a, b) => a.offset - b.offset);
 const isFloor = (c: Cabinet) => c.elevation < 6 && c.kind !== 'shelf';
 
-interface Item { x: number; y: number; w: number; h: number; z: number; cls: string; pts?: [number, number][] }
+interface Item { x: number; y: number; w: number; h: number; z: number; cls: string; pts?: [number, number][]; circle?: boolean }
+
+/**
+ * Knobs and pulls where they'd usually go, until the customer picks hardware: door knobs near
+ * the top corner (bottom corner on uppers) away from the hinges, pulls centered on drawer fronts.
+ */
+export function hardwareItems(p: Project, c: Cabinet, parts: Part[]): Item[] {
+  const out: Item[] = [];
+  const bbox = (part: Part) => {
+    const xs = part.boxes.flatMap((b) => [b.min[0], b.min[0] + b.size[0]]), ys = part.boxes.flatMap((b) => [b.min[1], b.min[1] + b.size[1]]);
+    return { x0: Math.min(...xs), x1: Math.max(...xs), y0: Math.min(...ys), y1: Math.max(...ys), z: Math.max(...part.boxes.map((b) => b.min[2] + b.size[2])) };
+  };
+  const doors = parts.filter((x) => x.role === 'door' && x.boxes.length).map((x) => ({ part: x, b: bbox(x) }));
+  const L = wallLength(p.room, c.wall);
+  const upper = c.elevation > 30;
+  for (const d of doors) {
+    // A pair: knobs on the meeting edges. A single door: hinges toward the nearer end of the wall.
+    const mate = doors.find((o) => o !== d && Math.abs(o.b.y0 - d.b.y0) < 1 && Math.abs(o.b.y1 - d.b.y1) < 1);
+    const knobRight = mate ? mate.b.x0 > d.b.x0 : c.offset + c.width / 2 < L / 2;
+    const x = knobRight ? d.b.x1 - 2.5 : d.b.x0 + 2.5;
+    const tall = d.b.y1 - d.b.y0 > 40;
+    const y = upper ? d.b.y0 + 3 : tall ? Math.min(d.b.y1 - 3, Math.max(d.b.y0 + 3, 36 - c.elevation)) : d.b.y1 - 3;
+    out.push({ x: c.offset + x, y: c.elevation + y, w: 0.65, h: 0, z: 100 + d.b.z, cls: 'hw', circle: true });
+  }
+  for (const f of parts.filter((x) => x.role === 'drawerFront' && x.boxes.length && x.name !== 'False front')) {
+    const b = bbox(f);
+    const cx = (b.x0 + b.x1) / 2, cy = (b.y0 + b.y1) / 2;
+    if (b.x1 - b.x0 >= 12) out.push({ x: c.offset + cx - 2, y: c.elevation + cy - 0.25, w: 4, h: 0.5, z: 100 + b.z, cls: 'hw' });
+    else out.push({ x: c.offset + cx, y: c.elevation + cy, w: 0.65, h: 0, z: 100 + b.z, cls: 'hw', circle: true });
+  }
+  return out;
+}
 
 /** Everything seen looking straight at a wall, in wall coordinates, nearest last. */
 function elevationItems(p: Project, wall: WallId): Item[] {
@@ -38,7 +69,9 @@ function elevationItems(p: Project, wall: WallId): Item[] {
     if (o.kind === 'window') items.push({ x: o.offset + 1.5, y: o.sill + o.height / 2 - 0.75, w: o.width - 3, h: 1.5, z: 0.3, cls: 'o' });
   }
   for (const c of cabinetsOn(p, wall)) {
-    for (const part of partsOf(p, c)) {
+    const cparts = partsOf(p, c);
+    items.push(...hardwareItems(p, c, cparts));
+    for (const part of cparts) {
       for (const b of part.boxes) items.push({ x: c.offset + b.min[0], y: c.elevation + b.min[1], w: b.size[0], h: b.size[1], z: 10 + b.min[2] + b.size[2], cls: part.role === 'counter' || part.role === 'woodTop' ? 'cut' : 'o' });
       for (const s of part.shapes ?? []) if (s.along === 'x') items.push({ x: 0, y: 0, w: 1, h: 1, z: 10 + s.min[2] + s.thickness, cls: 'o', pts: s.outline.map(([u, v]) => [c.offset + s.min[0] + u, c.elevation + s.min[1] + v]) });
     }
@@ -57,6 +90,7 @@ function elevationItems(p: Project, wall: WallId): Item[] {
 function drawItems(v: View, items: Item[]) {
   for (const i of items) {
     if (i.pts) v.poly(i.pts, i.cls);
+    else if (i.circle) v.circle(i.x, i.y, i.w, i.cls);
     else v.rect(i.x, i.y, i.w, i.h, i.cls);
   }
 }
@@ -80,16 +114,17 @@ export function wallElevation(p: Project, wall: WallId, frame: Frame, mode: 'cus
   const floor = cabs.filter(isFloor);
   const uppers = cabs.filter((c) => !isFloor(c));
   // Widths along the bottom (base and tall) and the top (uppers), then the whole wall
-  v.chainH([0, L, ...floor.flatMap((c) => [c.offset, c.offset + c.width])], 0, -0.35);
+  v.chainH([0, L, ...floor.flatMap((c) => [c.offset, c.offset + c.width])], 0, -0.48);
   if (uppers.length) v.chainH([0, L, ...uppers.flatMap((c) => [c.offset, c.offset + c.width])], H, 0.35);
-  v.dimH(0, L, 0, -0.7, undefined, true);
+  v.dimH(0, L, 0, -0.83, undefined, true);
   // Heights up the right side: counter, bottom and top of the uppers, ceiling
   const tops = floor.filter((c) => c.kind === 'base').map((c) => c.elevation + c.height + (c.countertop ? (c.topKind === 'wood' ? c.topThickness ?? 1.25 : 1.5) : 0));
   const ys = [0, H, ...tops, ...uppers.flatMap((c) => [c.elevation, c.elevation + c.height])];
   v.chainV(ys, L + 4.5, 0.35);
   v.dimV(0, H, L + 4.5, 0.75, undefined, true);
   // Cabinet tags, and opening sizes
-  for (const c of cabs) v.tag(c.offset + c.width / 2, isFloor(c) ? c.elevation + Math.min(12, c.height * 0.35) : c.elevation + c.height / 2, c.name);
+  // Tags: uppers in their middle, floor cabinets just under the floor line, clear of hardware
+  for (const c of cabs) v.tag(c.offset + c.width / 2, isFloor(c) ? -v.p(0.2) : c.elevation + c.height / 2, c.name);
   for (const o of p.openings ?? []) {
     if (o.wall !== wall) continue;
     v.text(o.offset + o.width / 2, o.sill + o.height + casingReach(o).head + v.p(0.08), `${o.name}: ${dimText(o.width)} × ${dimText(o.height)}`, 0.08);
@@ -99,7 +134,7 @@ export function wallElevation(p: Project, wall: WallId, frame: Frame, mode: 'cus
     const heights = [...new Set(uppers.map((c) => Math.round(c.elevation * 16) / 16))].sort((a, b) => a - b);
     heights.forEach((h, i) => v.dimV(0, h, -4.5, -0.35 - i * 0.3, `${dimText(h)} AFF to bottom of uppers`));
   }
-  v.text(L / 2, -v.p(1.0), wallNames[wall].toUpperCase(), 0.14, 'middle', 'lbl');
+  v.text(L / 2, -v.p(1.12), wallNames[wall].toUpperCase(), 0.14, 'middle', 'lbl');
   return { svg: v.svg(), scale: perFoot };
 }
 

@@ -514,3 +514,5 @@ details.opening .grid3 { margin-top: 8px; }
   .dw-print { display: block !important; }
   .dw-page { page-break-after: always; break-after: page; overflow: hidden; }
 }
+.note-row { display: grid; grid-template-columns: 1fr auto 28px; gap: 6px; align-items: center; margin-bottom: 6px; }
+.note-row input { min-width: 0; }

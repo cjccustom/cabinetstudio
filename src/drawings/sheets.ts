@@ -10,6 +10,8 @@ import { baseLabel } from '../model/cabinetBase';
 import { fmt } from '../units';
 import { cabinetsOn, faceFrameView, floorPlan, partRows, partsOf, sideSection, wallElevation } from './views';
 import { drawingCss, scaleName, type Frame } from './draw';
+import { cabinetCallouts, forAudience, jobCallouts, type Audience } from './notes';
+import { LOGO, LOGO_ASPECT } from './logo';
 
 export type Paper = 'tabloid' | 'letter';
 export const papers: Record<Paper, { w: number; h: number; label: string }> = {
@@ -48,10 +50,11 @@ function titleBlock(p: Project, s: DrawingSettings, number: string, title: strin
     `<rect class="f" x="${x0}" y="${y}" width="${x1 - x0}" height="${h}"/>`,
     ...xs.slice(1, -1).map((x) => `<line class="thin" x1="${x}" y1="${y}" x2="${x}" y2="${y + h}"/>`),
     `<line class="thin" x1="${xs[4]}" y1="${y}" x2="${xs[4]}" y2="${y + h}"/>`,
-    t(xs[0] + 0.12, y + 0.22, COMPANY[0], 0.14, 700),
-    t(xs[0] + 0.12, y + 0.38, COMPANY[1], 0.085),
-    t(xs[0] + 0.12, y + 0.52, COMPANY[2], 0.085),
-    t(xs[0] + 0.12, y + 0.66, COMPANY[3], 0.075),
+    // Logo, then address, phone and licenses
+    `<image href="${LOGO}" x="${xs[0] + 0.12}" y="${y + 0.07}" width="${(h * 0.4) * LOGO_ASPECT}" height="${h * 0.4}"/>`,
+    t(xs[0] + 0.12, y + h * 0.6, COMPANY[1], 0.075),
+    t(xs[0] + 0.12, y + h * 0.73, COMPANY[2], 0.075),
+    t(xs[0] + 0.12, y + h * 0.86, COMPANY[3], 0.065),
     t(xs[1] + 0.12, y + 0.2, 'CLIENT / PROJECT', 0.065, 600),
     t(xs[1] + 0.12, y + 0.38, clientName(c) || p.name, 0.13, 700),
     t(xs[1] + 0.12, y + 0.54, c.address || c.location || '', 0.09),
@@ -81,6 +84,12 @@ function sheet(p: Project, s: DrawingSettings, number: string, title: string, sc
 const html = (f: Frame, inner: string, size = 0.1) =>
   `<g transform="translate(${f.x} ${f.y}) scale(0.01)"><foreignObject x="0" y="0" width="${f.w * 100}" height="${f.h * 100}"><div xmlns="http://www.w3.org/1999/xhtml" class="fo" style="font-size:${size * 100}px">${inner}</div></foreignObject></g>`;
 
+/** The notes column on an elevation: the job's, then each cabinet's on that wall, by tag. */
+function wallNotes(p: Project, wall: WallId, a: Audience): string {
+  const items = cabinetsOn(p, wall).flatMap((c) => forAudience(cabinetCallouts(p, c), a).map((n) => `<li><b>${esc(c.name)}</b> ${esc(n.text)}</li>`));
+  return `<h2>Notes</h2><ul>${jobCallouts(p, a).map((t) => `<li>${esc(t)}</li>`).join('')}${items.join('')}</ul>`;
+}
+
 const wallsWithWork = (p: Project) => wallOrder.filter((w) => cabinetsOn(p, w).length > 0);
 
 /* ---------- Customer set ---------- */
@@ -96,6 +105,7 @@ export function customerSet(p: Project, s: DrawingSettings): Sheet[] {
   const cover = [
     s.cover ? `<image href="${esc(s.cover)}" x="${A.x}" y="${A.y}" width="${imgW}" height="${A.h}" preserveAspectRatio="xMidYMid meet"/>` : `<rect class="ghost" x="${A.x}" y="${A.y}" width="${imgW}" height="${A.h}"/><text x="${A.x + imgW / 2}" y="${A.y + A.h / 2}" font-size="0.14" text-anchor="middle" fill="#888">Add a 3D view or rendering for the cover</text>`,
     html({ x: A.x + imgW + 0.3, y: A.y, w: A.w - imgW - 0.3, h: A.h }, `
+      <img src="${LOGO}" alt="CJC Custom Carpentry" style="width:62%;margin:0 0 1.2em"/>
       <h1>${esc(p.name)}</h1>
       <p class="big">${esc(clientName(c))}</p>
       <p>${esc(c.address || c.location || '')}</p>
@@ -108,8 +118,9 @@ export function customerSet(p: Project, s: DrawingSettings): Sheet[] {
   const plan = floorPlan(p, A);
   sheets.push(sheet(p, s, 'A1', 'Floor plan', scaleName(plan.scale), plan.svg));
   walls.forEach((w, i) => {
-    const e = wallElevation(p, w, A, 'customer');
-    sheets.push(sheet(p, s, `A${i + 2}`, `${wallNames[w]} elevation`, scaleName(e.scale), e.svg));
+    const e = wallElevation(p, w, { ...A, w: A.w * 0.74 }, 'customer');
+    const notes = html({ x: A.x + A.w * 0.76, y: A.y, w: A.w * 0.24, h: A.h }, wallNotes(p, w, 'customer'), s.paper === 'tabloid' ? 0.11 : 0.09);
+    sheets.push(sheet(p, s, `A${i + 2}`, `${wallNames[w]} elevation`, scaleName(e.scale), e.svg + notes));
   });
   return sheets;
 }
@@ -127,7 +138,7 @@ function installNotes(p: Project, wall: WallId): string {
   const pts = [0, ...floor.flatMap((c) => [c.offset, c.offset + c.width]), L].sort((a, b) => a - b);
   for (let i = 0; i + 1 < pts.length; i += 2) if (pts[i + 1] - pts[i] > 0.25) gaps.push(`${fmt(pts[i + 1] - pts[i])} at ${fmt(pts[i])} from the left`);
   const li = (c: Cabinet) => `<li><b>${esc(c.name)}</b> ${kinds[c.kind]} ${fmt(c.width)} W × ${fmt(c.height)} H × ${fmt(c.depth)} D${c.elevation > 0.5 ? `, bottom at ${fmt(c.elevation)} AFF` : ''}${(c.scribeLeft ?? 0) || (c.scribeRight ?? 0) ? `; scribe ${[c.scribeLeft ? `left ${fmt(c.scribeLeft)}` : '', c.scribeRight ? `right ${fmt(c.scribeRight)}` : ''].filter(Boolean).join(', ')}` : ''}</li>`;
-  return `<h2>${esc(wallNames[wall])}: install order</h2>
+  return `${wallNotes(p, wall, 'shop')}<h2>${esc(wallNames[wall])}: install order</h2>
     <ol>${[...floor, ...uppers].map(li).join('')}</ol>
     ${gaps.length ? `<h3>Open space along the floor</h3><ul>${gaps.map((g) => `<li>${g}</li>`).join('')}</ul>` : ''}
     <p class="small">Set bases level from the high point of the floor. Heights are above finished floor (AFF).</p>`;
@@ -142,7 +153,8 @@ function cabinetHeader(p: Project, c: Cabinet): string {
     `${style.name} ${s.doorMount === 'inset' ? 'inset' : 'overlay'}; face frame ${fmt(s.ffThickness)} ${p.settings.woodSpecies}`,
     baseLabel(c) ?? (c.kind === 'base' || c.kind === 'tall' ? `${fmt(s.toeKickHeight)} toe kick` : ''),
   ].filter(Boolean);
-  return `<h2>${esc(c.name)}</h2><p>${bits.map(esc).join('<br>')}</p>`;
+  const notes = forAudience(cabinetCallouts(p, c), 'shop');
+  return `<h2>${esc(c.name)}</h2><p>${bits.map(esc).join('<br>')}</p>${notes.length ? `<h3>Notes</h3><ul>${notes.map((n) => `<li>${esc(n.text)}</li>`).join('')}</ul>` : ''}`;
 }
 
 function materialName(p: Project, part: Part): string {

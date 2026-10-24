@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useStore } from '../store';
-import type { Cabinet, CrownBuild, EndMode, FaceRow, PanelChoice, PanelMode, WallId } from '../model/types';
+import type { CabinetNote, Cabinet, CrownBuild, EndMode, FaceRow, PanelChoice, PanelMode, WallId } from '../model/types';
 import { buildParts, crownLayout, layoutRows, noCrownBuild, panelOn } from '../model/parts';
 import { defaultPilaster, pilasterOf, pilasterSections } from '../model/pilaster';
 import { bracketCount, bracketGap, bracketLength, bracketProduct, finishedEnds, floatingOf, shelfPly } from '../model/floatingShelf';
@@ -12,6 +12,7 @@ import { Field, LengthInput, Section } from './fields';
 import { OrderList, PartsTable } from './PartsTable';
 import { OverridesSection } from './Overrides';
 import { MoldSlot } from './ProfilePicker';
+import { cabinetCallouts } from '../drawings/notes';
 import { archBuilds, archShapes, baseLayout, baseOf, baseStyles, cutOutline, floorStanding } from '../model/cabinetBase';
 import { profileLabel, profileByNum } from '../model/moldings';
 
@@ -273,6 +274,8 @@ export function Inspector({ cab, issues }: { cab: Cabinet; issues: string[] }) {
       </Section>
       </>
       )}
+
+      <NotesSection cab={cab} set={set} />
 
       <button id="toggle-parts" className="mini parts-toggle" aria-expanded={showParts} onClick={() => toggleParts(!showParts)}>
         {showParts ? 'Hide' : 'Show'} cut parts & Eagle order
@@ -585,5 +588,34 @@ function SkirtPreview({ cab }: { cab: Cabinet }) {
     <svg className="skirt-preview" viewBox={`-0.5 -0.5 ${W + 1} ${h + 1}`} role="img" aria-label="Skirt profile" style={{ width: '100%', height: 'auto', maxHeight: 90 }}>
       <path d={`M${pts.map(([u, v]) => `${u},${h - v}`).join(' L')} Z`} fill="var(--sunk)" stroke="currentColor" strokeWidth={0.12} />
     </svg>
+  );
+}
+
+/** Notes for the drawings, each for the customer, the shop, or both; plus what the drawings already call out. */
+function NotesSection({ cab, set }: { cab: Cabinet; set: (patch: Partial<Cabinet>) => void }) {
+  const project = useStore((s) => s.project);
+  const notes = cab.notes ?? [];
+  const put = (id: string, patch: Partial<CabinetNote>) => set({ notes: notes.map((n) => (n.id === id ? { ...n, ...patch } : n)) });
+  const auto = cabinetCallouts(project, { ...cab, notes: [] });
+  return (
+    <Section title="Notes for the drawings" aside={<button className="mini" onClick={() => set({ notes: [...notes, { id: uid('note'), text: '', for: 'both' }] })}>Add note</button>}>
+      {notes.map((n) => (
+        <div key={n.id} className="note-row">
+          <input aria-label="Note" value={n.text} placeholder="Glass in the upper doors, outlet in the back…" onChange={(e) => put(n.id, { text: e.target.value })} />
+          <select aria-label="Shown to" value={n.for} onChange={(e) => put(n.id, { for: e.target.value as CabinetNote['for'] })}>
+            <option value="both">Both</option>
+            <option value="customer">Customer</option>
+            <option value="shop">Shop</option>
+          </select>
+          <button className="icon-btn" aria-label="Remove note" onClick={() => set({ notes: notes.filter((x) => x.id !== n.id) })}>×</button>
+        </div>
+      ))}
+      {auto.length > 0 && (
+        <>
+          <p className="hint">Already called out from the design:</p>
+          <ul className="assembly">{auto.map((n) => <li key={n.text}>{n.text} <span className="muted">({n.for === 'both' ? 'both' : n.for})</span></li>)}</ul>
+        </>
+      )}
+    </Section>
   );
 }
