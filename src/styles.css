@@ -497,3 +497,20 @@ details.opening .grid3 { margin-top: 8px; }
 .sheet-sec input:not([type=checkbox]), .new-client input { width: 100%; box-sizing: border-box; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; }
 .sheet-sec textarea { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; }
 .client-head > div:first-child { flex: 1 1 280px; min-width: 0; }
+
+/* Drawings */
+.drawings-stage { display: flex; flex-direction: column; overflow: hidden; background: #8f9296; }
+.dw-bar { display: flex; align-items: center; gap: 8px; padding: 6px 12px; background: var(--surface); border-bottom: 1px solid var(--line); }
+.dw-bar .grow { flex: 1; }
+.dw-scroll { flex: 1; overflow: auto; padding: 18px; display: flex; flex-direction: column; gap: 18px; align-items: safe center; }
+.dw-sheet { flex: none; }
+.dw-sheet { background: #fff; box-shadow: 0 2px 10px rgb(0 0 0 / 0.35); overflow: hidden; }
+.dw-print { display: none; }
+.sheet-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 2px; }
+.sheet-list button { width: 100%; text-align: left; border: 0; background: transparent; padding: 5px 6px; border-radius: 6px; font-size: 13px; }
+.sheet-list button:hover { background: var(--sunk); }
+@media print {
+  body > *:not(.dw-print) { display: none !important; }
+  .dw-print { display: block !important; }
+  .dw-page { page-break-after: always; break-after: page; overflow: hidden; }
+}

@@ -24,6 +24,7 @@ import { doorOrder } from "../src/model/doorOrder";
 import { applyDraft, cleanDraft, closestProfile, draftRequest } from "../src/model/photoRoom";
 import { clientInfoDoc, folderName, ordersDoc, parseFolderName, quoteDoc, stageByFolder } from "../src/model/client";
 import { readScan, scanToDraft } from "../src/model/roomScan";
+import { customerSet, drawingsOf, setDocument, shopSet } from "../src/drawings/sheets";
 import { blockedAlong, casingReach, freeRuns, newOpening, openingIssues, openingTrim, roomMoldings } from "../src/model/room";
 
 let failed = 0;
@@ -648,6 +649,21 @@ eq('panel sticks out past frame', panelExtents(b21, s, { left: true, right: fals
   eq('scan: everything marked measured', d.openings.every((o) => o.measured) && d.measured.width, true);
   let bad = ''; try { readScan('{"app":"Polycam"}'); } catch (e) { bad = (e as Error).message; }
   eq('only CJC Room Scan files', bad.includes('CJC Room Scan'), true);
+}
+
+{
+  // Drawing sets from the sample kitchen
+  const d = drawingsOf(p);
+  const cust = customerSet(p, d);
+  const walls = new Set(p.cabinets.map((c) => c.wall)).size;
+  eq('customer set: cover, plan, an elevation per wall with cabinets', cust.length, 2 + walls);
+  eq('elevation dimensions the wall', cust[2].svg.includes(`${p.room.width}"`), true);
+  const shop = shopSet(p, d);
+  eq('shop set: a sheet per wall and per cabinet', shop.length, walls + p.cabinets.length);
+  eq('cabinet sheet lists its parts', shop[walls].svg.includes('Bottom') && shop[walls].svg.includes('FACE FRAME'), true);
+  const doc = setDocument('Test', cust, 'letter');
+  eq('printable document, letter pages', doc.includes('size:11in 8.5in') && (doc.match(/class="page"/g) ?? []).length === cust.length, true);
+  eq('sheets are true size', cust[1].svg.includes('width="17in"'), true);
 }
 
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');

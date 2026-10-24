@@ -319,6 +319,8 @@ export interface Project {
   /** The customer, and their folder in Dropbox. */
   client?: Partial<import('./client').ClientInfo>;
   dropbox?: import('./client').DropboxLink;
+  /** Drawing sets: paper, revision, cover picture, notes. */
+  drawings?: Partial<import('../drawings/sheets').DrawingSettings>;
 }
 
 export type MaterialKey = 'box' | 'back' | 'toeSkin' | 'faceframe' | 'door' | 'drawerBox' | 'counter' | 'solidWood';

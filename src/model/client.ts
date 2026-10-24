@@ -76,7 +76,7 @@ export function parseFolderName(name: string): Partial<ClientInfo> {
   return { last: last.trim(), first: first.trim(), location: location.trim() };
 }
 
-const COMPANY = ['CJC Custom Carpentry LLC', '50 Beaman Rd, Sterling, MA 01564', 'Phone: (508) 215-6295', 'CSL License #CS-119119 · HIC License #207489'];
+export const COMPANY = ['CJC Custom Carpentry LLC', '50 Beaman Rd, Sterling, MA 01564', 'Phone: (508) 215-6295', 'CSL License #CS-119119 · HIC License #207489'];
 const date = (t = Date.now()) => new Date(t).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: '2-digit' });
 
 /** The client info sheet, as Markdown: readable as plain text on a phone. */

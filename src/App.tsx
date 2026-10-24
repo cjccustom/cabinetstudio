@@ -1,3 +1,4 @@
+import { CoverButton, DrawingsMain, DrawingsPanel, DrawingsSide } from './ui/Drawings';
 import { ClientMain, ClientPanel, ClientsSide } from './ui/Clients';
 import { ViewTools, navHint } from './ui/ViewTools';
 import { useNav } from './three/navigation';
@@ -69,6 +70,7 @@ export default function App() {
           <button role="tab" aria-selected={mode === 'cutlist'} className={mode === 'cutlist' ? 'on' : ''} onClick={() => setMode('cutlist')}>Sheet cutlist</button>
           <button role="tab" aria-selected={mode === 'faceframe'} className={mode === 'faceframe' ? 'on' : ''} onClick={() => setMode('faceframe')}>Solid wood</button>
           <button role="tab" aria-selected={mode === 'quote'} className={mode === 'quote' ? 'on' : ''} onClick={() => setMode('quote')}>Quote</button>
+          <button role="tab" aria-selected={mode === 'drawings'} className={mode === 'drawings' ? 'on' : ''} onClick={() => setMode('drawings')}>Drawings</button>
           <button role="tab" aria-selected={mode === 'render'} className={mode === 'render' ? 'on' : ''} onClick={() => setMode('render')}>Rendering</button>
           <button role="tab" aria-selected={mode === 'job'} className={mode === 'job' ? 'on' : ''} onClick={() => setMode('job')}>Job & clock</button>
         </div>
@@ -105,6 +107,12 @@ export default function App() {
           <ClientMain />
           <ClientPanel />
         </>
+      ) : mode === 'drawings' ? (
+        <>
+          <DrawingsSide />
+          <DrawingsMain />
+          <DrawingsPanel />
+        </>
       ) : mode === 'render' ? (
         <>
           <RenderInputs />
@@ -132,7 +140,7 @@ export default function App() {
           {view === 'plan' ? 'Plan view · back wall at top · ' : view === '3d' ? '' : `${wallNames[view.slice(5) as keyof typeof wallNames]} elevation · `}{navHint(view, nav.pointer, nav.mode)}
         </div>
         <Scene issueIds={issueIds} />
-        <div className="render-view"><ViewTools />{view !== 'plan' && <DesignRenderButton />}</div>
+        <div className="render-view"><ViewTools />{view !== 'plan' && <CoverButton />}{view !== 'plan' && <DesignRenderButton />}</div>
         {issues.length > 0 && (
           <div className="issue-bar" role="status">
             <strong>{summary.length} layout issue{summary.length > 1 ? 's' : ''}</strong>
