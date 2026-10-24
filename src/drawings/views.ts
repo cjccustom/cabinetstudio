@@ -6,7 +6,8 @@ import { footprint, resolveEnds, wallLength, wallNames, wallTransform } from '..
 import { cabinetMoldings, mountShape, profileByNum } from '../model/moldings';
 import { casingReach, openingTrim, roomMoldings } from '../model/room';
 import { View, dimText, fitScale, type Frame } from './draw';
-import { beadCorner, cofferLayout, cofferOf, coffers } from '../model/coffer';
+import { applianceName, placedAppliances, type PlacedAppliance } from '../model/appliances';
+import { beadCorner, cofferLayout, cofferOf, coffers, perimOf } from '../model/coffer';
 
 export const partsOf = (p: Project, c: Cabinet) => buildParts(c, p.settings, resolveEnds(p.room, p.cabinets, c));
 export const cabinetsOn = (p: Project, wall: WallId) => p.cabinets.filter((c) => c.wall === wall).sort((a, b) => a.offset - b.offset);
@@ -76,6 +77,7 @@ function elevationItems(p: Project, wall: WallId): Item[] {
       for (const b of part.boxes) items.push({ x: c.offset + b.min[0], y: c.elevation + b.min[1], w: b.size[0], h: b.size[1], z: 10 + b.min[2] + b.size[2], cls: part.role === 'counter' || part.role === 'woodTop' ? 'cut' : 'o' });
       for (const s of part.shapes ?? []) if (s.along === 'x') items.push({ x: 0, y: 0, w: 1, h: 1, z: 10 + s.min[2] + s.thickness, cls: 'o', pts: s.outline.map(([u, v]) => [c.offset + s.min[0] + u, c.elevation + s.min[1] + v]) });
     }
+    for (const ap of placedAppliances(c, p.settings)) items.push(...applianceItems(ap, c.offset, c.elevation, 10 + ap.min[2] + ap.size[2]));
     for (const pc of cabinetMoldings(c, eff(c, p.settings), resolveEnds(p.room, p.cabinets, c))) {
       if (pc.along !== 'x') continue;
       const prof = profileByNum(pc.num);
@@ -86,6 +88,19 @@ function elevationItems(p: Project, wall: WallId): Item[] {
   }
   // Furthest first, so nearer parts cover what's behind them
   return items.filter((i) => i.y < H + 24).sort((a, b) => a.z - b.z);
+}
+
+/** An appliance in elevation: its outline, shaded, with the face detail that says what it is. */
+function applianceItems(ap: PlacedAppliance, x0: number, y0: number, z: number): Item[] {
+  const [x, y] = [x0 + ap.min[0], y0 + ap.min[1]], [w, h] = [ap.size[0], ap.size[1]];
+  const out: Item[] = [{ x, y, w, h, z, cls: 'appl' }];
+  const k = ap.a.kind;
+  if (k === 'microwave' || k === 'builtInMicrowave') out.push({ x: x + 0.6, y: y + 0.6, w: w * 0.68, h: h - 1.2, z: z + 0.01, cls: 'glass' });
+  else if (k === 'oven') out.push({ x: x + 1.5, y: y + 2, w: w - 3, h: h - 7, z: z + 0.01, cls: 'glass' });
+  else if (k === 'fireplace') out.push({ x: x + 0.75, y: y + 0.75, w: w - 1.5, h: h - 1.5, z: z + 0.01, cls: 'firebox' });
+  else if (k === 'beverage' || k === 'tv') out.push({ x: x + 1, y: y + 1, w: w - 2, h: h - 2, z: z + 0.01, cls: 'glass' });
+  else if (k === 'microwaveDrawer') out.push({ x: x + w / 2 - 4, y: y + h / 2 - 0.4, w: 8, h: 0.8, z: z + 0.01, cls: 'o' });
+  return out;
 }
 
 function drawItems(v: View, items: Item[]) {
@@ -212,8 +227,12 @@ export function faceFrameView(p: Project, c: Cabinet, frame: Frame): { svg: stri
   const y0 = Math.min(...boxes.map((b) => b.min[1]), ...shapes.map((s) => s.min[1])), y1 = Math.max(...boxes.map((b) => b.min[1] + b.size[1]));
   const perFoot = fitScale(x1 - x0, y1 - y0, frame.w - 2.2, frame.h - 1.9);
   const v = new View(frame, { x0, y0, x1, y1 }, perFoot);
-  // Doors and fronts as ghosts behind, so the openings read
+  // Doors and fronts as ghosts behind, so the openings read; appliances labeled in their openings
   for (const part of parts.filter((x) => x.role === 'door' || x.role === 'drawerFront')) for (const b of part.boxes) v.rect(b.min[0], b.min[1], b.size[0], b.size[1], 'hid');
+  for (const ap of placedAppliances(c, p.settings)) {
+    v.rect(ap.min[0], ap.min[1], ap.size[0], ap.size[1], 'hid');
+    v.text(ap.min[0] + ap.size[0] / 2, ap.min[1] + ap.size[1] / 2, applianceName(ap.a).toUpperCase(), 0.09, 'middle', 'dt');
+  }
   for (const part of ff) {
     for (const b of part.boxes) v.rect(b.min[0], b.min[1], b.size[0], b.size[1], 'o');
     for (const s of part.shapes ?? []) if (s.along === 'x') v.poly(s.outline.map(([u, q]) => [s.min[0] + u, s.min[1] + q]), 'o');
@@ -293,8 +312,8 @@ export function ceilingPlan(p: Project, frame: Frame): { svg: string; scale: num
   v.rect(-T, -T, W + 2 * T, T, 'wall'); v.rect(-T, D, W + 2 * T, T, 'wall');
   v.rect(-T, 0, T, D, 'wall'); v.rect(W, 0, T, D, 'wall');
   if (c.perimeter) {
-    const P = c.perimeterWidth;
-    v.rect(0, 0, W, P, 'ghost'); v.rect(0, D - P, W, P, 'ghost'); v.rect(0, P, P, D - 2 * P, 'ghost'); v.rect(W - P, P, P, D - 2 * P, 'ghost');
+    const Pb = perimOf(c, 'back'), Pf = perimOf(c, 'front'), Pl = perimOf(c, 'left'), Pr = perimOf(c, 'right');
+    v.rect(0, 0, W, Pb, 'ghost'); v.rect(0, D - Pf, W, Pf, 'ghost'); v.rect(0, Pb, Pl, D - Pb - Pf, 'ghost'); v.rect(W - Pr, Pb, Pr, D - Pb - Pf, 'ghost');
   }
   const f = L.field;
   for (const b of L.beamsZ) v.rect(f.x0, b.a, f.x1 - f.x0, b.b - b.a, 'ghost');

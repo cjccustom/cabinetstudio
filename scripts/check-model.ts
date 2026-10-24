@@ -1,5 +1,6 @@
 // Sanity checks on the cabinet model: run with `npm test`.
 import { buildParts, layoutRows, panelExtents, realOverhang } from "../src/model/parts";
+import { placedAppliances } from "../src/model/appliances";
 import { sampleProject, defaultSettings, presets, cabinetFromPreset } from "../src/model/defaults";
 import { findIssues, gapBeside, nextFreeOffset, resolveEnds } from "../src/model/layout";
 import { fmt, parseLength } from "../src/units";
@@ -710,7 +711,43 @@ eq('panel sticks out past frame', panelExtents(b21, s, { left: true, right: fals
   eq('beaded soffit bottom 3/4" below the fascia bottom', +(bf.boxes[0].min[1] - bs.boxes[0].min[1]).toFixed(4), 0.75);
   eq('beaded fascia is the drop less the bead corner, no dado', [bf.width, bf.note!.startsWith('No dado')].join(), '4.75,true');
   eq('blocking inside beaded beams, about 16" apart', bp.filter((x) => x.name === 'Through beam blocking (2x)').length, 2 * (Math.ceil(172 / 16) + 1));
+  // Library: bookcases on the left wall bring that perimeter out to 16"; the right wall matches
+  const lib = { ...room, ceiling: { ...room.ceiling, walls: { left: 16, right: 16 } } };
+  const LL = cofferLayout(lib);
+  eq('per-wall perimeter moves the field', [LL.field.x0, LL.field.x1, LL.field.z0].join(), '16,164,4');
+  const lp = cofferParts(lib);
+  eq('left perimeter nailer and soffit fill to the fascia', [lp.find((x) => x.name === 'Perimeter, left nailer (2x)')!.width, lp.find((x) => x.name === 'Perimeter, left fascia')!.boxes[0].min[0]].join(), '15.25,15.25');
+  eq('back soffit runs wall to wall', lp.find((x) => x.name === 'Perimeter, back soffit')!.length, 180);
   eq('crown over half the fascia is flagged', cofferLayout({ ...room, ceiling: { ...room.ceiling, crown: amCatalog.filter((x) => x.category === 'Crown').sort((a, b) => b.w - a.w)[0].num } }).warnings.some((w) => w.includes('more than half')), true);
+}
+
+{
+  // Individual stiles and rails: a 4" left stile, a 3" rail above the second row
+  const two = { ...b, stileLeftWidth: 4, rows: b.rows.length > 1 ? b.rows.map((r, i) => (i === 1 ? { ...r, railAbove: 3 } : r)) : b.rows };
+  const pp = buildParts(two, s);
+  const stiles = pp.filter((x) => x.role === 'stile' && x.name.startsWith('Stile')).map((x) => x.width);
+  eq('left stile its own width, right stays standard', stiles.join(), [4, s.stileWidth].join());
+  eq('top rail shortened by the wider stile', pp.find((x) => x.name === 'Top rail')!.length, buildParts(b, s).find((x) => x.name === 'Top rail')!.length - (4 - s.stileWidth));
+  if (b.rows.length > 1) {
+    eq('rail above row 2 is 3"', pp.find((x) => x.name === 'Mid rail')!.width, 3);
+    const L0 = layoutRows(b, s).rows, L1 = layoutRows(two, s).rows;
+    eq('openings give up the extra rail width', +(L0.reduce((t, r) => t + r.height, 0) - L1.reduce((t, r) => t + r.height, 0)).toFixed(4), 3 - s.midRailWidth);
+  }
+}
+
+{
+  // Appliances: a microwave on its own shelf in a tall bank, a fireplace insert in a library base
+  const tm = cabinetFromPreset(presets.find((x) => x.id === 'tall-micro')!, 'back', 0, []);
+  const ap = placedAppliances(tm, s);
+  eq('microwave placed in its row, no fit problems', [ap.length, ap[0].problems.length, ap[0].a.kind].join(), '1,0,microwave');
+  const tp = buildParts(tm, s);
+  eq('fixed shelf under the microwave, top flush with its opening', [tp.filter((x) => x.name === 'Fixed shelf').length, +(tp.find((x) => x.name === 'Fixed shelf')!.boxes[0].min[1] + s.boxActualThickness).toFixed(4)].join(), `1,${+ap[0].opening.y0.toFixed(4)}`);
+  eq('no doors or shelves in the appliance opening', tp.filter((x) => (x.role === 'door' || x.name === 'Adjustable shelf') && x.boxes.some((b) => b.min[1] >= ap[0].opening.y0 - 0.01 && b.min[1] < ap[0].opening.y1 - 1)).length, 0);
+  eq('microwave sits back an inch on the shelf', +(ap[0].min[2] + ap[0].size[2]).toFixed(4), tm.depth - 1);
+  const fp = cabinetFromPreset(presets.find((x) => x.id === 'library-fireplace')!, 'back', 0, []);
+  eq('fireplace fits its base', placedAppliances(fp, s)[0].problems.join(), '');
+  const shallow = { ...fp, depth: 12 };
+  eq('too-shallow cabinet flagged', placedAppliances(shallow, s)[0].problems.some((x) => x.includes('deep')), true);
 }
 
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');

@@ -9,6 +9,7 @@ import { spacingOf } from '../model/panels';
 import { cabinetMoldings, panelMoldings } from '../model/moldings';
 import { eff } from '../model/parts';
 import { MoldingModel } from './MoldingModel';
+import { ApplianceModel } from './ApplianceModel';
 import { live, onWheel, useNav } from './navigation';
 import { RoomModel } from './RoomModel';
 import { CofferModel } from './CofferModel';
@@ -239,6 +240,7 @@ function CabinetModel(props: {
       {(cab.crown || cab.lightRail || cab.baseMold) && (
         <MoldingModel pieces={cabinetMoldings(cab, eff(cab, settings), ends)} color={finishes.paint} edgeColor={edgeColor} />
       )}
+      <ApplianceModel cab={cab} settings={settings} />
     </group>
   );
 }

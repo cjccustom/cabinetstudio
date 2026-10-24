@@ -1,5 +1,6 @@
 import { defaultPilaster } from './pilaster';
 import type { Cabinet, CabinetKind, FaceRow, Project, ShopSettings, WallId } from './types';
+import { newAppliance, openingFor, type ApplianceKind } from './appliances';
 
 export const defaultSettings: ShopSettings = {
   boxThickness: 0.75,
@@ -61,6 +62,9 @@ const row = (type: FaceRow['type'], height: number | null, doors: 1 | 2 = 1, she
   id: uid('row'), type, height, doors, shelves,
 });
 
+/** An appliance row, its opening sized to the appliance. */
+const appRow = (kind: ApplianceKind): FaceRow => { const a = newAppliance(kind); return { ...row('appliance', openingFor(a)), appliance: a }; };
+
 export interface Preset {
   id: string;
   label: string;
@@ -110,6 +114,8 @@ export const presets: Preset[] = [
     rows: () => [row('doors', null, 2, 2)] },
   { id: 'wall-short', label: 'Wall, short (over range/fridge)', kind: 'wall', width: 30, height: 18, depth: 12, elevation: 66,
     rows: () => [row('doors', null, 2, 0)] },
+  { id: 'tall-micro', label: 'Tall, microwave space between doors', kind: 'tall', width: 30, height: 84, depth: 24, elevation: 0,
+    rows: () => [row('doors', 30, 2, 1), appRow('microwave'), row('doors', null, 2, 2)] },
   { id: 'tall-pantry', label: 'Tall pantry', kind: 'tall', width: 24, height: 84, depth: 24, elevation: 0,
     rows: () => [row('doors', null, 2, 2), row('doors', 46, 2, 3)] },
   // Library: base cabinets with a paint-grade top, open bookcases sitting on them, pilasters between
@@ -117,6 +123,8 @@ export const presets: Preset[] = [
     top: { topKind: 'wood', topThickness: 1, topFront: 0.5 }, rows: () => [row('doors', null, 2, 1)] },
   { id: 'library-upper', label: 'Bookcase upper, open', kind: 'wall', width: 30, height: 56, depth: 12, elevation: 31, group: 'library',
     top: { noBottom: true }, rows: () => [row('open', null, 1, 4)] },
+  { id: 'library-fireplace', label: 'Library base, electric fireplace', kind: 'base', width: 48, height: 34, depth: 16, elevation: 0, countertop: true, group: 'library',
+    top: { topKind: 'wood', topThickness: 1, topFront: 0.5 }, rows: () => [{ ...appRow('fireplace'), height: null }] },
   { id: 'pilaster', label: 'Pilaster, recessed panel', kind: 'pilaster', width: 5.5, height: 87, depth: 17.5, elevation: 0, group: 'library',
     top: { pilaster: { ...defaultPilaster, breaks: [31] } }, rows: () => [] },
   { id: 'float-shelf', label: 'Floating shelf', kind: 'shelf', width: 36, height: 2, depth: 12, elevation: 54, group: 'library',

@@ -5,7 +5,7 @@
 // below the fascias on internal blocking, leaving a square corner the bead fills. An optional
 // perimeter fascia runs around the room. Every coffer gets crown; beadboard is an option.
 // Everything is in room coordinates: x along the back wall, z out from it, y up from the floor.
-import type { Part, Project, VisualBox } from './types';
+import type { Part, Project, VisualBox, WallId } from './types';
 import { fmt } from '../units';
 import { mountShape, profileByNum } from './moldings';
 
@@ -42,6 +42,11 @@ export interface CofferCeiling {
   /** A fascia around the room, this far off the wall to its face. */
   perimeter: boolean;
   perimeterWidth: number;
+  /**
+   * A different wall-to-fascia-face on one wall, e.g. brought out over full-height bookcases, and
+   * the same on the opposite wall so the coffers stay centered on that wall's windows.
+   */
+  walls?: Partial<Record<WallId, number>>;
   /** Which beams run through; the others are cut between them. */
   through: 'across' | 'deep';
   crown?: string;
@@ -57,6 +62,20 @@ export const defaultCoffer: CofferCeiling = {
   perimeter: true, perimeterWidth: 4, through: 'across', beadboard: false, species: 'Poplar',
 };
 export const cofferOf = (p: Project): CofferCeiling => ({ ...defaultCoffer, ...p.ceiling });
+
+/** Wall to the perimeter fascia face on one wall. */
+export const perimOf = (c: CofferCeiling, wall: WallId) => (c.perimeter ? c.walls?.[wall] ?? c.perimeterWidth : 0);
+export const opposite: Record<WallId, WallId> = { back: 'front', front: 'back', left: 'right', right: 'left' };
+
+/**
+ * Where the perimeter fascia lines up with the face frames of full-height cabinets on a wall
+ * (tops within a foot of the beam bottoms): the deepest one's front, or null if there are none.
+ */
+export function cabinetLine(p: Project, wall: WallId, c = cofferOf(p)): number | null {
+  const top = p.room.height - c.drop - 12;
+  const d = p.cabinets.filter((k) => k.wall === wall && k.kind !== 'shelf' && k.elevation + k.height >= top).map((k) => k.depth);
+  return d.length ? Math.max(...d) : null;
+}
 
 /** The square corner left for the bead, beside the soffit and under the fascia: the bead's own size. */
 export function beadCorner(c: CofferCeiling): number {
@@ -112,8 +131,7 @@ function split(a: number, b: number, n: number, beam: number, layout: CofferCeil
 
 export function cofferLayout(p: Project, c = cofferOf(p)): CofferLayout {
   const { width: W, depth: D } = p.room;
-  const P = c.perimeter ? c.perimeterWidth : 0;
-  const field = { x0: P, x1: W - P, z0: P, z1: D - P };
+  const field = { x0: perimOf(c, 'left'), x1: W - perimOf(c, 'right'), z0: perimOf(c, 'back'), z1: D - perimOf(c, 'front') };
   const sx = split(field.x0, field.x1, c.across, c.beamWidth, c.layout, c.outer);
   const sz = split(field.z0, field.z1, c.deep, c.beamWidth, c.layout, c.outer);
   const warnings = [sx.warn, sz.warn].filter((w): w is string => !!w);
@@ -179,23 +197,25 @@ export function cofferParts(p: Project, c = cofferOf(p)): Part[] {
   }
   if (c.perimeter) {
     const { width: W, depth: D } = p.room;
-    const P = c.perimeterWidth;
-    const ps = P - t + tongueW;
-    const runs: { name: string; along: 'x' | 'z'; at: number; r0: number; r1: number; wallSide: -1 | 1 }[] = [
-      { name: 'Perimeter, back', along: 'x', at: P - t, r0: P - t, r1: W - P + t, wallSide: -1 },
-      { name: 'Perimeter, front', along: 'x', at: D - P, r0: P - t, r1: W - P + t, wallSide: 1 },
-      { name: 'Perimeter, left', along: 'z', at: P - t, r0: P, r1: D - P, wallSide: -1 },
-      { name: 'Perimeter, right', along: 'z', at: W - P, r0: P, r1: D - P, wallSide: 1 },
+    const Pb = perimOf(c, 'back'), Pf = perimOf(c, 'front'), Pl = perimOf(c, 'left'), Pr = perimOf(c, 'right');
+    // Back and front soffits run wall to wall; the side ones fit between them. Fascias meet at the corners.
+    const runs: { name: string; along: 'x' | 'z'; P: number; at: number; r0: number; r1: number; s0: number; s1: number; wallSide: -1 | 1 }[] = [
+      { name: 'Perimeter, back', along: 'x', P: Pb, at: Pb - t, r0: Pl - t, r1: W - Pr + t, s0: 0, s1: W, wallSide: -1 },
+      { name: 'Perimeter, front', along: 'x', P: Pf, at: D - Pf, r0: Pl - t, r1: W - Pr + t, s0: 0, s1: W, wallSide: 1 },
+      { name: 'Perimeter, left', along: 'z', P: Pl, at: Pl - t, r0: Pb, r1: D - Pf, s0: Pb - t, s1: D - Pf + t, wallSide: -1 },
+      { name: 'Perimeter, right', along: 'z', P: Pr, at: W - Pr, r0: Pb, r1: D - Pf, s0: Pb - t, s1: D - Pf + t, wallSide: 1 },
     ];
     for (const r of runs) {
-      const len = r.r1 - r.r0;
-      const box = (w0: number, w: number, y: number, h: number) => (r.along === 'z' ? vb(w0, y, r.r0, w, h, len) : vb(r.r0, y, w0, len, h, w));
+      const len = r.r1 - r.r0, slen = r.s1 - r.s0;
+      const box = (w0: number, w: number, y: number, h: number, a = r.r0, l = len) => (r.along === 'z' ? vb(w0, y, a, w, h, l) : vb(a, y, w0, l, h, w));
       const wall0 = r.wallSide < 0 ? 0 : r.at + t;
-      const nailW = P - t;
-      out.push({ name: `${r.name} nailer (2x)`, role: 'nailer', material: 'faceframe', species: '2x framing', length: len, width: nailW, thickness: c.nailer, cut: true, note: 'Ripped from 2x stock; against the wall', boxes: [box(wall0, nailW, H - c.nailer, c.nailer)] });
-      out.push({ name: `${r.name} fascia`, role: 'trim', material: 'faceframe', species: sp, length: len, width: fh, thickness: t, cut: true, note: dadoNote, boxes: [box(r.at, t, fy, fh)] });
-      out.push({ name: `${r.name} soffit`, role: 'trim', material: 'faceframe', species: sp, length: len, width: ps, thickness: c.soffit, cut: true, note: bead ? `Wall to the fascia; hangs ${fmt(g)} below it on the blocking, ${beadName} bead in the corner; scribed to the wall` : `${fmt(c.tongue)} tongue on the bottom face at the fascia edge; scribed to the wall`, boxes: [box(wall0, nailW, soffitY, c.soffit)] });
-      blocks(r.name, len, nailW, (u) => (r.along === 'z' ? vb(wall0, soffitY + c.soffit, r.r0 + u, nailW, blockH, 1.5) : vb(r.r0 + u, soffitY + c.soffit, wall0, 1.5, blockH, nailW)));
+      const nailW = r.P - t;
+      const ps = nailW + tongueW;
+      const sized = r.P !== c.perimeterWidth ? ` (${fmt(r.P)} wall to fascia face)` : '';
+      out.push({ name: `${r.name} nailer (2x)`, role: 'nailer', material: 'faceframe', species: '2x framing', length: slen, width: nailW, thickness: c.nailer, cut: true, note: 'Ripped from 2x stock; against the wall', boxes: [box(wall0, nailW, H - c.nailer, c.nailer, r.s0, slen)] });
+      out.push({ name: `${r.name} fascia`, role: 'trim', material: 'faceframe', species: sp, length: len, width: fh, thickness: t, cut: true, note: dadoNote + sized, boxes: [box(r.at, t, fy, fh)] });
+      out.push({ name: `${r.name} soffit`, role: 'trim', material: 'faceframe', species: sp, length: slen, width: ps, thickness: c.soffit, cut: true, note: (bead ? `Wall to the fascia; hangs ${fmt(g)} below it on the blocking, ${beadName} bead in the corner; scribed to the wall` : `${fmt(c.tongue)} tongue on the bottom face at the fascia edge; scribed to the wall`) + sized, boxes: [box(wall0, nailW, soffitY, c.soffit, r.s0, slen)] });
+      blocks(r.name, slen, nailW, (u) => (r.along === 'z' ? vb(wall0, soffitY + c.soffit, r.s0 + u, nailW, blockH, 1.5) : vb(r.s0 + u, soffitY + c.soffit, wall0, 1.5, blockH, nailW)));
     }
   }
   return out;

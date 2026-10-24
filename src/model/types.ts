@@ -1,14 +1,20 @@
+import type { Appliance } from './appliances';
+
 export type WallId = 'back' | 'left' | 'right' | 'front';
 export type CabinetKind = 'base' | 'wall' | 'tall' | 'pilaster' | 'shelf';
 
 /** One horizontal band of the face frame, top to bottom, separated by mid rails. */
 export interface FaceRow {
   id: string;
-  type: 'drawer' | 'doors' | 'falseFront' | 'open';
+  type: 'drawer' | 'doors' | 'falseFront' | 'open' | 'appliance';
   /** Face frame opening height. null = share the leftover height with other auto rows. */
   height: number | null;
   doors: 1 | 2;
   shelves: number;
+  /** Width of the mid rail above this row, when it isn't the cabinet's standard (e.g. a tall rail for a ladder rail). */
+  railAbove?: number;
+  /** What sits in an appliance row: a microwave, wall oven, fireplace insert... */
+  appliance?: Appliance;
 }
 
 export interface Cabinet {
@@ -47,6 +53,9 @@ export interface Cabinet {
   /** Extra width on the outside stiles, used instead of fillers and scribed on site. */
   scribeLeft?: number;
   scribeRight?: number;
+  /** One stile wider or narrower than the cabinet's standard stile width. */
+  stileLeftWidth?: number;
+  stileRightWidth?: number;
   /** Blind corner: the end that runs into the corner, and how far from that end the door opening starts. */
   blind?: { side: 'left' | 'right'; /** Covered by the cabinet on the other wall. */ dead: number; /** Extra stile width past the face frame stile, for the neighbour's doors and pulls (or an appliance). */ clearance: number };
   /** L-shaped corner cabinet spanning two walls. width runs along this wall, width2 along the other. */

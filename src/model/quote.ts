@@ -16,6 +16,7 @@ import { bracketCount, bracketLength, bracketProduct, finishedEnds } from './flo
 import { doorOrder } from './doorOrder';
 import { baseLabel } from './cabinetBase';
 import { defaultSupplies, supplyLines, type SupplyGroup, type SupplyItem } from './supplies';
+import { applianceKinds } from './appliances';
 
 /** Shop hours per item. Start from these and calibrate against tracked jobs. */
 export interface LaborStandards {
@@ -231,7 +232,7 @@ export function estimateHours(p: Project, q: QuoteSettings): HourLine[] {
   if (cc.on) {
     const f = cofferFeet(p, cc);
     const ft = Math.round((f.beams + f.perimeter) * 10) / 10;
-    add('Coffer beams: mill, dado & assemble (ft)', ft, st.cofferBeamPerFt ?? 0.3, 'ceiling');
+    add('Coffer beams: mill & assemble (ft)', ft, st.cofferBeamPerFt ?? 0.3, 'ceiling');
     add('Coffer beams: layout, nailers & install (ft)', ft, st.cofferInstallPerFt ?? 0.3, 'ceiling', true);
     installHours += ft * (st.cofferInstallPerFt ?? 0.3);
     if (cc.beadboard) {
@@ -413,7 +414,9 @@ export function scopeLine(c: Cabinet, p: Project): string {
   bits.push(`Approx: ${W}W x ${fmtIn(c.height)}H x ${fmtIn(c.depth)}D`);
   if (n('door')) bits.push(`(${n('door')}) ${inset}door${n('door') > 1 ? 's' : ''}`);
   if (n('drawerBox')) bits.push(`(${n('drawerBox')}) drawer${n('drawerBox') > 1 ? 's' : ''} with dovetail drawer boxes and soft close slides`);
-  if (n('shelf')) bits.push(`(${n('shelf')}) adjustable shel${n('shelf') > 1 ? 'ves' : 'f'}`);
+  const adj = parts.filter((x) => x.role === 'shelf' && x.name === 'Adjustable shelf').length;
+  if (adj) bits.push(`(${adj}) adjustable shel${adj > 1 ? 'ves' : 'f'}`);
+  for (const r of c.rows) if (r.type === 'appliance' && r.appliance) bits.push(`${r.appliance.mount === 'shelf' ? 'open space' : 'built-in opening'} for owner's ${applianceKinds[r.appliance.kind].short.toLowerCase()}`);
   if (n('endPanel')) bits.push(`(${n('endPanel')}) finished end panel${n('endPanel') > 1 ? 's' : ''}`);
   if (c.countertop && c.topKind === 'wood') bits.push(`${fmtIn(c.topThickness ?? 1.25)} thick solid wood top`);
   if (c.crown) bits.push('crown molding');

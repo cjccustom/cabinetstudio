@@ -1,5 +1,7 @@
 import { useStore } from '../store';
-import { beadCorner, cofferLayout, cofferMoldings, cofferOf, coffers, crownLimit, defaultCoffer, fasciaHeight, isCornerBead, type CofferCeiling } from '../model/coffer';
+import { beadCorner, cabinetLine, cofferLayout, cofferMoldings, cofferOf, coffers, crownLimit, defaultCoffer, fasciaHeight, isCornerBead, opposite, perimOf, type CofferCeiling } from '../model/coffer';
+import { wallNames } from '../model/layout';
+import type { WallId } from '../model/types';
 import { fmt } from '../units';
 import { Field, LengthInput, Section } from './fields';
 import { MoldSlot } from './ProfilePicker';
@@ -46,7 +48,37 @@ export function CofferSection() {
             </Field>
           </div>
           <label className="check-inline"><input type="checkbox" checked={c.perimeter} onChange={(e) => put({ perimeter: e.target.checked })} /> Perimeter fascia around the room</label>
-          {c.perimeter && <div className="grid2">{len('perimeterWidth', 'Wall to fascia face', defaultCoffer.perimeterWidth)}</div>}
+          {c.perimeter && (
+            <>
+              <div className="grid2">{len('perimeterWidth', 'Wall to fascia face, all walls', defaultCoffer.perimeterWidth)}</div>
+              <p className="hint">Bring one wall out (over full-height bookcases, say) and match it on the opposite wall to keep the coffers centered on the windows.</p>
+              <table className="cf-walls">
+                <tbody>
+                  {(['back', 'front', 'left', 'right'] as WallId[]).map((w) => {
+                    const own = c.walls?.[w];
+                    const line = cabinetLine(project, w, c);
+                    const opp = perimOf(c, opposite[w]);
+                    const setWall = (v: number | undefined) => {
+                      const walls = { ...c.walls, [w]: v };
+                      if (v === undefined || v === c.perimeterWidth) delete walls[w];
+                      put({ walls: Object.keys(walls).length ? walls : undefined });
+                    };
+                    return (
+                      <tr key={w}>
+                        <th><label htmlFor={`cf-wall-${w}`}>{wallNames[w]}</label></th>
+                        <td><LengthInput id={`cf-wall-${w}`} value={perimOf(c, w)} min={c.fascia + 0.5} onChange={(v) => setWall(v ?? undefined)} /></td>
+                        <td>
+                          {line != null && Math.abs(line - perimOf(c, w)) > 0.01 && <button className="mini" title="Fascia face lined up with the front of the full-height cabinets on this wall" onClick={() => setWall(line)}>To cabinets {fmt(line)}</button>}
+                          {Math.abs(opp - perimOf(c, w)) > 0.01 && <button className="mini" title={`Same as the ${wallNames[opposite[w]].toLowerCase()}`} onClick={() => setWall(opp)}>Match {opposite[w]} {fmt(opp)}</button>}
+                          {own !== undefined && <button className="mini" onClick={() => setWall(undefined)}>Reset</button>}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </>
+          )}
           <MoldSlot kind="cofferCrown" label="Crown in each coffer" num={c.crown} species={species} maxHeight={crownLimit(c)} onChange={(n) => put({ crown: n })} />
           <MoldSlot kind="cofferBead" label="Bead on the beam edges" num={c.bead} species={species}
             // A square corner bead (A&M #9554) means the soffit hangs below the fascias

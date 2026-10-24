@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useStore } from '../store';
-import type { CabinetNote, Cabinet, CrownBuild, EndMode, FaceRow, PanelChoice, PanelMode, WallId } from '../model/types';
+import type { CabinetNote, Cabinet, CrownBuild, EndMode, FaceRow, PanelChoice, PanelMode, ShopSettings, WallId } from '../model/types';
 import { buildParts, crownLayout, layoutRows, noCrownBuild, panelOn } from '../model/parts';
 import { defaultPilaster, pilasterOf, pilasterSections } from '../model/pilaster';
 import { bracketCount, bracketGap, bracketLength, bracketProduct, finishedEnds, floatingOf, shelfPly } from '../model/floatingShelf';
@@ -12,6 +12,7 @@ import { Field, LengthInput, Section } from './fields';
 import { OrderList, PartsTable } from './PartsTable';
 import { OverridesSection } from './Overrides';
 import { MoldSlot } from './ProfilePicker';
+import { applianceKinds, newAppliance, openingFor, placedAppliances, type Appliance, type ApplianceKind } from '../model/appliances';
 import { cabinetCallouts } from '../drawings/notes';
 import { archBuilds, archShapes, baseLayout, baseOf, baseStyles, cutOutline, floorStanding } from '../model/cabinetBase';
 import { profileLabel, profileByNum } from '../model/moldings';
@@ -22,6 +23,7 @@ const rowTypes: { v: FaceRow['type']; label: string }[] = [
   { v: 'doors', label: 'Doors' },
   { v: 'falseFront', label: 'False front' },
   { v: 'open', label: 'Open' },
+  { v: 'appliance', label: 'Appliance' },
 ];
 
 export function Inspector({ cab, issues }: { cab: Cabinet; issues: string[] }) {
@@ -98,7 +100,12 @@ export function Inspector({ cab, issues }: { cab: Cabinet; issues: string[] }) {
         <ol className="rows">
           {cab.rows.map((r, i) => (
             <li key={r.id} className="row-ed">
-              <select id={`row-type-${r.id}`} aria-label="Opening type" value={r.type} onChange={(e) => setRow(r.id, { type: e.target.value as FaceRow['type'] })}>
+              <select id={`row-type-${r.id}`} aria-label="Opening type" value={r.type} onChange={(e) => {
+                const type = e.target.value as FaceRow['type'];
+                // A new appliance row starts as a microwave, its opening sized to fit
+                if (type === 'appliance' && !r.appliance) { const a = newAppliance('microwave'); setRow(r.id, { type, appliance: a, height: openingFor(a), shelves: 0 }); }
+                else setRow(r.id, { type });
+              }}>
                 {rowTypes.map((t) => <option key={t.v} value={t.v}>{t.label}</option>)}
               </select>
               <LengthInput id={`row-h-${r.id}`} value={r.height} allowAuto placeholder={`auto ${fmt(layout[i]?.height ?? 0)}`} onChange={(v) => setRow(r.id, { height: v })} />
@@ -120,9 +127,14 @@ export function Inspector({ cab, issues }: { cab: Cabinet; issues: string[] }) {
                 disabled={cab.rows.length <= 1}
                 onClick={() => set({ rows: cab.rows.filter((x) => x.id !== r.id) })}
               >×</button>
+              {r.type === 'appliance' && r.appliance && (
+                <ApplianceEditor a={r.appliance} openingH={layout[i]?.height ?? 0} problems={placedAppliances(cab, settings).find((x) => x.row.id === r.id)?.problems ?? []}
+                  onChange={(a, h) => setRow(r.id, { appliance: a, ...(h != null ? { height: h } : {}) })} />
+              )}
             </li>
           ))}
         </ol>
+        <FrameWidths cab={cab} settings={settings} set={set} setRow={setRow} />
         {leftover < -0.01 && <p className="warn">Openings are {fmt(-leftover)} taller than the face frame allows.</p>}
         {leftover > 0.01 && <p className="warn">{fmt(leftover)} of face frame is unused. Make one row auto.</p>}
         <div className="checks">
@@ -617,5 +629,70 @@ function NotesSection({ cab, set }: { cab: Cabinet; set: (patch: Partial<Cabinet
         </>
       )}
     </Section>
+  );
+}
+
+/** Each stile and rail of this cabinet's face frame; blank follows the cabinet's standard widths. */
+function FrameWidths({ cab, settings, set, setRow }: { cab: Cabinet; settings: ShopSettings; set: (p: Partial<Cabinet>) => void; setRow: (id: string, patch: Partial<FaceRow>) => void }) {
+  const s = cab.overrides ? { ...settings, ...cab.overrides } : settings;
+  const changed = [cab.stileLeftWidth, cab.stileRightWidth, cab.overrides?.topRailWidth, cab.overrides?.bottomRailWidth, ...cab.rows.map((r) => r.railAbove)].filter((v) => v != null).length;
+  const ov = (k: 'topRailWidth' | 'bottomRailWidth', v: number | null) => {
+    const next = { ...cab.overrides, [k]: v ?? undefined };
+    if (v == null) delete next[k];
+    set({ overrides: Object.keys(next).length ? next : undefined });
+  };
+  const rowName = (i: number) => rowTypes.find((t) => t.v === cab.rows[i].type)?.label.toLowerCase() ?? 'row';
+  return (
+    <details className="overrides" open={changed > 0}>
+      <summary>Stile & rail widths{changed > 0 && <span className="badge-on">{changed} changed</span>}</summary>
+      <p className="hint">Blank follows the standard. A tall top rail for a ladder rail, a wide stile at a wall, a deeper rail over a drawer.</p>
+      <div className="grid3">
+        <Field label="Left stile" htmlFor="fw-sl"><LengthInput id="fw-sl" value={cab.stileLeftWidth ?? null} allowAuto placeholder={fmt(s.stileWidth)} onChange={(v) => set({ stileLeftWidth: v ?? undefined })} /></Field>
+        <Field label="Right stile" htmlFor="fw-sr"><LengthInput id="fw-sr" value={cab.stileRightWidth ?? null} allowAuto placeholder={fmt(s.stileWidth)} onChange={(v) => set({ stileRightWidth: v ?? undefined })} /></Field>
+        <Field label="Top rail" htmlFor="fw-top"><LengthInput id="fw-top" value={cab.overrides?.topRailWidth ?? null} allowAuto placeholder={fmt(settings.topRailWidth)} onChange={(v) => ov('topRailWidth', v)} /></Field>
+        {cab.rows.slice(1).map((r, j) => (
+          <Field key={r.id} label={`Rail above row ${j + 2} (${rowName(j + 1)})`} htmlFor={`fw-r-${r.id}`}>
+            <LengthInput id={`fw-r-${r.id}`} value={r.railAbove ?? null} allowAuto placeholder={fmt(s.midRailWidth)} onChange={(v) => setRow(r.id, { railAbove: v ?? undefined })} />
+          </Field>
+        ))}
+        <Field label="Bottom rail" htmlFor="fw-bot"><LengthInput id="fw-bot" value={cab.overrides?.bottomRailWidth ?? null} allowAuto placeholder={fmt(settings.bottomRailWidth)} onChange={(v) => ov('bottomRailWidth', v)} /></Field>
+      </div>
+    </details>
+  );
+}
+
+/** What goes in an appliance row: the kind, its size and clearances, and sizing the opening to it. */
+function ApplianceEditor({ a, openingH, problems, onChange }: { a: Appliance; openingH: number; problems: string[]; onChange: (a: Appliance, height?: number) => void }) {
+  const put = (patch: Partial<Appliance>) => onChange({ ...a, ...patch });
+  const len = (k: 'w' | 'h' | 'd' | 'side' | 'top' | 'back', label: string) => (
+    <Field label={label} htmlFor={`ap-${k}`}><LengthInput id={`ap-${k}`} value={a[k]} onChange={(v) => put({ [k]: v ?? 0 })} /></Field>
+  );
+  const fit = openingFor(a);
+  return (
+    <div className="appliance-ed">
+      <div className="grid2">
+        <Field label="Appliance" htmlFor="ap-kind">
+          <select id="ap-kind" value={a.kind} onChange={(e) => { const n = newAppliance(e.target.value as ApplianceKind); onChange({ ...n, model: a.model }, openingFor(n)); }}>
+            {(Object.keys(applianceKinds) as ApplianceKind[]).map((k) => <option key={k} value={k}>{applianceKinds[k].label}</option>)}
+          </select>
+        </Field>
+        <Field label="Make & model" htmlFor="ap-model"><input id="ap-model" value={a.model ?? ''} placeholder="From the spec sheet" onChange={(e) => put({ model: e.target.value || undefined })} /></Field>
+      </div>
+      <div className="grid3">
+        {len('w', 'Width')}{len('h', 'Height')}{len('d', 'Depth')}
+        {len('side', 'Clear each side')}{len('top', 'Clear above')}{len('back', 'Clear behind')}
+      </div>
+      <div className="grid2">
+        <Field label="Sits" htmlFor="ap-mount">
+          <select id="ap-mount" value={a.mount} onChange={(e) => put({ mount: e.target.value as Appliance['mount'] })}>
+            <option value="shelf">Back on an open shelf</option>
+            <option value="flush">Flush, face or trim at the face frame</option>
+          </select>
+        </Field>
+        {Math.abs(openingH - fit) > 0.01 && <button className="mini" style={{ alignSelf: 'end' }} onClick={() => onChange(a, fit)}>Size the opening to it ({fmt(fit)} high)</button>}
+      </div>
+      <p className="hint">{applianceKinds[a.kind].note}. Sizes are typical until you have the spec sheet.</p>
+      {problems.map((p) => <p key={p} className="warn">{p}</p>)}
+    </div>
   );
 }

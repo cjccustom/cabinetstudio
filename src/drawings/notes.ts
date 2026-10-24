@@ -2,6 +2,7 @@
 // panels, scribes, decorative bases, mouldings, tops) plus Cody's own notes, each marked for the
 // customer, the shop, or both.
 import type { Cabinet, CabinetNote, Project } from '../model/types';
+import { applianceNotes } from '../model/appliances';
 import { eff, panelOn } from '../model/parts';
 import { resolveEnds } from '../model/layout';
 import { profileByNum, profileLabel } from '../model/moldings';
@@ -36,6 +37,11 @@ export function cabinetCallouts(p: Project, c: Cabinet): Callout[] {
   if (c.noBottom) out.push({ text: c.bottomRail ? 'No case bottom: sides stand on the top below' : 'No case bottom or bottom rail: sides stand on the top below', for: 'shop' });
   if (c.blind) out.push({ text: `Blind corner, ${c.blind.side} side: ${fmt(c.blind.dead)} dead space, ${fmt(c.blind.clearance)} clearance`, for: 'shop' });
   if (c.corner?.lazySusan) out.push({ text: 'Lazy susan corner', for: 'both' });
+  if (c.stileLeftWidth != null || c.stileRightWidth != null || c.rows.some((r) => r.railAbove != null)) {
+    const bits = [c.stileLeftWidth != null && `left stile ${fmt(c.stileLeftWidth)}`, c.stileRightWidth != null && `right stile ${fmt(c.stileRightWidth)}`, ...c.rows.map((r, i) => r.railAbove != null && `rail above row ${i + 1} ${fmt(r.railAbove)}`)].filter(Boolean);
+    out.push({ text: `Face frame: ${bits.join(', ')}`, for: 'shop' });
+  }
+  for (const n of applianceNotes(c, p.settings)) out.push({ text: n, for: 'both' });
   if (c.overrides && Object.keys(c.overrides).length) out.push({ text: `Built to its own construction settings (${Object.keys(c.overrides).length} changed)`, for: 'shop' });
   for (const n of c.notes ?? []) if (n.text.trim()) out.push({ text: n.text.trim(), for: n.for });
   return out;

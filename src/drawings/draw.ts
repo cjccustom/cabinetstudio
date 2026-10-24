@@ -150,6 +150,8 @@ export const drawingCss = `
 .dwg .hid{fill:none;stroke:#555;stroke-width:.007;stroke-dasharray:.05 .035}
 .dwg .thin{fill:none;stroke:#666;stroke-width:.005}
 .dwg .glass{fill:#e8eef3;stroke:#111;stroke-width:.007}
+.dwg .appl{fill:#d9d9d9;stroke:#111;stroke-width:.009}
+.dwg .firebox{fill:#3a3a3a;stroke:#111;stroke-width:.007}
 .dwg .d{stroke:#333;stroke-width:.005}
 .dwg .tk{stroke:#111;stroke-width:.011}
 .dwg .tag{fill:#fff;stroke:#111;stroke-width:.008}

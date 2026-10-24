@@ -111,6 +111,7 @@ function PresetGlyph({ rows, w, h, kind }: { rows: { type: string; doors: number
         const rh = r.h != null ? r.h * scale : autoH;
         const el = [];
         if (r.type === 'open') el.push(<rect key={i} x="1.5" y={y} width={W - 3} height={rh} className="g-open" />);
+        else if (r.type === 'appliance') el.push(<rect key={i} x="1.5" y={y} width={W - 3} height={rh} className="g-appl" />);
         else if (r.type === 'doors' && r.doors === 2) {
           el.push(<rect key={`${i}a`} x="1" y={y - 0.5} width={W / 2 - 1.2} height={rh + 1} className="g-door" />);
           el.push(<rect key={`${i}b`} x={W / 2 + 0.2} y={y - 0.5} width={W / 2 - 1.2} height={rh + 1} className="g-door" />);

@@ -25,25 +25,28 @@ export const kickOf = (c: Cabinet, s: ShopSettings) => (c.kind === 'wall' ? 0 : 
 /** The shop standards with this cabinet's own changes applied. */
 export const eff = (c: Cabinet, s: ShopSettings): ShopSettings => (c.overrides ? { ...s, ...c.overrides } : s);
 
+/** Width of the mid rail above row i (none above the first row). */
+export const railAbove = (c: Cabinet, s: ShopSettings, i: number) => (i <= 0 || i >= c.rows.length ? 0 : c.rows[i].railAbove ?? eff(c, s).midRailWidth);
+
 /** Resolve each face row's opening height, top to bottom. Auto rows split what's left. */
 export function layoutRows(c: Cabinet, s: ShopSettings): { rows: RowLayout[]; leftover: number } {
+  const s0 = s;
   s = eff(c, s);
   const bl = baseLayout(c, s);
   const top = c.height - s.topRailWidth;
   const bottom = bl.railY + bl.railW;
-  const n = c.rows.length;
-  const available = top - bottom - Math.max(0, n - 1) * s.midRailWidth;
+  const available = top - bottom - c.rows.reduce((t, _, i) => t + railAbove(c, s0, i), 0);
   const fixed = c.rows.reduce((sum, r) => sum + (r.height ?? 0), 0);
   const autos = c.rows.filter((r) => r.height == null).length;
   const leftover = available - fixed;
   const autoH = autos ? Math.max(0, leftover / autos) : 0;
   const rows: RowLayout[] = [];
   let y = top;
-  for (const r of c.rows) {
+  c.rows.forEach((r, i) => {
     const h = r.height ?? autoH;
     rows.push({ rowId: r.id, y0: y - h, y1: y, height: h });
-    y -= h + s.midRailWidth;
-  }
+    y -= h + railAbove(c, s0, i + 1);
+  });
   return { rows, leftover: autos ? 0 : leftover };
 }
 
@@ -251,33 +254,34 @@ export function buildParts(c: Cabinet, s: ShopSettings, ends: EndInfo = { left: 
   const zF = boxD;
   const ft = s.ffThickness;
   const sw = s.stileWidth;
-  const railLen = FW - 2 * sw;
+  const swL = c.stileLeftWidth ?? sw, swR = c.stileRightWidth ?? sw;
+  const railLen = FW - swL - swR;
   // Door openings. On a blind corner they start past the dead area and a wide blind stile.
   const blind = c.blind;
   const bs = sw + (blind?.clearance ?? s.blindClearance); // the blind stile: a face frame stile plus clearance
   const blindOpen = blind ? blind.dead + bs : 0;
-  let ox0 = sL + sw;
-  let ox1 = W - sR - sw;
+  let ox0 = sL + swL;
+  let ox1 = W - sR - swR;
   if (blind?.side === 'left') ox0 = Math.max(ox0, blindOpen);
   if (blind?.side === 'right') ox1 = Math.min(ox1, W - blindOpen);
   const cx = (ox0 + ox1) / 2;
-  for (const [x, extra] of [[0, sL], [W - sw - sR, sR]]) {
+  for (const [x, extra, w] of [[0, sL, swL], [W - swR - sR, sR, swR]]) {
     const scribed = extra > 0;
     parts.push({
       name: scribed ? 'Stile, extended' : 'Stile', role: 'stile', material: 'faceframe', length: ffH,
-      width: sw + extra + (scribed ? s.scribeAllowance : 0), thickness: ft, cut: true,
-      note: scribed ? `${fmtShort(sw)} + ${fmtShort(extra)} extension + ${fmtShort(s.scribeAllowance)} to scribe on site` : undefined,
-      boxes: [vb(x, BL.stileY, zF, sw + extra, ffH, ft)],
+      width: w + extra + (scribed ? s.scribeAllowance : 0), thickness: ft, cut: true,
+      note: scribed ? `${fmtShort(w)} + ${fmtShort(extra)} extension + ${fmtShort(s.scribeAllowance)} to scribe on site` : w !== sw ? `${fmtShort(w)} stile for this cabinet` : undefined,
+      boxes: [vb(x, BL.stileY, zF, w + extra, ffH, ft)],
     });
   }
   parts.push({
     name: 'Top rail', role: 'rail', material: 'faceframe', length: railLen, width: s.topRailWidth, thickness: ft, cut: true,
-    boxes: [vb(sL + sw, H - s.topRailWidth, zF, railLen, s.topRailWidth, ft)],
+    boxes: [vb(sL + swL, H - s.topRailWidth, zF, railLen, s.topRailWidth, ft)],
   });
   {
     // On a shaped base the stiles are the feet and the cutout comes out of a wide bottom rail
     const shaped = BL.style === 'arch' && !BL.applied;
-    const x0 = sL + sw;
+    const x0 = sL + swL;
     const a = Math.max(0, BL.b.foot - x0), b = Math.min(railLen, W - BL.b.foot - x0);
     if (BL.railW > 0) parts.push({
       name: 'Bottom rail', role: 'rail', material: 'faceframe', length: railLen, width: BL.railW, thickness: ft, cut: true,
@@ -320,9 +324,11 @@ export function buildParts(c: Cabinet, s: ShopSettings, ends: EndInfo = { left: 
   const { rows } = layoutRows(c, s);
   rows.forEach((r, i) => {
     if (i > 0) {
+      const mw = railAbove(c, s, i);
       parts.push({
-        name: 'Mid rail', role: 'rail', material: 'faceframe', length: ox1 - ox0, width: s.midRailWidth, thickness: ft, cut: true,
-        boxes: [vb(ox0, r.y1, zF, ox1 - ox0, s.midRailWidth, ft)],
+        name: 'Mid rail', role: 'rail', material: 'faceframe', length: ox1 - ox0, width: mw, thickness: ft, cut: true,
+        note: c.rows[i].railAbove != null ? `${fmtShort(mw)} rail for this cabinet` : undefined,
+        boxes: [vb(ox0, r.y1, zF, ox1 - ox0, mw, ft)],
       });
     }
   });
@@ -380,8 +386,8 @@ export function buildParts(c: Cabinet, s: ShopSettings, ends: EndInfo = { left: 
       });
     }
     // Front edges: overlay onto the outer frame, share mid rails, or sit inside the opening for inset
-    const top = inset ? -rev : i === 0 ? o : shareOv(s.midRailWidth);
-    const bottom = inset ? -rev : i === rows.length - 1 ? o : shareOv(s.midRailWidth);
+    const top = inset ? -rev : i === 0 ? o : shareOv(railAbove(c, s, i));
+    const bottom = inset ? -rev : i === rows.length - 1 ? o : shareOv(railAbove(c, s, i + 1));
     const side = inset ? -rev : o;
     const fy = r.y0 - bottom;
     const fh = r.height + top + bottom;
@@ -414,6 +420,12 @@ export function buildParts(c: Cabinet, s: ShopSettings, ends: EndInfo = { left: 
         order: { item: 'drawerBox', w: box.w, h: box.h, d: box.d, spec: `Dovetail, ${fmtShort(s.drawerSide)} sides, ${box.notch}` },
         boxes: [],
       });
+    }
+    // An appliance sits on a fixed shelf, top flush with the rail below its opening (the case bottom does it in the bottom row)
+    if (row.type === 'appliance' && r.y0 - botTop > 0.5) {
+      parts.push({ name: 'Fixed shelf', role: 'shelf', material: 'box', length: innerW + 2 * dd, width: boxD - rw, thickness: tn, cut: true,
+        note: 'Dadoed in, top flush with the rail below the appliance opening; carries the appliance',
+        boxes: [vb(xi0, r.y0 - ta, rw, innerW, ta, boxD - rw)] });
     }
     if ((row.type === 'doors' || row.type === 'open') && row.shelves > 0) {
       const shelfW = innerW - s.shelfClearance;
