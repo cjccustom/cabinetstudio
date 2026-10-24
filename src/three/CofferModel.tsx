@@ -2,7 +2,7 @@ import { useEffect, useMemo } from 'react';
 import * as THREE from 'three';
 import type { Project } from '../model/types';
 import type { ViewMode } from '../store';
-import { cofferOf, cofferParts, coffers } from '../model/coffer';
+import { beadCorner, cofferOf, cofferParts, coffers } from '../model/coffer';
 import { mountShape, profileByNum, type MoldPiece } from '../model/moldings';
 import { buildCabinetGeometry } from './cabinetGeometry';
 import { MoldingModel } from './MoldingModel';
@@ -11,7 +11,13 @@ import { MoldingModel } from './MoldingModel';
 export function CofferModel({ project, view }: { project: Project; view: ViewMode }) {
   const c = cofferOf(project);
   const key = JSON.stringify([project.ceiling, project.room]);
-  const geo = useMemo(() => buildCabinetGeometry(cofferParts(project, c)), [key]); // eslint-disable-line react-hooks/exhaustive-deps
+  const geo = useMemo(() => {
+    const parts = cofferParts(project, c);
+    // With a corner bead, show it as a square run under each fascia (the cut list leaves it to the moulding order)
+    const g = c.joint === 'bead' && c.bead ? beadCorner(c) : 0;
+    const beads = g ? parts.filter((x) => x.name.endsWith('fascia')).map((x) => ({ ...x, name: 'bead', boxes: x.boxes.map((b) => ({ min: [b.min[0], b.min[1] - g, b.min[2]] as [number, number, number], size: [b.size[0], g, b.size[2]] as [number, number, number] })) })) : [];
+    return buildCabinetGeometry([...parts, ...beads]);
+  }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => { geo.meshes.forEach((m) => m.geometry.dispose()); geo.edges.dispose(); }, [geo]);
   // Crown on each side of each coffer, top at the ceiling, as if each fascia face were a wall
   const crowns = useMemo(() => {

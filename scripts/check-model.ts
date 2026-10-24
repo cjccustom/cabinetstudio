@@ -702,6 +702,15 @@ eq('panel sticks out past frame', panelExtents(b21, s, { left: true, right: fals
   eq('coffer crown and stock in the quote', ['Coffered ceiling'].every((g) => priceQuote(room).groups.some((x) => x.group === 'ceiling')) && priceQuote(room).materials.some((x) => x.label === 'Poplar for the ceiling'), true);
   eq('beam feet for labor', Math.round(cofferFeet(room).beams), Math.round((2 * 172 + 6 * (156 - 8 - 11) / 3) / 12));
   eq('off by default', cofferParts(p).length, 0);
+  // A&M #9554 corner bead: the soffit hangs 3/4" below the fascias, fits between them, on blocking
+  const beaded = { ...room, ceiling: { ...room.ceiling, bead: '9554', joint: 'bead' as const } };
+  const bp = cofferParts(beaded);
+  const bs = bp.find((x) => x.name === 'Through beam soffit')!, bf = bp.find((x) => x.name === 'Through beam fascia')!;
+  eq('beaded soffit fits between the fascias', bs.width, 5.5 - 1.5);
+  eq('beaded soffit bottom 3/4" below the fascia bottom', +(bf.boxes[0].min[1] - bs.boxes[0].min[1]).toFixed(4), 0.75);
+  eq('beaded fascia is the drop less the bead corner, no dado', [bf.width, bf.note!.startsWith('No dado')].join(), '4.75,true');
+  eq('blocking inside beaded beams, about 16" apart', bp.filter((x) => x.name === 'Through beam blocking (2x)').length, 2 * (Math.ceil(172 / 16) + 1));
+  eq('crown over half the fascia is flagged', cofferLayout({ ...room, ceiling: { ...room.ceiling, crown: amCatalog.filter((x) => x.category === 'Crown').sort((a, b) => b.w - a.w)[0].num } }).warnings.some((w) => w.includes('more than half')), true);
 }
 
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');

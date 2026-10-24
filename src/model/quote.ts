@@ -444,10 +444,10 @@ export function cofferScope(p: Project): string | null {
   const crown = profileByNum(c.crown);
   const bits = [
     `${m.count} coffers (${L.xs.length} × ${L.zs.length})${c.layout === 'bigCenter' && L.xs.length >= 3 ? ', smaller around the perimeter' : ''}`,
-    `${fmtIn(c.beamWidth)} wide beams dropping ${fmtIn(c.drop)}, ${c.species.toLowerCase()} fascias with a recessed soffit`,
+    `${fmtIn(c.beamWidth)} wide beams dropping ${fmtIn(c.drop)}, ${c.species.toLowerCase()} fascias with ${c.joint === 'bead' ? 'the soffit set below and a bead on each corner' : 'a recessed soffit'}`,
     ...(c.perimeter ? ['perimeter fascia around the room'] : []),
     `crown in each coffer${crown ? ` (${profileLabel(crown)})` : ''}`,
-    ...(c.bead && profileByNum(c.bead) ? ['bead moulding on the beam edges'] : []),
+    ...(c.joint !== 'bead' && c.bead && profileByNum(c.bead) ? ['bead moulding on the beam edges'] : []),
     ...(c.picture && profileByNum(c.picture) ? ['picture moulding below the perimeter'] : []),
     ...(c.beadboard ? ['beadboard in each coffer'] : []),
     'paint grade',

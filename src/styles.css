@@ -270,6 +270,8 @@ select.overridden { border-color: var(--accent); }
 .pp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 8px; max-height: 60vh; overflow: auto; }
 .pp-item { flex-direction: column; align-items: center; gap: 2px; padding: 8px 4px; white-space: normal; font-size: 11.5px; }
 .pp-item.on { border-color: var(--accent); background: var(--accent-soft); }
+.pp-item.too-tall { opacity: .55; }
+.pp-item .warn-text { color: var(--warn, #b45309); }
 .pp-num { font-weight: 600; }
 .prof-thumb { background: var(--canvas); border-radius: 4px; flex: none; }
 .prof-shape { fill: var(--surface); stroke: var(--fg); stroke-width: 0.025; }
