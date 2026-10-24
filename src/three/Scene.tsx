@@ -11,6 +11,7 @@ import { eff } from '../model/parts';
 import { MoldingModel } from './MoldingModel';
 import { live, onWheel, useNav } from './navigation';
 import { RoomModel } from './RoomModel';
+import { CofferModel } from './CofferModel';
 import { buildParts } from '../model/parts';
 import { alongWall, footprint, resolveEnds, snapOffset, wallLength, wallTransform } from '../model/layout';
 import { buildCabinetGeometry } from './cabinetGeometry';
@@ -26,6 +27,7 @@ export function Scene({ issueIds }: { issueIds: Set<string> }) {
   const selectedId = useStore((s) => s.selectedId);
   const select = useStore((s) => s.select);
   const { room, settings, finishes } = project;
+  const showCeiling = useNav((n) => n.ceiling);
   const elevWall = view.startsWith('elev-') ? (view.slice(5) as WallId) : null;
   const visible = elevWall ? project.cabinets.filter((c) => c.wall === elevWall) : project.cabinets;
 
@@ -42,6 +44,7 @@ export function Scene({ issueIds }: { issueIds: Set<string> }) {
       <directionalLight position={[room.width * 0.8, room.height * 2.2, room.depth * 2.5]} intensity={1.5} />
       <directionalLight position={[-room.width, room.height, room.depth]} intensity={0.35} />
       <RoomModel project={project} view={view} />
+      {showCeiling && <CofferModel project={project} view={view} />}
       {visible.map((c) => (
         <CabinetModel
           key={c.id}

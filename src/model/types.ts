@@ -323,6 +323,8 @@ export interface Project {
   dropbox?: import('./client').DropboxLink;
   /** Drawing sets: paper, revision, cover picture, notes. */
   drawings?: Partial<import('../drawings/sheets').DrawingSettings>;
+  /** A coffered ceiling over the room. */
+  ceiling?: Partial<import('./coffer').CofferCeiling>;
 }
 
 export type MaterialKey = 'box' | 'back' | 'toeSkin' | 'faceframe' | 'door' | 'drawerBox' | 'counter' | 'solidWood';

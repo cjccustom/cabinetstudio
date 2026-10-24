@@ -1,4 +1,5 @@
 import { PhotoRoomButton, ScanImportButton } from './PhotoRoom';
+import { CofferSection } from './CofferSection';
 import { useState } from 'react';
 import { useStore } from '../store';
 import { doorOf } from '../model/doorOrder';
@@ -39,6 +40,7 @@ export function RoomDetails() {
         <div className="order-actions"><PhotoRoomButton className="primary" /><ScanImportButton /></div>
         <p className="hint">Room scan: from the CJC Room Scan app on your iPhone Pro (LiDAR), saved to Dropbox or AirDropped here.</p>
       </Section>
+      <CofferSection />
       <Section title="Doors & windows">
         <div className="order-actions">
           {(Object.keys(openingKinds) as Opening['kind'][]).map((k) => <button key={k} className="mini" onClick={() => add(k)}>Add {openingKinds[k].toLowerCase()}</button>)}

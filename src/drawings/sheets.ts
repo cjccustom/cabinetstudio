@@ -8,7 +8,9 @@ import { eff } from '../model/parts';
 import { styleById } from '../model/eagle';
 import { baseLabel } from '../model/cabinetBase';
 import { fmt } from '../units';
-import { cabinetsOn, faceFrameView, floorPlan, partRows, partsOf, sideSection, wallElevation } from './views';
+import { beamSection, cabinetsOn, ceilingPlan, faceFrameView, floorPlan, partRows, partsOf, sideSection, wallElevation } from './views';
+import { cofferOf, cofferParts } from '../model/coffer';
+import { cofferScope } from '../model/quote';
 import { drawingCss, scaleName, type Frame } from './draw';
 import { cabinetCallouts, forAudience, jobCallouts, type Audience } from './notes';
 import { LOGO, LOGO_ASPECT } from './logo';
@@ -98,7 +100,9 @@ export function customerSet(p: Project, s: DrawingSettings): Sheet[] {
   const A = area(s.paper);
   const walls = wallsWithWork(p);
   const sheets: Sheet[] = [];
-  const index = [['A0', 'Cover'], ['A1', 'Floor plan'], ...walls.map((w, i) => [`A${i + 2}`, `${wallNames[w]} elevation`])];
+  const ceiling = cofferOf(p).on;
+  const first = ceiling ? 3 : 2;
+  const index = [['A0', 'Cover'], ['A1', 'Floor plan'], ...(ceiling ? [['A2', 'Ceiling plan']] : []), ...walls.map((w, i) => [`A${i + first}`, `${wallNames[w]} elevation`])];
   // Cover: the picture, the job, and what's in the set
   const c = clientOf(p);
   const imgW = A.w * 0.64;
@@ -117,10 +121,15 @@ export function customerSet(p: Project, s: DrawingSettings): Sheet[] {
   sheets.push(sheet(p, s, 'A0', 'Cover', 'None', cover));
   const plan = floorPlan(p, A);
   sheets.push(sheet(p, s, 'A1', 'Floor plan', scaleName(plan.scale), plan.svg));
+  if (ceiling) {
+    const rcp = ceilingPlan(p, { ...A, w: A.w * 0.74 });
+    const notes = html({ x: A.x + A.w * 0.76, y: A.y, w: A.w * 0.24, h: A.h }, `<h2>Notes</h2><p>${esc(cofferScope(p) ?? '')}</p><p class="small">Coffer sizes are clear openings, fascia face to fascia face.</p>`, s.paper === 'tabloid' ? 0.11 : 0.09);
+    sheets.push(sheet(p, s, 'A2', 'Ceiling plan', scaleName(rcp.scale), rcp.svg + notes));
+  }
   walls.forEach((w, i) => {
     const e = wallElevation(p, w, { ...A, w: A.w * 0.74 }, 'customer');
     const notes = html({ x: A.x + A.w * 0.76, y: A.y, w: A.w * 0.24, h: A.h }, wallNotes(p, w, 'customer'), s.paper === 'tabloid' ? 0.11 : 0.09);
-    sheets.push(sheet(p, s, `A${i + 2}`, `${wallNames[w]} elevation`, scaleName(e.scale), e.svg + notes));
+    sheets.push(sheet(p, s, `A${i + first}`, `${wallNames[w]} elevation`, scaleName(e.scale), e.svg + notes));
   });
   return sheets;
 }
@@ -214,6 +223,14 @@ export function shopSet(p: Project, s: DrawingSettings): Sheet[] {
     const info = html({ x: A.x + A.w * 0.76, y: A.y, w: A.w * 0.24, h: viewH }, cabinetHeader(p, c), s.paper === 'tabloid' ? 0.11 : 0.09);
     const table = html({ x: A.x, y: A.y + viewH + 0.25, w: A.w, h: A.h - viewH - 0.25 }, partsTable(p, c), s.paper === 'tabloid' ? 0.095 : 0.075);
     sheets.push(sheet(p, s, `S${walls.length + n}`, `${c.name} shop drawing`, ff ? scaleName(ff.scale) : 'As noted', (ff?.svg ?? '') + (sec?.svg ?? '') + labels + info + table));
+  }
+  if (cofferOf(p).on) {
+    const top = A.h * 0.58;
+    const rcp = ceilingPlan(p, { x: A.x, y: A.y, w: A.w * 0.6, h: top });
+    const sec = beamSection(p, { x: A.x + A.w * 0.6, y: A.y, w: A.w * 0.4, h: top });
+    const rows = partRows(cofferParts(p)).map(({ part, qty }) => `<tr><td>${qty}</td><td>${esc(part.name)}</td><td>${fmt(part.length)}</td><td>${fmt(part.width)}</td><td>${fmt(part.thickness)}</td><td>${esc(part.species ?? '')}</td><td>${esc(part.note ?? '')}</td></tr>`).join('');
+    const table = html({ x: A.x, y: A.y + top + 0.2, w: A.w, h: A.h - top - 0.2 }, `<table class="parts"><thead><tr><th>Qty</th><th>Part</th><th>Length</th><th>Width</th><th>Thick</th><th>Stock</th><th>Notes</th></tr></thead><tbody>${rows}</tbody></table>`, s.paper === 'tabloid' ? 0.09 : 0.07);
+    sheets.push(sheet(p, s, `S${sheets.length + 1}`, 'Coffered ceiling', `${scaleName(rcp.scale)}; section ${scaleName(sec.scale)}`, rcp.svg + sec.svg + table));
   }
   return sheets;
 }

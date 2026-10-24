@@ -16,6 +16,9 @@ export const useNav = create<{
   pointerChosen: boolean;
   /** Bumped to put the camera back where each view starts. */
   resetKey: number;
+  /** Draw the coffered ceiling (it can hide the room from above). */
+  ceiling: boolean;
+  setCeiling: (on: boolean) => void;
   setMode: (m: 'orbit' | 'pan') => void;
   setPointer: (p: Pointer, byHand?: boolean) => void;
   reset: () => void;
@@ -24,6 +27,8 @@ export const useNav = create<{
   pointer: load('cabinet-studio.pointer', ['mouse', 'trackpad'], 'mouse'),
   pointerChosen: load('cabinet-studio.pointerChosen', ['yes', 'no'], 'no') === 'yes',
   resetKey: 0,
+  ceiling: load('cabinet-studio.ceiling', ['on', 'off'], 'on') === 'on',
+  setCeiling: (on) => { save('cabinet-studio.ceiling', on ? 'on' : 'off'); set({ ceiling: on }); },
   setMode: (mode) => { save('cabinet-studio.nav', mode); set({ mode }); },
   setPointer: (pointer, byHand = false) => {
     save('cabinet-studio.pointer', pointer);

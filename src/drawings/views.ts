@@ -6,6 +6,7 @@ import { footprint, resolveEnds, wallLength, wallNames, wallTransform } from '..
 import { cabinetMoldings, mountShape, profileByNum } from '../model/moldings';
 import { casingReach, openingTrim, roomMoldings } from '../model/room';
 import { View, dimText, fitScale, type Frame } from './draw';
+import { cofferLayout, cofferOf, coffers } from '../model/coffer';
 
 export const partsOf = (p: Project, c: Cabinet) => buildParts(c, p.settings, resolveEnds(p.room, p.cabinets, c));
 export const cabinetsOn = (p: Project, wall: WallId) => p.cabinets.filter((c) => c.wall === wall).sort((a, b) => a.offset - b.offset);
@@ -279,4 +280,76 @@ export function partRows(parts: Part[]) {
     if (r) r.qty++; else rows.set(key, { part, qty: 1 });
   }
   return [...rows.values()];
+}
+
+/** The ceiling looking up, drawn as a plan (back wall at the top): beams, perimeter fascia, coffer sizes. */
+export function ceilingPlan(p: Project, frame: Frame): { svg: string; scale: number } {
+  const { width: W, depth: D } = p.room;
+  const T = 4.5;
+  const c = cofferOf(p);
+  const L = cofferLayout(p, c);
+  const perFoot = fitScale(W + 2 * T, D + 2 * T, frame.w - 1.8, frame.h - 1.9);
+  const v = new View(frame, { x0: -T, y0: -T, x1: W + T, y1: D + T }, perFoot, false);
+  v.rect(-T, -T, W + 2 * T, T, 'wall'); v.rect(-T, D, W + 2 * T, T, 'wall');
+  v.rect(-T, 0, T, D, 'wall'); v.rect(W, 0, T, D, 'wall');
+  if (c.perimeter) {
+    const P = c.perimeterWidth;
+    v.rect(0, 0, W, P, 'ghost'); v.rect(0, D - P, W, P, 'ghost'); v.rect(0, P, P, D - 2 * P, 'ghost'); v.rect(W - P, P, P, D - 2 * P, 'ghost');
+  }
+  const f = L.field;
+  for (const b of L.beamsZ) v.rect(f.x0, b.a, f.x1 - f.x0, b.b - b.a, 'ghost');
+  for (const b of L.beamsX) v.rect(b.a, f.z0, b.b - b.a, f.z1 - f.z0, 'ghost');
+  // The soffit's recessed bottom, inside each beam's fascias
+  const t = c.fascia;
+  for (const b of L.beamsZ) v.line(f.x0, b.a + t, f.x1, b.a + t, 'thin'), v.line(f.x0, b.b - t, f.x1, b.b - t, 'thin');
+  for (const b of L.beamsX) v.line(b.a + t, f.z0, b.a + t, f.z1, 'thin'), v.line(b.b - t, f.z0, b.b - t, f.z1, 'thin');
+  for (const k of coffers(p, c)) {
+    v.rect(k.x0, k.z0, k.x1 - k.x0, k.z1 - k.z0, c.beadboard ? 'f' : 'f');
+    if (c.beadboard) for (let x = k.x0 + 3.5; x < k.x1 - 1; x += 3.5) v.line(x, k.z0 + 2, x, k.z1 - 2, 'thin');
+    v.text((k.x0 + k.x1) / 2, (k.z0 + k.z1) / 2 + v.p(0.035), `${dimText(k.x1 - k.x0)} × ${dimText(k.z1 - k.z0)}`, 0.085, 'middle', 'dt');
+  }
+  // Coffers and beams across the top and down the left, then the room
+  v.chainH([0, W, f.x0, f.x1, ...L.beamsX.flatMap((b) => [b.a, b.b])], -T, 0.3);
+  v.dimH(0, W, -T, 0.65, undefined, true);
+  v.chainV([0, D, f.z0, f.z1, ...L.beamsZ.flatMap((b) => [b.a, b.b])], -T, -0.3);
+  v.dimV(0, D, -T, -0.65, undefined, true);
+  v.text(W / 2, D + T + v.p(0.45), 'REFLECTED CEILING PLAN', 0.14, 'middle', 'lbl');
+  return { svg: v.svg(), scale: perFoot };
+}
+
+/** A section through one beam, large: nailer, fascias with their dados, the soffit's bottom tongue, crown and bead. */
+export function beamSection(p: Project, frame: Frame): { svg: string; scale: number } {
+  const c = cofferOf(p);
+  const B = c.beamWidth, t = c.fascia, drop = c.drop;
+  const crown = profileByNum(c.crown);
+  const cm = crown ? mountShape(crown) : null;
+  const ext = (cm?.depth ?? 0) + 1.5;
+  const perFoot = fitScale(B + 2 * ext, drop + 2, frame.w - 1.6, frame.h - 1.4);
+  const v = new View(frame, { x0: -ext, y0: -1, x1: B + ext, y1: drop + 1 }, perFoot);
+  // y = 0 at the fascia bottom, up to the ceiling at the drop
+  v.line(-ext, drop, B + ext, drop, 'heavy');
+  v.rect(t, drop - c.nailer, B - 2 * t, c.nailer, 'ghost');
+  const dy0 = c.reveal, dy1 = c.reveal + c.tongue;
+  // Fascias, each with its dado on the inside face
+  v.poly([[0, 0], [t, 0], [t, dy0], [t - c.tongueDepth, dy0], [t - c.tongueDepth, dy1], [t, dy1], [t, drop], [0, drop]], 'cut');
+  v.poly([[B - t, 0], [B, 0], [B, drop], [B - t, drop], [B - t, dy1], [B - t + c.tongueDepth, dy1], [B - t + c.tongueDepth, dy0], [B - t, dy0]], 'cut');
+  // Soffit: full thickness between the fascias, tongues on its bottom face into the dados
+  v.poly([[t - c.tongueDepth, dy0], [B - t + c.tongueDepth, dy0], [B - t + c.tongueDepth, dy1], [B - t, dy1], [B - t, c.reveal + c.soffit], [t, c.reveal + c.soffit], [t, dy1], [t - c.tongueDepth, dy1]], 'cut');
+  // Crown on each outside face, against the ceiling
+  if (cm) {
+    v.poly(cm.pts.map(([u, q]) => [-u, drop - cm.height + q]), 'o');
+    v.poly(cm.pts.map(([u, q]) => [B + u, drop - cm.height + q]), 'o');
+  }
+  const bead = profileByNum(c.bead);
+  if (bead) {
+    const bm = mountShape(bead);
+    v.poly(bm.pts.map(([u, q]) => [-u, q]), 'o');
+    v.poly(bm.pts.map(([u, q]) => [B + u, q]), 'o');
+  }
+  v.dimH(0, B, 0, -0.35, `${dimText(B)} beam`);
+  v.dimH(t, B - t, drop - c.nailer, 0.25, `${dimText(B - 2 * t)} nailer`);
+  v.dimV(0, drop, B + ext, 0.3, `${dimText(drop)} drop`);
+  v.chainV([0, c.reveal, c.reveal + c.soffit], -ext, -0.3);
+  v.text(B / 2, -v.p(0.75), 'BEAM SECTION', 0.12, 'middle', 'lbl');
+  return { svg: v.svg(), scale: perFoot };
 }

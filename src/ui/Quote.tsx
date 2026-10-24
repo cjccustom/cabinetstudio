@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useStore } from '../store';
-import { defaultStandards, groupLabel, newExtra, priceQuote, quoteOf, scopeLine, type LaborStandards, type QuoteSettings, type Workload } from '../model/quote';
+import { cofferScope, defaultStandards, groupLabel, newExtra, priceQuote, quoteOf, scopeLine, type LaborStandards, type QuoteSettings, type Workload } from '../model/quote';
 import { Field, Section } from './fields';
 import { QuoteRendering } from './Rendering';
 import { defaultSupplies, driverLabel, newSupply, supplyLines, type SupplyDriver, type SupplyItem } from '../model/supplies';
@@ -33,7 +33,7 @@ export function QuoteInputs() {
   const stdFields: [keyof LaborStandards, string][] = [
     ['jobSetup', 'Drawings, ordering, setup (per job)'], ['perBox', 'Case (per cabinet)'], ['tallBox', 'Tall case extra'], ['faceFrame', 'Face frame (per cabinet)'],
     ['perOpening', 'Per face frame opening'], ['perDoor', 'Per door'], ['perDrawer', 'Per drawer'], ['insetFactor', 'Inset multiplier (×)'],
-    ['perShelf', 'Per shelf'], ['shelfFront', 'Per applied shelf front'], ['basePiece', 'Per baseboard / skirt piece'], ['archCut', 'Per arched cut'], ['endPanel', 'Per end panel'], ['extendedStile', 'Per extended stile'], ['woodTop', 'Per wood top / seat'],
+    ['perShelf', 'Per shelf'], ['shelfFront', 'Per applied shelf front'], ['cofferBeamPerFt', 'Coffer beams, shop, per ft'], ['cofferInstallPerFt', 'Coffer beams, install, per ft'], ['basePiece', 'Per baseboard / skirt piece'], ['archCut', 'Per arched cut'], ['endPanel', 'Per end panel'], ['extendedStile', 'Per extended stile'], ['woodTop', 'Per wood top / seat'],
     ['woodTopPerSqFt', 'Wood top per sq ft'], ['moldingPerFt', 'Moulding prep per ft'], ['beadboardPerSqFt', 'Beadboard per sq ft'],
     ['installPerBox', 'Install per cabinet'], ['installTall', 'Install tall extra'], ['installDay', 'Per install day (load-in, cleanup)'],
     ['moldingInstallPerFt', 'Moulding install per ft'], ['pullInstall', 'Per pull/knob'], ['pilaster', 'Per pilaster'], ['installPilaster', 'Install per pilaster'], ['floatingShelf', 'Per floating shelf'], ['shelfFinishedEnd', 'Per finished shelf end'], ['installFloatingShelf', 'Install per floating shelf'], ['installDoor', 'Install interior door'], ['hangSlab', 'Fit & hang a slab (extra)'],
@@ -168,7 +168,7 @@ export function QuoteSummary() {
   const rounded = lines.map((l) => ({ ...l, price: Math.round(((l.price / sum) * r.total) / 10) * 10 }));
   const drift = r.total - rounded.reduce((t, l) => t + l.price, 0);
   if (rounded.length) rounded[0].price += drift;
-  const scope = project.cabinets.map((c) => scopeLine(c, project));
+  const scope = [...project.cabinets.map((c) => scopeLine(c, project)), cofferScope(project)].filter((x): x is string => !!x);
   const text = [
     ...scope,
     '',

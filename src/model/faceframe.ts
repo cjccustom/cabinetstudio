@@ -1,5 +1,6 @@
 // Face frame stock: total length needed at each finished width, and how many rough boards
 // to buy when ripping and jointing strips out of wider stock.
+import { cofferParts } from './coffer';
 import type { Project } from './types';
 import { buildParts } from './parts';
 import { resolveEnds } from './layout';
@@ -46,8 +47,10 @@ export const defaultFaceFrameStock: FaceFrameStock = {
 export interface FFPiece { cabinet: string; name: string; width: number; length: number; species?: string }
 
 /** Face frame stock pieces: the job's main species, or with `species`, the pieces called out in that one. */
-export function faceFramePieces(p: Project, species?: string): FFPiece[] {
+export function faceFramePieces(p: Project, species?: string, opts: { ceiling?: boolean } = {}): FFPiece[] {
   const out: FFPiece[] = [];
+  // Coffered ceiling stock comes off the same lists, unless asked for without it (the quote prices it on its own)
+  if (opts.ceiling !== false) for (const part of cofferParts(p)) if ((part.species ?? undefined) === species) out.push({ cabinet: 'Ceiling', name: part.name, width: part.width, length: part.length, species });
   for (const c of p.cabinets) {
     for (const part of buildParts(c, p.settings, resolveEnds(p.room, p.cabinets, c))) {
       if (part.material !== 'faceframe' || !part.cut || (part.species ?? undefined) !== species) continue;
@@ -178,6 +181,7 @@ export function woodNeeds(pieces: WoodPiece[], s: FaceFrameStock): WoodGroup[] {
 export function otherSpecies(p: Project): string[] {
   const seen = new Set<string>();
   for (const c of p.cabinets) for (const part of buildParts(c, p.settings, resolveEnds(p.room, p.cabinets, c))) if (part.species && part.material === 'faceframe') seen.add(part.species);
+  for (const part of cofferParts(p)) if (part.species) seen.add(part.species);
   return [...seen].sort();
 }
 

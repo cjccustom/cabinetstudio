@@ -6,7 +6,8 @@ import { resolveEnds } from './layout';
 import { defaultCutlist, optimizerParts } from './cutlist';
 import { optimize } from './optimizer';
 import { defaultFaceFrameStock, faceFrameNeeds, faceFramePieces, otherSpecies, stockFor, woodNeeds, woodPieces } from './faceframe';
-import { moldLabel, moldingOrder, profileLabel, roomKinds, type MoldKind } from './moldings';
+import { ceilingKinds, moldLabel, moldingOrder, profileByNum, profileLabel, roomKinds, type MoldKind } from './moldings';
+import { cofferFeet, cofferLayout, cofferMoldings, cofferOf, cofferParts } from './coffer';
 import { panelOrder } from './panels';
 import { uid } from './defaults';
 import { eaglePrice, hingeTypes } from './eagle';
@@ -28,6 +29,8 @@ export interface LaborStandards {
   insetFactor: number;
   perShelf: number;
   shelfFront: number;
+  cofferBeamPerFt: number;
+  cofferInstallPerFt: number;
   basePiece: number;
   archCut: number;
   endPanel: number;
@@ -64,6 +67,8 @@ export const defaultStandards: LaborStandards = {
   insetFactor: 1.6,
   perShelf: 0.2,
   shelfFront: 0.15,
+  cofferBeamPerFt: 0.3,
+  cofferInstallPerFt: 0.3,
   basePiece: 0.25,
   archCut: 0.5,
   endPanel: 0.5,
@@ -142,9 +147,9 @@ export const quoteOf = (p: Project): QuoteSettings => {
   return { ...q, standards: { ...defaultStandards, ...p.quote?.standards }, workloadAdj: { ...defaultQuote.workloadAdj, ...p.quote?.workloadAdj } };
 };
 
-export type Group = 'cabinets' | 'tops' | 'paneling' | 'room';
-export const groupLabel: Record<Group, string> = { cabinets: 'Cabinets', tops: 'Solid wood tops & seats', paneling: 'Wall paneling', room: 'Room trim' };
-const moldGroup = (kinds: MoldKind[]): Group => (kinds.includes('cap') ? 'paneling' : kinds.every((k) => roomKinds.includes(k)) ? 'room' : 'cabinets');
+export type Group = 'cabinets' | 'tops' | 'paneling' | 'room' | 'ceiling';
+export const groupLabel: Record<Group, string> = { cabinets: 'Cabinets', tops: 'Solid wood tops & seats', paneling: 'Wall paneling', room: 'Room trim', ceiling: 'Coffered ceiling' };
+const moldGroup = (kinds: MoldKind[]): Group => (kinds.includes('cap') ? 'paneling' : kinds.every((k) => ceilingKinds.includes(k)) ? 'ceiling' : kinds.every((k) => roomKinds.includes(k)) ? 'room' : 'cabinets');
 
 export interface HourLine { group: Group; label: string; qty: number; each: number; hours: number; install?: boolean }
 export interface MaterialLine { group: Group; label: string; cost: number; detail: string; missing?: string }
@@ -222,6 +227,19 @@ export function estimateHours(p: Project, q: QuoteSettings): HourLine[] {
     const a = Math.round(sqft(w.width, w.height) * 10) / 10;
     add('Beadboard: cut & install (sq ft)', a, st.beadboardPerSqFt, 'paneling', true);
   }
+  const cc = cofferOf(p);
+  if (cc.on) {
+    const f = cofferFeet(p, cc);
+    const ft = Math.round((f.beams + f.perimeter) * 10) / 10;
+    add('Coffer beams: mill, dado & assemble (ft)', ft, st.cofferBeamPerFt ?? 0.3, 'ceiling');
+    add('Coffer beams: layout, nailers & install (ft)', ft, st.cofferInstallPerFt ?? 0.3, 'ceiling', true);
+    installHours += ft * (st.cofferInstallPerFt ?? 0.3);
+    if (cc.beadboard) {
+      const a = Math.round(cofferMoldings(p, cc).fieldSqFt * 10) / 10;
+      add('Beadboard in the coffers (sq ft)', a, st.beadboardPerSqFt * 1.5, 'ceiling', true);
+      installHours += a * st.beadboardPerSqFt * 1.5;
+    }
+  }
   // Load-in, protection and cleanup for each install day
   const days = Math.max(installHours > 0 ? 1 : 0, Math.ceil(installHours / 7));
   add('Install days: load-in, protection, cleanup', days, st.installDay, 'cabinets', true);
@@ -244,8 +262,18 @@ export function estimateMaterials(p: Project, q: QuoteSettings): MaterialLine[] 
   }
   for (const sp of otherSpecies(p)) {
     const st = stockFor(p, sp);
-    const need = faceFrameNeeds(faceFramePieces(p, sp), st);
+    const pieces = faceFramePieces(p, sp, { ceiling: false });
+    if (!pieces.length) continue;
+    const need = faceFrameNeeds(pieces, st);
     out.push({ group: 'cabinets', label: `${sp} stock (pilasters)`, cost: need.buyBF * st.pricePerBF, detail: `${Math.ceil(need.buyBF)} BF`, missing: st.pricePerBF ? undefined : `Enter $/BF for ${sp.toLowerCase()} on the Solid wood tab` });
+  }
+  // The coffered ceiling's poplar and 2x, priced on their own line
+  const ceilingParts = cofferParts(p);
+  for (const sp of [...new Set(ceilingParts.map((x) => x.species ?? ''))].filter(Boolean)) {
+    const st = stockFor(p, sp);
+    const pieces = ceilingParts.filter((x) => x.species === sp).map((x) => ({ cabinet: 'Ceiling', name: x.name, width: x.width, length: x.length, species: sp }));
+    const need = faceFrameNeeds(pieces, st);
+    out.push({ group: 'ceiling', label: `${sp} for the ceiling`, cost: need.buyBF * st.pricePerBF, detail: `${Math.ceil(need.buyBF)} BF`, missing: st.pricePerBF ? undefined : `Enter $/BF for ${sp.toLowerCase()} on the Solid wood tab` });
   }
   const wood = woodNeeds(woodPieces(p), ffStock);
   const woodBF = wood.reduce((t, g) => t + g.buyBF, 0);
@@ -296,6 +324,11 @@ export function estimateMaterials(p: Project, q: QuoteSettings): MaterialLine[] 
   }
   const bb = (p.panels ?? []).map(panelOrder).reduce((t, l) => t + (l.item.startsWith('4×8') ? l.qty : 0), 0);
   if (bb) out.push({ group: 'paneling', label: 'Nantucket beadboard sheets', cost: bb * q.beadboardSheet, detail: `${bb} sheets`, missing: q.beadboardSheet ? undefined : 'Enter your beadboard sheet price' });
+  const cc = cofferOf(p);
+  if (cc.on && cc.beadboard) {
+    const sheets = Math.ceil((cofferMoldings(p, cc).fieldSqFt * 1.15) / 32);
+    if (sheets) out.push({ group: 'ceiling', label: 'Beadboard sheets for the coffers', cost: sheets * q.beadboardSheet, detail: `${sheets} sheets`, missing: q.beadboardSheet ? undefined : 'Enter your beadboard sheet price' });
+  }
   const groups: [SupplyGroup, string][] = [['cabinets', 'Shop supplies: screws, glue, banding, abrasives'], ['tops', 'Shop supplies for tops'], ['paneling', 'Shop supplies for paneling']];
   const sup = supplyLines(p, q.supplies);
   for (const [g, label] of groups) {
@@ -336,7 +369,7 @@ export function priceQuote(p: Project): QuoteResult {
     const b = h * q.billRate + mt * (1 + q.materialMarkup);
     return { a, b, chosen: q.method === 'multiplier' ? a : b };
   };
-  const groups = (['cabinets', 'tops', 'paneling', 'room'] as Group[])
+  const groups = (['cabinets', 'tops', 'paneling', 'room', 'ceiling'] as Group[])
     .map((g) => {
       const h = hours.filter((x) => x.group === g).reduce((t, x) => t + x.hours, 0);
       const m = materials.filter((x) => x.group === g).reduce((t, x) => t + x.cost, 0);
@@ -400,4 +433,24 @@ function fmtIn(v: number) {
   let d = 16;
   while (r % 2 === 0) { r /= 2; d /= 2; }
   return whole ? `${whole}-${r}/${d}”` : `${r}/${d}”`;
+}
+
+/** The ceiling's line in the scope of work. */
+export function cofferScope(p: Project): string | null {
+  const c = cofferOf(p);
+  if (!c.on) return null;
+  const L = cofferLayout(p, c);
+  const m = cofferMoldings(p, c);
+  const crown = profileByNum(c.crown);
+  const bits = [
+    `${m.count} coffers (${L.xs.length} × ${L.zs.length})${c.layout === 'bigCenter' && L.xs.length >= 3 ? ', smaller around the perimeter' : ''}`,
+    `${fmtIn(c.beamWidth)} wide beams dropping ${fmtIn(c.drop)}, ${c.species.toLowerCase()} fascias with a recessed soffit`,
+    ...(c.perimeter ? ['perimeter fascia around the room'] : []),
+    `crown in each coffer${crown ? ` (${profileLabel(crown)})` : ''}`,
+    ...(c.bead && profileByNum(c.bead) ? ['bead moulding on the beam edges'] : []),
+    ...(c.picture && profileByNum(c.picture) ? ['picture moulding below the perimeter'] : []),
+    ...(c.beadboard ? ['beadboard in each coffer'] : []),
+    'paint grade',
+  ];
+  return `Coffered ceiling: ${bits.join('; ')}`;
 }

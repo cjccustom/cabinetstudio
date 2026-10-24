@@ -7,16 +7,17 @@ import { crownLayout, panelExtents, type EndInfo } from './parts';
 import { pilasterOf, pilasterOpenings } from './pilaster';
 import { inScope, roomMoldingPieces } from './room';
 import { resolveEnds } from './layout';
+import { cofferMoldings, cofferOf } from './coffer';
 import { baseLayout } from './cabinetBase';
 
-export type MoldKind = 'crown' | 'lightRail' | 'baseMold' | 'cap' | 'panel' | 'roomCrown' | 'roomBase' | 'chairRail' | 'casing' | 'backBand' | 'headCap' | 'stool' | 'apron';
+export type MoldKind = 'crown' | 'lightRail' | 'baseMold' | 'cap' | 'panel' | 'roomCrown' | 'roomBase' | 'chairRail' | 'casing' | 'backBand' | 'headCap' | 'stool' | 'apron' | 'cofferCrown' | 'cofferBead' | 'picture';
 
 /** Room trim, as opposed to mouldings on the cabinets themselves. */
 export const roomKinds: MoldKind[] = ['roomCrown', 'roomBase', 'chairRail', 'casing', 'backBand', 'headCap', 'stool', 'apron'];
 
 export const moldLabel: Record<MoldKind, string> = {
   crown: 'Crown', lightRail: 'Light rail', baseMold: 'Base', cap: 'Beadboard cap', panel: 'Panel moulding',
-  roomCrown: 'Crown', roomBase: 'Baseboard', chairRail: 'Chair rail', casing: 'Casing', backBand: 'Back band', headCap: 'Header cap', stool: 'Stool', apron: 'Apron',
+  roomCrown: 'Crown', roomBase: 'Baseboard', chairRail: 'Chair rail', casing: 'Casing', backBand: 'Back band', headCap: 'Header cap', stool: 'Stool', apron: 'Apron', cofferCrown: 'Coffer crown', cofferBead: 'Coffer bead', picture: 'Picture moulding',
 };
 
 /** Catalog categories that make sense for each spot, listed first in the picker. */
@@ -34,7 +35,11 @@ export const moldCategories: Record<MoldKind, string[]> = {
   headCap: ['Header Cap', 'Crown'],
   stool: ['Stool Cap'],
   apron: ['Apron', 'Window and Door Casing'],
+  cofferCrown: ['Crown', 'Header Cap', 'Band'],
+  cofferBead: ['Panel', 'Band', 'Miscellaneous', 'Back Band'],
+  picture: ['Picture Moulding', 'Panel', 'Band'],
 };
+export const ceilingKinds: MoldKind[] = ['cofferCrown', 'cofferBead', 'picture'];
 
 /** A moulding profile from either supplier. Brosco numbers are stored as BR-<number> so they never collide with A&M's. */
 export type Profile = AMProfile & { supplier?: 'am' | 'brosco'; code?: string; name?: string; wm?: string };
@@ -208,6 +213,15 @@ export function moldingOrder(p: Project): MoldOrderLine[] {
   for (const w of p.panels ?? []) panelMoldings(w).forEach(add);
   // Room trim and casing are design-only unless the job includes them
   if (inScope(p, 'roomTrim')) roomMoldingPieces(p).forEach(add);
+  // Coffered ceiling: crown in every coffer, bead on the fascia edges, picture moulding around the room
+  const cc = cofferOf(p);
+  if (cc.on) {
+    const m = cofferMoldings(p, cc);
+    const piece = (kind: MoldKind, num: string | undefined, length: number) => { if (num && profileByNum(num) && length > 0) add({ kind, num, along: 'x', facing: 'front', x: 0, y: 0, z: 0, length }); };
+    piece('cofferCrown', cc.crown, m.crown);
+    piece('cofferBead', cc.bead, m.bead);
+    piece('picture', cc.picture, m.picture);
+  }
   // Panel moulding mitered around each opening of a shop-built pilaster
   for (const c of p.cabinets) {
     const ps = c.kind === 'pilaster' ? pilasterOf(c) : null;

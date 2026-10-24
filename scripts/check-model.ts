@@ -27,6 +27,7 @@ import { readScan, scanToDraft } from "../src/model/roomScan";
 import { customerSet, drawingsOf, setDocument, shopSet } from "../src/drawings/sheets";
 import { cabinetCallouts, forAudience } from "../src/drawings/notes";
 import { hardwareItems, partsOf } from "../src/drawings/views";
+import { cofferFeet, cofferLayout, cofferMoldings, cofferParts, coffers as cofferList } from "../src/model/coffer";
 import { blockedAlong, casingReach, freeRuns, newOpening, openingIssues, openingTrim, roomMoldings } from "../src/model/room";
 
 let failed = 0;
@@ -680,6 +681,27 @@ eq('panel sticks out past frame', panelExtents(b21, s, { left: true, right: fals
   const hw = hardwareItems(p, two, partsOf(p, two));
   const doorsN = partsOf(p, two).filter((x) => x.role === 'door').length;
   eq('a knob on every door', hw.filter((h) => h.circle).length >= doorsN, true);
+}
+
+{
+  // Coffered ceiling: a 180" x 156" room, 3 x 3 coffers, 5-1/2" beams, 4" perimeter
+  const room = { ...p, room: { width: 180, depth: 156, height: 96 }, ceiling: { on: true, across: 3, deep: 3, crown: amCatalog.find((x) => x.category === 'Crown')!.num } };
+  const L = cofferLayout(room);
+  const cx = (180 - 8 - 2 * 5.5) / 3;
+  eq('even coffers to the 1/16, the middle one takes what\'s left, and they fill the field', [L.xs.length, L.xs[0].b - L.xs[0].a, +(L.xs[1].b - L.xs[1].a).toFixed(4), L.xs[0].a, +(L.xs[2].b).toFixed(4)].join(), `3,${Math.floor(cx * 16) / 16},${+(180 - 8 - 11 - 2 * Math.floor(cx * 16) / 16).toFixed(4)},4,176`);
+  const big = cofferLayout({ ...room, ceiling: { ...room.ceiling, layout: 'bigCenter', outer: 30 } });
+  eq('smaller perimeter coffers make the middle one bigger', [big.xs[0].b - big.xs[0].a, +(big.xs[1].b - big.xs[1].a).toFixed(4)].join(), `30,${+(180 - 8 - 11 - 60).toFixed(4)}`);
+  const parts = cofferParts(room);
+  const soffit = parts.find((x) => x.name === 'Through beam soffit')!;
+  eq('soffit: beam less fascias plus both tongues', soffit.width, 5.5 - 1.5 + 0.5);
+  eq('soffit sits a reveal above the fascia bottom', soffit.boxes[0].min[1], 96 - 5.5 + 0.25);
+  eq('nailer ripped to fit between the fascias, 2x thick', [parts.find((x) => x.name === 'Through beam nailer (2x)')!.width, parts.find((x) => x.name === 'Through beam nailer (2x)')!.thickness].join(), '4,1.5');
+  eq('2 through beams, 2 cross beams in 3 pieces each, 4 perimeter runs', [parts.filter((x) => x.name === 'Through beam soffit').length, parts.filter((x) => x.name === 'Cross beam soffit').length, parts.filter((x) => x.name.startsWith('Perimeter') && x.name.endsWith('soffit')).length].join(), '2,6,4');
+  const m = cofferMoldings(room);
+  eq('crown goes all the way around each of 9 coffers', [m.count, Math.round(m.crown)].join(), `9,${Math.round(cofferList(room).reduce((t, k) => t + 2 * (k.x1 - k.x0 + k.z1 - k.z0), 0))}`);
+  eq('coffer crown and stock in the quote', ['Coffered ceiling'].every((g) => priceQuote(room).groups.some((x) => x.group === 'ceiling')) && priceQuote(room).materials.some((x) => x.label === 'Poplar for the ceiling'), true);
+  eq('beam feet for labor', Math.round(cofferFeet(room).beams), Math.round((2 * 172 + 6 * (156 - 8 - 11) / 3) / 12));
+  eq('off by default', cofferParts(p).length, 0);
 }
 
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');

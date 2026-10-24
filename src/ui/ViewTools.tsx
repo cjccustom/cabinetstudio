@@ -5,6 +5,7 @@ import { useNav, zoomStep } from '../three/navigation';
 export function ViewTools() {
   const view = useStore((s) => s.view);
   const nav = useNav();
+  const hasCeiling = useStore((s) => !!s.project.ceiling?.on);
   const flat = view !== '3d';
   return (
     <div className="view-tools" role="toolbar" aria-label="View">
@@ -17,6 +18,7 @@ export function ViewTools() {
       <button className="icon-btn" aria-label="Zoom out" title="Zoom out" onClick={() => zoomStep(false)}>−</button>
       <button className="icon-btn" aria-label="Zoom in" title="Zoom in" onClick={() => zoomStep(true)}>+</button>
       <button onClick={nav.reset} title="Back to the starting view">Reset view</button>
+      {hasCeiling && <label className="check-inline" style={{ marginTop: 0 }}><input type="checkbox" checked={nav.ceiling} onChange={(e) => nav.setCeiling(e.target.checked)} /> Ceiling</label>}
       <select aria-label="Pointing device" value={nav.pointer} onChange={(e) => nav.setPointer(e.target.value as 'mouse' | 'trackpad', true)}
         title="Trackpad: two-finger swipe pans and pinch zooms. Mouse: the wheel zooms toward the cursor.">
         <option value="mouse">Mouse</option>
