@@ -8,6 +8,7 @@
 import type { Part, Project, VisualBox, WallId } from './types';
 import { fmt } from '../units';
 import { mountShape, profileByNum } from './moldings';
+import { footprint } from './layout';
 
 export interface CofferCeiling {
   on: boolean;
@@ -227,7 +228,7 @@ export function cofferParts(p: Project, c = cofferOf(p)): Part[] {
       { name: 'Perimeter, right', along: 'z', P: Pr, at: W - Pr, r0: Pb, r1: D - Pf, s0: Pb - t, s1: D - Pf + t, wallSide: 1 },
     ];
     for (const r of runs) {
-      const len = r.r1 - r.r0, slen = r.s1 - r.s0;
+      const len = r.r1 - r.r0;
       const box = (w0: number, w: number, y: number, h: number, a = r.r0, l = len) => (r.along === 'z' ? vb(w0, y, a, w, h, l) : vb(a, y, w0, l, h, w));
       const wall0 = r.wallSide < 0 ? 0 : r.at + t;
       const nailW = r.P - t;
@@ -235,10 +236,20 @@ export function cofferParts(p: Project, c = cofferOf(p)): Part[] {
       const wallId = r.name.split(', ')[1] as WallId;
       const backed = cabinetLine(p, wallId, c) != null && Math.abs(cabinetLine(p, wallId, c)! - r.P) < 0.01;
       const sized = (r.P !== c.perimeterWidth ? ` (${fmt(r.P)} wall to fascia face)` : '') + (backed ? `; over the cabinets, proud of the face frame by ${fmt(t)} and fastened to their extended top rail` : '');
-      out.push({ name: `${r.name} nailer (2x)`, role: 'nailer', material: 'faceframe', species: '2x framing', length: slen, width: nailW, thickness: c.nailer, cut: true, note: 'Ripped from 2x stock; against the wall', boxes: [box(wall0, nailW, H - c.nailer, c.nailer, r.s0, slen)] });
       out.push({ name: `${r.name} fascia`, role: 'trim', material: 'faceframe', species: sp, length: len, width: fh, thickness: t, cut: true, note: dadoNote + sized, boxes: [box(r.at, t, fy, fh)] });
-      out.push({ name: `${r.name} soffit`, role: 'trim', material: 'faceframe', species: sp, length: slen, width: ps, thickness: c.soffit, cut: true, note: (bead ? `Wall to the fascia; hangs ${fmt(g)} below it on the blocking, ${beadName} bead in the corner; scribed to the wall` : `${fmt(c.tongue)} tongue on the bottom face at the fascia edge; scribed to the wall`) + sized, boxes: [box(wall0, nailW, soffitY, c.soffit, r.s0, slen)] });
-      blocks(r.name, slen, nailW, (u) => (r.along === 'z' ? vb(wall0, soffitY + c.soffit, r.s0 + u, nailW, blockH, 1.5) : vb(r.s0 + u, soffitY + c.soffit, wall0, 1.5, blockH, nailW)));
+      // Over full-height cabinets the cabinet top closes it off: no soffit, nailer or blocking there
+      const covered = backed ? fullHeight(p, wallId, c).map((k) => { const f = footprint(p.room, k); return r.along === 'x' ? [f.x0, f.x1] : [f.z0, f.z1]; }).sort((a, b) => a[0] - b[0]) : [];
+      const segs: [number, number][] = [];
+      let at = r.s0;
+      for (const [a, b] of covered) { if (a > at + 0.5) segs.push([at, Math.min(a, r.s1)]); at = Math.max(at, b); }
+      if (r.s1 > at + 0.5) segs.push([at, r.s1]);
+      const part = segs.length > 1 || covered.length ? (k: number) => ` (${k + 1} of ${segs.length}, beside the cabinets)` : () => '';
+      segs.forEach(([a, b], k) => {
+        const slen = b - a;
+        out.push({ name: `${r.name} nailer (2x)`, role: 'nailer', material: 'faceframe', species: '2x framing', length: slen, width: nailW, thickness: c.nailer, cut: true, note: 'Ripped from 2x stock; against the wall' + part(k), boxes: [box(wall0, nailW, H - c.nailer, c.nailer, a, slen)] });
+        out.push({ name: `${r.name} soffit`, role: 'trim', material: 'faceframe', species: sp, length: slen, width: ps, thickness: c.soffit, cut: true, note: (bead ? `Wall to the fascia; hangs ${fmt(g)} below it on the blocking, ${beadName} bead in the corner; scribed to the wall` : `${fmt(c.tongue)} tongue on the bottom face at the fascia edge; scribed to the wall`) + sized + part(k), boxes: [box(wall0, nailW, soffitY, c.soffit, a, slen)] });
+        blocks(r.name, slen, nailW, (u) => (r.along === 'z' ? vb(wall0, soffitY + c.soffit, a + u, nailW, blockH, 1.5) : vb(a + u, soffitY + c.soffit, wall0, 1.5, blockH, nailW)));
+      });
     }
   }
   return out;
@@ -270,8 +281,9 @@ export function cofferMoldings(p: Project, c = cofferOf(p)) {
 
 /** Beam length for labor: through beams, cross pieces and the perimeter, in feet. */
 export function cofferFeet(p: Project, c = cofferOf(p)) {
-  const parts = cofferParts(p, c).filter((x) => x.name.endsWith('soffit'));
-  const beams = parts.filter((x) => !x.name.startsWith('Perimeter')).reduce((t, x) => t + x.length, 0) / 12;
-  const perimeter = parts.filter((x) => x.name.startsWith('Perimeter')).reduce((t, x) => t + x.length, 0) / 12;
+  // Beams by their soffits (one per beam); the perimeter by its fascias, which run even where cabinets close it off
+  const all = cofferParts(p, c);
+  const beams = all.filter((x) => x.name.endsWith('soffit') && !x.name.startsWith('Perimeter')).reduce((t, x) => t + x.length, 0) / 12;
+  const perimeter = all.filter((x) => x.name.endsWith('fascia') && x.name.startsWith('Perimeter')).reduce((t, x) => t + x.length, 0) / 12;
   return { beams, perimeter };
 }

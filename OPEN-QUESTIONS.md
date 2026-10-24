@@ -9,15 +9,14 @@ Things the app is guessing at until Cody answers. Each one says what the app doe
 - **Coffer labor:** install only; beam stock comes prepped from the millwork supplier. Rates
   come from the Pope worksheet (74 hours for that ceiling).
 - **Perimeter fascia over full-height cabinets:** proud of the face frame by the fascia's
-  thickness, fastened to the cabinets' extended top rail.
+  thickness, fastened to the cabinets' extended top rail. The cabinet top closes it off, so no
+  perimeter soffit, nailer or blocking over the cabinets; the rest of that wall keeps them.
 
 ## Coffered ceilings
 
 - **Prepped stock and blocking prices.** $16 and $4.40 per foot of beam, worked back from the
-  Pope worksheet allowances. Replace with your millwork supplier's real price per foot.
-- **Soffit over the bookcases.** Where the fascia is backed by the cabinets' top rail, the app
-  still lists a perimeter soffit and nailer on that wall. Do you still run them there, or does
-  the cabinet top close it off?
+  Pope worksheet allowances. Cody is getting the millwork supplier's price per foot; enter it
+  under Quote (Coffer stock, prepped).
 
 ## Mantels and fireplaces
 

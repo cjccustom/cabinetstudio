@@ -708,6 +708,10 @@ eq('panel sticks out past frame', panelExtents(b21, s, { left: true, right: fals
   const bc = { ...room, cabinets: [{ ...p.cabinets[0], id: 'bk', name: 'U9', wall: 'left' as const, elevation: 0, height: 84, depth: 12 }] };
   eq('fascia proud of the bookcases by its thickness', cabinetLine(bc, 'left'), 12.75);
   const lined = { ...bc, ceiling: { ...bc.ceiling, walls: { left: 12.75 } } };
+  const ls = cofferParts(lined).filter((x) => x.name === 'Perimeter, left soffit');
+  const run = 156 - 4 - 4 + 2 * 0.75;
+  eq('no perimeter soffit over the bookcase; the rest of the wall keeps it', +ls.reduce((t, x) => t + x.length, 0).toFixed(3), +(run - ((156 - 4 + 0.75) - (156 - lined.cabinets[0].width))).toFixed(3)); // the bookcase sits in the front corner, partly past the run's end
+  eq('fascia still runs the full wall over the bookcase', cofferParts(lined).filter((x) => x.name === 'Perimeter, left fascia').length, 1);
   eq('bookcase short of the fascia gets its top rail extended', fasciaBacking(lined, lined.cabinets[0])!.short, 96 - 5.5 - 84);
   // Pope library from Chief: 167 1/4 x 188 1/2, 3 x 3 coffers; the worksheet has 74 hours for the ceiling
   const pope = { ...p, cabinets: [], room: { width: 167.25, depth: 188.5, height: 109.125 }, ceiling: { on: true, across: 3, deep: 3, crown: amCatalog.find((x) => x.category === 'Crown')!.num } };
