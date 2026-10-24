@@ -17,6 +17,7 @@ import { doorOrder } from './doorOrder';
 import { baseLabel } from './cabinetBase';
 import { defaultSupplies, supplyLines, type SupplyGroup, type SupplyItem } from './supplies';
 import { applianceKinds } from './appliances';
+import { mantelOf } from './mantel';
 
 /** Shop hours per item. Start from these and calibrate against tracked jobs. */
 export interface LaborStandards {
@@ -53,6 +54,17 @@ export interface LaborStandards {
   /** Each finished end on a floating shelf: the end cap, its miters and the extra sanding. */
   shelfFinishedEnd: number;
   installFloatingShelf: number;
+  /**
+   * Mantels (Pope worksheet: firebox layout and framing 10 h, a complex mantel 32 h, fit and
+   * install 10 h): the surround itself, pilaster legs with plinths and capitals, each corbel, a
+   * pediment, firebox layout and framing for an insert, and install.
+   */
+  mantelBuild: number;
+  mantelPilasters: number;
+  mantelCorbel: number;
+  mantelPediment: number;
+  fireboxFraming: number;
+  installMantel: number;
   /** Hang an interior door: a prehung unit, plus extra to fit a slab into an existing jamb. */
   installDoor: number;
   hangSlab: number;
@@ -73,6 +85,12 @@ export const defaultStandards: LaborStandards = {
   insetFactor: 1.6,
   perShelf: 0.2,
   shelfFront: 0.15,
+  mantelBuild: 20,
+  mantelPilasters: 6,
+  mantelCorbel: 1.5,
+  mantelPediment: 4,
+  fireboxFraming: 8,
+  installMantel: 10,
   cofferLayout: 6,
   cofferInstallPerFt: 0.27,
   cofferCrownPerCoffer: 3.5,
@@ -189,6 +207,17 @@ export function estimateHours(p: Project, q: QuoteSettings): HourLine[] {
       installHours += st.installFloatingShelf;
       continue;
     }
+    if (c.kind === 'mantel') {
+      const m = mantelOf(c);
+      add('Mantels: legs, frieze & shelf', 1, st.mantelBuild ?? 20);
+      if (m.legs === 'pilaster') add('Mantels: pilaster legs, plinths & capitals', 1, st.mantelPilasters ?? 6);
+      if (m.corbels) add('Mantels: corbels', m.corbels, st.mantelCorbel ?? 1.5);
+      if (m.pediment !== 'none') add('Mantels: pediment', 1, st.mantelPediment ?? 4);
+      if (m.fuel !== 'wood') { add('Firebox layout & surround framing', 1, st.fireboxFraming ?? 8, 'cabinets', true); installHours += st.fireboxFraming ?? 8; }
+      add('Install mantels: fit, scribe & trim', 1, st.installMantel ?? 10, 'cabinets', true);
+      installHours += st.installMantel ?? 10;
+      continue;
+    }
     if (c.kind === 'pilaster') {
       add('Pilasters: box, panels, plinth & capital', 1, st.pilaster);
       add('Install pilasters', 1, st.installPilaster, 'cabinets', true);
@@ -285,7 +314,7 @@ export function estimateMaterials(p: Project, q: QuoteSettings): MaterialLine[] 
     const pieces = faceFramePieces(p, sp, { ceiling: false });
     if (!pieces.length) continue;
     const need = faceFrameNeeds(pieces, st);
-    out.push({ group: 'cabinets', label: `${sp} stock (pilasters)`, cost: need.buyBF * st.pricePerBF, detail: `${Math.ceil(need.buyBF)} BF`, missing: st.pricePerBF ? undefined : `Enter $/BF for ${sp.toLowerCase()} on the Solid wood tab` });
+    out.push({ group: 'cabinets', label: `${sp} stock (pilasters, mantels)`, cost: need.buyBF * st.pricePerBF, detail: `${Math.ceil(need.buyBF)} BF`, missing: st.pricePerBF ? undefined : `Enter $/BF for ${sp.toLowerCase()} on the Solid wood tab` });
   }
   // The coffered ceiling: stock bought prepped from the millwork supplier, by the foot of beam
   if (cofferOf(p).on) {
@@ -421,6 +450,21 @@ export function scopeLine(c: Cabinet, p: Project): string {
   if (c.kind === 'shelf') {
     const n = finishedEnds(resolveEnds(p.room, p.cabinets, c));
     return `${c.name}: Floating shelf, approx ${fmtIn(c.width)}W x ${fmtIn(c.depth)}D x ${fmtIn(c.height)} thick; mitered ${(c.floating?.grade ?? 'paint') === 'paint' ? 'paint grade' : 'stain grade'} construction with concealed bracket; ${n === 2 ? 'both ends finished' : n === 1 ? 'one end finished, one against the wall' : 'fits wall to wall'}`;
+  }
+  if (c.kind === 'mantel') {
+    const m = mantelOf(c);
+    const bits = [
+      `Fireplace mantel, approx ${fmtIn(c.width)}W x ${fmtIn(c.height)}H`,
+      m.legs === 'pilaster' ? 'pilaster legs with plinths and capitals' : m.legs === 'flat' ? 'flat legs' : '',
+      'frieze',
+      `${fmtIn(m.shelfThickness)} thick mantel shelf${c.crown ? ' with bed moulding' : ''}`,
+      m.corbels ? `(${m.corbels}) corbels` : '',
+      m.pediment !== 'none' ? `${m.pediment === 'arch' ? 'arched ' : ''}pediment` : '',
+      m.fuel === 'wood' ? 'surround for the existing wood-burning firebox' : `opening for owner's ${m.fuel === 'gas' ? 'gas' : 'electric'} insert${m.insert?.model ? ` (${m.insert.model})` : ''}`,
+      c.baseMold ? 'base moulding' : '',
+      'paint grade',
+    ].filter(Boolean);
+    return `${c.name}: ${bits.join('; ')}`;
   }
   if (c.kind === 'pilaster') return `${c.name}: Pilaster, approx ${fmtIn(c.width)}W x ${fmtIn(c.height)}H; recessed panel face with plinth and capital${c.crown ? '; crown molding' : ''}${c.baseMold ? '; baseboard' : ''}; paint grade`;
   const s = eff(c, p.settings);

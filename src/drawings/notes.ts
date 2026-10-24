@@ -4,6 +4,7 @@
 import type { Cabinet, CabinetNote, Project } from '../model/types';
 import { applianceNotes } from '../model/appliances';
 import { cofferOf, fasciaBacking } from '../model/coffer';
+import { mantelNotes } from '../model/mantel';
 import { eff, panelOn } from '../model/parts';
 import { resolveEnds } from '../model/layout';
 import { profileByNum, profileLabel } from '../model/moldings';
@@ -24,7 +25,7 @@ export function cabinetCallouts(p: Project, c: Cabinet): Callout[] {
   for (const side of ['left', 'right'] as const) {
     const mode = panelOn(c, s, side, ends[side]);
     if (mode !== 'none') out.push({ text: `Finished end panel, ${side}, ${panelWords[mode] ?? mode}`, for: 'both' });
-    else if (ends[side] && c.kind !== 'pilaster' && c.kind !== 'shelf') out.push({ text: `Exposed ${side} end, finished case side`, for: 'both' });
+    else if (ends[side] && c.kind !== 'pilaster' && c.kind !== 'shelf' && c.kind !== 'mantel') out.push({ text: `Exposed ${side} end, finished case side`, for: 'both' });
     const scribe = side === 'left' ? c.scribeLeft : c.scribeRight;
     if (scribe) out.push({ text: `${side === 'left' ? 'Left' : 'Right'} stile extended ${fmt(scribe)}, scribe to the wall`, for: 'shop' });
   }
@@ -43,6 +44,7 @@ export function cabinetCallouts(p: Project, c: Cabinet): Callout[] {
     out.push({ text: `Face frame: ${bits.join(', ')}`, for: 'shop' });
   }
   for (const n of applianceNotes(c, p.settings)) out.push({ text: n, for: 'both' });
+  if (c.kind === 'mantel') out.push(...mantelNotes(c));
   const fb = fasciaBacking(p, c);
   if (fb) out.push({ text: fb.short > 0.01 ? `Extend the top rail ${fmt(fb.short)} or more to back the coffer fascia` : `Top rail backs the coffer fascia (${fmt(fb.lap)} behind it); fascia ${fmt(cofferOf(p).fascia)} proud of the face frame`, for: 'shop' });
   if (c.overrides && Object.keys(c.overrides).length) out.push({ text: `Built to its own construction settings (${Object.keys(c.overrides).length} changed)`, for: 'shop' });
@@ -56,6 +58,9 @@ export const forAudience = (list: Callout[], a: Audience) => list.filter((n) => 
 export function jobCallouts(p: Project, a: Audience): string[] {
   const s = p.settings;
   const style = styleById(s.doorStyleId);
+  // Only jobs with face frame cabinets get the door style and hardware lines
+  const boxes = p.cabinets.some((c) => c.kind === 'base' || c.kind === 'wall' || c.kind === 'tall');
+  if (!boxes) return [];
   if (a === 'customer') {
     return [
       `${style.name} style doors and drawer fronts, ${s.doorMount === 'inset' ? 'inset' : 'overlay'}`,

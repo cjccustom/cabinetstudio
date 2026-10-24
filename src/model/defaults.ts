@@ -77,8 +77,8 @@ export interface Preset {
   countertop?: boolean;
   blind?: Cabinet['blind'];
   corner?: Cabinet['corner'];
-  group?: 'corner' | 'mudroom' | 'library';
-  top?: Pick<Cabinet, 'topKind' | 'topThickness' | 'topFront' | 'topLeft' | 'topRight' | 'pilaster' | 'floating' | 'noBottom'>;
+  group?: 'corner' | 'mudroom' | 'library' | 'fireplace';
+  top?: Pick<Cabinet, 'topKind' | 'topThickness' | 'topFront' | 'topLeft' | 'topRight' | 'pilaster' | 'floating' | 'noBottom' | 'mantel'>;
 }
 
 export const presets: Preset[] = [
@@ -125,6 +125,13 @@ export const presets: Preset[] = [
     top: { noBottom: true }, rows: () => [row('open', null, 1, 4)] },
   { id: 'library-fireplace', label: 'Library base, electric fireplace', kind: 'base', width: 48, height: 34, depth: 16, elevation: 0, countertop: true, group: 'library',
     top: { topKind: 'wood', topThickness: 1, topFront: 0.5 }, rows: () => [{ ...appRow('fireplace'), height: null }] },
+  // Fireplaces: a surround built from legs, frieze, shelf, corbels and an optional pediment
+  { id: 'mantel-electric', label: 'Mantel, electric insert', kind: 'mantel', width: 52.625, height: 54, depth: 6, elevation: 0, group: 'fireplace',
+    top: { mantel: {} }, rows: () => [] },
+  { id: 'mantel-gas', label: 'Mantel, gas fireplace or insert', kind: 'mantel', width: 52, height: 54, depth: 8, elevation: 0, group: 'fireplace',
+    top: { mantel: { fuel: 'gas', openingW: 36, openingH: 26, openingY: 4, margin: 0, insert: { kind: 'gasInsert', w: 36, h: 26, d: 16, side: 0, top: 0, back: 0, mount: 'flush' } } }, rows: () => [] },
+  { id: 'mantel-wood', label: 'Mantel, existing wood-burning firebox', kind: 'mantel', width: 68, height: 54, depth: 4, elevation: 0, group: 'fireplace',
+    top: { mantel: { fuel: 'wood', install: 'masonry', openingW: 36, openingH: 30, openingY: 0, margin: 8, insert: undefined, legProud: 0.5, blockProud: 0.5, corbels: 0, hearthFront: 20, hearthSide: 12, hearthThickness: 2 } }, rows: () => [] },
   { id: 'pilaster', label: 'Pilaster, recessed panel', kind: 'pilaster', width: 5.5, height: 87, depth: 17.5, elevation: 0, group: 'library',
     top: { pilaster: { ...defaultPilaster, breaks: [31] } }, rows: () => [] },
   { id: 'float-shelf', label: 'Floating shelf', kind: 'shelf', width: 36, height: 2, depth: 12, elevation: 54, group: 'library',
@@ -133,7 +140,7 @@ export const presets: Preset[] = [
     rows: () => [row('open', null, 1, 5)] },
 ];
 
-const prefix: Record<CabinetKind, string> = { base: 'B', wall: 'W', tall: 'T', pilaster: 'P', shelf: 'S' };
+const prefix: Record<CabinetKind, string> = { base: 'B', wall: 'W', tall: 'T', pilaster: 'P', shelf: 'S', mantel: 'M' };
 
 export function nextName(kind: CabinetKind, cabinets: Cabinet[]): string {
   const p = prefix[kind];

@@ -1,6 +1,7 @@
 // Mouldings from the Anderson & McQuaid catalog: crown, light rail and base on cabinets, caps on
 // beadboard. Each run follows the cabinet face and returns along exposed ends.
 import type { Cabinet, Project, ShopSettings, WallPanel } from './types';
+import { mantelLayout, mantelOf } from './mantel';
 import { amCatalog, type AMProfile } from './andersonMcquaid';
 import { broscoCatalog } from './brosco';
 import { crownLayout, panelExtents, type EndInfo } from './parts';
@@ -138,6 +139,7 @@ export interface MoldPiece {
 /** Moulding pieces for one cabinet, in its own coordinates. */
 export function cabinetMoldings(c: Cabinet, s: ShopSettings, ends: EndInfo): MoldPiece[] {
   const out: MoldPiece[] = [];
+  if (c.kind === 'mantel') return mantelMoldings(c, ends);
   const ext = panelExtents(c, s, ends);
   // Base runs on the door faces, or on a pilaster's plinth block
   const doorFace = c.kind === 'pilaster' ? c.depth + pilasterOf(c).proud : c.depth + s.doorThickness * (s.doorMount === 'inset' ? 0 : 1);
@@ -182,6 +184,30 @@ export function cabinetMoldings(c: Cabinet, s: ShopSettings, ends: EndInfo): Mol
       const z0 = ends.faceAt ? ends.faceAt(side, y + m.height / 2) : 0;
       const len = r.z + m.depth - z0;
       if (len > 0.01) out.push({ kind: r.kind, num: p.num, along: 'z', facing: side, x: side === 'left' ? xl : xr, y, z: z0, length: len, hang: r.hang });
+    }
+  }
+  return out;
+}
+
+/** A mantel's bed moulding under the shelf, across the legs and frieze, and base around the plinths; both return to the wall. */
+function mantelMoldings(c: Cabinet, ends: EndInfo): MoldPiece[] {
+  const L = mantelLayout(c);
+  const m = mantelOf(c);
+  const out: MoldPiece[] = [];
+  const runs: { kind: MoldKind; num?: string; y: (h: number) => number; z: number; x0: number; x1: number }[] = [
+    { kind: 'crown', num: c.crown, y: (h) => L.shelfBottom - h, z: L.legFace, x0: 0, x1: c.width },
+    { kind: 'baseMold', num: c.baseMold, y: () => 0, z: L.legFace + (m.plinth > 0 ? m.blockProud : 0), x0: -(m.plinth > 0 ? m.blockProud : 0), x1: c.width + (m.plinth > 0 ? m.blockProud : 0) },
+  ];
+  for (const r of runs) {
+    const p = profileByNum(r.num);
+    if (!p) continue;
+    const mm = mountShape(p);
+    const y = r.y(mm.height);
+    const x0 = r.x0 - (ends.left ? mm.depth : 0), x1 = r.x1 + (ends.right ? mm.depth : 0);
+    out.push({ kind: r.kind, num: p.num, along: 'x', facing: 'front', x: x0, y, z: r.z, length: x1 - x0 });
+    for (const side of ['left', 'right'] as const) {
+      if (!ends[side]) continue;
+      out.push({ kind: r.kind, num: p.num, along: 'z', facing: side, x: side === 'left' ? r.x0 : r.x1, y, z: 0, length: r.z + mm.depth });
     }
   }
   return out;

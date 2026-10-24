@@ -1,7 +1,8 @@
 import type { Appliance } from './appliances';
+import type { MantelSpec } from './mantel';
 
 export type WallId = 'back' | 'left' | 'right' | 'front';
-export type CabinetKind = 'base' | 'wall' | 'tall' | 'pilaster' | 'shelf';
+export type CabinetKind = 'base' | 'wall' | 'tall' | 'pilaster' | 'shelf' | 'mantel';
 
 /** One horizontal band of the face frame, top to bottom, separated by mid rails. */
 export interface FaceRow {
@@ -77,6 +78,8 @@ export interface Cabinet {
   crownBuild?: CrownBuild;
   /** Pilaster details (kind 'pilaster'). Its depth runs from the wall to the panel face. */
   pilaster?: PilasterSpec;
+  /** Fireplace mantel / surround (kind 'mantel'): width is outside the legs, height the shelf top, depth wall to frieze. */
+  mantel?: Partial<MantelSpec>;
   /** Floating shelf details (kind 'shelf'). Height is the shelf thickness. */
   floating?: FloatingShelfSpec;
 }

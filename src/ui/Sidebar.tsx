@@ -49,6 +49,7 @@ function Library() {
     { kind: 'corner', title: 'Corners', corner: true },
     { kind: 'mudroom', title: 'Mudroom & built-ins', corner: true },
     { kind: 'library', title: 'Library & pilasters', corner: true },
+    { kind: 'fireplace', title: 'Fireplaces & mantels', corner: true },
   ] as const;
   return (
     <div>
@@ -92,6 +93,17 @@ function Library() {
 
 /** A tiny front elevation of the preset, so the library reads like a catalog page. */
 function PresetGlyph({ rows, w, h, kind }: { rows: { type: string; doors: number; h: number | null }[]; w: number; h: number; kind: string }) {
+  if (kind === 'mantel') {
+    return (
+      <svg className="glyph" width="44" height="44" viewBox="0 0 44 44" aria-hidden="true">
+        <rect x="4" y="9" width="36" height="3" className="g-door" />
+        <rect x="7" y="12" width="6" height="26" className="g-frame" />
+        <rect x="31" y="12" width="6" height="26" className="g-frame" />
+        <rect x="13" y="12" width="18" height="7" className="g-frame" />
+        <rect x="14" y="21" width="16" height="17" className="g-appl" />
+      </svg>
+    );
+  }
   const scale = 40 / Math.max(h, 34.5);
   const W = Math.max(14, w * scale);
   const H = h * scale;

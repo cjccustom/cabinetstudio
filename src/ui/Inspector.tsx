@@ -12,12 +12,13 @@ import { Field, LengthInput, Section } from './fields';
 import { OrderList, PartsTable } from './PartsTable';
 import { OverridesSection } from './Overrides';
 import { MoldSlot } from './ProfilePicker';
+import { fuelLabel, hearthRequired, legWidth, mantelClearances, mantelCodeBasis, mantelOf, needsManualChart, usesListing, usesMasonryRules, widthFor, type Fuel, type MantelSpec } from '../model/mantel';
 import { applianceKinds, appliancePresets, newAppliance, openingFor, placedAppliances, type Appliance, type ApplianceKind } from '../model/appliances';
 import { cabinetCallouts } from '../drawings/notes';
 import { archBuilds, archShapes, baseLayout, baseOf, baseStyles, cutOutline, floorStanding } from '../model/cabinetBase';
 import { profileLabel, profileByNum } from '../model/moldings';
 
-const kindLabel = { base: 'Base cabinet', wall: 'Wall cabinet', tall: 'Tall cabinet', pilaster: 'Pilaster', shelf: 'Floating shelf' };
+const kindLabel = { base: 'Base cabinet', wall: 'Wall cabinet', tall: 'Tall cabinet', pilaster: 'Pilaster', shelf: 'Floating shelf', mantel: 'Fireplace mantel' };
 const rowTypes: { v: FaceRow['type']; label: string }[] = [
   { v: 'drawer', label: 'Drawer' },
   { v: 'doors', label: 'Doors' },
@@ -86,7 +87,8 @@ export function Inspector({ cab, issues }: { cab: Cabinet; issues: string[] }) {
       {(cab.blind || cab.corner) && <CornerSection cab={cab} set={set} />}
       {cab.kind === 'pilaster' && <PilasterSection cab={cab} set={set} />}
       {cab.kind === 'shelf' && <FloatingShelfSection cab={cab} set={set} />}
-      {!cab.corner && cab.kind !== 'pilaster' && cab.kind !== 'shelf' && (
+      {cab.kind === 'mantel' && <MantelSection cab={cab} set={set} />}
+      {!cab.corner && cab.kind !== 'pilaster' && cab.kind !== 'shelf' && cab.kind !== 'mantel' && (
       <>
       <Section
         title="Face frame openings"
@@ -128,7 +130,7 @@ export function Inspector({ cab, issues }: { cab: Cabinet; issues: string[] }) {
                 onClick={() => set({ rows: cab.rows.filter((x) => x.id !== r.id) })}
               >×</button>
               {r.type === 'appliance' && r.appliance && (
-                <ApplianceEditor a={r.appliance} openingH={layout[i]?.height ?? 0} problems={placedAppliances(cab, settings).find((x) => x.row.id === r.id)?.problems ?? []}
+                <ApplianceEditor a={r.appliance} openingH={layout[i]?.height ?? 0} problems={placedAppliances(cab, settings).find((x) => x.row?.id === r.id)?.problems ?? []}
                   onChange={(a, h) => setRow(r.id, { appliance: a, ...(h != null ? { height: h } : {}) })} />
               )}
             </li>
@@ -214,6 +216,7 @@ export function Inspector({ cab, issues }: { cab: Cabinet; issues: string[] }) {
             <MoldSlot
               key={k}
               kind={k}
+              label={cab.kind === 'mantel' ? (k === 'crown' ? 'Bed moulding under the shelf' : 'Base around the plinths') : undefined}
               num={cab[k]}
               species={settings.moldSpecies}
               onChange={(n) => set({ [k]: n })}
@@ -224,15 +227,15 @@ export function Inspector({ cab, issues }: { cab: Cabinet; issues: string[] }) {
               )}
             />
           ))}
-        {cab.kind !== 'base' && <CrownBuildEditor cab={cab} set={set} species={settings.moldSpecies} />}
+        {cab.kind !== 'base' && cab.kind !== 'mantel' && <CrownBuildEditor cab={cab} set={set} species={settings.moldSpecies} />}
         <p className="hint">Runs across the face and returns to the wall on exposed ends. Lineal footage and cost are on the Orders tab.</p>
       </Section>
 
-      <OverridesSection cab={cab} settings={settings} set={set} />
+      {cab.kind !== 'mantel' && <OverridesSection cab={cab} settings={settings} set={set} />}
       </>
       )}
 
-      {cab.kind !== 'pilaster' && cab.kind !== 'shelf' && (
+      {cab.kind !== 'pilaster' && cab.kind !== 'shelf' && cab.kind !== 'mantel' && (
       <>
       <Section title="Ends, panels & scribes">
         <div className="ends">
@@ -674,7 +677,7 @@ function ApplianceEditor({ a, openingH, problems, onChange }: { a: Appliance; op
       <div className="grid2">
         <Field label="Appliance" htmlFor="ap-kind">
           <select id="ap-kind" value={a.kind} onChange={(e) => { const n = newAppliance(e.target.value as ApplianceKind); onChange({ ...n, model: a.model }, openingFor(n)); }}>
-            {(Object.keys(applianceKinds) as ApplianceKind[]).map((k) => <option key={k} value={k}>{applianceKinds[k].label}</option>)}
+            {(Object.keys(applianceKinds) as ApplianceKind[]).filter((k) => k !== 'masonry').map((k) => <option key={k} value={k}>{applianceKinds[k].label}</option>)}
           </select>
         </Field>
         <Field label="Make & model" htmlFor="ap-model"><input id="ap-model" value={a.model ?? ''} placeholder="From the spec sheet" onChange={(e) => put({ model: e.target.value || undefined })} /></Field>
@@ -705,5 +708,145 @@ function ApplianceEditor({ a, openingH, problems, onChange }: { a: Appliance; op
       <p className="hint">{applianceKinds[a.kind].note}. Sizes are typical until you have the spec sheet.</p>
       {problems.map((p) => <p key={p} className="warn">{p}</p>)}
     </div>
+  );
+}
+
+/** A fireplace surround: the firebox and its opening, legs, frieze, shelf, corbels and pediment. */
+function MantelSection({ cab, set }: { cab: Cabinet; set: (patch: Partial<Cabinet>) => void }) {
+  const m = mantelOf(cab);
+  const legW = legWidth(cab, m);
+  // Changing the opening keeps the legs the same width, so the overall width follows
+  const put = (patch: Partial<MantelSpec>, keepLegs = true) => {
+    const next = { ...m, ...patch };
+    set({ mantel: next, ...(keepLegs ? { width: widthFor(next, legW) } : {}) });
+  };
+  const len = (k: 'hearthFront' | 'hearthSide' | 'hearthThickness' | 'openingW' | 'openingH' | 'openingY' | 'margin' | 'legProud' | 'plinth' | 'capital' | 'blockProud' | 'shelfThickness' | 'shelfDepth' | 'shelfOverhang' | 'corbelW' | 'corbelH' | 'pedimentH', label: string) => (
+    <Field label={label} htmlFor={`mt-${k}`}><LengthInput id={`mt-${k}`} value={m[k]} onChange={(v) => put({ [k]: v ?? 0 })} /></Field>
+  );
+  const fires = appliancePresets.filter((pr) => pr.kind === 'fireplace' || pr.kind === 'gasInsert');
+  const setFuel = (fuel: Fuel) => {
+    if (fuel === 'wood') put({ fuel, install: 'masonry', margin: Math.max(m.margin, 6), openingY: 0 });
+    else put({ fuel, margin: 0, insert: m.insert && (fuel === 'gas') === (m.insert.kind === 'gasInsert') ? m.insert : { kind: fuel === 'gas' ? 'gasInsert' : 'fireplace', ...applianceKinds[fuel === 'gas' ? 'gasInsert' : 'fireplace'].size } });
+  };
+  const clear = mantelClearances(cab);
+  return (
+    <>
+      <Section title="Firebox">
+        <div className="grid2">
+          <Field label="Firebox" htmlFor="mt-fuel">
+            <select id="mt-fuel" value={m.fuel} onChange={(e) => setFuel(e.target.value as Fuel)}>
+              {(Object.keys(fuelLabel) as Fuel[]).map((f) => <option key={f} value={f}>{fuelLabel[f]}</option>)}
+            </select>
+          </Field>
+          {m.fuel !== 'wood' && (
+            <Field label="Common inserts" htmlFor="mt-insert">
+              <select id="mt-insert" value="" onChange={(e) => {
+                const pr = fires[Number(e.target.value)];
+                if (pr) put({ fuel: pr.kind === 'gasInsert' ? 'gas' : 'electric', openingW: pr.size.w, openingH: pr.size.h, insert: { kind: pr.kind, model: pr.model, source: pr.note, ...pr.size } });
+              }}>
+                <option value="">Pick one to size the opening…</option>
+                {fires.map((pr, i) => <option key={i} value={i}>{pr.label}</option>)}
+              </select>
+            </Field>
+          )}
+        </div>
+        {m.fuel !== 'wood' && m.insert && (
+          <div className="grid3">
+            <Field label="Insert model" htmlFor="mt-model"><input id="mt-model" value={m.insert.model ?? ''} placeholder="From the manual" onChange={(e) => put({ insert: { ...m.insert!, model: e.target.value || undefined } })} /></Field>
+            <Field label="Insert depth" htmlFor="mt-idepth"><LengthInput id="mt-idepth" value={m.insert.d} onChange={(v) => put({ insert: { ...m.insert!, d: v ?? 0, source: undefined } })} /></Field>
+          </div>
+        )}
+        {m.insert?.source && m.fuel !== 'wood' && <p className="hint">{m.insert.source}.</p>}
+        <div className="grid3">
+          {len('openingW', 'Opening width')}
+          {len('openingH', 'Opening height')}
+          {len('openingY', 'Off the floor')}
+          {len('margin', m.fuel === 'wood' ? 'Facing to surround' : 'Gap to surround')}
+        </div>
+        {m.fuel !== 'electric' && (
+          <Field label="Fireplace" htmlFor="mt-install">
+            <select id="mt-install" value={m.install} onChange={(e) => put({ install: e.target.value as MantelSpec['install'] })}>
+              <option value="masonry">{m.fuel === 'gas' ? 'Insert in an existing masonry fireplace' : 'Masonry fireplace'}</option>
+              <option value="factory">{m.fuel === 'gas' ? 'Direct-vent / zero-clearance gas fireplace' : 'Factory-built (listed) fireplace'}</option>
+            </select>
+          </Field>
+        )}
+        {usesMasonryRules(m) && (
+          <>
+            <div className="grid3">
+              {len('hearthFront', 'Hearth, in front')}
+              {len('hearthSide', 'Hearth, past each side')}
+              {len('hearthThickness', 'Hearth thickness')}
+            </div>
+            <p className="hint">Needed: {(() => { const h = hearthRequired(m); return `${fmt(h.front)} in front and ${fmt(h.side)} past each side${h.big ? ' (opening is 6 sq ft or more)' : ''}, 2" thick`; })()}.</p>
+          </>
+        )}
+        {usesListing(m) && (
+          <details className="overrides" open={needsManualChart(m)}>
+            <summary>Mantel clearances from the manual{needsManualChart(m) && <span className="badge-on">not entered</span>}</summary>
+            <p className="hint">Copy these from the {m.fuel === 'wood' ? 'fireplace' : 'insert'}'s installation manual. Each row: trim and mantel at least this far above the opening top can project up to this much.</p>
+            <div className="grid2">
+              <Field label="Trim beside the opening" htmlFor="mt-side"><LengthInput id="mt-side" value={m.manual.sideGap} onChange={(v) => put({ manual: { ...m.manual, sideGap: v ?? 0 } })} /></Field>
+            </div>
+            {m.manual.rows.map((r, i) => (
+              <div key={i} className="grid3">
+                <Field label="At least above opening" htmlFor={`mt-r${i}a`}><LengthInput id={`mt-r${i}a`} value={r.above} onChange={(v) => put({ manual: { ...m.manual, rows: m.manual.rows.map((x, j) => (j === i ? { ...x, above: v ?? 0 } : x)) } })} /></Field>
+                <Field label="Projects up to" htmlFor={`mt-r${i}d`}><LengthInput id={`mt-r${i}d`} value={r.maxDepth} onChange={(v) => put({ manual: { ...m.manual, rows: m.manual.rows.map((x, j) => (j === i ? { ...x, maxDepth: v ?? 0 } : x)) } })} /></Field>
+                <button className="mini" style={{ alignSelf: 'end' }} onClick={() => put({ manual: { ...m.manual, rows: m.manual.rows.filter((_, j) => j !== i) } })}>Remove</button>
+              </div>
+            ))}
+            <button className="mini" onClick={() => put({ manual: { ...m.manual, rows: [...m.manual.rows, { above: 12, maxDepth: 2 }] } })}>Add a row from the chart</button>
+          </details>
+        )}
+        {clear.map((w) => <p key={w} className="warn">{w}</p>)}
+        <details className="overrides">
+          <summary>Code basis</summary>
+          <ul className="hint">{mantelCodeBasis(m).map((t) => <li key={t}>{t}</li>)}</ul>
+          <p className="hint">Checked against the 2021 IRC as adopted in Massachusetts (780 CMR 51.00, 10th edition). The building inspector's reading governs.</p>
+        </details>
+      </Section>
+      <Section title="Legs & shelf">
+        <div className="grid3">
+          <Field label="Legs" htmlFor="mt-legs">
+            <select id="mt-legs" value={m.legs} onChange={(e) => put({ legs: e.target.value as MantelSpec['legs'] })}>
+              <option value="pilaster">Pilasters, proud of the frieze</option>
+              <option value="flat">Flat legs</option>
+              <option value="none">No legs (shelf only)</option>
+            </select>
+          </Field>
+          {m.legs !== 'none' && <Field label="Leg width" htmlFor="mt-legw"><LengthInput id="mt-legw" value={legW} onChange={(v) => set({ width: widthFor(m, v ?? 0) })} /></Field>}
+          {m.legs === 'pilaster' && len('legProud', 'Proud of frieze')}
+          {m.legs !== 'none' && len('plinth', 'Plinth height')}
+          {m.legs !== 'none' && len('capital', 'Capital height')}
+          {m.legs !== 'none' && len('blockProud', 'Blocks proud')}
+          {len('shelfThickness', 'Shelf thickness')}
+          {len('shelfDepth', 'Shelf depth')}
+          {len('shelfOverhang', 'Shelf past legs')}
+        </div>
+        <p className="hint">Width is the outside of the legs; height is the top of the shelf; depth is the wall to the frieze face.</p>
+      </Section>
+      <Section title="Corbels & pediment">
+        <div className="grid3">
+          <Field label="Corbels" htmlFor="mt-corbels">
+            <select id="mt-corbels" value={m.corbels} onChange={(e) => put({ corbels: Number(e.target.value) as MantelSpec['corbels'] })}>
+              <option value={0}>None</option>
+              <option value={2}>2, one on each leg</option>
+              <option value={4}>4, two on each leg</option>
+            </select>
+          </Field>
+          {m.corbels > 0 && len('corbelW', 'Corbel width')}
+          {m.corbels > 0 && len('corbelH', 'Corbel height')}
+          <Field label="Pediment" htmlFor="mt-ped">
+            <select id="mt-ped" value={m.pediment} onChange={(e) => put({ pediment: e.target.value as MantelSpec['pediment'] })}>
+              <option value="none">None</option>
+              <option value="triangle">Triangle</option>
+              <option value="arch">Arched</option>
+            </select>
+          </Field>
+          {m.pediment !== 'none' && len('pedimentH', 'Pediment height')}
+        </div>
+        <Field label="Species" htmlFor="mt-sp"><input id="mt-sp" value={m.species} onChange={(e) => put({ species: e.target.value || 'Poplar' })} /></Field>
+      </Section>
+    </>
   );
 }

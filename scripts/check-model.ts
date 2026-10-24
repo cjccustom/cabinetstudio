@@ -1,6 +1,7 @@
 // Sanity checks on the cabinet model: run with `npm test`.
 import { buildParts, layoutRows, panelExtents, realOverhang } from "../src/model/parts";
 import { placedAppliances } from "../src/model/appliances";
+import { legWidth, mantelClearances } from "../src/model/mantel";
 import { sampleProject, defaultSettings, presets, cabinetFromPreset } from "../src/model/defaults";
 import { findIssues, gapBeside, nextFreeOffset, resolveEnds } from "../src/model/layout";
 import { fmt, parseLength } from "../src/units";
@@ -757,6 +758,29 @@ eq('panel sticks out past frame', panelExtents(b21, s, { left: true, right: fals
   eq('fireplace fits its base', placedAppliances(fp, s)[0].problems.join(), '');
   const shallow = { ...fp, depth: 12 };
   eq('too-shallow cabinet flagged', placedAppliances(shallow, s)[0].problems.some((x) => x.includes('deep')), true);
+}
+
+{
+  // Mantels: electric with pilasters and corbels; wood-burning clearances
+  const me = cabinetFromPreset(presets.find((x) => x.id === 'mantel-electric')!, 'back', 40, []);
+  const mp = buildParts(me, s);
+  eq('mantel legs 8" each around the 36 5/8 opening', legWidth(me), 8);
+  eq('mantel parts: 2 leg faces, 4 returns, frieze, shelf, 2 corbels', [mp.filter((x) => x.name === 'Leg face').length, mp.filter((x) => x.name === 'Leg return').length, mp.filter((x) => x.name === 'Frieze').length, mp.filter((x) => x.name === 'Mantel shelf').length, mp.filter((x) => x.name === 'Corbel').length].join(), '2,4,1,1,2');
+  eq('shelf runs past the legs both ends', mp.find((x) => x.name === 'Mantel shelf')!.length, 52.625 + 4);
+  eq('raised insert gets a lower panel', mp.some((x) => x.name === 'Lower panel'), true);
+  eq('insert placed in the opening', placedAppliances(me, s)[0].min[1], 12);
+  eq('mantel has no cabinet supplies or end panels', buildParts(me, s).some((x) => x.role === 'endPanel'), false);
+  const mw = cabinetFromPreset(presets.find((x) => x.id === 'mantel-wood')!, 'back', 40, []);
+  eq('wood-burning preset passes the clearance check', mantelClearances(mw).join(' | '), '');
+  eq('surround 4" from a wood-burning opening is flagged', mantelClearances({ ...mw, mantel: { ...mw.mantel, margin: 4 } }).some((w) => w.includes('6"')), true);
+  eq('a deep shelf low over a wood-burning opening is flagged', mantelClearances({ ...mw, height: 38, mantel: { ...mw.mantel, shelfDepth: 12 } }).some((w) => w.includes('shelf')), true);
+  eq('small opening needs a 16" x 8" hearth extension', mantelClearances({ ...mw, mantel: { ...mw.mantel, openingW: 30, openingH: 24, hearthFront: 14, hearthSide: 8 } }).some((w) => w.includes('16"')), true);
+  eq('6 sq ft opening needs 20" x 12"', mantelClearances({ ...mw, mantel: { ...mw.mantel, hearthFront: 16, hearthSide: 8 } }).filter((w) => w.includes('R1001.10')).length, 2);
+  eq('masonry wood mantel gets a stone hearth by others', buildParts(mw, s).some((x) => x.name === 'Hearth extension' && !x.cut), true);
+  const chart = { ...me, mantel: { ...me.mantel, manual: { sideGap: 0, rows: [{ above: 12, maxDepth: 2 }, { above: 18, maxDepth: 6 }] } } };
+  eq('gas/electric mantel checked against the manual chart', mantelClearances(chart).some((w) => w.includes("manual's chart")), true);
+  eq('a shelf high enough passes the chart', mantelClearances({ ...chart, height: 70 }).filter((w) => w.includes('shelf')).length, 0);
+  eq('mantel in the quote scope', scopeLine(me, { ...p, cabinets: [me] }).includes('Fireplace mantel'), true);
 }
 
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');

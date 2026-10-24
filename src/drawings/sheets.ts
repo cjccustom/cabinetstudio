@@ -8,8 +8,9 @@ import { eff } from '../model/parts';
 import { styleById } from '../model/eagle';
 import { baseLabel } from '../model/cabinetBase';
 import { fmt } from '../units';
-import { beamSection, cabinetsOn, ceilingPlan, faceFrameView, floorPlan, partRows, partsOf, sideSection, wallElevation } from './views';
+import { beamSection, cabinetsOn, ceilingPlan, faceFrameView, floorPlan, mantelViews, partRows, partsOf, sideSection, wallElevation } from './views';
 import { cofferOf, cofferParts } from '../model/coffer';
+import { fuelLabel, mantelOf } from '../model/mantel';
 import { cofferScope } from '../model/quote';
 import { drawingCss, scaleName, type Frame } from './draw';
 import { cabinetCallouts, forAudience, jobCallouts, type Audience } from './notes';
@@ -136,7 +137,7 @@ export function customerSet(p: Project, s: DrawingSettings): Sheet[] {
 
 /* ---------- Shop set ---------- */
 
-const kinds: Record<Cabinet['kind'], string> = { base: 'Base', wall: 'Wall', tall: 'Tall', pilaster: 'Pilaster', shelf: 'Floating shelf' };
+const kinds: Record<Cabinet['kind'], string> = { base: 'Base', wall: 'Wall', tall: 'Tall', pilaster: 'Pilaster', shelf: 'Floating shelf', mantel: 'Mantel' };
 
 function installNotes(p: Project, wall: WallId): string {
   const cs = cabinetsOn(p, wall);
@@ -159,7 +160,7 @@ function cabinetHeader(p: Project, c: Cabinet): string {
   const bits = [
     `${kinds[c.kind]}, ${fmt(c.width)} W × ${fmt(c.height)} H × ${fmt(c.depth)} D${c.elevation > 0.5 ? `, ${fmt(c.elevation)} AFF` : ''}`,
     `${wallNames[c.wall]}, ${fmt(c.offset)} from the left`,
-    `${style.name} ${s.doorMount === 'inset' ? 'inset' : 'overlay'}; face frame ${fmt(s.ffThickness)} ${p.settings.woodSpecies}`,
+    c.kind === 'mantel' ? `${mantelOf(c).species}, paint grade; ${fuelLabel[mantelOf(c).fuel].toLowerCase()}` : `${style.name} ${s.doorMount === 'inset' ? 'inset' : 'overlay'}; face frame ${fmt(s.ffThickness)} ${p.settings.woodSpecies}`,
     baseLabel(c) ?? (c.kind === 'base' || c.kind === 'tall' ? `${fmt(s.toeKickHeight)} toe kick` : ''),
   ].filter(Boolean);
   const notes = forAudience(cabinetCallouts(p, c), 'shop');
@@ -175,7 +176,7 @@ function materialName(p: Project, part: Part): string {
     case 'toeSkin': return `${fmt(part.thickness)} toe kick skin`;
     case 'faceframe': return part.species ?? s.woodSpecies;
     case 'solidWood': return part.species ?? s.woodSpecies;
-    case 'counter': return 'Countertop (by others)';
+    case 'counter': return part.name.startsWith('Hearth') ? 'Stone (by others)' : 'Countertop (by others)';
     default: return part.material;
   }
 }
@@ -214,10 +215,11 @@ export function shopSet(p: Project, s: DrawingSettings): Sheet[] {
     const viewH = A.h * 0.56;
     const left: Frame = { x: A.x, y: A.y + 0.1, w: A.w * 0.4, h: viewH };
     const mid: Frame = { x: A.x + A.w * 0.4, y: A.y + 0.1, w: A.w * 0.34, h: viewH };
-    const ff = hasFrame ? faceFrameView(p, c, left) : null;
-    const sec = c.kind === 'shelf' || c.kind === 'pilaster' ? null : sideSection(p, c, mid);
+    const mv = c.kind === 'mantel' ? mantelViews(p, c, left, mid) : null;
+    const ff = hasFrame ? faceFrameView(p, c, left) : mv;
+    const sec = c.kind === 'shelf' || c.kind === 'pilaster' || c.kind === 'mantel' ? null : sideSection(p, c, mid);
     const labels = [
-      ff ? `<text x="${left.x + left.w / 2}" y="${left.y + left.h + 0.05}" font-size="0.11" font-weight="700" text-anchor="middle">FACE FRAME (${esc(scaleName(ff.scale))})</text>` : '',
+      ff ? `<text x="${left.x + left.w / 2}" y="${left.y + left.h + 0.05}" font-size="0.11" font-weight="700" text-anchor="middle">${mv ? 'MANTEL' : 'FACE FRAME'} (${esc(scaleName(ff.scale))})</text>` : '',
       sec ? `<text x="${mid.x + mid.w / 2}" y="${mid.y + mid.h + 0.05}" font-size="0.11" font-weight="700" text-anchor="middle">SECTION, FROM THE LEFT (${esc(scaleName(sec.scale))})</text>` : '',
     ].join('');
     const info = html({ x: A.x + A.w * 0.76, y: A.y, w: A.w * 0.24, h: viewH }, cabinetHeader(p, c), s.paper === 'tabloid' ? 0.11 : 0.09);

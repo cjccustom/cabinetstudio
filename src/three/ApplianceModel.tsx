@@ -26,6 +26,11 @@ function boxesFor(p: PlacedAppliance): Box[] {
       return [{ ...body, color: '#9fa3a8', metal: true }, face(1.5, 2, w - 3, h - 7, '#111316'), face(1.5, h - 3.5, w - 3, 2.5, '#2a2c30'), face(3, h - 4.6, w - 6, 0.8, '#d0d3d6', undefined, true)];
     case 'fireplace':
       return [{ ...body, color: '#141414' }, face(0.75, 0.75, w - 1.5, h - 1.5, '#0b0b0c'), { ...face(w * 0.15, 1.5, w * 0.7, h * 0.35, '#5a1e05', '#ff7a1a'), z: f + 0.15 }];
+    case 'gasInsert':
+      return [{ ...body, color: '#141414' }, face(0.75, 0.75, w - 1.5, h - 1.5, '#0b0b0c'), { ...face(w * 0.2, 2, w * 0.6, 3, '#4a3426'), z: f + 0.1 }, { ...face(w * 0.22, 4, w * 0.56, h * 0.3, '#3a1a06', '#ff9a3c'), z: f + 0.15 }];
+    case 'masonry':
+      // The opening into an existing firebox: dark soot, brick at the back
+      return [{ ...body, color: '#1c1512' }, { ...face(w * 0.08, h * 0.05, w * 0.84, h * 0.85, '#5a2e22'), z: z + 0.5 }];
     case 'beverage':
       return [{ ...body, color: '#9fa3a8', metal: true }, face(1, 1, w - 2, h - 2, '#20262b')];
     case 'tv':

@@ -6,8 +6,9 @@
 import type { Cabinet, FaceRow, ShopSettings } from './types';
 import { eff, layoutRows } from './parts';
 import { fmt } from '../units';
+import { mantelOf } from './mantel';
 
-export type ApplianceKind = 'microwave' | 'builtInMicrowave' | 'microwaveDrawer' | 'oven' | 'fireplace' | 'beverage' | 'tv' | 'other';
+export type ApplianceKind = 'microwave' | 'builtInMicrowave' | 'microwaveDrawer' | 'oven' | 'fireplace' | 'gasInsert' | 'masonry' | 'beverage' | 'tv' | 'other';
 
 export interface Appliance {
   kind: ApplianceKind;
@@ -34,6 +35,8 @@ export const applianceKinds: Record<ApplianceKind, { label: string; short: strin
   microwaveDrawer: { label: 'Microwave drawer', short: 'Microwave drawer', size: { w: 30, h: 15, d: 23, side: 0, top: 0, back: 1, mount: 'flush' }, note: 'Microwave drawer; size the opening to its cutout and give it an outlet behind' },
   oven: { label: 'Wall oven', short: 'Wall oven', size: { w: 28.5, h: 27.75, d: 23.5, side: 0, top: 0, back: 0, mount: 'flush' }, note: 'Wall oven; the fixed shelf has to carry the oven, and the cutout follows the oven\'s spec' },
   fireplace: { label: 'Electric fireplace insert', short: 'Fireplace', size: { w: 36, h: 24, d: 12, side: 0, top: 0, back: 1, mount: 'flush' }, note: 'Electric fireplace insert; frame the opening to its spec, outlet inside, and keep any clearance it calls for above the opening' },
+  gasInsert: { label: 'Gas fireplace insert', short: 'Gas insert', size: { w: 36, h: 26, d: 16, side: 0, top: 0, back: 0, mount: 'flush' }, note: 'Gas insert; framing, venting and mantel clearances per its installation manual, with the gas line and outlet inside' },
+  masonry: { label: 'Existing masonry firebox', short: 'Firebox', size: { w: 36, h: 30, d: 20, side: 0, top: 0, back: 0, mount: 'flush' }, note: 'Existing wood-burning firebox' },
   beverage: { label: 'Beverage / wine fridge', short: 'Beverage fridge', size: { w: 23.5, h: 33.75, d: 23, side: 0.25, top: 0.25, back: 1, mount: 'flush' }, note: 'Undercounter fridge; front-venting, outlet in the next cabinet' },
   tv: { label: 'TV in an open space', short: 'TV', size: { w: 49, h: 28.5, d: 3, side: 1, top: 1, back: 0, mount: 'shelf' }, note: 'TV in an open space; low-voltage box and outlet behind it' },
   other: { label: 'Other appliance', short: 'Appliance', size: { w: 24, h: 18, d: 18, side: 0.5, top: 0.5, back: 1, mount: 'shelf' }, note: 'Owner\'s appliance; check the spec sheet for clearances' },
@@ -72,7 +75,8 @@ export const applianceName = (a: Appliance) => applianceKinds[a.kind].short + (a
 export const openingFor = (a: Appliance) => a.h + a.top;
 
 export interface PlacedAppliance {
-  row: FaceRow;
+  /** The face frame row it's in; none for a mantel's firebox. */
+  row?: FaceRow;
   a: Appliance;
   /** Cabinet-local box, x across, y up, z wall to front. */
   min: [number, number, number];
@@ -84,6 +88,7 @@ export interface PlacedAppliance {
 
 /** Where each appliance sits in its cabinet, and anything that doesn't fit. */
 export function placedAppliances(c: Cabinet, s: ShopSettings): PlacedAppliance[] {
+  if (c.kind === 'mantel') return mantelFirebox(c);
   if (c.corner || c.kind === 'pilaster' || c.kind === 'shelf') return [];
   s = eff(c, s);
   const { rows } = layoutRows(c, s);
@@ -113,8 +118,20 @@ export function placedAppliances(c: Cabinet, s: ShopSettings): PlacedAppliance[]
   return out;
 }
 
+/** A mantel's firebox: the insert flush with the frieze face, or the masonry firebox behind the opening. */
+function mantelFirebox(c: Cabinet): PlacedAppliance[] {
+  const m = mantelOf(c);
+  const a: Appliance | undefined = m.fuel === 'wood' ? { kind: 'masonry', w: m.openingW, h: m.openingH, d: 18 + c.depth, side: 0, top: 0, back: 0, mount: 'flush' } : m.insert;
+  if (!a) return [];
+  const problems: string[] = [];
+  if (m.fuel !== 'wood' && (a.w > m.openingW + 0.01 || a.h > m.openingH + 0.01)) problems.push(`The insert (${fmt(a.w)} × ${fmt(a.h)}) is bigger than the ${fmt(m.openingW)} × ${fmt(m.openingH)} opening.`);
+  return [{ a, problems, min: [c.width / 2 - a.w / 2, m.openingY, c.depth - a.d], size: [a.w, a.h, a.d],
+    opening: { x0: c.width / 2 - m.openingW / 2, x1: c.width / 2 + m.openingW / 2, y0: m.openingY, y1: m.openingY + m.openingH } }];
+}
+
 /** Notes for the drawings and the shop: what goes in each opening and what it needs. */
 export function applianceNotes(c: Cabinet, s: ShopSettings): string[] {
+  if (c.kind === 'mantel') return [];
   return placedAppliances(c, s).map((p) => {
     const k = applianceKinds[p.a.kind];
     const o = p.opening;

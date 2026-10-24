@@ -7,6 +7,7 @@ import { cabinetMoldings, mountShape, profileByNum } from '../model/moldings';
 import { casingReach, openingTrim, roomMoldings } from '../model/room';
 import { View, dimText, fitScale, type Frame } from './draw';
 import { applianceName, placedAppliances, type PlacedAppliance } from '../model/appliances';
+import { mantelLayout, mantelOf } from '../model/mantel';
 import { beadCorner, cofferLayout, cofferOf, coffers, perimOf } from '../model/coffer';
 
 export const partsOf = (p: Project, c: Cabinet) => buildParts(c, p.settings, resolveEnds(p.room, p.cabinets, c));
@@ -75,7 +76,11 @@ function elevationItems(p: Project, wall: WallId): Item[] {
     items.push(...hardwareItems(p, c, cparts));
     for (const part of cparts) {
       for (const b of part.boxes) items.push({ x: c.offset + b.min[0], y: c.elevation + b.min[1], w: b.size[0], h: b.size[1], z: 10 + b.min[2] + b.size[2], cls: part.role === 'counter' || part.role === 'woodTop' ? 'cut' : 'o' });
-      for (const s of part.shapes ?? []) if (s.along === 'x') items.push({ x: 0, y: 0, w: 1, h: 1, z: 10 + s.min[2] + s.thickness, cls: 'o', pts: s.outline.map(([u, v]) => [c.offset + s.min[0] + u, c.elevation + s.min[1] + v]) });
+      for (const s of part.shapes ?? []) {
+        if (s.along === 'x') items.push({ x: 0, y: 0, w: 1, h: 1, z: 10 + s.min[2] + s.thickness, cls: 'o', pts: s.outline.map(([u, v]) => [c.offset + s.min[0] + u, c.elevation + s.min[1] + v]) });
+        // Seen end-on (a corbel under a shelf): its width by its height
+        else items.push({ x: c.offset + s.min[0], y: c.elevation + s.min[1], w: s.thickness, h: Math.max(...s.outline.map((q) => q[1])), z: 10 + s.min[2] + Math.max(...s.outline.map((q) => q[0])), cls: 'o' });
+      }
     }
     for (const ap of placedAppliances(c, p.settings)) items.push(...applianceItems(ap, c.offset, c.elevation, 10 + ap.min[2] + ap.size[2]));
     for (const pc of cabinetMoldings(c, eff(c, p.settings), resolveEnds(p.room, p.cabinets, c))) {
@@ -97,7 +102,7 @@ function applianceItems(ap: PlacedAppliance, x0: number, y0: number, z: number):
   const k = ap.a.kind;
   if (k === 'microwave' || k === 'builtInMicrowave') out.push({ x: x + 0.6, y: y + 0.6, w: w * 0.68, h: h - 1.2, z: z + 0.01, cls: 'glass' });
   else if (k === 'oven') out.push({ x: x + 1.5, y: y + 2, w: w - 3, h: h - 7, z: z + 0.01, cls: 'glass' });
-  else if (k === 'fireplace') out.push({ x: x + 0.75, y: y + 0.75, w: w - 1.5, h: h - 1.5, z: z + 0.01, cls: 'firebox' });
+  else if (k === 'fireplace' || k === 'gasInsert' || k === 'masonry') out.push({ x: x + 0.75, y: y + 0.75, w: w - 1.5, h: h - 1.5, z: z + 0.01, cls: 'firebox' });
   else if (k === 'beverage' || k === 'tv') out.push({ x: x + 1, y: y + 1, w: w - 2, h: h - 2, z: z + 0.01, cls: 'glass' });
   else if (k === 'microwaveDrawer') out.push({ x: x + w / 2 - 4, y: y + h / 2 - 0.4, w: 8, h: 0.8, z: z + 0.01, cls: 'o' });
   return out;
@@ -215,6 +220,54 @@ export function floorPlan(p: Project, frame: Frame): { svg: string; scale: numbe
   };
   for (const w of ['back', 'left', 'right', 'front'] as WallId[]) runs[w](cabinetsOn(p, w));
   return { svg: v.svg(), scale: perFoot };
+}
+
+/** A mantel straight on and from the side: legs, frieze, shelf, corbels and the opening, dimensioned for the shop. */
+export function mantelViews(p: Project, c: Cabinet, front: Frame, side: Frame): { svg: string; scale: number } {
+  const parts = partsOf(p, c);
+  const m = mantelOf(c);
+  const L = mantelLayout(c, m);
+  const oh = m.shelfOverhang;
+  const topY = c.height + (m.pediment !== 'none' ? m.pedimentH : 0);
+  const perFoot = Math.min(fitScale(c.width + 2 * oh, topY, front.w - 2.2, front.h - 1.9), fitScale(m.shelfDepth + 2, topY, side.w - 1.6, side.h - 1.9));
+  const v = new View(front, { x0: -oh, y0: 0, x1: c.width + oh, y1: topY }, perFoot);
+  const items: { x: number; y: number; w: number; h: number; z: number; cls: string; pts?: [number, number][] }[] = [];
+  for (const ap of placedAppliances(c, p.settings)) items.push(...applianceItems(ap, 0, 0, 0.5));
+  for (const part of parts) {
+    for (const b of part.boxes) items.push({ x: b.min[0], y: b.min[1], w: b.size[0], h: b.size[1], z: 10 + b.min[2] + b.size[2], cls: 'o' });
+    for (const s of part.shapes ?? []) {
+      if (s.along === 'x') items.push({ x: 0, y: 0, w: 1, h: 1, z: 10 + s.min[2] + s.thickness, cls: 'o', pts: s.outline.map(([u, q]) => [s.min[0] + u, s.min[1] + q]) });
+      else items.push({ x: s.min[0], y: s.min[1], w: s.thickness, h: Math.max(...s.outline.map((q) => q[1])), z: 10 + s.min[2] + 2, cls: 'o' });
+    }
+  }
+  for (const pc of cabinetMoldings(c, eff(c, p.settings), resolveEnds(p.room, p.cabinets, c))) {
+    const prof = profileByNum(pc.num);
+    if (!prof || pc.along !== 'x') continue;
+    items.push({ x: pc.x, y: pc.y, w: pc.length, h: mountShape(prof).height, z: 10 + pc.z + 2, cls: 'o' });
+  }
+  items.sort((a, b) => a.z - b.z);
+  drawItems(v, items);
+  v.line(-oh - 2, 0, c.width + oh + 2, 0, 'heavy');
+  // Overall, legs and opening across the bottom; shelf across the top; heights up the side
+  const ox0 = c.width / 2 - m.openingW / 2, ox1 = c.width / 2 + m.openingW / 2;
+  v.chainH([0, c.width, ...(L.legW ? [L.legW, c.width - L.legW] : []), ox0, ox1], 0, -0.35);
+  v.dimH(-oh, c.width + oh, topY, 0.3, `${dimText(c.width + 2 * oh)} shelf`);
+  v.chainV([0, m.openingY, L.openTop, L.friezeBottom, L.shelfBottom, c.height, topY].filter((y, i, a) => a.indexOf(y) === i).sort((a, b) => a - b), c.width + oh, 0.3);
+  v.text(c.width / 2, -v.p(0.8), 'MANTEL, FRONT', 0.12, 'middle', 'lbl');
+  // Side: the wall, leg and frieze depth, shelf and corbels in profile
+  const sv = new View(side, { x0: -1, y0: 0, x1: m.shelfDepth + 1, y1: topY }, perFoot);
+  sv.rect(-1, 0, 1, topY, 'wall');
+  sv.rect(0, 0, L.legFace, L.capTop, 'cut');
+  sv.rect(0, L.shelfBottom, m.shelfDepth, m.shelfThickness, 'cut');
+  if (m.plinth > 0) sv.rect(L.legFace, 0, m.blockProud, m.plinth, 'o');
+  if (m.capital > 0) sv.rect(L.legFace, L.capTop - m.capital, m.blockProud, m.capital, 'o');
+  for (const part of parts) for (const s of part.shapes ?? []) if (s.along === 'z') sv.poly(s.outline.map(([u, q]) => [s.min[2] + u, s.min[1] + q]), 'o');
+  const bed = profileByNum(c.crown);
+  if (bed) { const bm = mountShape(bed); sv.poly(bm.pts.map(([u, q]) => [L.legFace + u, L.shelfBottom - bm.height + q]), 'o'); }
+  sv.line(-1, 0, m.shelfDepth + 1, 0, 'heavy');
+  sv.chainH([0, c.depth, L.legFace, m.shelfDepth].filter((x, i, a) => a.indexOf(x) === i).sort((a, b) => a - b), topY, 0.3);
+  sv.text(m.shelfDepth / 2, -v.p(0.8), 'SIDE', 0.12, 'middle', 'lbl');
+  return { svg: v.svg() + sv.svg(), scale: perFoot };
 }
 
 /** One cabinet's face frame, straight on, with stile, rail and opening sizes. */

@@ -1,4 +1,5 @@
 import type { CrownBuild, Cabinet, Part, PanelMode, ShopSettings, VisualBox } from './types';
+import { mantelParts } from './mantel';
 import { drawerBoxSize, narrowRail, narrowRailBelow, styleById, type DoorProfile, panelByCode } from './eagle';
 import { buildCornerParts } from './corner';
 import { pilasterOf, pilasterParts } from './pilaster';
@@ -98,14 +99,14 @@ export interface EndInfo {
 /** The end panel actually used on one side: only exposed ends get one. */
 export function panelOn(c: Cabinet, s: ShopSettings, side: 'left' | 'right', exposed: boolean): PanelMode {
   s = eff(c, s);
-  if (!exposed || c.corner) return 'none';
+  if (!exposed || c.corner || c.kind === 'mantel') return 'none';
   const choice = (side === 'left' ? c.leftPanel : c.rightPanel) ?? 'default';
   return choice === 'default' ? s.endPanel : choice;
 }
 
 /** How far end panels stick out past the face frame on each side (they sit on the case side, just inside the frame edge). */
 export function panelExtents(c: Cabinet, s: ShopSettings, ends: EndInfo) {
-  if (c.kind === 'pilaster' || c.kind === 'shelf') return { left: 0, right: 0 };
+  if (c.kind === 'pilaster' || c.kind === 'shelf' || c.kind === 'mantel') return { left: 0, right: 0 };
   s = eff(c, s);
   const over = s.ffOverhang + s.boxThickness - s.boxActualThickness;
   const out = (scribe: number) => Math.max(0, s.endPanelThickness - scribe - over);
@@ -127,6 +128,7 @@ export function buildParts(c: Cabinet, s: ShopSettings, ends: EndInfo = { left: 
   if (c.corner) return buildCornerParts(c, s);
   if (c.kind === 'pilaster') return [...pilasterParts(c, s), ...crownParts(c, s, ends)];
   if (c.kind === 'shelf') return floatingShelfParts(c, s, ends);
+  if (c.kind === 'mantel') return mantelParts(c, s);
   const parts: Part[] = [];
   const { width: W, height: H, depth: D } = c;
   const tn = s.boxThickness;
