@@ -10,7 +10,7 @@ import { defaultFaceFrameStock, faceFrameNeeds, faceFramePieces, otherSpecies, r
 import { panelAbove, panelOrder } from "../src/model/panels";
 import { amCatalog } from "../src/model/andersonMcquaid";
 import { cabinetMoldings, moldingOrder, mountShape } from "../src/model/moldings";
-import { priceQuote, scopeLine } from "../src/model/quote";
+import { estimateHours, priceQuote, quoteOf, scopeLine } from "../src/model/quote";
 import { optimizerParts } from "../src/model/cutlist";
 import { normalize } from "../src/store";
 import { fieldChecks, releaseStatus } from "../src/model/release";
@@ -28,7 +28,7 @@ import { readScan, scanToDraft } from "../src/model/roomScan";
 import { customerSet, drawingsOf, setDocument, shopSet } from "../src/drawings/sheets";
 import { cabinetCallouts, forAudience } from "../src/drawings/notes";
 import { hardwareItems, partsOf } from "../src/drawings/views";
-import { cofferFeet, cofferLayout, cofferMoldings, cofferParts, coffers as cofferList } from "../src/model/coffer";
+import { cabinetLine, cofferFeet, cofferLayout, cofferMoldings, cofferParts, coffers as cofferList, fasciaBacking } from "../src/model/coffer";
 import { blockedAlong, casingReach, freeRuns, newOpening, openingIssues, openingTrim, roomMoldings } from "../src/model/room";
 
 let failed = 0;
@@ -700,9 +700,18 @@ eq('panel sticks out past frame', panelExtents(b21, s, { left: true, right: fals
   eq('2 through beams, 2 cross beams in 3 pieces each, 4 perimeter runs', [parts.filter((x) => x.name === 'Through beam soffit').length, parts.filter((x) => x.name === 'Cross beam soffit').length, parts.filter((x) => x.name.startsWith('Perimeter') && x.name.endsWith('soffit')).length].join(), '2,6,4');
   const m = cofferMoldings(room);
   eq('crown goes all the way around each of 9 coffers', [m.count, Math.round(m.crown)].join(), `9,${Math.round(cofferList(room).reduce((t, k) => t + 2 * (k.x1 - k.x0 + k.z1 - k.z0), 0))}`);
-  eq('coffer crown and stock in the quote', ['Coffered ceiling'].every((g) => priceQuote(room).groups.some((x) => x.group === 'ceiling')) && priceQuote(room).materials.some((x) => x.label === 'Poplar for the ceiling'), true);
+  eq('coffer crown and stock in the quote', ['Coffered ceiling'].every((g) => priceQuote(room).groups.some((x) => x.group === 'ceiling')) && priceQuote(room).materials.some((x) => x.label.startsWith('Prepped beam')), true);
   eq('beam feet for labor', Math.round(cofferFeet(room).beams), Math.round((2 * 172 + 6 * (156 - 8 - 11) / 3) / 12));
   eq('off by default', cofferParts(p).length, 0);
+  // Bookcases 12" deep to within a foot of the beams: the perimeter goes proud of them by the fascia
+  const bc = { ...room, cabinets: [{ ...p.cabinets[0], id: 'bk', name: 'U9', wall: 'left' as const, elevation: 0, height: 84, depth: 12 }] };
+  eq('fascia proud of the bookcases by its thickness', cabinetLine(bc, 'left'), 12.75);
+  const lined = { ...bc, ceiling: { ...bc.ceiling, walls: { left: 12.75 } } };
+  eq('bookcase short of the fascia gets its top rail extended', fasciaBacking(lined, lined.cabinets[0])!.short, 96 - 5.5 - 84);
+  // Pope library from Chief: 167 1/4 x 188 1/2, 3 x 3 coffers; the worksheet has 74 hours for the ceiling
+  const pope = { ...p, cabinets: [], room: { width: 167.25, depth: 188.5, height: 109.125 }, ceiling: { on: true, across: 3, deep: 3, crown: amCatalog.find((x) => x.category === 'Crown')!.num } };
+  const ch = estimateHours(pope, quoteOf(pope)).filter((x) => x.group === 'ceiling').reduce((t, x) => t + x.hours, 0);
+  eq('Pope ceiling labor within 2 hours of the worksheet', Math.abs(ch - 74) <= 2, true);
   // A&M #9554 corner bead: the soffit hangs 3/4" below the fascias, fits between them, on blocking
   const beaded = { ...room, ceiling: { ...room.ceiling, bead: '9554', joint: 'bead' as const } };
   const bp = cofferParts(beaded);

@@ -33,7 +33,7 @@ export function QuoteInputs() {
   const stdFields: [keyof LaborStandards, string][] = [
     ['jobSetup', 'Drawings, ordering, setup (per job)'], ['perBox', 'Case (per cabinet)'], ['tallBox', 'Tall case extra'], ['faceFrame', 'Face frame (per cabinet)'],
     ['perOpening', 'Per face frame opening'], ['perDoor', 'Per door'], ['perDrawer', 'Per drawer'], ['insetFactor', 'Inset multiplier (×)'],
-    ['perShelf', 'Per shelf'], ['shelfFront', 'Per applied shelf front'], ['cofferBeamPerFt', 'Coffer beams, shop, per ft'], ['cofferInstallPerFt', 'Coffer beams, install, per ft'], ['basePiece', 'Per baseboard / skirt piece'], ['archCut', 'Per arched cut'], ['endPanel', 'Per end panel'], ['extendedStile', 'Per extended stile'], ['woodTop', 'Per wood top / seat'],
+    ['perShelf', 'Per shelf'], ['shelfFront', 'Per applied shelf front'], ['cofferLayout', 'Coffers: layout & prep (per ceiling)'], ['cofferInstallPerFt', 'Coffer beams & fascia, install, per ft'], ['cofferCrownPerCoffer', 'Crown per coffer'], ['cofferPrepPerCoffer', 'Coffer joinery & paint prep, per coffer'], ['basePiece', 'Per baseboard / skirt piece'], ['archCut', 'Per arched cut'], ['endPanel', 'Per end panel'], ['extendedStile', 'Per extended stile'], ['woodTop', 'Per wood top / seat'],
     ['woodTopPerSqFt', 'Wood top per sq ft'], ['moldingPerFt', 'Moulding prep per ft'], ['beadboardPerSqFt', 'Beadboard per sq ft'],
     ['installPerBox', 'Install per cabinet'], ['installTall', 'Install tall extra'], ['installDay', 'Per install day (load-in, cleanup)'],
     ['moldingInstallPerFt', 'Moulding install per ft'], ['pullInstall', 'Per pull/knob'], ['pilaster', 'Per pilaster'], ['installPilaster', 'Install per pilaster'], ['floatingShelf', 'Per floating shelf'], ['shelfFinishedEnd', 'Per finished shelf end'], ['installFloatingShelf', 'Install per floating shelf'], ['installDoor', 'Install interior door'], ['hangSlab', 'Fit & hang a slab (extra)'],
@@ -75,6 +75,8 @@ export function QuoteInputs() {
           <div className="grid2">
             <Num id="q-eagle" label="Eagle prices, up or down" suffix="%" value={q.eagleAdjust * 100} onChange={(v) => set({ eagleAdjust: v / 100 })} />
             <Num id="q-bb" label="Beadboard sheet" suffix="$" value={q.beadboardSheet} onChange={(v) => set({ beadboardSheet: v })} />
+            <Num id="q-cfs" label="Coffer stock, prepped" suffix="$/ft" value={q.cofferStockPerFt} onChange={(v) => set({ cofferStockPerFt: v })} />
+            <Num id="q-cfb" label="Coffer blocking & fasteners" suffix="$/ft" value={q.cofferSundriesPerFt} onChange={(v) => set({ cofferSundriesPerFt: v })} />
             <Num id="q-brk" label="Shelf brackets" suffix="$ / 8-pack" value={q.shelfBracketPack} onChange={(v) => set({ shelfBracketPack: v })} />
           </div>
           <p className="hint">Plywood, maple and A&amp;M mouldings come from their own tabs. Blum hinges, slides and clips are priced from Woodworker Express’s price list. Floating shelf brackets are the <a href="https://www.amazon.com/dp/B088PQTYJT" target="_blank" rel="noreferrer">Amazon bracket</a>, 2" shorter than the shelf is deep. Eagle doors, fronts and drawer boxes are priced piece by piece from your 2026 Eagle orders (paint-grade maple, 5-piece). Raise the percentage after a price increase or for a pricier species.</p>
@@ -95,7 +97,7 @@ export function QuoteInputs() {
           <p className="hint">Time per item for a typical job. Calibrate these as you track real jobs.</p>
           <div className="grid2">
             {stdFields.map(([k, label]) => (
-              <Num key={k} id={`q-std-${k}`} label={label} step="0.05" value={q.standards[k]} onChange={(v) => setStd({ [k]: v })} />
+              <Num key={k} id={`q-std-${k}`} label={label} step="0.05" value={q.standards[k] ?? 0} onChange={(v) => setStd({ [k]: v })} />
             ))}
           </div>
           <button className="mini" onClick={() => set({ standards: defaultStandards })}>Reset to defaults</button>

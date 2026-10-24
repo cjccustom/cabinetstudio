@@ -7,7 +7,7 @@ import { defaultCutlist, optimizerParts } from './cutlist';
 import { optimize } from './optimizer';
 import { defaultFaceFrameStock, faceFrameNeeds, faceFramePieces, otherSpecies, stockFor, woodNeeds, woodPieces } from './faceframe';
 import { ceilingKinds, moldLabel, moldingOrder, profileByNum, profileLabel, roomKinds, type MoldKind } from './moldings';
-import { cofferFeet, cofferLayout, cofferMoldings, cofferOf, cofferParts } from './coffer';
+import { cofferFeet, cofferLayout, cofferMoldings, cofferOf } from './coffer';
 import { panelOrder } from './panels';
 import { uid } from './defaults';
 import { eaglePrice, hingeTypes } from './eagle';
@@ -30,8 +30,13 @@ export interface LaborStandards {
   insetFactor: number;
   perShelf: number;
   shelfFront: number;
-  cofferBeamPerFt: number;
+  /** Old shop-built beams; the stock now comes prepped from the millwork supplier. Kept for saved jobs. */
+  cofferBeamPerFt?: number;
+  /** Coffered ceiling (Pope library worksheet): layout and prep per ceiling, beams and perimeter fascia per ft, crown per coffer. */
+  cofferLayout: number;
   cofferInstallPerFt: number;
+  cofferCrownPerCoffer: number;
+  cofferPrepPerCoffer: number;
   basePiece: number;
   archCut: number;
   endPanel: number;
@@ -68,8 +73,10 @@ export const defaultStandards: LaborStandards = {
   insetFactor: 1.6,
   perShelf: 0.2,
   shelfFront: 0.15,
-  cofferBeamPerFt: 0.3,
-  cofferInstallPerFt: 0.3,
+  cofferLayout: 6,
+  cofferInstallPerFt: 0.27,
+  cofferCrownPerCoffer: 3.5,
+  cofferPrepPerCoffer: 0.67,
   basePiece: 0.25,
   archCut: 0.5,
   endPanel: 0.5,
@@ -110,6 +117,9 @@ export interface QuoteSettings {
   /** Floating shelf brackets: price of a pack (8 to a pack). */
   shelfBracketPack: number;
   beadboardSheet: number;
+  /** Coffered ceiling stock bought prepped from the millwork supplier, and blocking/fasteners, per ft of beam and perimeter. */
+  cofferStockPerFt: number;
+  cofferSundriesPerFt: number;
   /** Screws, glue, banding, abrasives and install sundries. */
   supplies: SupplyItem[];
   installPulls: boolean;
@@ -133,6 +143,8 @@ export const defaultQuote: QuoteSettings = {
   eagleAdjust: 0,
   shelfBracketPack: 16.16,
   beadboardSheet: 0,
+  cofferStockPerFt: 16,
+  cofferSundriesPerFt: 4.4,
   supplies: defaultSupplies,
   installPulls: true,
   painter: 0,
@@ -211,8 +223,13 @@ export function estimateHours(p: Project, q: QuoteSettings): HourLine[] {
     installHours += box;
     if (q.installPulls) add('Install pulls & knobs', n('door') + n('drawerFront'), st.pullInstall, 'cabinets', true);
   }
+  const cc = cofferOf(p);
+  const cm = cc.on ? cofferMoldings(p, cc) : null;
   for (const m of moldingOrder(p)) {
-    const ft = Math.round((m.inches / 12) * 10) / 10;
+    // Coffer crown and picture moulding are priced per coffer below, not per foot
+    const perCoffer = cm ? (cc.crown === m.num ? cm.crown : 0) + (cc.perimeter && cc.picture === m.num ? cm.picture : 0) : 0;
+    const ft = Math.round((Math.max(0, m.inches - perCoffer) / 12) * 10) / 10;
+    if (ft <= 0) continue;
     const group = moldGroup(m.kinds);
     add('Mouldings: cut & prep (ft)', ft, st.moldingPerFt, group);
     add('Mouldings: install (ft)', ft, st.moldingInstallPerFt, group, true);
@@ -228,13 +245,15 @@ export function estimateHours(p: Project, q: QuoteSettings): HourLine[] {
     const a = Math.round(sqft(w.width, w.height) * 10) / 10;
     add('Beadboard: cut & install (sq ft)', a, st.beadboardPerSqFt, 'paneling', true);
   }
-  const cc = cofferOf(p);
-  if (cc.on) {
+  if (cc.on && cm) {
     const f = cofferFeet(p, cc);
     const ft = Math.round((f.beams + f.perimeter) * 10) / 10;
-    add('Coffer beams: mill & assemble (ft)', ft, st.cofferBeamPerFt ?? 0.3, 'ceiling');
-    add('Coffer beams: layout, nailers & install (ft)', ft, st.cofferInstallPerFt ?? 0.3, 'ceiling', true);
-    installHours += ft * (st.cofferInstallPerFt ?? 0.3);
+    const ins = (label: string, qty: number, each: number) => { add(label, qty, each, 'ceiling', true); installHours += qty * each; };
+    // The beam stock comes prepped from the millwork supplier, so it's all site labor
+    ins('Coffers: layout, crown removal & prep', 1, st.cofferLayout ?? 6);
+    ins('Coffer beams & perimeter fascia: build & install (ft)', ft, st.cofferInstallPerFt ?? 0.27);
+    if (cc.crown) ins('Crown in each coffer (incl. picture moulding)', cm.count, st.cofferCrownPerCoffer ?? 3.5);
+    ins('Coffers: joinery & paint-ready prep', cm.count, st.cofferPrepPerCoffer ?? 0.67);
     if (cc.beadboard) {
       const a = Math.round(cofferMoldings(p, cc).fieldSqFt * 10) / 10;
       add('Beadboard in the coffers (sq ft)', a, st.beadboardPerSqFt * 1.5, 'ceiling', true);
@@ -268,13 +287,12 @@ export function estimateMaterials(p: Project, q: QuoteSettings): MaterialLine[] 
     const need = faceFrameNeeds(pieces, st);
     out.push({ group: 'cabinets', label: `${sp} stock (pilasters)`, cost: need.buyBF * st.pricePerBF, detail: `${Math.ceil(need.buyBF)} BF`, missing: st.pricePerBF ? undefined : `Enter $/BF for ${sp.toLowerCase()} on the Solid wood tab` });
   }
-  // The coffered ceiling's poplar and 2x, priced on their own line
-  const ceilingParts = cofferParts(p);
-  for (const sp of [...new Set(ceilingParts.map((x) => x.species ?? ''))].filter(Boolean)) {
-    const st = stockFor(p, sp);
-    const pieces = ceilingParts.filter((x) => x.species === sp).map((x) => ({ cabinet: 'Ceiling', name: x.name, width: x.width, length: x.length, species: sp }));
-    const need = faceFrameNeeds(pieces, st);
-    out.push({ group: 'ceiling', label: `${sp} for the ceiling`, cost: need.buyBF * st.pricePerBF, detail: `${Math.ceil(need.buyBF)} BF`, missing: st.pricePerBF ? undefined : `Enter $/BF for ${sp.toLowerCase()} on the Solid wood tab` });
+  // The coffered ceiling: stock bought prepped from the millwork supplier, by the foot of beam
+  if (cofferOf(p).on) {
+    const f = cofferFeet(p);
+    const ft = Math.ceil(f.beams + f.perimeter);
+    out.push({ group: 'ceiling', label: 'Prepped beam & fascia stock (millwork supplier)', cost: ft * q.cofferStockPerFt, detail: `${ft} ft of beam`, missing: q.cofferStockPerFt ? undefined : 'Enter the millwork price per foot of beam' });
+    out.push({ group: 'ceiling', label: '2x nailers, blocking, adhesive & fasteners', cost: ft * q.cofferSundriesPerFt, detail: `${ft} ft of beam` });
   }
   const wood = woodNeeds(woodPieces(p), ffStock);
   const woodBF = wood.reduce((t, g) => t + g.buyBF, 0);

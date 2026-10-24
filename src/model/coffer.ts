@@ -67,14 +67,31 @@ export const cofferOf = (p: Project): CofferCeiling => ({ ...defaultCoffer, ...p
 export const perimOf = (c: CofferCeiling, wall: WallId) => (c.perimeter ? c.walls?.[wall] ?? c.perimeterWidth : 0);
 export const opposite: Record<WallId, WallId> = { back: 'front', front: 'back', left: 'right', right: 'left' };
 
+/** Full-height cabinets on a wall: tops within a foot of the beam bottoms. */
+const fullHeight = (p: Project, wall: WallId, c: CofferCeiling) => p.cabinets.filter((k) => k.wall === wall && k.kind !== 'shelf' && k.elevation + k.height >= p.room.height - c.drop - 12);
+
 /**
- * Where the perimeter fascia lines up with the face frames of full-height cabinets on a wall
- * (tops within a foot of the beam bottoms): the deepest one's front, or null if there are none.
+ * Where the perimeter fascia goes over full-height cabinets on a wall: proud of the deepest face
+ * frame by the fascia's own thickness, so its back laps the cabinets' extended top rail. Null if
+ * there are no full-height cabinets on that wall.
  */
 export function cabinetLine(p: Project, wall: WallId, c = cofferOf(p)): number | null {
-  const top = p.room.height - c.drop - 12;
-  const d = p.cabinets.filter((k) => k.wall === wall && k.kind !== 'shelf' && k.elevation + k.height >= top).map((k) => k.depth);
-  return d.length ? Math.max(...d) : null;
+  const d = fullHeight(p, wall, c).map((k) => k.depth);
+  return d.length ? Math.max(...d) + c.fascia : null;
+}
+
+/**
+ * A full-height cabinet under a perimeter fascia lined up with it: its top rail backs the fascia.
+ * lap is how much of the rail is behind the fascia; short is how far the cabinet top falls below
+ * the fascia bottom (extend the top rail that much, and a little more to fasten to).
+ */
+export function fasciaBacking(p: Project, cab: Project['cabinets'][number], c = cofferOf(p)): { lap: number; short: number } | null {
+  if (!c.on || !c.perimeter) return null;
+  const line = cabinetLine(p, cab.wall, c);
+  if (line == null || Math.abs(perimOf(c, cab.wall) - line) > 0.01 || !fullHeight(p, cab.wall, c).includes(cab)) return null;
+  const fasciaBottom = p.room.height - fasciaHeight(c);
+  const top = cab.elevation + cab.height;
+  return { lap: Math.max(0, top - fasciaBottom), short: Math.max(0, fasciaBottom - top) };
 }
 
 /** The square corner left for the bead, beside the soffit and under the fascia: the bead's own size. */
@@ -137,6 +154,10 @@ export function cofferLayout(p: Project, c = cofferOf(p)): CofferLayout {
   const warnings = [sx.warn, sz.warn].filter((w): w is string => !!w);
   const ch = moldHeight(c.crown);
   if (ch > crownLimit(c) + 0.01) warnings.push(`The crown is ${fmt(ch)} tall, more than half the ${fmt(fasciaHeight(c))} fascia; pick one ${fmt(crownLimit(c))} or less, or drop the beams more.`);
+  for (const k of p.cabinets) {
+    const fb = fasciaBacking(p, k, c);
+    if (fb && fb.short > 0.01) warnings.push(`${k.name}'s top is ${fmt(fb.short)} below the perimeter fascia; extend its top rail up behind the fascia to back it.`);
+  }
   if (c.joint === 'bead' && c.soffit < beadCorner(c) - 0.01) warnings.push(`The soffit is thinner than the ${fmt(beadCorner(c))} bead corner, so its edge won't close the corner; use ${fmt(beadCorner(c))} stock.`);
   return { xs: sx.open, zs: sz.open, beamsX: sx.beams, beamsZ: sz.beams, field, warnings };
 }
@@ -211,7 +232,9 @@ export function cofferParts(p: Project, c = cofferOf(p)): Part[] {
       const wall0 = r.wallSide < 0 ? 0 : r.at + t;
       const nailW = r.P - t;
       const ps = nailW + tongueW;
-      const sized = r.P !== c.perimeterWidth ? ` (${fmt(r.P)} wall to fascia face)` : '';
+      const wallId = r.name.split(', ')[1] as WallId;
+      const backed = cabinetLine(p, wallId, c) != null && Math.abs(cabinetLine(p, wallId, c)! - r.P) < 0.01;
+      const sized = (r.P !== c.perimeterWidth ? ` (${fmt(r.P)} wall to fascia face)` : '') + (backed ? `; over the cabinets, proud of the face frame by ${fmt(t)} and fastened to their extended top rail` : '');
       out.push({ name: `${r.name} nailer (2x)`, role: 'nailer', material: 'faceframe', species: '2x framing', length: slen, width: nailW, thickness: c.nailer, cut: true, note: 'Ripped from 2x stock; against the wall', boxes: [box(wall0, nailW, H - c.nailer, c.nailer, r.s0, slen)] });
       out.push({ name: `${r.name} fascia`, role: 'trim', material: 'faceframe', species: sp, length: len, width: fh, thickness: t, cut: true, note: dadoNote + sized, boxes: [box(r.at, t, fy, fh)] });
       out.push({ name: `${r.name} soffit`, role: 'trim', material: 'faceframe', species: sp, length: slen, width: ps, thickness: c.soffit, cut: true, note: (bead ? `Wall to the fascia; hangs ${fmt(g)} below it on the blocking, ${beadName} bead in the corner; scribed to the wall` : `${fmt(c.tongue)} tongue on the bottom face at the fascia edge; scribed to the wall`) + sized, boxes: [box(wall0, nailW, soffitY, c.soffit, r.s0, slen)] });

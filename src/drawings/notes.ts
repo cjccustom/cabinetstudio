@@ -3,6 +3,7 @@
 // customer, the shop, or both.
 import type { Cabinet, CabinetNote, Project } from '../model/types';
 import { applianceNotes } from '../model/appliances';
+import { cofferOf, fasciaBacking } from '../model/coffer';
 import { eff, panelOn } from '../model/parts';
 import { resolveEnds } from '../model/layout';
 import { profileByNum, profileLabel } from '../model/moldings';
@@ -42,6 +43,8 @@ export function cabinetCallouts(p: Project, c: Cabinet): Callout[] {
     out.push({ text: `Face frame: ${bits.join(', ')}`, for: 'shop' });
   }
   for (const n of applianceNotes(c, p.settings)) out.push({ text: n, for: 'both' });
+  const fb = fasciaBacking(p, c);
+  if (fb) out.push({ text: fb.short > 0.01 ? `Extend the top rail ${fmt(fb.short)} or more to back the coffer fascia` : `Top rail backs the coffer fascia (${fmt(fb.lap)} behind it); fascia ${fmt(cofferOf(p).fascia)} proud of the face frame`, for: 'shop' });
   if (c.overrides && Object.keys(c.overrides).length) out.push({ text: `Built to its own construction settings (${Object.keys(c.overrides).length} changed)`, for: 'shop' });
   for (const n of c.notes ?? []) if (n.text.trim()) out.push({ text: n.text.trim(), for: n.for });
   return out;
