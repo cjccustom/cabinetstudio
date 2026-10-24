@@ -526,3 +526,6 @@ details.opening .grid3 { margin-top: 8px; }
 .cf-walls td:nth-child(2) { width: 72px; }
 .cf-walls td:nth-child(2) input { width: 64px; }
 .cf-walls .mini { margin: 2px 4px 2px 0; }
+.model-field { margin-top: 6px; }
+.model-field .row-actions { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.file-btn { cursor: pointer; display: inline-flex; align-items: center; padding: 2px 8px; font-size: 12px; }

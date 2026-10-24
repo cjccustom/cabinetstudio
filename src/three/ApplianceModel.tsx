@@ -1,5 +1,8 @@
 import type { Cabinet, ShopSettings } from '../model/types';
-import { placedAppliances, type PlacedAppliance } from '../model/appliances';
+import { useEffect, useState } from 'react';
+import * as THREE from 'three';
+import { modelUrl, placedAppliances, type PlacedAppliance } from '../model/appliances';
+import { loadStoredModel, placeModel } from './modelImport';
 
 type Box = { x: number; y: number; z: number; w: number; h: number; d: number; color: string; glow?: string; metal?: boolean };
 
@@ -40,18 +43,36 @@ function boxesFor(p: PlacedAppliance): Box[] {
   }
 }
 
-/** Appliances in a cabinet's appliance rows, in cabinet-local coordinates. */
+/** The maker's model in the appliance's box; the plain stand-in until it loads, or if it can't. */
+function MakerModel({ p, fallback }: { p: PlacedAppliance; fallback: React.ReactNode }) {
+  const m = p.a.model3d!;
+  const url = modelUrl(m);
+  const [obj, setObj] = useState<THREE.Object3D | null>(null);
+  useEffect(() => {
+    let live = true;
+    setObj(null);
+    loadStoredModel(url).then((src) => { if (live) setObj(placeModel(src, m, { min: p.min, size: p.size })); }).catch(() => { if (live) setObj(null); });
+    return () => { live = false; };
+  }, [url, m.units, m.up, m.turn, p.min.join(), p.size.join()]); // eslint-disable-line react-hooks/exhaustive-deps
+  return obj ? <primitive object={obj} /> : <>{fallback}</>;
+}
+
+const boxMeshes = (boxes: Box[], key: string) => boxes.map((b, i) => (
+  <mesh key={`${key}-${i}`} position={[b.x + b.w / 2, b.y + b.h / 2, b.z + b.d / 2]}>
+    <boxGeometry args={[b.w, b.h, b.d]} />
+    <meshStandardMaterial color={b.color} roughness={b.metal ? 0.35 : 0.5} metalness={b.metal ? 0.6 : 0.1} emissive={b.glow ?? '#000000'} emissiveIntensity={b.glow ? 0.9 : 0} />
+  </mesh>
+));
+
+/** Appliances in a cabinet's appliance rows (or a mantel's firebox), in cabinet-local coordinates. */
 export function ApplianceModel({ cab, settings }: { cab: Cabinet; settings: ShopSettings }) {
-  const boxes = placedAppliances(cab, settings).flatMap(boxesFor);
-  if (!boxes.length) return null;
+  const placed = placedAppliances(cab, settings);
+  if (!placed.length) return null;
   return (
     <group>
-      {boxes.map((b, i) => (
-        <mesh key={i} position={[b.x + b.w / 2, b.y + b.h / 2, b.z + b.d / 2]}>
-          <boxGeometry args={[b.w, b.h, b.d]} />
-          <meshStandardMaterial color={b.color} roughness={b.metal ? 0.35 : 0.5} metalness={b.metal ? 0.6 : 0.1} emissive={b.glow ?? '#000000'} emissiveIntensity={b.glow ? 0.9 : 0} />
-        </mesh>
-      ))}
+      {placed.map((p, i) => (p.a.model3d
+        ? <MakerModel key={i} p={p} fallback={boxMeshes(boxesFor(p), `f${i}`)} />
+        : <group key={i}>{boxMeshes(boxesFor(p), `b${i}`)}</group>))}
     </group>
   );
 }

@@ -16,6 +16,8 @@ export interface Appliance {
   model?: string;
   /** Where the size came from (a common-size pick), shown with it. */
   source?: string;
+  /** The maker's 3D model, for the 3D view only. */
+  model3d?: Model3D;
   /** The appliance's own size (for a trim kit or a fireplace with a frame: the part that goes in the opening). */
   w: number;
   h: number;
@@ -43,6 +45,26 @@ export const applianceKinds: Record<ApplianceKind, { label: string; short: strin
 };
 
 export const newAppliance = (kind: ApplianceKind): Appliance => ({ kind, ...applianceKinds[kind].size });
+
+/** A manufacturer's 3D model, stored with the artifact as glTF JSON. */
+export interface Model3D {
+  /** The stored asset; its display path is "/_blob/" + assetId. */
+  assetId?: string;
+  /** Where to load it in this view (an asset path, or a memory key when it couldn't be stored). */
+  url: string;
+  name: string;
+  units: 'mm' | 'cm' | 'm' | 'in' | 'ft';
+  /** Which way is up in the file: most CAD exports are Z-up, glTF is Y-up. */
+  up: 'y' | 'z';
+  /** Turn so its front faces the room. */
+  turn: 0 | 90 | 180 | 270;
+  /** Its size in its own units, Y-up, before turning. */
+  size: [number, number, number];
+  /** Kept only in this browser tab (the view couldn't store assets). */
+  local?: boolean;
+  texturesDropped?: boolean;
+}
+export const modelUrl = (m: Model3D) => (m.assetId ? `/_blob/${m.assetId}` : m.url);
 
 /**
  * Common sizes to start from. Named models come from the maker's sheets or retailer listings

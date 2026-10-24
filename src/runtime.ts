@@ -17,7 +17,7 @@ export interface Sample {
   limits?: () => Promise<{ images?: { maxCount: number } }>;
 }
 export interface Assets {
-  upload(blob: Blob): Promise<{ id: string; url: string }>;
+  upload(blob: Blob, options?: { type?: string }): Promise<{ id: string; url: string }>;
   delete(id: string): Promise<void>;
 }
 export interface Downloads {

@@ -12,6 +12,7 @@ import { Field, LengthInput, Section } from './fields';
 import { OrderList, PartsTable } from './PartsTable';
 import { OverridesSection } from './Overrides';
 import { MoldSlot } from './ProfilePicker';
+import { ModelField } from './ModelField';
 import { fuelLabel, hearthRequired, legWidth, mantelClearances, mantelCodeBasis, mantelOf, needsManualChart, usesListing, usesMasonryRules, widthFor, type Fuel, type MantelSpec } from '../model/mantel';
 import { applianceKinds, appliancePresets, newAppliance, openingFor, placedAppliances, type Appliance, type ApplianceKind } from '../model/appliances';
 import { cabinetCallouts } from '../drawings/notes';
@@ -705,6 +706,7 @@ function ApplianceEditor({ a, openingH, problems, onChange }: { a: Appliance; op
         </Field>
         {Math.abs(openingH - fit) > 0.01 && <button className="mini" style={{ alignSelf: 'end' }} onClick={() => onChange(a, fit)}>Size the opening to it ({fmt(fit)} high)</button>}
       </div>
+      <ModelField a={a} onChange={(n) => onChange(n, n.h !== a.h || n.top !== a.top ? openingFor(n) : undefined)} />
       <p className="hint">{applianceKinds[a.kind].note}. Sizes are typical until you have the spec sheet.</p>
       {problems.map((p) => <p key={p} className="warn">{p}</p>)}
     </div>
@@ -757,6 +759,7 @@ function MantelSection({ cab, set }: { cab: Cabinet; set: (patch: Partial<Cabine
           </div>
         )}
         {m.insert?.source && m.fuel !== 'wood' && <p className="hint">{m.insert.source}.</p>}
+        {m.fuel !== 'wood' && m.insert && <ModelField a={m.insert} onChange={(n) => put(n.w !== m.insert!.w || n.h !== m.insert!.h ? { insert: n, openingW: n.w, openingH: n.h } : { insert: n })} />}
         <div className="grid3">
           {len('openingW', 'Opening width')}
           {len('openingH', 'Opening height')}
