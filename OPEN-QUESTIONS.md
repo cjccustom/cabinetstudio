@@ -21,3 +21,16 @@ Things the app is guessing at until Cody answers. Each one says what the app doe
 
 - **Appliance clearances.** Built-in microwave and fireplace openings use the clearances typed for
   each appliance; the defaults are placeholders until you have the model's spec sheet.
+
+## Waiting on you
+
+- **Fireplaces and mantels.** Your construction info for mantels and surrounds, so the
+  fireplace base can grow into a real fireplace built-in.
+- **Chief exports of the Pope plan.** A DXF (floor plan and one elevation) and an OBJ in the Pope
+  folder, to prove out importing old Chief jobs before the subscription ends.
+
+## Not yet tried on a real job
+
+- **Reopening a design saved to Dropbox.** Saving works; opening it back up from the client's
+  folder hasn't been tried with your real files.
+- **A full Gemini render** from the Rendering tab or "Render this view".
