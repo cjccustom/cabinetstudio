@@ -44,6 +44,10 @@ Things the app is guessing at until Cody answers. Each one says what the app doe
   104 1/4, bookcases 98 3/4 (36" bases), 6" ladder top rail, doors 33 1/2 x 79 7/8, both windows
   32 x 60 1/4 on a 24 7/8 sill. Still assumed: the 7" base band, and where the fireplace goes (the
   door wall elevation doesn't show it; it's centered between the doors for now).
+- **Pope notes from Cody (to do).** The bookcases are built one piece, not a separate base and
+  upper: the app needs a single full-height cabinet with doors below and open shelves above.
+  The tops are painted, not wood (Cody will change it). The coffers aren't yet centered on the
+  windows; Cody is checking his notes for whether the windows are truly symmetrical first.
 - **Old Chief jobs.** The importer reads Chief's DWG/DXF floor plan exports (walls, doors,
   windows, cabinets, pilasters). Heights still come from each job's elevations.
 
