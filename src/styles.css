@@ -529,3 +529,18 @@ details.opening .grid3 { margin-top: 8px; }
 .model-field { margin-top: 6px; }
 .model-field .row-actions { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
 .file-btn { cursor: pointer; display: inline-flex; align-items: center; padding: 2px 8px; font-size: 12px; }
+
+/* Client portal */
+.sec-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.link-btn { background: none; border: 0; padding: 0; color: var(--accent); text-decoration: underline; cursor: pointer; font-size: 13px; }
+.portal-link { display: flex; gap: 6px; align-items: center; margin: 8px 0; flex-wrap: wrap; }
+.portal-link input { flex: 1 1 260px; font: 12px var(--font-mono) !important; }
+.portal-status { margin: 8px 0; padding-left: 18px; font-size: 13px; }
+.portal-status li { margin: 2px 0; }
+.portal-settings label { display: block; font-size: 12px; color: var(--muted); margin-top: 10px; }
+.portal-settings label > input, .portal-settings label > select { display: block; width: 100%; box-sizing: border-box; margin-top: 3px; }
+.portal-settings textarea.plain { display: block; width: 100%; box-sizing: border-box; height: auto; margin-top: 3px; font: 13px/1.45 var(--font-ui, inherit); color: var(--ink, inherit); }
+.portal-settings h3 { margin: 18px 0 6px; font: 600 15px/1.2 var(--font-display); }
+.portal-settings .doc-add { margin-top: 4px; }
+.portal-settings .file-btn { display: inline-flex; color: inherit; margin-top: 8px; }
+.portal-link a.btn { text-decoration: none; color: inherit; display: inline-flex; align-items: center; }

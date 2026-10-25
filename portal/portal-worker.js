@@ -289,8 +289,8 @@ var TOOLS = [
   },
   {
     name: "upload_shop_doc",
-    description: "Add or replace a shop document shown to every client (license, insurance certificate, terms PDF). Send base64 bytes; up to about 20 MB.",
-    inputSchema: { type: "object", properties: { id: { type: "string", description: "Replace this document; omit for a new one." }, title: { type: "string" }, kind: { type: "string", enum: ["license", "insurance", "terms", "other"] }, mimeType: { type: "string" }, expires: { type: "string", description: "YYYY-MM-DD, for reminders." }, data: { type: "string" } }, required: ["title", "kind", "mimeType", "data"] }
+    description: "Add or replace a shop document shown to every client (license, insurance certificate, terms PDF). Send base64 bytes, or a Dropbox temporary link; up to about 20 MB.",
+    inputSchema: { type: "object", properties: { id: { type: "string", description: "Replace this document; omit for a new one." }, title: { type: "string" }, kind: { type: "string", enum: ["license", "insurance", "terms", "other"] }, mimeType: { type: "string" }, expires: { type: "string", description: "YYYY-MM-DD, for reminders." }, data: { type: "string", description: "Base64 bytes." }, source_url: { type: "string", description: "Or: a Dropbox temporary download link for the portal to fetch." } }, required: ["title", "kind"] }
   },
   { name: "delete_shop_doc", description: "Remove a shop document.", inputSchema: { type: "object", properties: { id: { type: "string" } }, required: ["id"] } },
   {
@@ -351,6 +351,15 @@ var status = (j, url) => ({
   cancelDeadline: j.signature ? cancelDeadline(easternYmd(j.signature.at)) : null,
   cancelled: j.cancelled ? { at: j.cancelled.at } : null
 });
+async function fetchDropbox(src) {
+  const u = new URL(src);
+  if (u.protocol !== "https:" || !/(^|\.)dropboxusercontent\.com$/.test(u.hostname)) throw new Error("Only Dropbox download links can be fetched.");
+  const res = await fetch(u.href, { redirect: "follow" });
+  if (!res.ok) throw new Error(`Dropbox answered ${res.status}; the link may have expired.`);
+  const buf = await res.arrayBuffer();
+  if (buf.byteLength > 24e6) throw new Error("That file is over the portal\u2019s 24 MB limit.");
+  return buf;
+}
 async function tool(name, a, env, url) {
   const str = (k) => typeof a[k] === "string" ? a[k] : void 0;
   switch (name) {
@@ -365,7 +374,7 @@ async function tool(name, a, env, url) {
     }
     case "upload_shop_doc": {
       const s = await getShop(env);
-      const bytes = b64ToBytes(String(a.data || ""));
+      const bytes = str("source_url") ? await fetchDropbox(str("source_url")) : b64ToBytes(String(a.data || ""));
       if (!bytes.byteLength) throw new Error("The document is empty.");
       const id = str("id") && s.docs.some((d) => d.id === str("id")) ? str("id") : randomToken(9);
       const doc = { id, title: str("title") || "Document", kind: str("kind") || "other", mimeType: str("mimeType") || "application/pdf", size: bytes.byteLength, expires: str("expires") || void 0, uploadedAt: Date.now() };

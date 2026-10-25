@@ -333,6 +333,8 @@ export interface Project {
   /** The customer, and their folder in Dropbox. */
   client?: Partial<import('./client').ClientInfo>;
   dropbox?: import('./client').DropboxLink;
+  /** This job's page on the client portal: its id there and what it last said. */
+  portal?: { jobId: string; url?: string; status?: import('../portal').JobStatus; checkedAt?: number };
   /** Drawing sets: paper, revision, cover picture, notes. */
   drawings?: Partial<import('../drawings/sheets').DrawingSettings>;
   /** A coffered ceiling over the room. */

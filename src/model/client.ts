@@ -77,7 +77,7 @@ export function parseFolderName(name: string): Partial<ClientInfo> {
   return { last: last.trim(), first: first.trim(), location: location.trim() };
 }
 
-export const COMPANY = ['CJC Custom Carpentry LLC', '50 Beaman Rd, Sterling, MA 01564', 'Phone: (508) 215-6295', 'CSL License #CS-119119 · HIC License #207489'];
+export const COMPANY = ['CJC Custom Carpentry LLC', '50 Beaman Rd, Suite 1A, Sterling, MA 01564', 'Phone: (508) 215-6295', 'CSL License #CS-119119 · HIC License #207489'];
 const date = (t = Date.now()) => new Date(t).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: '2-digit' });
 
 /** The client info sheet, as Markdown: readable as plain text on a phone. */
@@ -108,8 +108,15 @@ export function clientInfoDoc(p: Project): string {
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const money = (v: number) => `$${Math.round(v).toLocaleString('en-US')}`;
 
-/** Scope of work and purchase agreement, laid out like Cody's Word template; opens in a browser or Word and prints to PDF. */
-export function quoteDoc(p: Project): string {
+/** The price and the 30% deposit the purchase agreement asks for. */
+export function quoteTotals(p: Project): { total: number; deposit: number } {
+  const total = priceQuote(p).total;
+  return { total, deposit: Math.round(total * 0.3) };
+}
+
+/** Scope of work and purchase agreement, laid out like Cody's Word template; opens in a browser or Word and prints to PDF.
+ *  `online` is the copy for the client portal, which is signed electronically on the page instead of on signature lines. */
+export function quoteDoc(p: Project, opts: { online?: boolean } = {}): string {
   const c = clientOf(p);
   const q = quoteOf(p);
   const r = priceQuote(p);
@@ -122,7 +129,7 @@ export function quoteDoc(p: Project): string {
   const sum = lines.reduce((t, l) => t + l.price, 0) || 1;
   const rounded = lines.map((l) => ({ ...l, price: Math.round(((l.price / sum) * r.total) / 10) * 10 }));
   if (rounded.length) rounded[0].price += r.total - rounded.reduce((t, l) => t + l.price, 0);
-  const deposit = Math.round(r.total * 0.3);
+  const { deposit } = quoteTotals(p);
   const head = `<div class="co"><img src="${LOGO}" alt="CJC Custom Carpentry" style="height:.62in;display:block;margin-bottom:6px">${COMPANY.slice(1).map(esc).join('<br>')}</div>`;
   const who = `<table class="who"><tr><th>Client Name</th><td>${esc(clientName(c))}</td></tr><tr><th>Project Address</th><td>${esc(c.address)}</td></tr>`;
   return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(clientName(c) || 'Quote')} - ${esc(p.name)}</title>
@@ -141,7 +148,7 @@ ${r.extras.length ? `<p><b>Additional work:</b> ${r.extras.map((e) => esc(e.labe
 <table class="price">${rounded.map((l) => `<tr><th>${esc(l.label)}</th><td>${money(l.price)}</td></tr>`).join('')}<tr class="total"><th>Total Project Investment</th><td>${money(r.total)}</td></tr></table>
 <p><b>Project Payment Schedule</b><br>30% Deposit Due at Agreement – ${money(deposit)}<br>70% Final Payment Due Upon Completion – ${money(r.total - deposit)}</p>
 <p style="font-size:9.5pt">This agreement supersedes all conversations, statements, and agreements expressed or implied between the parties, their agents and representatives.</p>
-<div class="sign"><div>Owner</div><div>Date</div><div>CJC Custom Carpentry, LLC</div><div>Date</div></div></section></body></html>`;
+${opts.online ? '<p style="font-size:9.5pt"><b>The Terms and Conditions are part of this agreement.</b> It is signed electronically on the project page.</p>' : '<div class="sign"><div>Owner</div><div>Date</div><div>CJC Custom Carpentry, LLC</div><div>Date</div></div>'}</section></body></html>`;
 }
 
 /** Eagle requests and the Woodworker Express hardware list, once the job is released. */

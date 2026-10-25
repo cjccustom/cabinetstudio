@@ -1,0 +1,76 @@
+// Cabinet Studio's reach into the client portal (the Cloudflare Worker in portal/), through the
+// claude.ai connector Cody adds as "CJC Portal". Every call runs from a button he pressed.
+import { capability, type Mcp } from './runtime';
+
+export const PORTAL = 'CJC Portal';
+
+export class PortalError extends Error { constructor(message: string, public code?: string) { super(message); } }
+
+export interface ShopDoc { id: string; title: string; kind: 'license' | 'insurance' | 'terms' | 'other'; mimeType: string; size: number; expires?: string; uploadedAt: number }
+export interface Shop { company: string[]; about: string; terms: string; docs: ShopDoc[]; contactEmail?: string }
+export interface JobStatus {
+  job_id: string; project: string; url: string; version: number; publishedAt: number;
+  views: number; lastViewed: number | null;
+  signed: { name: string; at: number; version: number; current: boolean } | null;
+  cancelDeadline: string | null;
+  cancelled: { at: number } | null;
+}
+export interface Proposal {
+  job_id: string; project: string;
+  client: { first?: string; last?: string; email?: string; phone?: string; address?: string };
+  agreement_html: string; total: number; deposit: number;
+  renderings?: { name: string; mimeType: string; data: string }[];
+  keep_renderings?: boolean; replace_signed?: boolean;
+}
+
+type Raw = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+
+async function call<T = Raw>(tool: string, input: Raw = {}): Promise<T> {
+  const mcp = await capability<Mcp>('mcp');
+  if (!mcp) throw new PortalError('The client portal works when Cabinet Studio is open on claude.ai with the CJC Portal connector added.', 'unavailable');
+  try {
+    const res = await mcp.callTool(PORTAL, tool, input, { cache: false });
+    const payload = res.payload ?? res.content.find((c) => c.text)?.text;
+    return (typeof payload === 'string' ? JSON.parse(payload) : payload) as T;
+  } catch (e) {
+    const err = e as { code?: string; message?: string; result?: { content?: { text?: string }[] } };
+    if (err instanceof PortalError) throw err;
+    const text = err.result?.content?.find((c) => c.text)?.text || err.message || '';
+    throw new PortalError(friendly(err.code, text), err.code);
+  }
+}
+
+function friendly(code: string | undefined, text: string): string {
+  switch (code) {
+    case 'server_not_connected': case 'server_not_found': return 'The CJC Portal connector isn’t added. Follow the portal setup steps, then add it in claude.ai Settings → Connectors.';
+    case 'needs_reauth': return 'Reconnect CJC Portal in claude.ai Settings → Connectors.';
+    case 'not_in_manifest': case 'approval_required': case 'not_granted': return 'CJC Portal isn’t allowed for this page yet. Try again and choose Allow when claude.ai asks.';
+    case 'server_unavailable': return 'The portal didn’t answer. Check the Worker is deployed in Cloudflare, then try again.';
+    case 'tool_error': return text.slice(0, 300);
+    default: return text ? `Portal: ${text.slice(0, 300)}` : 'Something went wrong reaching the portal.';
+  }
+}
+
+export const getShop = async () => (await call<{ shop: Shop }>('get_shop')).shop;
+export const updateShop = async (patch: Partial<Omit<Shop, 'docs'>>) => (await call<{ shop: Shop }>('update_shop', patch)).shop;
+export const uploadShopDoc = async (doc: { id?: string; title: string; kind: ShopDoc['kind']; mimeType?: string; expires?: string; data?: string; source_url?: string }) =>
+  (await call<{ doc: ShopDoc }>('upload_shop_doc', doc)).doc;
+export const deleteShopDoc = (id: string) => call('delete_shop_doc', { id });
+export const publishProposal = (p: Proposal) => call<JobStatus>('publish_proposal', p as unknown as Raw);
+export const jobStatus = (jobId: string) => call<JobStatus>('job_status', { job_id: jobId });
+
+/** Documents that expire within `days` (or already have), soonest first. */
+export function expiring(docs: ShopDoc[], days = 45, now = Date.now()): (ShopDoc & { daysLeft: number })[] {
+  return docs
+    .filter((d) => d.expires)
+    .map((d) => ({ ...d, daysLeft: Math.ceil((Date.parse(`${d.expires}T23:59:59`) - now) / 864e5) }))
+    .filter((d) => d.daysLeft <= days)
+    .sort((a, b) => a.daysLeft - b.daysLeft);
+}
+
+export const blobToBase64 = (b: Blob) => new Promise<string>((ok, fail) => {
+  const r = new FileReader();
+  r.onload = () => ok(String(r.result).replace(/^data:[^,]*,/, ''));
+  r.onerror = () => fail(r.error);
+  r.readAsDataURL(b);
+});

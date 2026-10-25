@@ -34,9 +34,8 @@ Things the app is guessing at until Cody answers. Each one says what the app doe
 
 - **Appliance sizes.** Named models come from maker and retailer listings; "typical" sizes are
   class averages. Check the installation manual before building the opening.
-- **Manufacturer 3D blocks.** Not in yet. Many makers publish models (Dimplex is on BIMobject);
-  the app could import a downloaded model file to show the real appliance in 3D. Say if you
-  want it.
+- **Manufacturer 3D blocks.** In: import a downloaded model file (glb, gltf, obj, fbx, dae, stl,
+  usdz) on an appliance. Not yet tried with storage on claude.ai.
 
 ## Waiting on you
 
@@ -53,6 +52,26 @@ Things the app is guessing at until Cody answers. Each one says what the app doe
 
 ## Not yet tried on a real job
 
-- **Reopening a design saved to Dropbox** from a client's folder. The Pope design was saved
-  there and read back through Dropbox intact; opening it from the Clients tab is the last step.
 - **A full Gemini render** from the Rendering tab or "Render this view".
+
+## Client portal
+
+- **Cloudflare setup.** The portal is built and tested here; it goes live once you do the
+  setup in `portal/README.md` (Worker, KV storage, SHOP_KEY, then the CJC Portal connector).
+- **Your terms.** The portal starts from your current terms doc. Things to fix before clients
+  sign online:
+  - Sections 6 and 8 are missing (5 jumps to 7, 7 to 9).
+  - #15 gives the old Consumer Affairs address (Ten Park Plaza). Your HIC card has the current
+    one: 1 Federal St., Suite 0720, Boston, MA 02110-2012.
+  - #14 promises the 3-day cancellation; the law also wants the Notice of Cancellation form
+    itself given to the client. The portal now does that (two filled-in copies with the
+    agreement), so #14 can point to it.
+  - #20 says approval is "by your signature on the first page" and #17 says "executed in
+    duplicate". Online, the signature is on the project page and the client gets the signed
+    copy right away; reword both to cover electronic signing.
+  - #4: the "no consequential damages" limit is fine, but under MA c.106 §2-316A you can't
+    disclaim the implied warranties on consumer goods. Worth a sentence saying so.
+  - Your own additions from past jobs: waiting on your list.
+- **Proposal tracking.** The portal already counts when the client opens the page. Say if you
+  want reminders when a proposal sits unopened or unsigned.
+- **Deposit.** 30% of the total, as on your agreement. QuickBooks invoicing comes next.

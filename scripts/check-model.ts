@@ -1,4 +1,6 @@
 import { readFileSync } from "node:fs";
+import { cancelDeadline, holidays } from "../portal/src/cancel";
+import { expiring } from "../src/portal";
 // Sanity checks on the cabinet model: run with `npm test`.
 import { buildParts, layoutRows, panelExtents, realOverhang } from "../src/model/parts";
 import { placedAppliances } from "../src/model/appliances";
@@ -811,6 +813,16 @@ eq('panel sticks out past frame', panelExtents(b21, s, { left: true, right: fals
   eq('DXF: mm units, block insert rotated onto its layer', [d.scale.toFixed(4), ln.layer, ln.b.map((v) => Math.round(v)).join('/')].join(), `${(1 / 25.4).toFixed(4)},Walls,100/304`);
   eq('DXF: Chief font codes stripped from labels', (d.ents.find((e) => e.kind === 'text') as { text: string }).text, 'B24');
 }
+
+// Client portal: the 3-day cancel window skips Sundays and Massachusetts holidays
+eq('cancel: Saturday signing runs to Wednesday', cancelDeadline('2026-10-24'), '2026-10-28');
+eq('cancel: Friday before Patriots’ Day skips Sunday and the holiday', cancelDeadline('2027-04-16'), '2027-04-21');
+eq('cancel: July 4 on a Sunday is observed Monday', holidays(2027).includes('2027-07-05'), true);
+eq('portal: documents expiring within 45 days', expiring([
+  { id: 'a', title: 'COI', kind: 'insurance', mimeType: 'application/pdf', size: 1, expires: '2027-02-26', uploadedAt: 0 },
+  { id: 'b', title: 'HIC', kind: 'license', mimeType: 'application/pdf', size: 1, expires: '2027-06-01', uploadedAt: 0 },
+], 45, Date.parse('2027-02-01T12:00:00')).map((d) => `${d.title}:${d.daysLeft}`).join(), 'COI:26');
+eq('portal: online agreement has no paper signature lines', [quoteDoc(p).includes('class="sign"'), quoteDoc(p, { online: true }).includes('class="sign"')].join(), 'true,false');
 
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');
 

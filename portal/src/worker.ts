@@ -113,8 +113,8 @@ const TOOLS = [
     inputSchema: { type: 'object', properties: { company: { type: 'array', items: { type: 'string' } }, about: { type: 'string' }, terms: { type: 'string' }, contactEmail: { type: 'string' } } },
   },
   {
-    name: 'upload_shop_doc', description: 'Add or replace a shop document shown to every client (license, insurance certificate, terms PDF). Send base64 bytes; up to about 20 MB.',
-    inputSchema: { type: 'object', properties: { id: { type: 'string', description: 'Replace this document; omit for a new one.' }, title: { type: 'string' }, kind: { type: 'string', enum: ['license', 'insurance', 'terms', 'other'] }, mimeType: { type: 'string' }, expires: { type: 'string', description: 'YYYY-MM-DD, for reminders.' }, data: { type: 'string' } }, required: ['title', 'kind', 'mimeType', 'data'] },
+    name: 'upload_shop_doc', description: 'Add or replace a shop document shown to every client (license, insurance certificate, terms PDF). Send base64 bytes, or a Dropbox temporary link; up to about 20 MB.',
+    inputSchema: { type: 'object', properties: { id: { type: 'string', description: 'Replace this document; omit for a new one.' }, title: { type: 'string' }, kind: { type: 'string', enum: ['license', 'insurance', 'terms', 'other'] }, mimeType: { type: 'string' }, expires: { type: 'string', description: 'YYYY-MM-DD, for reminders.' }, data: { type: 'string', description: 'Base64 bytes.' }, source_url: { type: 'string', description: 'Or: a Dropbox temporary download link for the portal to fetch.' } }, required: ['title', 'kind'] },
   },
   { name: 'delete_shop_doc', description: 'Remove a shop document.', inputSchema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] } },
   {
@@ -167,6 +167,17 @@ const status = (j: Job, url: URL) => ({
   cancelled: j.cancelled ? { at: j.cancelled.at } : null,
 });
 
+/** A file from a Dropbox temporary link. Only Dropbox's own download hosts, so the portal can't be pointed elsewhere. */
+async function fetchDropbox(src: string): Promise<ArrayBuffer> {
+  const u = new URL(src);
+  if (u.protocol !== 'https:' || !/(^|\.)dropboxusercontent\.com$/.test(u.hostname)) throw new Error('Only Dropbox download links can be fetched.');
+  const res = await fetch(u.href, { redirect: 'follow' });
+  if (!res.ok) throw new Error(`Dropbox answered ${res.status}; the link may have expired.`);
+  const buf = await res.arrayBuffer();
+  if (buf.byteLength > 24e6) throw new Error('That file is over the portal’s 24 MB limit.');
+  return buf;
+}
+
 async function tool(name: string, a: Record<string, unknown>, env: Env, url: URL): Promise<Record<string, unknown>> {
   const str = (k: string) => (typeof a[k] === 'string' ? (a[k] as string) : undefined);
   switch (name) {
@@ -180,7 +191,7 @@ async function tool(name: string, a: Record<string, unknown>, env: Env, url: URL
     }
     case 'upload_shop_doc': {
       const s = await getShop(env);
-      const bytes = b64ToBytes(String(a.data || ''));
+      const bytes = str('source_url') ? await fetchDropbox(str('source_url')!) : b64ToBytes(String(a.data || ''));
       if (!bytes.byteLength) throw new Error('The document is empty.');
       const id = str('id') && s.docs.some((d) => d.id === str('id')) ? str('id')! : randomToken(9);
       const doc: ShopDoc = { id, title: str('title') || 'Document', kind: (str('kind') as ShopDoc['kind']) || 'other', mimeType: str('mimeType') || 'application/pdf', size: bytes.byteLength, expires: str('expires') || undefined, uploadedAt: Date.now() };

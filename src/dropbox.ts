@@ -98,3 +98,10 @@ export async function readFile(path: string): Promise<string | null> {
   try { return String((await call('fetch', { id: path })).text ?? ''); }
   catch (e) { if (/not.?found/i.test((e as Error).message) || (e as DropboxError).code === 'NOT_FOUND') return null; throw e; }
 }
+
+/** A five-minute download address for a file, for handing to something that fetches it itself (the client portal). */
+export async function downloadLink(path: string): Promise<{ url: string; name: string }> {
+  const e = (await call('download_link', { entries: [path], expiration_in_sec: 300 })).entries?.[0];
+  if (!e?.download_url) throw new DropboxError(`Dropbox couldn’t find ${path}.`, 'NOT_FOUND');
+  return { url: e.download_url, name: e.name };
+}
