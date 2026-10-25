@@ -40,8 +40,12 @@ Things the app is guessing at until Cody answers. Each one says what the app doe
 
 ## Waiting on you
 
-- **Chief exports of the Pope plan.** A DXF and an OBJ in the Pope folder, once Chief stops
-  saying the key is in use on another computer (Chief support can reset the license seat).
+- **Pope heights not in the plan.** Imported from Chief's DWG plus the elevations: ceiling
+  104 1/4, bookcases 98 3/4 (36" bases), 6" ladder top rail, doors 33 1/2 x 79 7/8, both windows
+  32 x 60 1/4 on a 24 7/8 sill. Still assumed: the 7" base band, and where the fireplace goes (the
+  door wall elevation doesn't show it; it's centered between the doors for now).
+- **Old Chief jobs.** The importer reads Chief's DWG/DXF floor plan exports (walls, doors,
+  windows, cabinets, pilasters). Heights still come from each job's elevations.
 
 ## Not yet tried on a real job
 

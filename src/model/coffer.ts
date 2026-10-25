@@ -9,6 +9,7 @@ import type { Part, Project, VisualBox, WallId } from './types';
 import { fmt } from '../units';
 import { mountShape, profileByNum } from './moldings';
 import { footprint } from './layout';
+import { pilasterOf } from './pilaster';
 
 export interface CofferCeiling {
   on: boolean;
@@ -77,7 +78,8 @@ const fullHeight = (p: Project, wall: WallId, c: CofferCeiling) => p.cabinets.fi
  * there are no full-height cabinets on that wall.
  */
 export function cabinetLine(p: Project, wall: WallId, c = cofferOf(p)): number | null {
-  const d = fullHeight(p, wall, c).map((k) => k.depth);
+  // A pilaster's face stands proud of its box
+  const d = fullHeight(p, wall, c).map((k) => k.depth + (k.kind === 'pilaster' ? pilasterOf(k).proud : 0));
   return d.length ? Math.max(...d) + c.fascia : null;
 }
 

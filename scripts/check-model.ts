@@ -1,7 +1,10 @@
+import { readFileSync } from "node:fs";
 // Sanity checks on the cabinet model: run with `npm test`.
 import { buildParts, layoutRows, panelExtents, realOverhang } from "../src/model/parts";
 import { placedAppliances } from "../src/model/appliances";
 import { legWidth, mantelClearances } from "../src/model/mantel";
+import { defaultBack, planToProject, readPlan } from "../src/model/planImport";
+import { fromDwgDatabase, parseDxf } from "../src/import/cad";
 import { sampleProject, defaultSettings, presets, cabinetFromPreset } from "../src/model/defaults";
 import { findIssues, gapBeside, nextFreeOffset, resolveEnds } from "../src/model/layout";
 import { fmt, parseLength } from "../src/units";
@@ -785,6 +788,28 @@ eq('panel sticks out past frame', panelExtents(b21, s, { left: true, right: fals
   eq('gas/electric mantel checked against the manual chart', mantelClearances(chart).some((w) => w.includes("manual's chart")), true);
   eq('a shelf high enough passes the chart', mantelClearances({ ...chart, height: 70 }).filter((w) => w.includes('shelf')).length, 0);
   eq('mantel in the quote scope', scopeLine(me, { ...p, cabinets: [me] }).includes('Fireplace mantel'), true);
+}
+
+{
+  // Chief plan import: the Pope library's DWG export (LibreDWG's entities, saved as a fixture)
+  const fx = JSON.parse(readFileSync('scripts/fixtures/pope-plan.dwg.json', 'utf8'));
+  const plan = readPlan(fromDwgDatabase(fx))!;
+  eq('room inside the walls 157 1/4 x 180 1/2', [+(plan.rect.R - plan.rect.L).toFixed(3), +(plan.rect.T - plan.rect.B).toFixed(3)].join(), '157.25,180.5');
+  eq('bookcase wall picked as the back wall', defaultBack(plan), 'top');
+  const res = planToProject(plan, defaultBack(plan), 104.25);
+  const doors = res.openings.filter((o) => o.kind === 'door').sort((a, b) => a.offset - b.offset);
+  eq('two doors on the front wall at 6 1/4 and 115 3/4, 33 1/2 wide', doors.map((d) => `${d.wall}@${d.offset}/${d.width}/${d.door!.hinge}`).join(), 'front@6.25/33.5/left,front@115.75/33.5/right');
+  const wins = res.openings.filter((o) => o.kind === 'window').sort((a, b) => a.offset - b.offset);
+  eq('two 32" windows on the right wall', wins.map((w) => `${w.wall}@${w.offset.toFixed(3)}/${w.width}`).join(), 'right@38.109/32,right@122.316/32');
+  const tall = res.cabinets.filter((c) => c.kind === 'tall');
+  eq('four 31 3/4 x 12 full-height cabinets, 99" from the Chief label', tall.map((c) => `${c.width}x${c.depth}x${c.height}`).join(), Array(4).fill('31.75x12x99').join());
+  eq('five pilasters in the gaps, 3/4" proud', res.cabinets.filter((c) => c.kind === 'pilaster').map((c) => `${c.offset.toFixed(2)}:${c.width.toFixed(2)}:${c.pilaster!.proud}`).join(), '0.00:6.06:0.75,37.81:6.00:0.75,75.56:6.06:0.75,113.38:6.06:0.75,151.19:6.06:0.75');
+  // DXF reader: a block insert, an MTEXT with Chief's font codes, units in mm
+  const dxf = ['0','SECTION','2','HEADER','9','$INSUNITS','70','4','0','ENDSEC','0','SECTION','2','BLOCKS','0','BLOCK','2','BOX','10','0','20','0','0','LINE','8','0','10','0','20','0','11','254','21','0','0','ENDBLK','0','ENDSEC','0','SECTION','2','ENTITIES','0','INSERT','8','Walls','2','BOX','10','100','20','50','50','90','0','MTEXT','8','Cabinets, Labels','10','1','20','2','1','\\fChief Blueprint|b0;B24\\P','0','ENDSEC','0','EOF'].join('\n');
+  const d = parseDxf(dxf);
+  const ln = d.ents.find((e) => e.kind === 'line') as { a: [number, number]; b: [number, number]; layer: string };
+  eq('DXF: mm units, block insert rotated onto its layer', [d.scale.toFixed(4), ln.layer, ln.b.map((v) => Math.round(v)).join('/')].join(), `${(1 / 25.4).toFixed(4)},Walls,100/304`);
+  eq('DXF: Chief font codes stripped from labels', (d.ents.find((e) => e.kind === 'text') as { text: string }).text, 'B24');
 }
 
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');

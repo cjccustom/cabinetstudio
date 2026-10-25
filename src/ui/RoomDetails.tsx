@@ -1,4 +1,5 @@
 import { PhotoRoomButton, ScanImportButton } from './PhotoRoom';
+import { PlanImportButton } from './PlanImport';
 import { CofferSection } from './CofferSection';
 import { useState } from 'react';
 import { useStore } from '../store';
@@ -37,8 +38,8 @@ export function RoomDetails() {
     <>
       <Section title="Start from photos">
         <p className="hint">Photos of the existing space and your measurements: Claude drafts the room, doors, windows and trim for you to check.</p>
-        <div className="order-actions"><PhotoRoomButton className="primary" /><ScanImportButton /></div>
-        <p className="hint">Room scan: from the CJC Room Scan app on your iPhone Pro (LiDAR), saved to Dropbox or AirDropped here.</p>
+        <div className="order-actions"><PhotoRoomButton className="primary" /><ScanImportButton /><PlanImportButton /></div>
+        <p className="hint">Room scan: from the CJC Room Scan app on your iPhone Pro (LiDAR), saved to Dropbox or AirDropped here. Chief plan: File → Export → Export DWG/DXF from the floor plan view.</p>
       </Section>
       <CofferSection />
       <Section title="Doors & windows">
