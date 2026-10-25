@@ -49,5 +49,6 @@ Things the app is guessing at until Cody answers. Each one says what the app doe
 
 ## Not yet tried on a real job
 
-- **Reopening a design saved to Dropbox** from a client's folder.
+- **Reopening a design saved to Dropbox** from a client's folder. The Pope design was saved
+  there and read back through Dropbox intact; opening it from the Clients tab is the last step.
 - **A full Gemini render** from the Rendering tab or "Render this view".
