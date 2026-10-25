@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { askConfirm } from './Confirm';
 import { create } from 'zustand';
 import { useStore, normalize } from '../store';
 import type { Project } from '../model/types';
@@ -76,9 +77,12 @@ export async function saveToDropbox(extra: { quote?: boolean; orders?: boolean }
 async function openFolder(f: DbxEntry, stage: StageId) {
   const st = useStore.getState();
   const cur = st.project;
-  if (cur.dropbox?.id === f.id) return;
-  if (cur.dropbox) await saveToDropbox();
-  else if (cur.cabinets.length && !confirm('The design open now isn’t linked to a client. Open this client anyway? (Use Project file first if you want to keep it.)')) return;
+  const same = cur.dropbox?.id === f.id;
+  if (same) {
+    // Clicking the open client reloads its saved design (after asking, if there are unsaved changes)
+    if (sig(cur) !== useDbx.getState().savedSig && !(await askConfirm(`Reload ${f.name} from Dropbox? Changes since it was last saved will be lost.`, 'Reload'))) return;
+  } else if (cur.dropbox) await saveToDropbox();
+  else if (cur.cabinets.length && !(await askConfirm('The design open now isn’t linked to a client. Open this client anyway? (Use Project file first if you want to keep it.)', 'Open client'))) return;
   await run(`Opening ${f.name}…`, async () => {
     const text = await readFile(`${f.path}/${DESIGN_FILE}`);
     let p: Project;
@@ -91,7 +95,7 @@ async function openFolder(f: DbxEntry, stage: StageId) {
     }
     p = { ...p, dropbox: { ...p.dropbox, id: f.id, path: f.path, stage } };
     useStore.getState().loadProject(p);
-    useDbx.getState().set({ savedSig: text ? sig(p) : '' });
+    useDbx.getState().set({ savedSig: text ? sig(p) : '', note: text ? `Opened ${f.name}: ${p.cabinets.length} cabinets. Design is ready.` : `Opened ${f.name}; no saved design there yet, so this is a new one.` });
   });
 }
 
@@ -99,7 +103,7 @@ async function openFolder(f: DbxEntry, stage: StageId) {
 async function newClient(c: ClientInfo) {
   const st = useStore.getState();
   if (st.project.dropbox) await saveToDropbox();
-  else if (st.project.cabinets.length && !confirm('The design open now isn’t linked to a client. Start a new client anyway?')) return;
+  else if (st.project.cabinets.length && !(await askConfirm('The design open now isn’t linked to a client. Start a new client anyway?', 'Start new client'))) return;
   await run('Creating the client folder…', async () => {
     const folder = await createClientFolder('quote', folderName(c));
     const p: Project = { ...normalize({ ...sampleProject(), cabinets: [] }), name: folderName(c), client: { ...c, metOn: c.metOn || new Date().toLocaleDateString('en-US') }, dropbox: { id: folder.id, path: folder.path, stage: 'quote' } };
@@ -114,7 +118,7 @@ async function newClient(c: ClientInfo) {
 /* ---------- Left: every client, by stage ---------- */
 
 export function ClientsSide() {
-  const { folders, busy } = useDbx();
+  const { folders, busy, error, note } = useDbx();
   const project = useStore((s) => s.project);
   const [q, setQ] = useState('');
   const [adding, setAdding] = useState(false);
@@ -140,6 +144,9 @@ export function ClientsSide() {
           )}
           <input type="search" aria-label="Find a client" placeholder="Find a client" value={q} onChange={(e) => setQ(e.target.value)} style={{ marginTop: 8 }} />
         </Section>
+        {busy && <p className="hint" role="status">{busy}</p>}
+        {error && <p className="warn" role="status">{error}</p>}
+        {note && !error && !busy && <p className="ok" role="status">{note}</p>}
         {!folders && !busy && <p className="hint">Open Cabinet Studio on claude.ai with Dropbox connected, then press Refresh.</p>}
         {folders && stages.map((s) => {
           const list = (folders[s.id] ?? []).filter((f) => match(f.name));

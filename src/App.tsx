@@ -1,4 +1,5 @@
 import { CoverButton, DrawingsMain, DrawingsPanel, DrawingsSide } from './ui/Drawings';
+import { ConfirmHost } from './ui/Confirm';
 import { ClientMain, ClientPanel, ClientsSide } from './ui/Clients';
 import { ViewTools, navHint } from './ui/ViewTools';
 import { useNav } from './three/navigation';
@@ -205,6 +206,7 @@ export default function App() {
           </div>
         </div>
       )}
+      <ConfirmHost />
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import { PhotoRoomButton } from './PhotoRoom';
+import { askConfirm } from './Confirm';
 import { useEffect, useRef, useState } from 'react';
 import { create } from 'zustand';
 import { useStore } from '../store';
@@ -310,7 +311,7 @@ export function RenderSide() {
   const [msg, setMsg] = useState('');
   const put = (id: string, patch: Partial<RenderImage>) => set((cur) => ({ images: cur.images.map((i) => (i.id === id ? { ...i, ...patch } : i)) }));
   const remove = async (img: RenderImage) => {
-    if (!confirm(`Delete this ${img.kind === 'photo' ? 'photo' : 'rendering'}? This can’t be undone.`)) return;
+    if (!(await askConfirm(`Delete this ${img.kind === 'photo' ? 'photo' : 'rendering'}? This can’t be undone.`, 'Delete'))) return;
     if (img.assetId && assets) await assets.delete(img.assetId).catch(() => undefined);
     set((cur) => ({ images: cur.images.filter((i) => i.id !== img.id), quoteId: cur.quoteId === img.id ? undefined : cur.quoteId }));
   };

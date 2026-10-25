@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
+import { askConfirm } from './Confirm';
 import { useStore } from '../store';
 import { readCadFile } from '../import/cad';
 import { applyPlan, defaultBack, planToProject, readPlan, type PlanFound, type PlanSide } from '../model/planImport';
@@ -40,8 +41,8 @@ function PlanDialog({ plan, file, onClose }: { plan: PlanFound; file: string; on
   const [height, setHeight] = useState(project.room.height);
   const res = useMemo(() => planToProject(plan, back, height), [plan, back, height]);
   const had = project.cabinets.length + (project.openings?.length ?? 0);
-  const apply = () => {
-    if (had && !window.confirm(`Replace this design's ${project.cabinets.length} cabinets and ${project.openings?.length ?? 0} doors and windows with the plan's?`)) return;
+  const apply = async () => {
+    if (had && !(await askConfirm(`Replace this design's ${project.cabinets.length} cabinets and ${project.openings?.length ?? 0} doors and windows with the plan's?`, 'Replace'))) return;
     commit((p) => {
       const next = applyPlan(p, res, p.name === 'Untitled' || !p.name ? res.roomName || file.replace(/\.(dwg|dxf)$/i, '') : undefined);
       return { ...next, room: { ...next.room, height } };
