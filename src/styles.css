@@ -562,3 +562,27 @@ details.opening .grid3 { margin-top: 8px; }
 .table-checks { margin: 8px 0; padding-left: 18px; font-size: 12px; color: var(--muted); }
 .table-checks li { margin: 3px 0; }
 .table-ed label.chk-row { display: flex; gap: 8px; align-items: center; font-size: 13px; margin: 6px 0; }
+
+/* Contract */
+.contract h4 { margin: 14px 0 6px; font-size: 13px; }
+.contract .doc-table td { padding: 3px 4px; vertical-align: middle; }
+.sheet-sec.contract .doc-table input:not([type=checkbox]) { padding: 5px 8px; font-size: 14px; }
+.contract-lines td:first-child { width: 24px; }
+.contract-lines td:last-child, .pay-sched td:nth-child(2) { width: 120px; }
+.contract-lines tr.off input:not([type=checkbox]) { color: var(--muted); text-decoration: line-through; }
+.contract-lines .pill { margin-left: 6px; }
+.contract-lines td:nth-child(2) { display: flex; align-items: center; }
+.contract-total { display: flex; gap: 14px; align-items: end; margin: 10px 0; font-weight: 600; }
+.contract-total label { font-size: 12px; color: var(--muted); font-weight: 400; }
+.sheet-sec .contract-total input:not([type=checkbox]) { width: 140px; display: block; }
+.pay-sched .recv { display: flex; gap: 4px; align-items: center; }
+.sheet-sec .pay-sched .recv input:not([type=checkbox]) { width: auto; }
+.contract-scope { margin-top: 10px; font-size: 13px; }
+.contract-scope p { margin: 2px 0 6px; }
+.contract-notes { display: block; font-size: 12px; color: var(--muted); margin-top: 10px; }
+.file-pick { margin: 8px 0; padding-left: 18px; }
+.pay-row { display: grid; grid-template-columns: minmax(0, 1fr) 110px 28px; gap: 6px; align-items: center; padding: 6px 0; border-top: 1px solid var(--line); }
+.pay-row .pay-recv { grid-column: 1 / -1; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.sheet-sec .pay-row .pay-recv input:not([type=checkbox]) { width: auto; }
+.pay-row .pay-recv .ok { margin: 0; }
+.sheet-sec .pay-row .pay-recv input[type=date] { width: 150px; } .pay-row .pay-recv select { width: 130px; } .sheet-sec .pay-row .pay-recv input[aria-label="Check number"] { width: 90px; }

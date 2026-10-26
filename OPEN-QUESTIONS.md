@@ -84,3 +84,15 @@ Things the app is guessing at until Cody answers. Each one says what the app doe
   "Custom cabinetry" service). Deposits, final and change orders all use it for now.
 - **Cancellations after a deposit.** The portal shows the cancellation; refund or void the
   deposit invoice in QuickBooks yourself (within 10 business days).
+
+## Furniture
+
+- **Table labor standards.** Starting guesses for a one-off table (about 40 h for an 84" white
+  oak table on tapered legs, 56 h for a 96" trestle with breadboards). Adjust as you build them;
+  they live in src/model/furniture.ts until there's a settings screen for them.
+- **Lumber price.** Enter $/BF per table (or the species price on the Solid wood tab).
+
+## Sold jobs from Word
+
+- **Pope contract.** Import "Pope - library.docx" from the Clients tab, tick the fireplace option
+  they chose, and enter the agreed total and payment schedule settled on site.

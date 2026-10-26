@@ -9,6 +9,7 @@ import { releaseOf } from '../model/release';
 import { createClientFolder, listClients, listFolder, moveFolder, readFile, whereIs, writeFile, DropboxError, type DbxEntry } from '../dropbox';
 import { Field, Section } from './fields';
 import { ClientPortal } from './Portal';
+import { ContractSection } from './Contract';
 
 const DESIGN_FILE = 'Cabinet Studio design.json';
 const INFO_FILE = 'Client info.md';
@@ -218,6 +219,8 @@ export function ClientMain() {
           <h3>Project scope</h3>
           <textarea id="cl-scope" rows={7} value={c.scope} placeholder="What they want, in your words: rooms, built-ins, style, finish, budget, timing…" onChange={(e) => put({ scope: e.target.value })} />
         </section>
+
+        <ContractSection />
 
         <ClientPortal />
 

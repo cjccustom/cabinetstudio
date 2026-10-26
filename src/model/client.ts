@@ -109,16 +109,8 @@ export function clientInfoDoc(p: Project): string {
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const money = (v: number) => `$${Math.round(v).toLocaleString('en-US')}`;
 
-/** The price and the 30% deposit the purchase agreement asks for. */
-export function quoteTotals(p: Project): { total: number; deposit: number } {
-  const total = priceQuote(p).total;
-  return { total, deposit: Math.round(total * 0.3) };
-}
-
-/** Scope of work and purchase agreement, laid out like Cody's Word template; opens in a browser or Word and prints to PDF.
- *  `online` is the copy for the client portal, which is signed electronically on the page instead of on signature lines. */
-export function quoteDoc(p: Project, opts: { online?: boolean } = {}): string {
-  const c = clientOf(p);
+/** The purchase agreement's price lines: workload, adjustment and rounding spread over them so they add up to the total. */
+export function proposalLines(p: Project): { label: string; price: number }[] {
   const q = quoteOf(p);
   const r = priceQuote(p);
   const adj = 1 + q.workloadAdj[q.workload];
@@ -130,6 +122,21 @@ export function quoteDoc(p: Project, opts: { online?: boolean } = {}): string {
   const sum = lines.reduce((t, l) => t + l.price, 0) || 1;
   const rounded = lines.map((l) => ({ ...l, price: Math.round(((l.price / sum) * r.total) / 10) * 10 }));
   if (rounded.length) rounded[0].price += r.total - rounded.reduce((t, l) => t + l.price, 0);
+  return rounded;
+}
+
+/** The price and the 30% deposit the purchase agreement asks for. */
+export function quoteTotals(p: Project): { total: number; deposit: number } {
+  const total = priceQuote(p).total;
+  return { total, deposit: Math.round(total * 0.3) };
+}
+
+/** Scope of work and purchase agreement, laid out like Cody's Word template; opens in a browser or Word and prints to PDF.
+ *  `online` is the copy for the client portal, which is signed electronically on the page instead of on signature lines. */
+export function quoteDoc(p: Project, opts: { online?: boolean } = {}): string {
+  const c = clientOf(p);
+  const r = priceQuote(p);
+  const rounded = proposalLines(p);
   const { deposit } = quoteTotals(p);
   const head = `<div class="co"><img src="${LOGO}" alt="CJC Custom Carpentry" style="height:.62in;display:block;margin-bottom:6px">${COMPANY.slice(1).map(esc).join('<br>')}</div>`;
   const who = `<table class="who"><tr><th>Client Name</th><td>${esc(clientName(c))}</td></tr><tr><th>Project Address</th><td>${esc(c.address)}</td></tr>`;

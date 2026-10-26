@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { cancelDeadline, holidays } from "../portal/src/cancel";
 import { expiring } from "../src/portal";
 import { newTable, seats, tableEstimate, tableScope } from "../src/model/furniture";
+import { contractTotal, parseWordQuote, splitNames } from "../src/model/contract";
 // Sanity checks on the cabinet model: run with `npm test`.
 import { buildParts, layoutRows, panelExtents, realOverhang } from "../src/model/parts";
 import { placedAppliances } from "../src/model/appliances";
@@ -834,6 +835,20 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   const r = priceQuote(tp);
   eq('table: priced as Furniture', r.groups.map((g) => g.group).join(), 'furniture');
   eq('table: lumber from its own $/BF', Math.round(tableEstimate(t, tp).materials[0].cost), Math.round(tableEstimate(t, tp).bf * 16));
+}
+
+// Sold quotes from Word: scope, prices, options, allowances, schedule
+{
+  const r = parseWordQuote(readFileSync('scripts/fixtures/sample-quote.txt', 'utf8'));
+  const c = r.contract;
+  eq('word quote: client and date', [r.client.names, r.client.email, c.agreementDate, c.title].join('|'), 'Jane & John Sample|jane@example.com|2026-10-04|Office-to-Library Renovation');
+  eq('word quote: names split', JSON.stringify(splitNames('Melissa & Michael Pope')), '{"first":"Melissa","partner":"Michael","last":"Pope"}');
+  eq('word quote: scope sections', c.scope.map((x) => x.num || x.title).join(), '1,2,3,4,5A,5B,Painting & Finishing,Project Conditions');
+  eq('word quote: allowances', c.allowances.map((a) => a.label).join(' / '), 'Putnam Rolling Ladder model Classic No.1 / Dimplex Revillusion 30” electric firebox insert');
+  eq('word quote: price lines, options unticked', c.lines.map((l) => `${l.price}${l.option ? '?' : ''}`).join(), '4800,12280?,10340?,12790,26480,10800');
+  eq('word quote: blank total and schedule flagged', [c.totalOverride ?? 'none', c.schedule.length, r.warnings.length].join(), 'none,3,3');
+  c.lines[1].chosen = true;
+  eq('word quote: total with the full-height option', contractTotal(c), 67150);
 }
 
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');
