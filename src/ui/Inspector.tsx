@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { cofferOf, perimOf } from '../model/coffer';
 import { combine, combineAll, stackedPairs, upperOn } from '../model/onePiece';
 import { useStore } from '../store';
 import type { CabinetNote, Cabinet, CrownBuild, EndMode, FaceRow, PanelChoice, PanelMode, ShopSettings, WallId } from '../model/types';
@@ -755,6 +756,13 @@ function ApplianceEditor({ a, openingH, problems, onChange }: { a: Appliance; op
 /** A fireplace surround: the firebox and its opening, legs, frieze, shelf, corbels and pediment. */
 function MantelSection({ cab, set }: { cab: Cabinet; set: (patch: Partial<Cabinet>) => void }) {
   const m = mantelOf(cab);
+  const project = useStore((s) => s.project);
+  const jobPilaster = project.cabinets.find((c) => c.kind === 'pilaster' && c.pilaster);
+  const pilBuild = m.legs === 'pilaster' && m.legBuild === 'pilaster';
+  // The ceiling trim: the underside of the coffered ceiling's perimeter fascia, or the ceiling
+  const ceil = cofferOf(project);
+  const trimY = project.room.height - (ceil.on && ceil.perimeter ? ceil.drop : 0);
+  const soffitW = ceil.on && ceil.perimeter ? perimOf(ceil, cab.wall) : 0;
   const legW = legWidth(cab, m);
   // Changing the opening keeps the legs the same width, so the overall width follows
   const put = (patch: Partial<MantelSpec>, keepLegs = true) => {
@@ -858,14 +866,56 @@ function MantelSection({ cab, set }: { cab: Cabinet; set: (patch: Partial<Cabine
           </Field>
           {m.legs !== 'none' && <Field label="Leg width" htmlFor="mt-legw"><LengthInput id="mt-legw" value={legW} onChange={(v) => set({ width: widthFor(m, v ?? 0) })} /></Field>}
           {m.legs === 'pilaster' && len('legProud', 'Proud of frieze')}
-          {m.legs !== 'none' && len('plinth', 'Plinth height')}
-          {m.legs !== 'none' && len('capital', 'Capital height')}
-          {m.legs !== 'none' && len('blockProud', 'Blocks proud')}
+          {m.legs === 'pilaster' && (
+            <Field label="Built as" htmlFor="mt-build">
+              <select id="mt-build" value={m.legBuild} onChange={(e) => {
+                const legBuild = e.target.value as MantelSpec['legBuild'];
+                // Same build as the job's pilasters, when there are some
+                const like = jobPilaster?.pilaster;
+                put({ legBuild, ...(legBuild === 'pilaster' && like && !Object.keys(m.pilaster).length ? { pilaster: { ...like, breaks: [] } } : {}) });
+              }}>
+                <option value="boxed">Boxed legs</option>
+                <option value="pilaster">{jobPilaster ? `Like the ${jobPilaster.name} pilasters` : 'Frame-and-panel pilasters'}</option>
+              </select>
+            </Field>
+          )}
+          {m.legs !== 'none' && !pilBuild && len('plinth', 'Plinth height')}
+          {m.legs !== 'none' && !pilBuild && len('capital', 'Capital height')}
+          {m.legs !== 'none' && !pilBuild && len('blockProud', 'Blocks proud')}
+          {pilBuild && (['plinth', 'capital'] as const).map((k) => (
+            <Field key={k} label={k === 'plinth' ? 'Plinth height' : 'Capital height'} htmlFor={`mt-p-${k}`}>
+              <LengthInput id={`mt-p-${k}`} value={m.pilaster[k] ?? defaultPilaster[k]} onChange={(v) => put({ pilaster: { ...m.pilaster, [k]: v ?? 0 } })} />
+            </Field>
+          ))}
           {len('shelfThickness', 'Shelf thickness')}
           {len('shelfDepth', 'Shelf depth')}
           {len('shelfOverhang', 'Shelf past legs')}
         </div>
         <p className="hint">Width is the outside of the legs; height is the top of the shelf; depth is the wall to the frieze face.</p>
+      </Section>
+      <Section title="Chimney & full height">
+        <label className="chk-row"><input type="checkbox" checked={m.chimney} onChange={(e) => put({ chimney: e.target.checked })} /> Faux chimney behind it, framed out to the frieze ({fmt(cab.depth - m.stock)} from the wall)</label>
+        {m.chimney && soffitW > 0 && Math.abs(cab.depth - soffitW) > 0.01 && (
+          <p className="hint">The ceiling soffit on this wall is {fmt(soffitW)} wide. <button className="link-btn" onClick={() => set({ depth: soffitW })}>Bring the frieze out to it</button> so the chimney lines up with the fascia.</p>
+        )}
+        <label className="chk-row"><input type="checkbox" checked={m.upper.on} onChange={(e) => put({ upper: { ...m.upper, on: e.target.checked, top: m.upper.top > cab.height ? m.upper.top : trimY } })} /> Full height above the shelf: pilasters over the legs and a panel between them</label>
+        {m.upper.on && (
+          <div className="grid3">
+            <Field label="Up to" htmlFor="mt-utop"><LengthInput id="mt-utop" value={m.upper.top} onChange={(v) => put({ upper: { ...m.upper, top: v ?? 0 } })} /></Field>
+            <Field label="Pilaster base" htmlFor="mt-uplinth"><LengthInput id="mt-uplinth" value={m.upper.plinth} onChange={(v) => put({ upper: { ...m.upper, plinth: v ?? 0 } })} /></Field>
+            <Field label="Panel stiles" htmlFor="mt-ust"><LengthInput id="mt-ust" value={m.upper.frameStile} onChange={(v) => put({ upper: { ...m.upper, frameStile: v ?? 3 } })} /></Field>
+            <Field label="Panel rails" htmlFor="mt-url"><LengthInput id="mt-url" value={m.upper.frameRail} onChange={(v) => put({ upper: { ...m.upper, frameRail: v ?? 3.5 } })} /></Field>
+          </div>
+        )}
+        {m.upper.on && Math.abs(m.upper.top - trimY) > 0.01 && <p className="hint">The ceiling trim is at {fmt(trimY)}. <button className="link-btn" onClick={() => put({ upper: { ...m.upper, top: trimY } })}>Run it up to there</button></p>}
+      </Section>
+      <Section title="Base wrap">
+        <div className="grid3">
+          <Field label="Baseboard" htmlFor="mt-bh"><LengthInput id="mt-bh" value={m.baseH} onChange={(v) => put({ baseH: v ?? 0 })} /></Field>
+          <Field label="Base cap" htmlFor="mt-bch"><LengthInput id="mt-bch" value={m.baseCapH} onChange={(v) => put({ baseCapH: v ?? 0 })} /></Field>
+          <Field label="Thickness" htmlFor="mt-bt"><LengthInput id="mt-bt" value={m.baseT} onChange={(v) => put({ baseT: v ?? 0.75 })} /></Field>
+        </div>
+        <p className="hint">The room's baseboard, wrapped around the chimney sides, the plinths and across the front. 0 = none.</p>
       </Section>
       <Section title="Corbels & pediment">
         <div className="grid3">

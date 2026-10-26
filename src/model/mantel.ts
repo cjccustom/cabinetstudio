@@ -4,11 +4,12 @@
 // pediment on top. The firebox is an electric or gas insert, or an existing wood-burning firebox.
 // Cabinet-local coordinates like every cabinet: x across from the left leg, y up, z out from the wall.
 // width is the outside of the legs, height the top of the shelf, depth the wall to the frieze face.
-import type { Cabinet, CutShape, Part, ShopSettings } from './types';
+import type { Cabinet, CutShape, Part, PilasterSpec, ShopSettings, VisualBox } from './types';
 import type { Appliance } from './appliances';
 import { vb } from './parts';
 import { fmt } from '../units';
 import { mountShape, profileByNum } from './moldings';
+import { defaultPilaster, pilasterParts } from './pilaster';
 
 export type Fuel = 'electric' | 'gas' | 'wood';
 
@@ -56,6 +57,21 @@ export interface MantelSpec {
    * sides, and each row allows trim up to maxDepth deep once it's at least `above` over the opening top.
    */
   manual: { sideGap: number; rows: { above: number; maxDepth: number }[] };
+  /** boxed: a face board with returns to the wall; pilaster: the frame-and-panel pilaster the bookcases use. */
+  legBuild: 'boxed' | 'pilaster';
+  /** The pilaster build for pilaster legs and the upper pilasters. */
+  pilaster: Partial<PilasterSpec>;
+  /** A faux chimney the surround is built on: framed and skinned out to the frieze line, as wide as the mantel. */
+  chimney: boolean;
+  /**
+   * Full-height treatment above the shelf: pilasters over the legs framing a panel, up to `top`
+   * (off the floor; the ceiling trim). The panel is the same frame-and-panel build.
+   */
+  upper: { on: boolean; top: number; plinth: number; frameStile: number; frameRail: number };
+  /** The room's baseboard wrapped around the chimney, plinths and front: flat board, cap, thickness. 0 = none. */
+  baseH: number;
+  baseCapH: number;
+  baseT: number;
 }
 
 export const fuelLabel: Record<Fuel, string> = { electric: 'Electric insert', gas: 'Gas insert', wood: 'Existing wood-burning firebox' };
@@ -67,8 +83,17 @@ export const defaultMantel: MantelSpec = {
   shelfThickness: 2, shelfDepth: 10, shelfOverhang: 2, corbels: 2, corbelW: 3.5, corbelH: 7,
   pediment: 'none', pedimentH: 8, stock: 0.75, species: 'Poplar',
   install: 'factory', hearthFront: 20, hearthSide: 12, hearthThickness: 2, manual: { sideGap: 0, rows: [] },
+  legBuild: 'boxed', pilaster: {}, chimney: false, upper: { on: false, top: 0, plinth: 0, frameStile: 3, frameRail: 3.5 }, baseH: 0, baseCapH: 0, baseT: 0.75,
 };
-export const mantelOf = (c: Cabinet): MantelSpec => ({ ...defaultMantel, ...c.mantel, manual: { ...defaultMantel.manual, ...c.mantel?.manual } });
+export const mantelOf = (c: Cabinet): MantelSpec => ({
+  ...defaultMantel, ...c.mantel,
+  manual: { ...defaultMantel.manual, ...c.mantel?.manual },
+  upper: { ...defaultMantel.upper, ...c.mantel?.upper },
+});
+/** Where the upper section stops: its own top, or a sensible height when none is set yet. */
+export const upperTop = (c: Cabinet, m = mantelOf(c)) => (m.upper.top > c.height + 6 ? m.upper.top : c.height + 40);
+/** The face of the chimney, where the frieze and upper panel sit. */
+const chimneyFace = (c: Cabinet, m: MantelSpec) => c.depth - m.stock;
 
 /** IRC R1001.10: 16" in front and 8" past each side, or 20" and 12" for an opening of 6 sq ft or more. */
 export function hearthRequired(m: MantelSpec): { front: number; side: number; thickness: number; big: boolean } {
@@ -106,7 +131,7 @@ function corbelShape(x: number, y: number, z: number, w: number, h: number, d: n
   return { along: 'z', min: [x, y, z], thickness: w, outline };
 }
 
-export function mantelParts(c: Cabinet, _s: ShopSettings): Part[] {
+export function mantelParts(c: Cabinet, s: ShopSettings): Part[] {
   const m = mantelOf(c);
   const L = mantelLayout(c, m);
   const W = c.width, D = c.depth, t = m.stock;
@@ -114,7 +139,17 @@ export function mantelParts(c: Cabinet, _s: ShopSettings): Part[] {
   const out: Part[] = [];
   const piece = (name: string, length: number, width: number, thickness: number, boxes: Part['boxes'], note?: string, shapes?: CutShape[]): Part =>
     ({ name, role: 'trim', material: 'faceframe', species: sp, length, width, thickness, cut: true, note, boxes, shapes });
-  if (m.legs !== 'none' && L.legW > 0.5) {
+  const pil = m.legs === 'pilaster' && m.legBuild === 'pilaster';
+  const zc = chimneyFace(c, m);
+  /** A pilaster built like the bookcase ones, applied to the chimney face (or standing off the wall). */
+  const pilasterAt = (name: string, x0: number, y0: number, w: number, h: number, plinth: number): Part[] => {
+    const back = m.chimney ? zc : 0;
+    const virt: Cabinet = { ...c, kind: 'pilaster', width: w, height: h, depth: L.legFace - back, crown: undefined, pilaster: { ...defaultPilaster, proud: 0.75, ...m.pilaster, plinth, breaks: [] } };
+    return pilasterParts(virt, s).map((p) => ({ ...p, name: p.name.replace(/^Pilaster/, name).replace(/^Plinth block/, `${name} plinth`).replace(/^Capital block/, `${name} capital`), note: [x0 < W / 2 ? 'Left' : 'Right', p.note].filter(Boolean).join(', '), boxes: p.boxes.map((b) => shift(b, x0, y0, back)) }));
+  };
+  if (pil && L.legW > 0.5) {
+    for (const x0 of [0, W - L.legW]) out.push(...pilasterAt('Leg pilaster', x0, 0, L.legW, L.capTop, m.pilaster.plinth ?? defaultPilaster.plinth));
+  } else if (m.legs !== 'none' && L.legW > 0.5) {
     for (const side of ['Left', 'Right'] as const) {
       const x0 = side === 'Left' ? 0 : W - L.legW;
       const h = L.capTop;
@@ -171,8 +206,56 @@ export function mantelParts(c: Cabinet, _s: ShopSettings): Part[] {
     out.push(piece(m.pediment === 'triangle' ? 'Pediment' : 'Arched pediment', pw, m.pedimentH, t, [], 'on the shelf, set back to the frieze; mouldings run its rake',
       [{ along: 'x', min: [x0, c.height, D - t], thickness: t, outline }]));
   }
+  // The faux chimney: framed, skinned on its sides, the full height of the treatment
+  const top = m.upper.on ? upperTop(c, m) : c.height;
+  if (m.chimney) {
+    const skin = 0.75;
+    out.push({ name: 'Chimney framing', role: 'nailer', material: 'box', length: top, width: zc - skin, thickness: 3.5, cut: false,
+      note: `2x4 studs at 16", plates top and bottom, a header over the insert opening; ${fmt(W)} wide × ${fmt(zc)} out from the wall. Frame the insert opening to the manual.`, boxes: [] });
+    for (const [side, x] of [['Left', -skin], ['Right', W]] as const) {
+      out.push({ name: 'Chimney side', role: 'side', material: 'back', look: 'paint', sheet: '3/4" MDF', length: top, width: zc, thickness: skin, cut: true,
+        note: `${side}; painted with the walls`, boxes: [vb(x, 0, 0, skin, top, zc)] });
+    }
+    out.push({ name: 'Chimney face', role: 'back', material: 'back', look: 'paint', sheet: '3/4" MDF', length: top, width: W, thickness: skin, cut: true,
+      note: 'Behind the frieze, legs and upper panel; cut out for the insert opening. Shows as a painted facing beside the insert.', boxes: [vb(0, 0, zc - skin, W, top, skin)] });
+  }
+  // Full height above the shelf: pilasters over the legs and a frame-and-panel between them
+  if (m.upper.on && L.legW > 0.5) {
+    const y0 = c.height, h = top - y0;
+    if (h > 6) {
+      for (const x0 of [0, W - L.legW]) out.push(...pilasterAt('Upper pilaster', x0, y0, L.legW, h, m.upper.plinth));
+      const fx = L.legW, fw = W - 2 * L.legW, st = m.upper.frameStile, rl = m.upper.frameRail, ft = t, fz = zc;
+      for (const [n, x] of [['Left', fx], ['Right', fx + fw - st]] as const) out.push(piece('Overmantel stile', h, st, ft, [vb(x, y0, fz, st, h, ft)], n));
+      for (const [n, y] of [['bottom', y0], ['top', top - rl]] as const) out.push(piece('Overmantel rail', fw - 2 * st, rl, ft, [vb(fx + st, y, fz, fw - 2 * st, rl, ft)], n));
+      const pw = fw - 2 * st, ph = h - 2 * rl, rb = defaultPilaster.rabbet;
+      if (pw > 1 && ph > 1) out.push({ name: 'Overmantel panel', role: 'back', material: 'back', look: 'paint', sheet: '1/4" MDF', length: ph + 2 * rb - 0.0625, width: pw + 2 * rb - 0.0625, thickness: 0.25, cut: true,
+        note: `set into a ${fmt(rb)} rabbet from the back`, boxes: [vb(fx + st, y0 + rl, fz - 0.1875, pw, ph, 0.25, 0.94)] });
+    }
+  }
+  // The room's two-piece baseboard wrapped around the chimney sides, the plinths and across the front
+  if (m.baseH > 0) {
+    const bt = m.baseT, bh = m.baseH, ch = m.baseCapH;
+    const plinthFace = pil ? L.legFace + (m.pilaster.proud ?? 0.75) : L.legFace + m.blockProud;
+    const sideX = m.chimney ? -0.75 : 0;
+    type Run = { name: string; len: number; box: (y: number, h: number) => VisualBox };
+    const all: Run[] = [
+      { name: 'left side, to the wall', len: plinthFace + bt, box: (y, h) => vb(sideX - bt, y, 0, bt, h, plinthFace + bt) },
+      { name: 'right side, to the wall', len: plinthFace + bt, box: (y, h) => vb(W - sideX, y, 0, bt, h, plinthFace + bt) },
+      { name: 'left plinth front', len: L.legW - sideX + bt, box: (y, h) => vb(sideX - bt, y, plinthFace, L.legW - sideX + bt, h, bt) },
+      { name: 'right plinth front', len: L.legW - sideX + bt, box: (y, h) => vb(W - L.legW, y, plinthFace, L.legW - sideX + bt, h, bt) },
+      { name: 'left plinth return', len: plinthFace + bt - D, box: (y, h) => vb(L.legW, y, D, bt, h, plinthFace - D) },
+      { name: 'right plinth return', len: plinthFace + bt - D, box: (y, h) => vb(W - L.legW - bt, y, D, bt, h, plinthFace - D) },
+      { name: 'front, between the legs', len: W - 2 * L.legW - 2 * bt, box: (y, h) => vb(L.legW + bt, y, D, W - 2 * L.legW - 2 * bt, h, bt) },
+    ];
+    for (const r of all.filter((x) => x.len > 0.25)) {
+      out.push(piece('Baseboard', r.len, bh, bt, [r.box(0, bh)], `${r.name}; matches the room's, mitered at the corners`));
+      if (ch > 0) out.push(piece('Base cap', r.len, ch, bt, [r.box(bh, ch)], `${r.name}; custom, milled to match the existing`));
+    }
+  }
   return out;
 }
+
+const shift = (b: VisualBox, dx: number, dy: number, dz: number): VisualBox => ({ ...b, min: [b.min[0] + dx, b.min[1] + dy, b.min[2] + dz] });
 
 /**
  * Clearance checks for the surround, by the rules that govern it.

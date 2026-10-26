@@ -871,6 +871,22 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   eq('one piece: ladder top rail kept', parts.find((x) => x.name === 'Top rail')!.width, 6);
 }
 
+// Full-height fireplace: pilaster legs like the bookcases, a faux chimney, an overmantel to the trim, the base wrapped
+{
+  const fp = { ...cabinetFromPreset(presets.find((x) => x.id === 'mantel-electric')!, 'front', 40, []), depth: 13.5, width: 52.625, height: 54 };
+  fp.mantel = { openingW: 31.25, openingH: 26.625, openingY: 8, margin: (52.625 - 12 - 31.25) / 2, legs: 'pilaster', legBuild: 'pilaster', corbels: 0, chimney: true,
+    pilaster: { plinth: 7, capital: 3.5, stile: 1.5, rail: 2, proud: 0.75 }, upper: { on: true, top: 98.75, plinth: 2, frameStile: 3, frameRail: 3.5 }, baseH: 6, baseCapH: 1.625, baseT: 0.75 };
+  const parts = buildParts(fp, s);
+  const names = (re: RegExp) => parts.filter((x) => re.test(x.name)).length;
+  eq('fireplace: legs are frame-and-panel pilasters', [names(/^Leg pilaster stile/), names(/^Leg pilaster panel/), names(/^Upper pilaster panel/)].join(), '4,2,2');
+  const top = Math.max(...parts.flatMap((x) => x.boxes.map((b) => b.min[1] + b.size[1])));
+  eq('fireplace: overmantel stops at the ceiling trim', top.toFixed(3), '98.750');
+  eq('fireplace: chimney sides full height, out to the frieze line', parts.filter((x) => x.name === 'Chimney side').map((x) => `${x.length}x${x.width}`).join(), '98.75x12.75,98.75x12.75');
+  eq('fireplace: two-piece base in 7 runs', `${names(/^Baseboard$/)}/${names(/^Base cap$/)}`, '7/7');
+  const front = parts.find((x) => x.name === 'Baseboard' && x.note?.startsWith('front'))!;
+  eq('fireplace: base across the front between the plinths', front.length, 52.625 - 12 - 1.5);
+}
+
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');
 
 console.log(failed ? `${failed} check(s) failed` : 'All model checks passed');

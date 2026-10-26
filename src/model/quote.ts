@@ -64,6 +64,13 @@ export interface LaborStandards {
   mantelPilasters: number;
   mantelCorbel: number;
   mantelPediment: number;
+  /** Full height above the shelf: upper pilasters and the overmantel frame and panel; installing it. */
+  mantelUpper: number;
+  installMantelUpper: number;
+  /** A faux chimney: framing and skin, full height. */
+  chimneyFraming: number;
+  /** The room's baseboard wrapped around a mantel and chimney. */
+  mantelBaseWrap: number;
   fireboxFraming: number;
   installMantel: number;
   /** Hang an interior door: a prehung unit, plus extra to fit a slab into an existing jamb. */
@@ -90,6 +97,10 @@ export const defaultStandards: LaborStandards = {
   mantelPilasters: 6,
   mantelCorbel: 1.5,
   mantelPediment: 4,
+  mantelUpper: 10,
+  installMantelUpper: 4,
+  chimneyFraming: 6,
+  mantelBaseWrap: 1.5,
   fireboxFraming: 8,
   installMantel: 10,
   cofferLayout: 6,
@@ -214,6 +225,13 @@ export function estimateHours(p: Project, q: QuoteSettings): HourLine[] {
       if (m.legs === 'pilaster') add('Mantels: pilaster legs, plinths & capitals', 1, st.mantelPilasters ?? 6);
       if (m.corbels) add('Mantels: corbels', m.corbels, st.mantelCorbel ?? 1.5);
       if (m.pediment !== 'none') add('Mantels: pediment', 1, st.mantelPediment ?? 4);
+      if (m.upper.on) {
+        add('Mantels: upper pilasters & overmantel panel', 1, st.mantelUpper ?? 10);
+        add('Install overmantel', 1, st.installMantelUpper ?? 4, 'cabinets', true);
+        installHours += st.installMantelUpper ?? 4;
+      }
+      if (m.chimney) { add('Faux chimney: framing & skin', 1, st.chimneyFraming ?? 6, 'cabinets', true); installHours += st.chimneyFraming ?? 6; }
+      if (m.baseH > 0) { add('Baseboard wrapped around the chimney & mantel', 1, st.mantelBaseWrap ?? 1.5, 'cabinets', true); installHours += st.mantelBaseWrap ?? 1.5; }
       if (m.fuel !== 'wood') { add('Firebox layout & surround framing', 1, st.fireboxFraming ?? 8, 'cabinets', true); installHours += st.fireboxFraming ?? 8; }
       add('Install mantels: fit, scribe & trim', 1, st.installMantel ?? 10, 'cabinets', true);
       installHours += st.installMantel ?? 10;
@@ -461,13 +479,15 @@ export function scopeLine(c: Cabinet, p: Project): string {
     const m = mantelOf(c);
     const bits = [
       `Fireplace mantel, approx ${fmtIn(c.width)}W x ${fmtIn(c.height)}H`,
-      m.legs === 'pilaster' ? 'pilaster legs with plinths and capitals' : m.legs === 'flat' ? 'flat legs' : '',
+      m.chimney ? 'built on a framed faux chimney' : '',
+      m.legs === 'pilaster' ? (m.legBuild === 'pilaster' ? 'frame-and-panel pilaster legs with plinths and capitals, matching the bookcase pilasters' : 'pilaster legs with plinths and capitals') : m.legs === 'flat' ? 'flat legs' : '',
       'frieze',
       `${fmtIn(m.shelfThickness)} thick mantel shelf${c.crown ? ' with bed moulding' : ''}`,
       m.corbels ? `(${m.corbels}) corbels` : '',
       m.pediment !== 'none' ? `${m.pediment === 'arch' ? 'arched ' : ''}pediment` : '',
       m.fuel === 'wood' ? 'surround for the existing wood-burning firebox' : `opening for owner's ${m.fuel === 'gas' ? 'gas' : 'electric'} insert${m.insert?.model ? ` (${m.insert.model})` : ''}`,
-      c.baseMold ? 'base moulding' : '',
+      m.upper.on ? `full-height overmantel to the ceiling trim (approx ${fmtIn(m.upper.top)} high): pilasters over the legs framing a recessed panel` : '',
+      m.baseH > 0 ? 'existing two-piece baseboard profile wrapped around the chimney and plinths' : c.baseMold ? 'base moulding' : '',
       'paint grade',
     ].filter(Boolean);
     return `${c.name}: ${bits.join('; ')}`;
