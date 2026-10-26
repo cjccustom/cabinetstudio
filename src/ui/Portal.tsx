@@ -79,7 +79,7 @@ export function ClientPortal() {
   });
 
   const refresh = () => run('Checking…', async () => { keep(await jobStatus(portal!.jobId), portal!.jobId); });
-  const copy = async () => { await navigator.clipboard.writeText(portal!.url!).then(() => setNote('Link copied.'), () => setNote('Select the link and copy it.')); };
+  const copy = (text: string, what: string) => navigator.clipboard.writeText(text).then(() => setNote(`${what} copied.`), () => setNote('Select the link and copy it.'));
   const message = `Hi ${c.first || 'there'}, here’s your project page with the design, proposal and agreement: ${portal?.url ?? ''}`;
 
   return (
@@ -95,9 +95,11 @@ export function ClientPortal() {
       {portal?.url && (
         <div className="portal-link">
           <input aria-label="Client link" readOnly value={portal.url} onFocus={(e) => e.target.select()} />
-          <button onClick={copy}>Copy</button>
-          {c.phone && <a className="btn" href={`sms:${c.phone.replace(/[^\d+]/g, '')}?&body=${encodeURIComponent(message)}`}>Text</a>}
-          {c.email && <a className="btn" href={`mailto:${c.email}?subject=${encodeURIComponent(`Your project with CJC Custom Carpentry`)}&body=${encodeURIComponent(message)}`}>Email</a>}
+          <button onClick={() => copy(portal.url!, 'Link')}>Copy link</button>
+          <button onClick={() => copy(message, 'Message')}>Copy message</button>
+          <a className="btn" href={portal.url} target="_blank" rel="noopener noreferrer">Preview</a>
+          {c.phone && <a className="btn" href={`sms:${c.phone.replace(/[^\d+]/g, '')}?&body=${encodeURIComponent(message)}`} target="_blank" rel="noopener noreferrer">Text</a>}
+          {c.email && <a className="btn" href={`mailto:${c.email}?subject=${encodeURIComponent(`Your project with CJC Custom Carpentry`)}&body=${encodeURIComponent(message)}`} target="_blank" rel="noopener noreferrer">Email</a>}
         </div>
       )}
       {st && <PortalStatus st={st} checkedAt={portal?.checkedAt} />}
