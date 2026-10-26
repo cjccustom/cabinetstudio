@@ -5,11 +5,13 @@
 //   /                  setup page
 //   /qb                connecting QuickBooks Online (and /qb/callback, where Intuit returns)
 //   /legal/...         the end-user agreement and privacy pages Intuit asks an app to have
+//   /cal/<code>.ics    Cody's private appointment calendar, for his iPhone to subscribe to
 // Setup in Cloudflare: a KV namespace bound as PORTAL, and a Secret named SHOP_KEY; for
 // QuickBooks, Secrets QB_CLIENT_ID and QB_CLIENT_SECRET (and QB_ENV = sandbox to test first).
 import { type Env, type Job, type ShopDoc, b64ToBytes, getJob, getShop, jobByToken, putJob, putShop, randomToken, sha256 } from './store';
 import { agreementPage, esc, projectPage, simplePage } from './pages';
 import { canCancel, cancelDeadline, easternYmd } from './cancel';
+import { calendar, deleteAppt, feedCode, listAppts, saveAppt, apptLabel, type Appointment } from './calendar';
 import { connectUrl, disconnect, finishConnect, getConn, getQbSettings, listItems, makeInvoice, putQbSettings, qbReady, recordPayment, refreshInvoice, type QbInvoice } from './qb';
 
 const html = (body: string, status = 200) => new Response(body, { status, headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', 'x-robots-tag': 'noindex', 'referrer-policy': 'no-referrer' } });
@@ -20,9 +22,16 @@ export default {
     const url = new URL(request.url);
     const path = url.pathname.replace(/\/+$/, '') || '/';
     if (!env.PORTAL) return setupPage('Almost there', '<p>The portal is running, but its storage isn’t connected. In Cloudflare open this worker’s <b>Settings → Bindings</b>, add a <b>KV namespace</b> binding named <code>PORTAL</code> (create a namespace called <b>cjc-portal</b> if you don’t have one), then reload this page.</p>');
-    const m = path.match(/^\/p\/([A-Za-z0-9_-]+)(?:\/(img|doc)\/([A-Za-z0-9_-]+)|\/(agreement|sign|cancel))?$/);
+    const m = path.match(/^\/p\/([A-Za-z0-9_-]+)(?:\/(img|doc|visit)\/([A-Za-z0-9_-]+)(?:\.ics)?|\/(agreement|sign|cancel))?$/);
     if (m) return client(request, env, m[1], m[2] ?? m[4] ?? '', m[3] ?? '');
     const key = String(env.SHOP_KEY || '').trim();
+    const cal = path.match(/^\/cal\/([a-f0-9]{32})\.ics$/);
+    if (cal) {
+      if (!key || cal[1] !== (await feedCode(key))) return new Response('Not found', { status: 404 });
+      const since = new Date(Date.now() - 90 * 864e5).toISOString();
+      const appts = (await listAppts(env)).filter((a) => a.start >= since);
+      return new Response(calendar(appts, 'CJC Jobs'), { headers: { 'content-type': 'text/calendar; charset=utf-8', 'cache-control': 'no-store' } });
+    }
     if (path === '/' || path === '/setup') return setup(request, url, key);
     if (path === '/qb' || path === '/qb/connect' || path === '/qb/callback') return qbPage(request, env, url, key, path);
     if (path === '/legal/eula' || path === '/legal/privacy') return html(legalPage(path.endsWith('eula')));
@@ -57,6 +66,11 @@ async function client(request: Request, env: Env, token: string, what: string, i
     const meta = (got.metadata ?? {}) as { mimeType?: string };
     return new Response(got.value, { headers: { 'content-type': meta.mimeType || 'application/octet-stream', 'cache-control': 'private, max-age=3600', 'x-robots-tag': 'noindex' } });
   }
+  if (what === 'visit') {
+    const a = (await listAppts(env)).find((x) => x.id === id && x.jobId === job.jobId && x.share && !x.cancelled);
+    if (!a) return new Response('Not found', { status: 404 });
+    return new Response(calendar([a], shop.company[0] || 'CJC Custom Carpentry', true, shop.company[0] || 'CJC Custom Carpentry'), { headers: { 'content-type': 'text/calendar; charset=utf-8', 'content-disposition': `attachment; filename="${apptLabel[a.kind]}.ics"`, 'cache-control': 'no-store' } });
+  }
   if (what === 'agreement') { await freshInvoices(env, job, 5 * 60e3); return html(agreementPage(job, shop)); }
   const ip = request.headers.get('cf-connecting-ip') || '';
   if (what === 'sign' && request.method === 'POST') {
@@ -84,8 +98,14 @@ async function client(request: Request, env: Env, token: string, what: string, i
   job.views = [...(job.views ?? []), Date.now()].slice(-50);
   await freshInvoices(env, job, 5 * 60e3);
   await putJob(env, job);
-  return html(projectPage(job, shop, token));
+  return html(projectPage(job, shop, token, '', await visitsFor(env, job.jobId)));
 }
+
+/** The client's upcoming visits shown on their page. */
+const visitsFor = async (env: Env, jobId: string): Promise<Appointment[]> => {
+  const now = new Date(Date.now() - 2 * 3600e3).toISOString();
+  return (await listAppts(env)).filter((a) => a.jobId === jobId && a.share && !a.cancelled && a.start >= now);
+};
 
 /** The deposit invoice, made and sent when the client signs (when QuickBooks is connected and that's switched on). */
 async function autoDeposit(env: Env, job: Job) {
@@ -199,6 +219,13 @@ const TOOLS = [
   },
   { name: 'job_status', description: 'Where a client’s page stands: link, views, signature (who, when), cancellation and its deadline.', inputSchema: { type: 'object', properties: { job_id: { type: 'string' } }, required: ['job_id'] } },
   { name: 'list_jobs', description: 'Every job on the portal with its status.', inputSchema: { type: 'object', properties: {} } },
+  { name: 'list_appointments', description: 'Appointments on the portal calendar, soonest first. By default from yesterday on; pass from (ISO date) for older.', inputSchema: { type: 'object', properties: { from: { type: 'string' }, job_id: { type: 'string' } } } },
+  {
+    name: 'save_appointment', description: 'Add an appointment, or change one (pass its id). Times are ISO with an offset or Z.',
+    inputSchema: { type: 'object', properties: { id: { type: 'string' }, job_id: { type: 'string' }, who: { type: 'string' }, kind: { type: 'string', enum: ['measure', 'design', 'review', 'install', 'delivery', 'other'] }, start: { type: 'string' }, minutes: { type: 'number' }, location: { type: 'string' }, phone: { type: 'string' }, notes: { type: 'string' }, remind: { type: 'array', items: { type: 'number' }, description: 'Alerts, minutes before.' }, share: { type: 'boolean', description: 'Show on the client’s project page.' }, cancelled: { type: 'boolean' } }, required: ['start'] },
+  },
+  { name: 'delete_appointment', description: 'Remove an appointment from the calendar.', inputSchema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] } },
+  { name: 'calendar_feed', description: 'The private calendar address for Cody’s phone to subscribe to.', inputSchema: { type: 'object', properties: {} } },
   { name: 'qb_status', description: 'Whether QuickBooks Online is set up and connected, to which company, the invoice settings, and the address of the page for connecting it.', inputSchema: { type: 'object', properties: {} } },
   { name: 'qb_items', description: 'The QuickBooks products/services (type Service) an invoice line can use.', inputSchema: { type: 'object', properties: {} } },
   {
@@ -326,6 +353,21 @@ async function tool(name: string, a: Record<string, unknown>, env: Env, url: URL
       if (!j) throw new Error('No portal page for that job yet.');
       await freshInvoices(env, j, 0);
       return status(j, url);
+    }
+    case 'list_appointments': {
+      const from = str('from') ?? new Date(Date.now() - 864e5).toISOString();
+      return { appointments: (await listAppts(env)).filter((a) => a.start >= from && (!str('job_id') || a.jobId === str('job_id'))) };
+    }
+    case 'save_appointment': {
+      const { job_id, ...rest } = a as Record<string, unknown>;
+      return { appointment: await saveAppt(env, { ...(rest as Partial<Appointment>), ...(job_id !== undefined ? { jobId: String(job_id) || undefined } : {}), start: String(a.start) }) };
+    }
+    case 'delete_appointment': { await deleteAppt(env, String(a.id || '')); return { ok: true }; }
+    case 'calendar_feed': {
+      const key = String(env.SHOP_KEY || '').trim();
+      if (!key) throw new Error('SHOP_KEY isn’t set.');
+      const url2 = `${url.origin}/cal/${await feedCode(key)}.ics`;
+      return { url: url2, webcal: url2.replace(/^https:/, 'webcal:') };
     }
     case 'qb_status': {
       const conn = qbReady(env) ? await getConn(env) : null;

@@ -2,6 +2,7 @@
 // proposal, terms, licenses and insurance, about the shop, and signing), and the signed agreement
 // as one printable document with the Notice of Cancellation attached twice (one to keep, one to send).
 import type { Job, Shop } from './store';
+import { apptLabel, whenEastern, type Appointment } from './calendar';
 import { canCancel, cancelDeadline, easternYmd, longDate, noticeOfCancellation } from './cancel';
 import { LOGO } from '../../src/drawings/logo';
 
@@ -56,7 +57,7 @@ ${i.link ? `<div class="row"><a class="btn" href="${esc(i.link)}" target="_blank
 }
 
 /** The client's project page. */
-export function projectPage(j: Job, shop: Shop, token: string, flash = ''): string {
+export function projectPage(j: Job, shop: Shop, token: string, flash = '', visits: Appointment[] = []): string {
   const base = `/p/${token}`;
   const s = j.signature;
   const shots = j.renderings.length
@@ -92,6 +93,7 @@ document.getElementById('clear').onclick=()=>{x.clearRect(0,0,c.width,c.height);
 f.addEventListener('submit',()=>{document.getElementById('image').value=c.toDataURL('image/png');go.disabled=true;go.textContent='Signing…'});})();</script>`;
   const body = `${flash ? `<p class="ok">${esc(flash)}</p>` : ''}
 <h1>${esc(j.project)}</h1><p class="muted">Prepared for ${esc(clientName(j))}${j.client.address ? ` · ${esc(j.client.address)}` : ''}</p>
+${visits.length ? `<section class="card"><h2>Coming up</h2>${visits.map((v) => `<p><b>${esc(apptLabel[v.kind])}</b> · ${esc(whenEastern(v.start))}${v.location ? `<br><span class="muted">${esc(v.location)}</span>` : ''}${v.notes ? `<br>${esc(v.notes)}` : ''}</p><p><a class="btn ghost" href="${base}/visit/${esc(v.id)}.ics">Add to my calendar</a></p>`).join('')}</section>` : ''}
 ${shots}
 <section class="card"><h2>Your proposal</h2>
 <div class="price"><div><span class="muted">Total project investment</span><b>${money(j.proposal.total)}</b></div><div><span class="muted">Deposit at signing (30%)</span><b>${money(j.proposal.deposit)}</b></div></div>

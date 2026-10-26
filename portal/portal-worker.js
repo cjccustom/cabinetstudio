@@ -15,8 +15,8 @@ function randomToken(bytes = 18) {
   const b = crypto.getRandomValues(new Uint8Array(bytes));
   return btoa(String.fromCharCode(...b)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
-async function sha256(text) {
-  const h = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+async function sha256(text2) {
+  const h = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text2));
   return [...new Uint8Array(h)].map((x) => x.toString(16).padStart(2, "0")).join("");
 }
 function b64ToBytes(b64) {
@@ -25,6 +25,101 @@ function b64ToBytes(b64) {
   for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
   return out.buffer;
 }
+
+// portal/src/calendar.ts
+var apptLabel = { measure: "Measure", design: "Design meeting", review: "Review & sign", install: "Install", delivery: "Delivery", other: "Appointment" };
+async function listAppts(env) {
+  const out = [];
+  let cursor;
+  do {
+    const page = await env.PORTAL.list({ prefix: "appt:", cursor });
+    for (const k of page.keys) {
+      const a = await env.PORTAL.get(k.name, "json");
+      if (a) out.push(a);
+    }
+    cursor = page.list_complete ? void 0 : page.cursor;
+  } while (cursor);
+  return out.sort((a, b) => a.start.localeCompare(b.start));
+}
+async function saveAppt(env, a) {
+  const old = a.id ? await env.PORTAL.get(`appt:${a.id}`, "json") : null;
+  if (Number.isNaN(Date.parse(a.start))) throw new Error("The appointment needs a date and time.");
+  const appt = {
+    id: old?.id ?? randomToken(9),
+    jobId: a.jobId ?? old?.jobId,
+    who: String(a.who ?? old?.who ?? "").slice(0, 120) || "Appointment",
+    kind: a.kind ?? old?.kind ?? "other",
+    start: new Date(a.start).toISOString(),
+    minutes: Math.max(5, Math.min(24 * 60, Number(a.minutes ?? old?.minutes ?? 60))),
+    location: a.location ?? old?.location,
+    phone: a.phone ?? old?.phone,
+    notes: a.notes ?? old?.notes,
+    remind: (a.remind ?? old?.remind ?? [60]).filter((m) => Number.isFinite(m) && m >= 0).slice(0, 3),
+    share: a.share ?? old?.share ?? false,
+    cancelled: a.cancelled ?? old?.cancelled,
+    updatedAt: Date.now()
+  };
+  await env.PORTAL.put(`appt:${appt.id}`, JSON.stringify(appt));
+  return appt;
+}
+var deleteAppt = (env, id) => env.PORTAL.delete(`appt:${id}`);
+var feedCode = async (key) => (await sha256(`cjc-portal-calendar:${key}`)).slice(0, 32);
+var stamp = (t) => new Date(t).toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
+var text = (s) => s.replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\r?\n/g, "\\n");
+function fold(line) {
+  const bytes = new TextEncoder().encode(line);
+  if (bytes.length <= 75) return line;
+  const out = [];
+  let cur = "";
+  for (const ch of line) {
+    if (new TextEncoder().encode(cur + ch).length > (out.length ? 74 : 75)) {
+      out.push(cur);
+      cur = "";
+    }
+    cur += ch;
+  }
+  out.push(cur);
+  return out.join("\r\n ");
+}
+function vevent(a, forClient, shop) {
+  const end = new Date(Date.parse(a.start) + a.minutes * 6e4).toISOString();
+  const summary = forClient ? `${apptLabel[a.kind]} with ${shop}` : `${a.who} \u2013 ${apptLabel[a.kind]}`;
+  const desc = forClient ? [a.notes].filter(Boolean).join("\n") : [a.phone && `Phone: ${a.phone}`, a.notes].filter(Boolean).join("\n");
+  const lines = [
+    "BEGIN:VEVENT",
+    `UID:${a.id}@cjc-portal`,
+    `DTSTAMP:${stamp(a.updatedAt)}`,
+    `LAST-MODIFIED:${stamp(a.updatedAt)}`,
+    `DTSTART:${stamp(a.start)}`,
+    `DTEND:${stamp(end)}`,
+    `SUMMARY:${text(summary)}`,
+    ...a.location ? [`LOCATION:${text(a.location)}`] : [],
+    ...desc ? [`DESCRIPTION:${text(desc)}`] : [],
+    ...a.cancelled ? ["STATUS:CANCELLED"] : ["STATUS:CONFIRMED"]
+  ];
+  for (const m of forClient ? [24 * 60] : a.remind) {
+    lines.push("BEGIN:VALARM", "ACTION:DISPLAY", `DESCRIPTION:${text(summary)}`, `TRIGGER:-PT${m}M`, "END:VALARM");
+  }
+  lines.push("END:VEVENT");
+  return lines;
+}
+function calendar(appts, name, forClient = false, shop = "CJC Custom Carpentry") {
+  const lines = [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//CJC Custom Carpentry//Client portal//EN",
+    "CALSCALE:GREGORIAN",
+    "METHOD:PUBLISH",
+    `X-WR-CALNAME:${text(name)}`,
+    "X-WR-TIMEZONE:America/New_York",
+    "REFRESH-INTERVAL;VALUE=DURATION:PT15M",
+    "X-PUBLISHED-TTL:PT15M",
+    ...appts.flatMap((a) => vevent(a, forClient, shop)),
+    "END:VCALENDAR"
+  ];
+  return lines.map(fold).join("\r\n") + "\r\n";
+}
+var whenEastern = (iso) => new Date(iso).toLocaleString("en-US", { timeZone: "America/New_York", weekday: "long", month: "long", day: "numeric", hour: "numeric", minute: "2-digit" });
 
 // portal/src/cancel.ts
 var nth = (y, m, weekday, n) => {
@@ -90,7 +185,7 @@ var LOGO = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAA4QAAAEWAQAAAAAWBGT3AA
 // portal/src/pages.ts
 var esc = (s) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 var money = (v) => `$${Math.round(v).toLocaleString("en-US")}`;
-var paras = (text) => text.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean).map((p) => `<p>${esc(p).replace(/\n/g, "<br>")}</p>`).join("");
+var paras = (text2) => text2.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean).map((p) => `<p>${esc(p).replace(/\n/g, "<br>")}</p>`).join("");
 var termsOf = (j, shop) => j.proposal.terms ?? shop.terms;
 var clientName = (j) => [j.client.first, j.client.last].filter(Boolean).join(" ") || "there";
 var noticeCss = `.notice{border:1px solid #999;padding:14px;margin:18px 0;font-size:13px;break-inside:avoid}.notice h3{text-align:center;margin:0 0 8px}.sigline{margin-top:28px}.muted{color:#646b73}`;
@@ -130,7 +225,7 @@ function payBlock(j, shop) {
 ${i.link ? `<div class="row"><a class="btn" href="${esc(i.link)}" target="_blank" rel="noopener">Pay by card or bank transfer</a></div>` : ""}
 <p class="muted">${i.link ? "Or pay" : "Pay"} by check to <b>${esc(payee)}</b>${shop.company[1] ? `, ${esc(shop.company[1])}` : ""}, or in person.</p>`).join("")}</div>`;
 }
-function projectPage(j, shop, token, flash = "") {
+function projectPage(j, shop, token, flash = "", visits = []) {
   const base = `/p/${token}`;
   const s = j.signature;
   const shots = j.renderings.length ? `<section class="card"><h2>Your design</h2><div class="gallery">${j.renderings.map((r) => `<a href="${base}/img/${esc(r.id)}" target="_blank" rel="noopener"><img src="${base}/img/${esc(r.id)}" alt="${esc(r.name)}" loading="lazy"></a>`).join("")}</div><p class="muted">Renderings show the look of the work; the signed scope and the shop drawings that follow set the details.</p></section>` : "";
@@ -160,6 +255,7 @@ document.getElementById('clear').onclick=()=>{x.clearRect(0,0,c.width,c.height);
 f.addEventListener('submit',()=>{document.getElementById('image').value=c.toDataURL('image/png');go.disabled=true;go.textContent='Signing\u2026'});})();</script>`;
   const body = `${flash ? `<p class="ok">${esc(flash)}</p>` : ""}
 <h1>${esc(j.project)}</h1><p class="muted">Prepared for ${esc(clientName(j))}${j.client.address ? ` \xB7 ${esc(j.client.address)}` : ""}</p>
+${visits.length ? `<section class="card"><h2>Coming up</h2>${visits.map((v) => `<p><b>${esc(apptLabel[v.kind])}</b> \xB7 ${esc(whenEastern(v.start))}${v.location ? `<br><span class="muted">${esc(v.location)}</span>` : ""}${v.notes ? `<br>${esc(v.notes)}` : ""}</p><p><a class="btn ghost" href="${base}/visit/${esc(v.id)}.ics">Add to my calendar</a></p>`).join("")}</section>` : ""}
 ${shots}
 <section class="card"><h2>Your proposal</h2>
 <div class="price"><div><span class="muted">Total project investment</span><b>${money(j.proposal.total)}</b></div><div><span class="muted">Deposit at signing (30%)</span><b>${money(j.proposal.deposit)}</b></div></div>
@@ -189,7 +285,7 @@ ${noticeOfCancellation(easternYmd(s.at), seller, address)}${noticeOfCancellation
 ${termsOf(j, shop) ? `<section class="terms" style="page-break-before:always"><h2>Terms and Conditions</h2>${paras(termsOf(j, shop))}</section>` : ""}
 ${signed}</body></html>`;
 }
-var simplePage = (title, text, shop) => shell(title, `<h1>${esc(title)}</h1><p>${esc(text)}</p>`, shop);
+var simplePage = (title, text2, shop) => shell(title, `<h1>${esc(title)}</h1><p>${esc(text2)}</p>`, shop);
 
 // portal/src/qb.ts
 var defaultQbSettings = { autoDeposit: true, email: true };
@@ -370,9 +466,16 @@ var worker_default = {
     const url = new URL(request.url);
     const path = url.pathname.replace(/\/+$/, "") || "/";
     if (!env.PORTAL) return setupPage("Almost there", "<p>The portal is running, but its storage isn\u2019t connected. In Cloudflare open this worker\u2019s <b>Settings \u2192 Bindings</b>, add a <b>KV namespace</b> binding named <code>PORTAL</code> (create a namespace called <b>cjc-portal</b> if you don\u2019t have one), then reload this page.</p>");
-    const m = path.match(/^\/p\/([A-Za-z0-9_-]+)(?:\/(img|doc)\/([A-Za-z0-9_-]+)|\/(agreement|sign|cancel))?$/);
+    const m = path.match(/^\/p\/([A-Za-z0-9_-]+)(?:\/(img|doc|visit)\/([A-Za-z0-9_-]+)(?:\.ics)?|\/(agreement|sign|cancel))?$/);
     if (m) return client(request, env, m[1], m[2] ?? m[4] ?? "", m[3] ?? "");
     const key = String(env.SHOP_KEY || "").trim();
+    const cal = path.match(/^\/cal\/([a-f0-9]{32})\.ics$/);
+    if (cal) {
+      if (!key || cal[1] !== await feedCode(key)) return new Response("Not found", { status: 404 });
+      const since = new Date(Date.now() - 90 * 864e5).toISOString();
+      const appts = (await listAppts(env)).filter((a) => a.start >= since);
+      return new Response(calendar(appts, "CJC Jobs"), { headers: { "content-type": "text/calendar; charset=utf-8", "cache-control": "no-store" } });
+    }
     if (path === "/" || path === "/setup") return setup(request, url, key);
     if (path === "/qb" || path === "/qb/connect" || path === "/qb/callback") return qbPage(request, env, url, key, path);
     if (path === "/legal/eula" || path === "/legal/privacy") return html(legalPage(path.endsWith("eula")));
@@ -411,6 +514,11 @@ async function client(request, env, token, what, id) {
     const meta = got.metadata ?? {};
     return new Response(got.value, { headers: { "content-type": meta.mimeType || "application/octet-stream", "cache-control": "private, max-age=3600", "x-robots-tag": "noindex" } });
   }
+  if (what === "visit") {
+    const a = (await listAppts(env)).find((x) => x.id === id && x.jobId === job.jobId && x.share && !x.cancelled);
+    if (!a) return new Response("Not found", { status: 404 });
+    return new Response(calendar([a], shop.company[0] || "CJC Custom Carpentry", true, shop.company[0] || "CJC Custom Carpentry"), { headers: { "content-type": "text/calendar; charset=utf-8", "content-disposition": `attachment; filename="${apptLabel[a.kind]}.ics"`, "cache-control": "no-store" } });
+  }
   if (what === "agreement") {
     await freshInvoices(env, job, 5 * 6e4);
     return html(agreementPage(job, shop));
@@ -443,8 +551,12 @@ async function client(request, env, token, what, id) {
   job.views = [...job.views ?? [], Date.now()].slice(-50);
   await freshInvoices(env, job, 5 * 6e4);
   await putJob(env, job);
-  return html(projectPage(job, shop, token));
+  return html(projectPage(job, shop, token, "", await visitsFor(env, job.jobId)));
 }
+var visitsFor = async (env, jobId) => {
+  const now = new Date(Date.now() - 2 * 36e5).toISOString();
+  return (await listAppts(env)).filter((a) => a.jobId === jobId && a.share && !a.cancelled && a.start >= now);
+};
 async function autoDeposit(env, job) {
   if (!qbReady(env) || !(job.proposal.deposit > 0) || job.invoices?.some((i) => i.kind === "deposit")) return;
   const [conn, s] = [await getConn(env), await getQbSettings(env)];
@@ -553,6 +665,14 @@ var TOOLS = [
   },
   { name: "job_status", description: "Where a client\u2019s page stands: link, views, signature (who, when), cancellation and its deadline.", inputSchema: { type: "object", properties: { job_id: { type: "string" } }, required: ["job_id"] } },
   { name: "list_jobs", description: "Every job on the portal with its status.", inputSchema: { type: "object", properties: {} } },
+  { name: "list_appointments", description: "Appointments on the portal calendar, soonest first. By default from yesterday on; pass from (ISO date) for older.", inputSchema: { type: "object", properties: { from: { type: "string" }, job_id: { type: "string" } } } },
+  {
+    name: "save_appointment",
+    description: "Add an appointment, or change one (pass its id). Times are ISO with an offset or Z.",
+    inputSchema: { type: "object", properties: { id: { type: "string" }, job_id: { type: "string" }, who: { type: "string" }, kind: { type: "string", enum: ["measure", "design", "review", "install", "delivery", "other"] }, start: { type: "string" }, minutes: { type: "number" }, location: { type: "string" }, phone: { type: "string" }, notes: { type: "string" }, remind: { type: "array", items: { type: "number" }, description: "Alerts, minutes before." }, share: { type: "boolean", description: "Show on the client\u2019s project page." }, cancelled: { type: "boolean" } }, required: ["start"] }
+  },
+  { name: "delete_appointment", description: "Remove an appointment from the calendar.", inputSchema: { type: "object", properties: { id: { type: "string" } }, required: ["id"] } },
+  { name: "calendar_feed", description: "The private calendar address for Cody\u2019s phone to subscribe to.", inputSchema: { type: "object", properties: {} } },
   { name: "qb_status", description: "Whether QuickBooks Online is set up and connected, to which company, the invoice settings, and the address of the page for connecting it.", inputSchema: { type: "object", properties: {} } },
   { name: "qb_items", description: "The QuickBooks products/services (type Service) an invoice line can use.", inputSchema: { type: "object", properties: {} } },
   {
@@ -692,6 +812,24 @@ ${shop.terms}`);
       if (!j) throw new Error("No portal page for that job yet.");
       await freshInvoices(env, j, 0);
       return status(j, url);
+    }
+    case "list_appointments": {
+      const from = str("from") ?? new Date(Date.now() - 864e5).toISOString();
+      return { appointments: (await listAppts(env)).filter((a2) => a2.start >= from && (!str("job_id") || a2.jobId === str("job_id"))) };
+    }
+    case "save_appointment": {
+      const { job_id, ...rest } = a;
+      return { appointment: await saveAppt(env, { ...rest, ...job_id !== void 0 ? { jobId: String(job_id) || void 0 } : {}, start: String(a.start) }) };
+    }
+    case "delete_appointment": {
+      await deleteAppt(env, String(a.id || ""));
+      return { ok: true };
+    }
+    case "calendar_feed": {
+      const key = String(env.SHOP_KEY || "").trim();
+      if (!key) throw new Error("SHOP_KEY isn\u2019t set.");
+      const url2 = `${url.origin}/cal/${await feedCode(key)}.ics`;
+      return { url: url2, webcal: url2.replace(/^https:/, "webcal:") };
     }
     case "qb_status": {
       const conn = qbReady(env) ? await getConn(env) : null;
