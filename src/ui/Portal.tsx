@@ -9,8 +9,8 @@ import { CJC_TERMS } from '../model/terms';
 import { shrinkImage } from '../runtime';
 import { downloadLink } from '../dropbox';
 import {
-  blobToBase64, deleteShopDoc, expiring, getShop, jobStatus, PortalError, publishProposal, updateShop, uploadShopDoc,
-  type JobStatus, type Shop, type ShopDoc,
+  blobToBase64, createInvoice, deleteShopDoc, expiring, getShop, jobStatus, PortalError, publishProposal, qbItems, qbSettings, qbStatus, recordPayment, updateShop, uploadShopDoc,
+  type Invoice, type JobStatus, type QbStatus, type Shop, type ShopDoc,
 } from '../portal';
 import { askConfirm } from './Confirm';
 import type { Project } from '../model/types';
@@ -103,6 +103,7 @@ export function ClientPortal() {
         </div>
       )}
       {st && <PortalStatus st={st} checkedAt={portal?.checkedAt} />}
+      {st?.signed && !st.cancelled && <Invoices st={st} total={st ? total : 0} busy={!!busy} run={run} keep={(s2) => keep(s2, portal!.jobId)} />}
       <div className="order-actions">
         <button className="primary" disabled={!!busy} onClick={publish}>{portal ? 'Update the client’s page' : 'Publish proposal'}</button>
         {portal && <button disabled={!!busy} onClick={refresh}>Check status</button>}
@@ -112,6 +113,67 @@ export function ClientPortal() {
       {error && <p className="warn">{error}</p>}
       {settings && <PortalSettings onClose={() => setSettings(false)} />}
     </section>
+  );
+}
+
+const kindLabel = { deposit: 'Deposit', final: 'Final', change: 'Change order' } as const;
+
+/** QuickBooks invoices on a signed job: what's open, what's paid, and checks or cash taken in. */
+function Invoices({ st, busy, run, keep }: { st: JobStatus; total: number; busy: boolean; run: (label: string, fn: () => Promise<void>) => Promise<void>; keep: (s: JobStatus) => void }) {
+  const invs = st.invoices ?? [];
+  const [pay, setPay] = useState<{ id: string; method: 'check' | 'cash'; amount: string; ref: string } | null>(null);
+  const has = (k: Invoice['kind']) => invs.some((i) => i.kind === k);
+  const [change, setChange] = useState<{ amount: string; what: string } | null>(null);
+  const make = (kind: Invoice['kind'], amount?: number, what?: string) => run(`Making the ${kindLabel[kind].toLowerCase()} invoice in QuickBooks…`, async () => {
+    keep(await createInvoice(st.job_id, kind, amount, what ? `Change order: ${what}` : undefined));
+    setChange(null);
+  });
+  const save = () => run('Recording the payment in QuickBooks…', async () => {
+    keep(await recordPayment(st.job_id, pay!.id, pay!.method, Number(pay!.amount), pay!.ref.trim() || undefined));
+    setPay(null);
+  });
+  return (
+    <div className="invoices">
+      <h4>QuickBooks invoices</h4>
+      {st.invoiceError && !has('deposit') && <p className="warn">The deposit invoice didn’t go out: {st.invoiceError}</p>}
+      {invs.length ? (
+        <table className="doc-table">
+          <tbody>
+            {invs.map((i) => (
+              <tr key={i.id}>
+                <td>{kindLabel[i.kind]}{i.number ? ` #${i.number}` : ''}</td>
+                <td>{money(i.amount)}</td>
+                <td className={i.paid ? 'ok' : ''}>{i.paid ? 'Paid' : `Open ${money(i.balance)}`}{i.emailed ? ' · emailed' : ''}</td>
+                <td>{i.payments.map((p) => `${p.method}${p.ref ? ` #${p.ref}` : ''} ${money(p.amount)}`).join(', ')}</td>
+                <td>{!i.paid && <button disabled={busy} onClick={() => setPay({ id: i.id, method: 'check', amount: String(i.balance), ref: '' })}>Check or cash…</button>}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ) : <p className="hint">No invoices yet.</p>}
+      {pay && (
+        <div className="pay-form">
+          <select aria-label="Paid by" value={pay.method} onChange={(e) => setPay({ ...pay, method: e.target.value as 'check' | 'cash' })}><option value="check">Check</option><option value="cash">Cash</option></select>
+          <input aria-label="Amount" inputMode="decimal" value={pay.amount} onChange={(e) => setPay({ ...pay, amount: e.target.value })} />
+          {pay.method === 'check' && <input aria-label="Check number" placeholder="Check #" value={pay.ref} onChange={(e) => setPay({ ...pay, ref: e.target.value })} />}
+          <button className="primary" disabled={busy || !(Number(pay.amount) > 0)} onClick={save}>Record</button>
+          <button onClick={() => setPay(null)}>Cancel</button>
+        </div>
+      )}
+      <div className="order-actions">
+        {!has('deposit') && <button disabled={busy} onClick={() => make('deposit')}>Send deposit invoice</button>}
+        {!has('final') && <button disabled={busy} onClick={() => make('final')}>Send final invoice</button>}
+        <button disabled={busy} onClick={() => setChange({ amount: '', what: '' })}>Change order invoice…</button>
+      </div>
+      {change && (
+        <div className="pay-form">
+          <input aria-label="Change order" placeholder="What changed" value={change.what} onChange={(e) => setChange({ ...change, what: e.target.value })} />
+          <input aria-label="Change order amount" inputMode="decimal" placeholder="$" value={change.amount} onChange={(e) => setChange({ ...change, amount: e.target.value })} />
+          <button className="primary" disabled={busy || !(Number(change.amount) > 0) || !change.what.trim()} onClick={() => make('change', Number(change.amount), change.what.trim())}>Send</button>
+          <button onClick={() => setChange(null)}>Cancel</button>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -134,6 +196,54 @@ const dropboxDocs: { title: string; kind: ShopDoc['kind']; path: string; expires
   { title: 'Construction Supervisor License #CS-119119', kind: 'license', path: '/CJC/Docs/Licenses/CSL.pdf' },
   { title: 'Certificate of liability insurance', kind: 'insurance', path: '/CJC/Docs/Insurance/COI26.pdf', expires: '2027-02-26' },
 ];
+
+/** The QuickBooks connection, as the portal has it, and the invoice settings. Connecting itself happens on the portal's own page, where Intuit's sign-in runs. */
+function QuickBooksBox() {
+  const [qs, setQs] = useState<QbStatus | null>(null);
+  const [items, setItems] = useState<{ id: string; name: string }[]>([]);
+  const [busy, setBusy] = useState('');
+  const [error, setError] = useState('');
+  const load = async () => {
+    setBusy('Checking QuickBooks…'); setError('');
+    try {
+      const s = await qbStatus();
+      setQs(s);
+      if (s.connected) setItems(await qbItems());
+    } catch (e) { setError(errText(e)); } finally { setBusy(''); }
+  };
+  useEffect(() => { load(); }, []);
+  const put = async (patch: Parameters<typeof qbSettings>[0]) => {
+    setError('');
+    try { await qbSettings(patch); setQs((q) => q && { ...q, settings: { ...q.settings, ...(patch.item_id !== undefined ? { itemId: patch.item_id, itemName: patch.item_name } : {}), ...(patch.auto_deposit !== undefined ? { autoDeposit: patch.auto_deposit } : {}), ...(patch.email !== undefined ? { email: patch.email } : {}) } }); }
+    catch (e) { setError(errText(e)); }
+  };
+  return (
+    <>
+      <h3>QuickBooks</h3>
+      <div className="qb-box">
+        {qs && !qs.configured && <p>Not set up yet: the portal needs your Intuit app’s keys. See <b>QuickBooks setup</b> in the portal instructions, then come back here.</p>}
+        {qs?.configured && !qs.connected && <p>Ready to connect. <a href={qs.connectPage} target="_blank" rel="noopener noreferrer">Open the QuickBooks page</a>, paste your SHOP_KEY and sign in to QuickBooks. Then <button className="link-btn" onClick={load}>check again</button>.</p>}
+        {qs?.connected && (
+          <>
+            <p className="ok">Connected to <b>{qs.company || 'your company'}</b>{qs.sandbox ? ' (test company)' : ''}. <a href={qs.connectPage} target="_blank" rel="noopener noreferrer">Reconnect or disconnect</a></p>
+            <label>Product/service on invoices
+              <select value={qs.settings.itemId ?? ''} onChange={(e) => put({ item_id: e.target.value, item_name: items.find((i) => i.id === e.target.value)?.name })}>
+                <option value="">Pick one…</option>
+                {items.map((i) => <option key={i.id} value={i.id}>{i.name}</option>)}
+              </select>
+            </label>
+            {!qs.settings.itemId && <p className="warn">Pick one so invoices can be made. A service item like “Custom cabinetry” works; make one in QuickBooks if you need to.</p>}
+            <label className="chk-row"><input type="checkbox" checked={qs.settings.autoDeposit} onChange={(e) => put({ auto_deposit: e.target.checked })} /> Send the deposit invoice as soon as the client signs</label>
+            <label className="chk-row"><input type="checkbox" checked={qs.settings.email} onChange={(e) => put({ email: e.target.checked })} /> Have QuickBooks email invoices (with its Pay now button)</label>
+            <p className="hint">Invoice lines are marked non-taxable. The client’s page shows a “Pay by card or bank transfer” button when QuickBooks Payments is on for your company.</p>
+          </>
+        )}
+        {busy && <p className="hint">{busy}</p>}
+        {error && <p className="warn">{error}</p>}
+      </div>
+    </>
+  );
+}
 
 function PortalSettings({ onClose }: { onClose: () => void }) {
   const [shop, setShop] = useState<Shop | null>(null);
@@ -227,6 +337,7 @@ function PortalSettings({ onClose }: { onClose: () => void }) {
             <label className="btn file-btn">Upload a PDF…<input type="file" accept="application/pdf,image/*" hidden onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) fromFile(f); }} /></label>
           </>
         )}
+        {shop && <QuickBooksBox />}
         {busy && <p className="hint">{busy}</p>}
         {note && <p className="ok">{note}</p>}
         {error && <p className="warn">{error}</p>}

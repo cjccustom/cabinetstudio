@@ -14,6 +14,17 @@ export interface JobStatus {
   signed: { name: string; at: number; version: number; current: boolean } | null;
   cancelDeadline: string | null;
   cancelled: { at: number } | null;
+  invoices?: Invoice[];
+  invoiceError?: string | null;
+}
+export interface Invoice {
+  id: string; kind: 'deposit' | 'final' | 'change'; number: string | null; amount: number; balance: number; paid: boolean;
+  emailed: boolean; payLink: boolean; createdAt: number;
+  payments: { method: 'check' | 'cash' | 'other'; amount: number; ref?: string; at: number }[];
+}
+export interface QbStatus {
+  configured: boolean; connected: boolean; company: string | null; sandbox: boolean; connectPage: string; redirectUri: string;
+  settings: { itemId?: string; itemName?: string; autoDeposit: boolean; email: boolean }; expiresAt: number | null;
 }
 export interface Proposal {
   job_id: string; project: string;
@@ -58,6 +69,13 @@ export const uploadShopDoc = async (doc: { id?: string; title: string; kind: Sho
 export const deleteShopDoc = (id: string) => call('delete_shop_doc', { id });
 export const publishProposal = (p: Proposal) => call<JobStatus>('publish_proposal', p as unknown as Raw);
 export const jobStatus = (jobId: string) => call<JobStatus>('job_status', { job_id: jobId });
+export const qbStatus = () => call<QbStatus>('qb_status');
+export const qbItems = async () => (await call<{ items: { id: string; name: string }[] }>('qb_items')).items;
+export const qbSettings = (patch: { item_id?: string; item_name?: string; auto_deposit?: boolean; email?: boolean }) => call('qb_settings', patch);
+export const createInvoice = (jobId: string, kind: Invoice['kind'], amount?: number, description?: string) =>
+  call<JobStatus>('create_invoice', { job_id: jobId, kind, ...(amount !== undefined ? { amount } : {}), ...(description ? { description } : {}) });
+export const recordPayment = (jobId: string, invoiceId: string, method: 'check' | 'cash' | 'other', amount: number, ref?: string) =>
+  call<JobStatus>('record_payment', { job_id: jobId, invoice_id: invoiceId, method, amount, ...(ref ? { ref } : {}) });
 
 /** Documents that expire within `days` (or already have), soonest first. */
 export function expiring(docs: ShopDoc[], days = 45, now = Date.now()): (ShopDoc & { daysLeft: number })[] {

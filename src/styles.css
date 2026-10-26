@@ -544,3 +544,9 @@ details.opening .grid3 { margin-top: 8px; }
 .portal-settings .doc-add { margin-top: 4px; }
 .portal-settings .file-btn { display: inline-flex; color: inherit; margin-top: 8px; }
 .portal-link a.btn { text-decoration: none; color: inherit; display: inline-flex; align-items: center; }
+.invoices { margin-top: 12px; border-top: 1px solid var(--line); padding-top: 10px; }
+.invoices h4 { margin: 0 0 6px; font-size: 13px; }
+.pay-form { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin: 8px 0; }
+.sheet-sec .pay-form input:not([type=checkbox]) { width: auto; flex: 1 1 120px; }
+.qb-box { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; margin-top: 6px; }
+.portal-settings label.chk-row { display: flex; gap: 8px; align-items: center; color: inherit; font-size: 13px; }

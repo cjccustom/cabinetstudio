@@ -32,6 +32,47 @@ Cabinet Studio talks to it through a claude.ai connector named **CJC Portal**.
 Optional: Settings → Domains & Routes lets you use something like `portal.cjccustomcarpentry.com`
 instead of the workers.dev address (DNS stays at Squarespace; add the CNAME it gives you).
 
+## QuickBooks Online (deposit and final invoices)
+
+The portal makes the invoices in your QuickBooks company: when a client signs, it adds them as
+a customer (or finds them), makes the deposit invoice with card and bank (ACH) payment turned on,
+and has QuickBooks email it. Their project page gets a **Pay by card or bank transfer** button
+that opens QuickBooks' own payment page. Checks and cash you record from Cabinet Studio, and
+they're applied to the invoice in QuickBooks. Card and ACH payments need QuickBooks Payments
+turned on for your company (its usual fees apply).
+
+Intuit makes you create an "app" to get keys, even for your own use. It's free. Test on Intuit's
+sample company first, then switch to your real one.
+
+1. **Make the app.** Go to developer.intuit.com and sign in with your QuickBooks login. Open the
+   Dashboard and create an app for **QuickBooks Online and Payments**. Name it something like
+   CJC Portal, and when it asks for scopes, choose **Accounting**.
+2. **Test keys.** Under the app's development (sandbox) keys and credentials, copy the
+   **Client ID** and **Client Secret**. In the same place, add a **Redirect URI**:
+   `https://cjc-portal.<you>.workers.dev/qb/callback`, the exact Worker address.
+3. **Give the portal the keys.** In Cloudflare, Worker → Settings → Variables and Secrets:
+   add Secret `QB_CLIENT_ID`, Secret `QB_CLIENT_SECRET`, and a plain variable `QB_ENV` with
+   value `sandbox`. Deploy.
+4. **Connect.** Open `https://cjc-portal.<you>.workers.dev/qb`, paste your SHOP_KEY and click
+   Connect. Sign in to Intuit and pick the sandbox company it made for you.
+5. In Cabinet Studio, Portal settings → QuickBooks: pick the product/service for invoice
+   lines. Then sign a test proposal and check the invoice appears in the sandbox company.
+6. **Your real company.** In the Intuit app, fill in what it asks for production keys. These
+   pages are on the portal for it:
+   - Host domain: `cjc-portal.<you>.workers.dev`
+   - Launch URL: `https://cjc-portal.<you>.workers.dev/qb`
+   - Disconnect URL: `https://cjc-portal.<you>.workers.dev/qb`
+   - End-user agreement: `https://cjc-portal.<you>.workers.dev/legal/eula`
+   - Privacy policy: `https://cjc-portal.<you>.workers.dev/legal/privacy`
+
+   Add the same Redirect URI under the production settings. Answer its questionnaire (it's
+   your own app, used only by your company). Then put the **production** Client ID and Secret
+   in the two Secrets, delete `QB_ENV`, deploy, and connect again at `/qb`, choosing CJC
+   Custom Carpentry.
+
+The QuickBooks connection lasts about 100 days at a time and renews itself whenever the portal
+uses it. If it ever lapses, Portal settings says so; reconnect at `/qb`.
+
 ## Updating
 
 When Cabinet Studio ships a new `portal-worker.js`, paste it over the old code (step 3) and

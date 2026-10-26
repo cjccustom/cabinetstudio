@@ -74,4 +74,13 @@ Things the app is guessing at until Cody answers. Each one says what the app doe
   - Your own additions from past jobs: waiting on your list.
 - **Proposal tracking.** The portal already counts when the client opens the page. Say if you
   want reminders when a proposal sits unopened or unsigned.
-- **Deposit.** 30% of the total, as on your agreement. QuickBooks invoicing comes next.
+- **Deposit.** 30% of the total, as on your agreement (Massachusetts caps a home improvement
+  deposit at one third, or the cost of special-order materials, c.142A §2).
+- **QuickBooks setup.** Built and tested against a stand-in for QuickBooks; not yet run against
+  Intuit. Steps are in `portal/README.md` (sandbox company first).
+- **Sales tax on invoices.** Lines go in marked non-taxable, since you pay the tax on materials.
+  If your company has QuickBooks' automated sales tax on, check the first invoice shows no tax.
+- **Product/service for invoice lines.** Pick one in Portal settings → QuickBooks (e.g. a
+  "Custom cabinetry" service). Deposits, final and change orders all use it for now.
+- **Cancellations after a deposit.** The portal shows the cancellation; refund or void the
+  deposit invoice in QuickBooks yourself (within 10 business days).

@@ -3,10 +3,14 @@
 //   /<shop code>       the shop's connector for Cabinet Studio (MCP), at an address worked out
 //                      from the SHOP_KEY secret, like the Gemini connector
 //   /                  setup page
-// Setup in Cloudflare: a KV namespace bound as PORTAL, and a Secret named SHOP_KEY.
+//   /qb                connecting QuickBooks Online (and /qb/callback, where Intuit returns)
+//   /legal/...         the end-user agreement and privacy pages Intuit asks an app to have
+// Setup in Cloudflare: a KV namespace bound as PORTAL, and a Secret named SHOP_KEY; for
+// QuickBooks, Secrets QB_CLIENT_ID and QB_CLIENT_SECRET (and QB_ENV = sandbox to test first).
 import { type Env, type Job, type ShopDoc, b64ToBytes, getJob, getShop, jobByToken, putJob, putShop, randomToken, sha256 } from './store';
-import { agreementPage, projectPage, simplePage } from './pages';
+import { agreementPage, esc, projectPage, simplePage } from './pages';
 import { canCancel, cancelDeadline, easternYmd } from './cancel';
+import { connectUrl, disconnect, finishConnect, getConn, getQbSettings, listItems, makeInvoice, putQbSettings, qbReady, recordPayment, refreshInvoice, type QbInvoice } from './qb';
 
 const html = (body: string, status = 200) => new Response(body, { status, headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', 'x-robots-tag': 'noindex', 'referrer-policy': 'no-referrer' } });
 const json = (body: unknown) => new Response(JSON.stringify(body), { headers: { 'content-type': 'application/json' } });
@@ -20,6 +24,8 @@ export default {
     if (m) return client(request, env, m[1], m[2] ?? m[4] ?? '', m[3] ?? '');
     const key = String(env.SHOP_KEY || '').trim();
     if (path === '/' || path === '/setup') return setup(request, url, key);
+    if (path === '/qb' || path === '/qb/connect' || path === '/qb/callback') return qbPage(request, env, url, key, path);
+    if (path === '/legal/eula' || path === '/legal/privacy') return html(legalPage(path.endsWith('eula')));
     const code = key ? await shopCode(key) : '';
     let p = path;
     try { p = decodeURIComponent(p); } catch { /* leave it */ }
@@ -51,7 +57,7 @@ async function client(request: Request, env: Env, token: string, what: string, i
     const meta = (got.metadata ?? {}) as { mimeType?: string };
     return new Response(got.value, { headers: { 'content-type': meta.mimeType || 'application/octet-stream', 'cache-control': 'private, max-age=3600', 'x-robots-tag': 'noindex' } });
   }
-  if (what === 'agreement') return html(agreementPage(job, shop));
+  if (what === 'agreement') { await freshInvoices(env, job, 5 * 60e3); return html(agreementPage(job, shop)); }
   const ip = request.headers.get('cf-connecting-ip') || '';
   if (what === 'sign' && request.method === 'POST') {
     if (job.signature || job.cancelled) return Response.redirect(new URL(`/p/${token}`, request.url).href, 303);
@@ -63,6 +69,7 @@ async function client(request: Request, env: Env, token: string, what: string, i
     }
     job.signature = { name, image, at: Date.now(), ip, ua: (request.headers.get('user-agent') || '').slice(0, 200), hash: job.proposal.hash, version: job.proposal.version, consent: true };
     await putJob(env, job);
+    await autoDeposit(env, job);
     return Response.redirect(new URL(`/p/${token}/agreement`, request.url).href, 303);
   }
   if (what === 'cancel' && request.method === 'POST') {
@@ -73,10 +80,68 @@ async function client(request: Request, env: Env, token: string, what: string, i
     }
     return Response.redirect(new URL(`/p/${token}`, request.url).href, 303);
   }
-  // A visit: keep the last 50 view times for the shop
+  // A visit: keep the last 50 view times for the shop, and catch up on any open invoice
   job.views = [...(job.views ?? []), Date.now()].slice(-50);
+  await freshInvoices(env, job, 5 * 60e3);
   await putJob(env, job);
   return html(projectPage(job, shop, token));
+}
+
+/** The deposit invoice, made and sent when the client signs (when QuickBooks is connected and that's switched on). */
+async function autoDeposit(env: Env, job: Job) {
+  if (!qbReady(env) || !(job.proposal.deposit > 0) || job.invoices?.some((i) => i.kind === 'deposit')) return;
+  const [conn, s] = [await getConn(env), await getQbSettings(env)];
+  if (!conn || !s.autoDeposit) return;
+  try {
+    const inv = await makeInvoice(env, job, 'deposit', job.proposal.deposit, depositLine(job));
+    job.invoices = [...(job.invoices ?? []), inv];
+    job.invoiceError = undefined;
+  } catch (e) {
+    job.invoiceError = String((e as Error).message || e).slice(0, 300);
+  }
+  await putJob(env, job);
+}
+const depositLine = (j: Job) => `Deposit (${Math.round((j.proposal.deposit / (j.proposal.total || 1)) * 100)}%) on ${j.project}, per the signed agreement (version ${j.proposal.version}). Project total $${j.proposal.total.toLocaleString('en-US')}.`;
+
+/** Bring unpaid invoices up to date with QuickBooks, at most every `age` ms. */
+async function freshInvoices(env: Env, job: Job, age: number) {
+  const open = (job.invoices ?? []).filter((i) => i.balance > 0 && Date.now() - i.checkedAt > age);
+  if (!open.length || !(await getConn(env))) return;
+  for (const inv of open) await refreshInvoice(env, inv).catch(() => undefined);
+  await putJob(env, job);
+}
+
+/* ---------- QuickBooks connection ---------- */
+
+async function qbPage(request: Request, env: Env, url: URL, key: string, path: string): Promise<Response> {
+  if (!qbReady(env)) {
+    return setupPage('Connect QuickBooks', `<p>First make an app at <b>developer.intuit.com</b> (it’s free), then add its keys to this worker as <b>Secrets</b> in <b>Settings → Variables and Secrets</b>: <code>QB_CLIENT_ID</code> and <code>QB_CLIENT_SECRET</code>. In the Intuit app, add this Redirect URI:</p><input readonly value="${url.origin}/qb/callback" onclick="this.select()"><p>Then reload this page.</p>`);
+  }
+  if (path === '/qb/callback') {
+    try {
+      const name = await finishConnect(env, url);
+      return setupPage('QuickBooks connected', `<p>The portal is connected to <b>${esc(name)}</b>${String(env.QB_ENV).toLowerCase() === 'sandbox' ? ' (Intuit’s test company)' : ''}. Go back to Cabinet Studio and pick the product/service for invoices under <b>Portal settings → QuickBooks</b>.</p>`);
+    } catch (e) {
+      return setupPage('QuickBooks didn’t connect', `<p>${esc((e as Error).message)}</p><p><a href="/qb">Try again</a></p>`);
+    }
+  }
+  if (request.method === 'POST') {
+    const f = await request.formData();
+    const pasted = String(f.get('key') || '').trim();
+    if (!key || !pasted || (await shopCode(pasted)) !== (await shopCode(key))) return setupPage('That key doesn’t match', '<p>Paste the same SHOP_KEY you saved in Cloudflare.</p>' + qbForm());
+    if (f.get('action') === 'disconnect') { await disconnect(env); return setupPage('QuickBooks disconnected', '<p>The portal no longer has access to QuickBooks. Invoices already made stay in QuickBooks.</p><p><a href="/qb">Connect again</a></p>'); }
+    return Response.redirect(await connectUrl(env, url.origin), 302);
+  }
+  const conn = await getConn(env);
+  return setupPage('QuickBooks', `<p>${conn ? `Connected to <b>${esc(conn.companyName || 'your company')}</b> since ${esc(new Date(conn.connectedAt).toLocaleDateString('en-US'))}.` : 'Not connected yet.'}${String(env.QB_ENV).toLowerCase() === 'sandbox' ? ' <b>Test mode</b> (QB_ENV is sandbox).' : ''}</p><p>Paste your SHOP_KEY to ${conn ? 'reconnect or disconnect' : 'connect'}. QuickBooks then asks you to sign in and pick the company.</p>${qbForm(!!conn)}`);
+}
+const qbForm = (connected = false) => `<form method="post" action="/qb"><input name="key" type="password" placeholder="SHOP_KEY" autocomplete="off" required><p><button name="action" value="connect">${connected ? 'Reconnect' : 'Connect to QuickBooks'}</button>${connected ? ' <button name="action" value="disconnect" style="background:#8a2a1e">Disconnect</button>' : ''}</p></form>`;
+
+function legalPage(eula: boolean) {
+  const body = eula
+    ? '<p>This portal is used only by CJC Custom Carpentry LLC to share proposals, agreements and invoices with its own clients. It is provided as is. Clients use it to view and sign their own project documents and to reach QuickBooks’ payment page for their invoices.</p>'
+    : '<p>The portal keeps what CJC Custom Carpentry LLC publishes for each client (proposal, renderings, documents), the client’s signature with its time, IP address and browser, and page view times. QuickBooks is used only to make and track the shop’s own invoices; no QuickBooks data is shared with anyone else. Data is stored with Cloudflare. Contact the shop to have a record removed where the law allows.</p>';
+  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${eula ? 'End-user agreement' : 'Privacy'}</title><style>body{font:16px/1.55 system-ui,sans-serif;max-width:640px;margin:8vh auto;padding:0 16px}</style></head><body><h1>${eula ? 'End-user license agreement' : 'Privacy policy'}</h1>${body}</body></html>`;
 }
 
 /* ---------- Setup page ---------- */
@@ -134,6 +199,20 @@ const TOOLS = [
   },
   { name: 'job_status', description: 'Where a client’s page stands: link, views, signature (who, when), cancellation and its deadline.', inputSchema: { type: 'object', properties: { job_id: { type: 'string' } }, required: ['job_id'] } },
   { name: 'list_jobs', description: 'Every job on the portal with its status.', inputSchema: { type: 'object', properties: {} } },
+  { name: 'qb_status', description: 'Whether QuickBooks Online is set up and connected, to which company, the invoice settings, and the address of the page for connecting it.', inputSchema: { type: 'object', properties: {} } },
+  { name: 'qb_items', description: 'The QuickBooks products/services (type Service) an invoice line can use.', inputSchema: { type: 'object', properties: {} } },
+  {
+    name: 'qb_settings', description: 'Change the invoice settings. Only the fields sent change.',
+    inputSchema: { type: 'object', properties: { item_id: { type: 'string' }, item_name: { type: 'string' }, auto_deposit: { type: 'boolean', description: 'Make and send the deposit invoice when the client signs.' }, email: { type: 'boolean', description: 'Have QuickBooks email invoices to the client.' } } },
+  },
+  {
+    name: 'create_invoice', description: 'Make a QuickBooks invoice for a job (with card/ACH payment on), and email it when that is on. Deposit defaults to the proposal deposit; final defaults to the total less what was invoiced before.',
+    inputSchema: { type: 'object', properties: { job_id: { type: 'string' }, kind: { type: 'string', enum: ['deposit', 'final', 'change'] }, amount: { type: 'number' }, description: { type: 'string' } }, required: ['job_id', 'kind'] },
+  },
+  {
+    name: 'record_payment', description: 'Record a check or cash payment against one of the job’s invoices in QuickBooks.',
+    inputSchema: { type: 'object', properties: { job_id: { type: 'string' }, invoice_id: { type: 'string' }, method: { type: 'string', enum: ['check', 'cash', 'other'] }, amount: { type: 'number' }, ref: { type: 'string', description: 'Check number.' } }, required: ['job_id', 'invoice_id', 'method', 'amount'] },
+  },
 ];
 
 type Rpc = { id?: unknown; method?: string; params?: { name?: string; arguments?: Record<string, unknown>; protocolVersion?: string } };
@@ -165,6 +244,8 @@ const status = (j: Job, url: URL) => ({
   signed: j.signature ? { name: j.signature.name, at: j.signature.at, version: j.signature.version, current: j.signature.hash === j.proposal.hash } : null,
   cancelDeadline: j.signature ? cancelDeadline(easternYmd(j.signature.at)) : null,
   cancelled: j.cancelled ? { at: j.cancelled.at } : null,
+  invoices: (j.invoices ?? []).map((i) => ({ id: i.id, kind: i.kind, number: i.docNumber ?? null, amount: i.amount, balance: i.balance, paid: i.balance <= 0, emailed: !!i.emailed, payLink: !!i.link, createdAt: i.createdAt, payments: i.payments ?? [] })),
+  invoiceError: j.invoiceError ?? null,
 });
 
 /** A file from a Dropbox temporary link. Only Dropbox's own download hosts, so the portal can't be pointed elsewhere. */
@@ -229,9 +310,10 @@ async function tool(name: string, a: Record<string, unknown>, env: Env, url: URL
       const token = old?.token ?? randomToken(18);
       const job: Job = {
         jobId, token, client: (a.client as Job['client']) ?? old?.client ?? {}, project: String(a.project || old?.project || 'Your project'), stage: 'proposal',
-        proposal: { agreementHtml, total: Number(a.total) || 0, deposit: Number(a.deposit) || 0, publishedAt: Date.now(), version, hash },
+        proposal: { agreementHtml, total: Number(a.total) || 0, deposit: Number(a.deposit) || 0, publishedAt: Date.now(), version, hash, terms: shop.terms },
         renderings, views: old?.views ?? [],
         history: old?.history ?? [],
+        invoices: old?.invoices ?? [],
       };
       // A cancelled or replaced signature leaves the page but stays on record in the job's history
       if (old?.signature) job.history!.push({ ...old.signature, ...(old.cancelled ? { cancelled: old.cancelled } : {}) });
@@ -242,6 +324,42 @@ async function tool(name: string, a: Record<string, unknown>, env: Env, url: URL
     case 'job_status': {
       const j = await getJob(env, String(a.job_id || ''));
       if (!j) throw new Error('No portal page for that job yet.');
+      await freshInvoices(env, j, 0);
+      return status(j, url);
+    }
+    case 'qb_status': {
+      const conn = qbReady(env) ? await getConn(env) : null;
+      return { configured: qbReady(env), connected: !!conn, company: conn?.companyName ?? null, sandbox: String(env.QB_ENV || '').toLowerCase() === 'sandbox', connectPage: `${url.origin}/qb`, redirectUri: `${url.origin}/qb/callback`, settings: await getQbSettings(env), expiresAt: conn?.refreshExp ?? null };
+    }
+    case 'qb_items': return { items: await listItems(env) };
+    case 'qb_settings': {
+      const st = await getQbSettings(env);
+      if (str('item_id') !== undefined) { st.itemId = str('item_id'); st.itemName = str('item_name'); }
+      if (typeof a.auto_deposit === 'boolean') st.autoDeposit = a.auto_deposit;
+      if (typeof a.email === 'boolean') st.email = a.email;
+      await putQbSettings(env, st);
+      return { settings: st };
+    }
+    case 'create_invoice': {
+      const j = await getJob(env, String(a.job_id || ''));
+      if (!j) throw new Error('No portal page for that job yet.');
+      const kind = (str('kind') as QbInvoice['kind']) || 'deposit';
+      // Change orders are billed on their own when approved; the final invoice is the contract total less earlier contract invoices
+      const before = (j.invoices ?? []).filter((i) => i.kind !== 'change').reduce((t, i) => t + i.amount, 0);
+      const amount = typeof a.amount === 'number' ? a.amount : kind === 'deposit' ? j.proposal.deposit : kind === 'final' ? j.proposal.total - before : 0;
+      const description = str('description') || (kind === 'deposit' ? depositLine(j) : kind === 'final' ? `Final payment on ${j.project}: project total $${j.proposal.total.toLocaleString('en-US')} less $${before.toLocaleString('en-US')} invoiced before.` : `Change order on ${j.project}.`);
+      const inv = await makeInvoice(env, j, kind, amount, description);
+      j.invoices = [...(j.invoices ?? []), inv];
+      if (kind === 'deposit') j.invoiceError = undefined;
+      await putJob(env, j);
+      return status(j, url);
+    }
+    case 'record_payment': {
+      const j = await getJob(env, String(a.job_id || ''));
+      const inv = j?.invoices?.find((i) => i.id === str('invoice_id'));
+      if (!j || !inv) throw new Error('That invoice isn’t on this job.');
+      await recordPayment(env, j, inv, (str('method') as 'check' | 'cash' | 'other') || 'check', Number(a.amount), str('ref'));
+      await putJob(env, j);
       return status(j, url);
     }
     case 'list_jobs': {

@@ -14,7 +14,7 @@ export interface KV {
   list(opts?: { prefix?: string; cursor?: string }): Promise<{ keys: { name: string }[]; list_complete: boolean; cursor?: string }>;
 }
 
-export interface Env { PORTAL: KV; SHOP_KEY?: string }
+export interface Env { PORTAL: KV; SHOP_KEY?: string; QB_CLIENT_ID?: string; QB_CLIENT_SECRET?: string; QB_ENV?: string }
 
 export interface ShopDoc { id: string; title: string; kind: 'license' | 'insurance' | 'terms' | 'other'; mimeType: string; size: number; expires?: string; uploadedAt: number }
 export interface Shop {
@@ -36,13 +36,17 @@ export interface Job {
   client: { first?: string; last?: string; email?: string; phone?: string; address?: string };
   project: string;
   stage: 'proposal';
-  proposal: { agreementHtml: string; total: number; deposit: number; publishedAt: number; version: number; hash: string };
+  proposal: { agreementHtml: string; total: number; deposit: number; publishedAt: number; version: number; hash: string; /** The terms as published with this version: what the client signs. Older jobs fall back to the shop's. */ terms?: string };
   renderings: { id: string; name: string; mimeType: string }[];
   views: number[];
   signature?: Signature;
   cancelled?: { at: number; ip: string };
   /** Signatures on earlier versions, kept when a new version replaces them. */
   history?: (Signature & { cancelled?: { at: number; ip: string } })[];
+  /** QuickBooks invoices for this job, newest last. */
+  invoices?: import('./qb').QbInvoice[];
+  /** Why the automatic deposit invoice didn't go out, until it does. */
+  invoiceError?: string;
 }
 
 export const emptyShop: Shop = { company: [], about: '', terms: '', docs: [] };

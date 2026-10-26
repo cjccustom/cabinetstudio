@@ -91,6 +91,7 @@ var LOGO = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAA4QAAAEWAQAAAAAWBGT3AA
 var esc = (s) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 var money = (v) => `$${Math.round(v).toLocaleString("en-US")}`;
 var paras = (text) => text.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean).map((p) => `<p>${esc(p).replace(/\n/g, "<br>")}</p>`).join("");
+var termsOf = (j, shop) => j.proposal.terms ?? shop.terms;
 var clientName = (j) => [j.client.first, j.client.last].filter(Boolean).join(" ") || "there";
 var noticeCss = `.notice{border:1px solid #999;padding:14px;margin:18px 0;font-size:13px;break-inside:avoid}.notice h3{text-align:center;margin:0 0 8px}.sigline{margin-top:28px}.muted{color:#646b73}`;
 var css = `:root{--ink:#1f2328;--muted:#646b73;--line:#e3e0da;--bg:#f7f5f1;--card:#fff;--accent:#2b4a3c;--accent-ink:#fff;--warn:#9a3412}
@@ -112,13 +113,22 @@ label.chk{display:flex;gap:10px;align-items:flex-start;margin:10px 0}label.chk i
 input[type=text]{width:100%;padding:11px;font:inherit;border:1px solid #c9c4ba;border-radius:8px}
 canvas.pad{width:100%;height:160px;border:1px dashed #a9a296;border-radius:8px;background:#fffdf8;touch-action:none;display:block}
 .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:12px}.ok{color:#14532d;background:#ecfdf3;border:1px solid #bbf7d0;border-radius:10px;padding:12px 14px}
-.warn{color:var(--warn)}${noticeCss}footer{font-size:13px;color:var(--muted);text-align:center;margin-top:28px}
+.warn{color:var(--warn)}.pay{margin-top:14px;padding-top:12px;border-top:1px solid var(--line)}${noticeCss}footer{font-size:13px;color:var(--muted);text-align:center;margin-top:28px}
 @media print{body{background:#fff}header.top,.noprint{display:none}main{max-width:none;padding:0}.card{border:0;padding:0}}`;
 function shell(title, body, shop, who = "") {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow">
 <title>${esc(title)}</title><style>${css}</style></head><body>
 <header class="top"><div class="in"><img src="${LOGO}" alt="CJC Custom Carpentry"><div class="who">${who}</div></div></header>
 <main>${body}<footer>${shop.company.map(esc).join(" \xB7 ")}</footer></main></body></html>`;
+}
+function payBlock(j, shop) {
+  const invs = (j.invoices ?? []).filter((i) => i.amount > 0);
+  if (!invs.length) return "";
+  const payee = shop.company[0] || "CJC Custom Carpentry LLC";
+  const label = { deposit: "Deposit", final: "Final payment", change: "Change order" };
+  return `<div class="pay">${invs.map((i) => i.balance <= 0 ? `<p class="ok">${label[i.kind]} of ${money(i.amount)} received. Thank you!</p>` : `<p><b>${label[i.kind]} due: ${money(i.balance)}</b>${i.docNumber ? ` <span class="muted">(invoice ${esc(i.docNumber)})</span>` : ""}</p>
+${i.link ? `<div class="row"><a class="btn" href="${esc(i.link)}" target="_blank" rel="noopener">Pay by card or bank transfer</a></div>` : ""}
+<p class="muted">${i.link ? "Or pay" : "Pay"} by check to <b>${esc(payee)}</b>${shop.company[1] ? `, ${esc(shop.company[1])}` : ""}, or in person.</p>`).join("")}</div>`;
 }
 function projectPage(j, shop, token, flash = "") {
   const base = `/p/${token}`;
@@ -128,6 +138,7 @@ function projectPage(j, shop, token, flash = "") {
   const termsDoc = shop.docs.find((d) => d.kind === "terms");
   const signBlock = j.cancelled ? `<div class="warn">This agreement was cancelled on ${esc(longDate(easternYmd(j.cancelled.at)))}. Any deposit paid will be returned within 10 business days.</div>` : s ? `<div class="ok">Signed by <b>${esc(s.name)}</b> on ${esc(longDate(easternYmd(s.at)))}. Thank you!</div>
 <div class="row"><a class="btn" href="${base}/agreement" target="_blank" rel="noopener">Your signed agreement</a></div>
+${payBlock(j, shop)}
 ${canCancel(s.at) ? `<details class="noprint"><summary>Changed your mind?</summary><p>You can cancel without penalty until midnight on ${esc(longDate(cancelDeadline(easternYmd(s.at))))}. The Notice of Cancellation is at the end of your signed agreement, or use this:</p>
 <form method="post" action="${base}/cancel" onsubmit="return confirm('Cancel this agreement?')"><input type="text" name="name" placeholder="Type your full name to cancel" required><div class="row"><button class="btn ghost">Cancel the agreement</button></div></form></details>` : ""}` : `<p>Read the scope, price and terms above. When you\u2019re ready, sign below; your signed copy, with your Notice of Cancellation, opens right away to save or print.</p>
 <form id="sign" method="post" action="${base}/sign">
@@ -154,7 +165,7 @@ ${shots}
 <div class="price"><div><span class="muted">Total project investment</span><b>${money(j.proposal.total)}</b></div><div><span class="muted">Deposit at signing (30%)</span><b>${money(j.proposal.deposit)}</b></div></div>
 <iframe class="doc" title="Project scope and purchase agreement" sandbox srcdoc="${esc(j.proposal.agreementHtml)}"></iframe>
 <p class="row"><a href="${base}/agreement" target="_blank" rel="noopener">Open the full agreement to print or save</a></p></section>
-<section class="card"><h2>Terms and conditions</h2>${shop.terms ? `<details><summary>Read the terms</summary>${paras(shop.terms)}</details>` : '<p class="muted">Terms are attached to the agreement.</p>'}${termsDoc ? `<p><a href="${base}/doc/${esc(termsDoc.id)}" target="_blank" rel="noopener">${esc(termsDoc.title)} (PDF)</a></p>` : ""}</section>
+<section class="card"><h2>Terms and conditions</h2>${termsOf(j, shop) ? `<details><summary>Read the terms</summary>${paras(termsOf(j, shop))}</details>` : '<p class="muted">Terms are attached to the agreement.</p>'}${termsDoc ? `<p><a href="${base}/doc/${esc(termsDoc.id)}" target="_blank" rel="noopener">${esc(termsDoc.title)} (PDF)</a></p>` : ""}</section>
 ${docs.length ? `<section class="card"><h2>Licenses and insurance</h2><ul class="docs">${docs.map((d) => `<li><a href="${base}/doc/${esc(d.id)}" target="_blank" rel="noopener">${esc(d.title)}</a>${d.expires ? `<span class="muted">valid through ${esc((/* @__PURE__ */ new Date(`${d.expires}T12:00:00Z`)).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" }))}</span>` : ""}</li>`).join("")}</ul></section>` : ""}
 ${shop.about ? `<section class="card"><h2>About CJC Custom Carpentry</h2>${paras(shop.about)}</section>` : ""}
 <section class="card" id="signing"><h2>${s ? "Signed" : "Sign the agreement"}</h2>${signBlock}</section>`;
@@ -175,10 +186,181 @@ ${noticeOfCancellation(easternYmd(s.at), seller, address)}${noticeOfCancellation
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow">
 <title>${esc(j.project)} agreement</title><style>body{font:11pt/1.45 Georgia,serif;max-width:7.5in;margin:.5in auto;padding:0 16px;color:#111}${style}${noticeCss}
 .terms p{font-size:10pt}</style></head><body>${inner}
-${shop.terms ? `<section class="terms" style="page-break-before:always"><h2>Terms and Conditions</h2>${paras(shop.terms)}</section>` : ""}
+${termsOf(j, shop) ? `<section class="terms" style="page-break-before:always"><h2>Terms and Conditions</h2>${paras(termsOf(j, shop))}</section>` : ""}
 ${signed}</body></html>`;
 }
 var simplePage = (title, text, shop) => shell(title, `<h1>${esc(title)}</h1><p>${esc(text)}</p>`, shop);
+
+// portal/src/qb.ts
+var defaultQbSettings = { autoDeposit: true, email: true };
+var qbReady = (env) => Boolean(env.QB_CLIENT_ID && env.QB_CLIENT_SECRET);
+var sandbox = (env) => String(env.QB_ENV || "").toLowerCase() === "sandbox";
+var apiBase = (env) => sandbox(env) ? "https://sandbox-quickbooks.api.intuit.com" : "https://quickbooks.api.intuit.com";
+var TOKEN_URL = "https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer";
+var REVOKE_URL = "https://developer.api.intuit.com/v2/oauth2/tokens/revoke";
+var MINOR = "75";
+var redirectUri = (origin) => `${origin}/qb/callback`;
+var getConn = async (env) => await env.PORTAL.get("qb", "json");
+async function getQbSettings(env) {
+  return { ...defaultQbSettings, ...await env.PORTAL.get("qb-settings", "json") };
+}
+var putQbSettings = (env, s) => env.PORTAL.put("qb-settings", JSON.stringify(s));
+async function connectUrl(env, origin) {
+  const state = randomToken(18);
+  await env.PORTAL.put(`qbstate:${state}`, JSON.stringify(Date.now() + 10 * 6e4));
+  const q = new URLSearchParams({ client_id: env.QB_CLIENT_ID, response_type: "code", scope: "com.intuit.quickbooks.accounting", redirect_uri: redirectUri(origin), state });
+  return `https://appcenter.intuit.com/connect/oauth2?${q}`;
+}
+var basic = (env) => `Basic ${btoa(`${env.QB_CLIENT_ID}:${env.QB_CLIENT_SECRET}`)}`;
+async function tokenCall(env, body) {
+  const res = await fetch(TOKEN_URL, { method: "POST", headers: { authorization: basic(env), accept: "application/json", "content-type": "application/x-www-form-urlencoded" }, body: new URLSearchParams(body) });
+  const j = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(`QuickBooks sign-in failed: ${j.error_description || j.error || res.status}`);
+  return j;
+}
+async function finishConnect(env, url) {
+  const state = url.searchParams.get("state") || "";
+  const exp = await env.PORTAL.get(`qbstate:${state}`, "json");
+  await env.PORTAL.delete(`qbstate:${state}`);
+  if (!exp || exp < Date.now()) throw new Error("That connect link expired. Start again from the QuickBooks page.");
+  if (url.searchParams.get("error")) throw new Error(`QuickBooks said: ${url.searchParams.get("error")}`);
+  const code = url.searchParams.get("code") || "";
+  const realmId = url.searchParams.get("realmId") || "";
+  if (!code || !realmId) throw new Error("QuickBooks didn\u2019t send the company back. Try again.");
+  const t = await tokenCall(env, { grant_type: "authorization_code", code, redirect_uri: redirectUri(url.origin) });
+  const now = Date.now();
+  const conn = { realmId, access: t.access_token, accessExp: now + t.expires_in * 1e3, refresh: t.refresh_token, refreshExp: now + t.x_refresh_token_expires_in * 1e3, connectedAt: now };
+  await env.PORTAL.put("qb", JSON.stringify(conn));
+  try {
+    const info = await qb(env, "GET", `companyinfo/${realmId}`);
+    conn.companyName = info.CompanyInfo?.CompanyName;
+    await env.PORTAL.put("qb", JSON.stringify(conn));
+  } catch {
+  }
+  return conn.companyName || "your company";
+}
+async function disconnect(env) {
+  const c = await getConn(env);
+  if (c) await fetch(REVOKE_URL, { method: "POST", headers: { authorization: basic(env), accept: "application/json", "content-type": "application/json" }, body: JSON.stringify({ token: c.refresh }) }).catch(() => void 0);
+  await env.PORTAL.delete("qb");
+}
+async function access(env) {
+  const c = await getConn(env);
+  if (!c) throw new Error("QuickBooks isn\u2019t connected. Connect it from the portal\u2019s QuickBooks page.");
+  if (c.accessExp - Date.now() > 6e4) return c;
+  if (c.refreshExp < Date.now()) throw new Error("The QuickBooks connection expired. Connect it again from the portal\u2019s QuickBooks page.");
+  const t = await tokenCall(env, { grant_type: "refresh_token", refresh_token: c.refresh });
+  const now = Date.now();
+  const next = { ...c, access: t.access_token, accessExp: now + t.expires_in * 1e3, refresh: t.refresh_token, refreshExp: now + t.x_refresh_token_expires_in * 1e3 };
+  await env.PORTAL.put("qb", JSON.stringify(next));
+  return next;
+}
+async function qb(env, method, path, body, query = {}) {
+  const c = await access(env);
+  const q = new URLSearchParams({ minorversion: MINOR, ...query });
+  const res = await fetch(`${apiBase(env)}/v3/company/${c.realmId}/${path}?${q}`, {
+    method,
+    headers: { authorization: `Bearer ${c.access}`, accept: "application/json", ...body !== void 0 ? { "content-type": typeof body === "string" ? "application/octet-stream" : "application/json" } : {} },
+    body: body === void 0 ? void 0 : typeof body === "string" ? body : JSON.stringify(body)
+  });
+  const j = await res.json().catch(() => ({}));
+  if (!res.ok || j.Fault) {
+    const e = j.Fault?.Error?.[0] ?? j.fault?.error?.[0];
+    throw Object.assign(new Error(`QuickBooks: ${e?.Message || e?.message || res.status}${e?.Detail || e?.detail ? ` (${e.Detail || e.detail})` : ""}`), { qbCode: e?.code });
+  }
+  return j;
+}
+var quote = (s) => `'${s.replace(/\\/g, "\\\\").replace(/'/g, "\\'")}'`;
+var select = async (env, sql) => (await qb(env, "GET", "query", void 0, { query: sql })).QueryResponse ?? {};
+async function listItems(env) {
+  const r = await select(env, "select Id, Name, Type, Active from Item where Type = 'Service' maxresults 200");
+  return (r.Item ?? []).filter((i) => i.Active !== false).map((i) => ({ id: String(i.Id), name: String(i.Name) }));
+}
+async function customerFor(env, j) {
+  const name = [j.client.first, j.client.last].filter(Boolean).join(" ").trim() || j.project;
+  const byName = await select(env, `select Id, DisplayName from Customer where DisplayName = ${quote(name)}`);
+  if (byName.Customer?.[0]) return { id: String(byName.Customer[0].Id), name };
+  if (j.client.email) {
+    const byEmail = await select(env, `select Id, DisplayName, PrimaryEmailAddr from Customer where PrimaryEmailAddr = ${quote(j.client.email)}`);
+    if (byEmail.Customer?.[0]) return { id: String(byEmail.Customer[0].Id), name: String(byEmail.Customer[0].DisplayName) };
+  }
+  const addr = parseAddress(j.client.address || "");
+  const body = (display) => ({
+    DisplayName: display,
+    GivenName: j.client.first || void 0,
+    FamilyName: j.client.last || void 0,
+    PrimaryEmailAddr: j.client.email ? { Address: j.client.email } : void 0,
+    PrimaryPhone: j.client.phone ? { FreeFormNumber: j.client.phone } : void 0,
+    BillAddr: addr,
+    ShipAddr: addr
+  });
+  try {
+    const r = await qb(env, "POST", "customer", body(name));
+    return { id: String(r.Customer.Id), name };
+  } catch (e) {
+    if (e.qbCode !== "6240") throw e;
+    const r = await qb(env, "POST", "customer", body(`${name} (client)`));
+    return { id: String(r.Customer.Id), name: `${name} (client)` };
+  }
+}
+function parseAddress(s) {
+  const parts = s.split(",").map((x) => x.trim()).filter(Boolean);
+  if (!parts.length) return void 0;
+  const out = { Line1: parts[0] };
+  const tail = parts.slice(1).join(" ");
+  const m = tail.match(/^(.*?)\s*,?\s*\b([A-Z]{2})\s+(\d{5}(?:-\d{4})?)$/);
+  if (m) Object.assign(out, { City: m[1].replace(/,$/, "").trim() || void 0, CountrySubDivisionCode: m[2], PostalCode: m[3] });
+  else if (parts[1]) Object.assign(out, { City: parts[1], CountrySubDivisionCode: "MA" });
+  return out;
+}
+var due = (days) => new Date(Date.now() + days * 864e5).toISOString().slice(0, 10);
+async function makeInvoice(env, j, kind, amount, description) {
+  const s = await getQbSettings(env);
+  if (!s.itemId) throw new Error("Pick the QuickBooks product/service for invoices first (Portal settings \u2192 QuickBooks).");
+  if (!(amount > 0)) throw new Error("The invoice amount is $0.");
+  const cust = await customerFor(env, j);
+  const r = await qb(env, "POST", "invoice", {
+    CustomerRef: { value: cust.id },
+    Line: [{ Amount: round2(amount), DetailType: "SalesItemLineDetail", Description: description, SalesItemLineDetail: { ItemRef: { value: s.itemId }, Qty: 1, UnitPrice: round2(amount), TaxCodeRef: { value: "NON" } } }],
+    BillEmail: j.client.email ? { Address: j.client.email } : void 0,
+    AllowOnlineCreditCardPayment: true,
+    AllowOnlineACHPayment: true,
+    DueDate: due(kind === "deposit" ? 3 : 10),
+    CustomerMemo: { value: `${j.project}. Thank you!` },
+    PrivateNote: `Client portal job ${j.jobId}, agreement version ${j.proposal.version}.`
+  });
+  const inv = { kind, id: String(r.Invoice.Id), docNumber: r.Invoice.DocNumber, amount: round2(amount), balance: Number(r.Invoice.Balance ?? amount), createdAt: Date.now(), checkedAt: Date.now() };
+  if (s.email && j.client.email) {
+    await qb(env, "POST", `invoice/${inv.id}/send`, "", { sendTo: j.client.email }).then(() => {
+      inv.emailed = true;
+    }, () => void 0);
+  }
+  await refreshInvoice(env, inv);
+  return inv;
+}
+async function refreshInvoice(env, inv) {
+  const r = await qb(env, "GET", `invoice/${inv.id}`, void 0, { include: "invoiceLink" });
+  inv.balance = Number(r.Invoice?.Balance ?? inv.balance);
+  if (r.Invoice?.InvoiceLink) inv.link = String(r.Invoice.InvoiceLink);
+  inv.checkedAt = Date.now();
+  return inv;
+}
+async function recordPayment(env, j, inv, method, amount, ref) {
+  if (!(amount > 0)) throw new Error("The payment amount is $0.");
+  const cust = await customerFor(env, j);
+  const pm = method === "other" ? null : (await select(env, `select Id, Name from PaymentMethod where Name = ${quote(method === "check" ? "Check" : "Cash")}`)).PaymentMethod?.[0];
+  const r = await qb(env, "POST", "payment", {
+    CustomerRef: { value: cust.id },
+    TotalAmt: round2(amount),
+    PaymentMethodRef: pm ? { value: String(pm.Id) } : void 0,
+    PaymentRefNum: ref ? ref.slice(0, 21) : void 0,
+    Line: [{ Amount: round2(amount), LinkedTxn: [{ TxnId: inv.id, TxnType: "Invoice" }] }],
+    PrivateNote: `Recorded from Cabinet Studio (${method}${ref ? ` #${ref}` : ""}).`
+  });
+  inv.payments = [...inv.payments ?? [], { method, amount: round2(amount), ref, at: Date.now(), id: String(r.Payment?.Id ?? "") }];
+  return refreshInvoice(env, inv);
+}
+var round2 = (v) => Math.round(v * 100) / 100;
 
 // portal/src/worker.ts
 var html = (body, status2 = 200) => new Response(body, { status: status2, headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "x-robots-tag": "noindex", "referrer-policy": "no-referrer" } });
@@ -192,6 +374,8 @@ var worker_default = {
     if (m) return client(request, env, m[1], m[2] ?? m[4] ?? "", m[3] ?? "");
     const key = String(env.SHOP_KEY || "").trim();
     if (path === "/" || path === "/setup") return setup(request, url, key);
+    if (path === "/qb" || path === "/qb/connect" || path === "/qb/callback") return qbPage(request, env, url, key, path);
+    if (path === "/legal/eula" || path === "/legal/privacy") return html(legalPage(path.endsWith("eula")));
     const code = key ? await shopCode(key) : "";
     let p = path;
     try {
@@ -227,7 +411,10 @@ async function client(request, env, token, what, id) {
     const meta = got.metadata ?? {};
     return new Response(got.value, { headers: { "content-type": meta.mimeType || "application/octet-stream", "cache-control": "private, max-age=3600", "x-robots-tag": "noindex" } });
   }
-  if (what === "agreement") return html(agreementPage(job, shop));
+  if (what === "agreement") {
+    await freshInvoices(env, job, 5 * 6e4);
+    return html(agreementPage(job, shop));
+  }
   const ip = request.headers.get("cf-connecting-ip") || "";
   if (what === "sign" && request.method === "POST") {
     if (job.signature || job.cancelled) return Response.redirect(new URL(`/p/${token}`, request.url).href, 303);
@@ -239,6 +426,7 @@ async function client(request, env, token, what, id) {
     }
     job.signature = { name, image, at: Date.now(), ip, ua: (request.headers.get("user-agent") || "").slice(0, 200), hash: job.proposal.hash, version: job.proposal.version, consent: true };
     await putJob(env, job);
+    await autoDeposit(env, job);
     return Response.redirect(new URL(`/p/${token}/agreement`, request.url).href, 303);
   }
   if (what === "cancel" && request.method === "POST") {
@@ -253,8 +441,59 @@ async function client(request, env, token, what, id) {
     return Response.redirect(new URL(`/p/${token}`, request.url).href, 303);
   }
   job.views = [...job.views ?? [], Date.now()].slice(-50);
+  await freshInvoices(env, job, 5 * 6e4);
   await putJob(env, job);
   return html(projectPage(job, shop, token));
+}
+async function autoDeposit(env, job) {
+  if (!qbReady(env) || !(job.proposal.deposit > 0) || job.invoices?.some((i) => i.kind === "deposit")) return;
+  const [conn, s] = [await getConn(env), await getQbSettings(env)];
+  if (!conn || !s.autoDeposit) return;
+  try {
+    const inv = await makeInvoice(env, job, "deposit", job.proposal.deposit, depositLine(job));
+    job.invoices = [...job.invoices ?? [], inv];
+    job.invoiceError = void 0;
+  } catch (e) {
+    job.invoiceError = String(e.message || e).slice(0, 300);
+  }
+  await putJob(env, job);
+}
+var depositLine = (j) => `Deposit (${Math.round(j.proposal.deposit / (j.proposal.total || 1) * 100)}%) on ${j.project}, per the signed agreement (version ${j.proposal.version}). Project total $${j.proposal.total.toLocaleString("en-US")}.`;
+async function freshInvoices(env, job, age) {
+  const open = (job.invoices ?? []).filter((i) => i.balance > 0 && Date.now() - i.checkedAt > age);
+  if (!open.length || !await getConn(env)) return;
+  for (const inv of open) await refreshInvoice(env, inv).catch(() => void 0);
+  await putJob(env, job);
+}
+async function qbPage(request, env, url, key, path) {
+  if (!qbReady(env)) {
+    return setupPage("Connect QuickBooks", `<p>First make an app at <b>developer.intuit.com</b> (it\u2019s free), then add its keys to this worker as <b>Secrets</b> in <b>Settings \u2192 Variables and Secrets</b>: <code>QB_CLIENT_ID</code> and <code>QB_CLIENT_SECRET</code>. In the Intuit app, add this Redirect URI:</p><input readonly value="${url.origin}/qb/callback" onclick="this.select()"><p>Then reload this page.</p>`);
+  }
+  if (path === "/qb/callback") {
+    try {
+      const name = await finishConnect(env, url);
+      return setupPage("QuickBooks connected", `<p>The portal is connected to <b>${esc(name)}</b>${String(env.QB_ENV).toLowerCase() === "sandbox" ? " (Intuit\u2019s test company)" : ""}. Go back to Cabinet Studio and pick the product/service for invoices under <b>Portal settings \u2192 QuickBooks</b>.</p>`);
+    } catch (e) {
+      return setupPage("QuickBooks didn\u2019t connect", `<p>${esc(e.message)}</p><p><a href="/qb">Try again</a></p>`);
+    }
+  }
+  if (request.method === "POST") {
+    const f = await request.formData();
+    const pasted = String(f.get("key") || "").trim();
+    if (!key || !pasted || await shopCode(pasted) !== await shopCode(key)) return setupPage("That key doesn\u2019t match", "<p>Paste the same SHOP_KEY you saved in Cloudflare.</p>" + qbForm());
+    if (f.get("action") === "disconnect") {
+      await disconnect(env);
+      return setupPage("QuickBooks disconnected", '<p>The portal no longer has access to QuickBooks. Invoices already made stay in QuickBooks.</p><p><a href="/qb">Connect again</a></p>');
+    }
+    return Response.redirect(await connectUrl(env, url.origin), 302);
+  }
+  const conn = await getConn(env);
+  return setupPage("QuickBooks", `<p>${conn ? `Connected to <b>${esc(conn.companyName || "your company")}</b> since ${esc(new Date(conn.connectedAt).toLocaleDateString("en-US"))}.` : "Not connected yet."}${String(env.QB_ENV).toLowerCase() === "sandbox" ? " <b>Test mode</b> (QB_ENV is sandbox)." : ""}</p><p>Paste your SHOP_KEY to ${conn ? "reconnect or disconnect" : "connect"}. QuickBooks then asks you to sign in and pick the company.</p>${qbForm(!!conn)}`);
+}
+var qbForm = (connected = false) => `<form method="post" action="/qb"><input name="key" type="password" placeholder="SHOP_KEY" autocomplete="off" required><p><button name="action" value="connect">${connected ? "Reconnect" : "Connect to QuickBooks"}</button>${connected ? ' <button name="action" value="disconnect" style="background:#8a2a1e">Disconnect</button>' : ""}</p></form>`;
+function legalPage(eula) {
+  const body = eula ? "<p>This portal is used only by CJC Custom Carpentry LLC to share proposals, agreements and invoices with its own clients. It is provided as is. Clients use it to view and sign their own project documents and to reach QuickBooks\u2019 payment page for their invoices.</p>" : "<p>The portal keeps what CJC Custom Carpentry LLC publishes for each client (proposal, renderings, documents), the client\u2019s signature with its time, IP address and browser, and page view times. QuickBooks is used only to make and track the shop\u2019s own invoices; no QuickBooks data is shared with anyone else. Data is stored with Cloudflare. Contact the shop to have a record removed where the law allows.</p>";
+  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${eula ? "End-user agreement" : "Privacy"}</title><style>body{font:16px/1.55 system-ui,sans-serif;max-width:640px;margin:8vh auto;padding:0 16px}</style></head><body><h1>${eula ? "End-user license agreement" : "Privacy policy"}</h1>${body}</body></html>`;
 }
 async function setup(request, url, key) {
   if (!key) {
@@ -313,7 +552,24 @@ var TOOLS = [
     }
   },
   { name: "job_status", description: "Where a client\u2019s page stands: link, views, signature (who, when), cancellation and its deadline.", inputSchema: { type: "object", properties: { job_id: { type: "string" } }, required: ["job_id"] } },
-  { name: "list_jobs", description: "Every job on the portal with its status.", inputSchema: { type: "object", properties: {} } }
+  { name: "list_jobs", description: "Every job on the portal with its status.", inputSchema: { type: "object", properties: {} } },
+  { name: "qb_status", description: "Whether QuickBooks Online is set up and connected, to which company, the invoice settings, and the address of the page for connecting it.", inputSchema: { type: "object", properties: {} } },
+  { name: "qb_items", description: "The QuickBooks products/services (type Service) an invoice line can use.", inputSchema: { type: "object", properties: {} } },
+  {
+    name: "qb_settings",
+    description: "Change the invoice settings. Only the fields sent change.",
+    inputSchema: { type: "object", properties: { item_id: { type: "string" }, item_name: { type: "string" }, auto_deposit: { type: "boolean", description: "Make and send the deposit invoice when the client signs." }, email: { type: "boolean", description: "Have QuickBooks email invoices to the client." } } }
+  },
+  {
+    name: "create_invoice",
+    description: "Make a QuickBooks invoice for a job (with card/ACH payment on), and email it when that is on. Deposit defaults to the proposal deposit; final defaults to the total less what was invoiced before.",
+    inputSchema: { type: "object", properties: { job_id: { type: "string" }, kind: { type: "string", enum: ["deposit", "final", "change"] }, amount: { type: "number" }, description: { type: "string" } }, required: ["job_id", "kind"] }
+  },
+  {
+    name: "record_payment",
+    description: "Record a check or cash payment against one of the job\u2019s invoices in QuickBooks.",
+    inputSchema: { type: "object", properties: { job_id: { type: "string" }, invoice_id: { type: "string" }, method: { type: "string", enum: ["check", "cash", "other"] }, amount: { type: "number" }, ref: { type: "string", description: "Check number." } }, required: ["job_id", "invoice_id", "method", "amount"] }
+  }
 ];
 var rpcOk = (id, result) => ({ jsonrpc: "2.0", id, result });
 var rpcErr = (id, code, message) => ({ jsonrpc: "2.0", id, error: { code, message } });
@@ -349,7 +605,9 @@ var status = (j, url) => ({
   lastViewed: j.views?.length ? j.views[j.views.length - 1] : null,
   signed: j.signature ? { name: j.signature.name, at: j.signature.at, version: j.signature.version, current: j.signature.hash === j.proposal.hash } : null,
   cancelDeadline: j.signature ? cancelDeadline(easternYmd(j.signature.at)) : null,
-  cancelled: j.cancelled ? { at: j.cancelled.at } : null
+  cancelled: j.cancelled ? { at: j.cancelled.at } : null,
+  invoices: (j.invoices ?? []).map((i) => ({ id: i.id, kind: i.kind, number: i.docNumber ?? null, amount: i.amount, balance: i.balance, paid: i.balance <= 0, emailed: !!i.emailed, payLink: !!i.link, createdAt: i.createdAt, payments: i.payments ?? [] })),
+  invoiceError: j.invoiceError ?? null
 });
 async function fetchDropbox(src) {
   const u = new URL(src);
@@ -418,10 +676,11 @@ ${shop.terms}`);
         client: a.client ?? old?.client ?? {},
         project: String(a.project || old?.project || "Your project"),
         stage: "proposal",
-        proposal: { agreementHtml, total: Number(a.total) || 0, deposit: Number(a.deposit) || 0, publishedAt: Date.now(), version, hash },
+        proposal: { agreementHtml, total: Number(a.total) || 0, deposit: Number(a.deposit) || 0, publishedAt: Date.now(), version, hash, terms: shop.terms },
         renderings,
         views: old?.views ?? [],
-        history: old?.history ?? []
+        history: old?.history ?? [],
+        invoices: old?.invoices ?? []
       };
       if (old?.signature) job.history.push({ ...old.signature, ...old.cancelled ? { cancelled: old.cancelled } : {} });
       await putJob(env, job);
@@ -431,6 +690,45 @@ ${shop.terms}`);
     case "job_status": {
       const j = await getJob(env, String(a.job_id || ""));
       if (!j) throw new Error("No portal page for that job yet.");
+      await freshInvoices(env, j, 0);
+      return status(j, url);
+    }
+    case "qb_status": {
+      const conn = qbReady(env) ? await getConn(env) : null;
+      return { configured: qbReady(env), connected: !!conn, company: conn?.companyName ?? null, sandbox: String(env.QB_ENV || "").toLowerCase() === "sandbox", connectPage: `${url.origin}/qb`, redirectUri: `${url.origin}/qb/callback`, settings: await getQbSettings(env), expiresAt: conn?.refreshExp ?? null };
+    }
+    case "qb_items":
+      return { items: await listItems(env) };
+    case "qb_settings": {
+      const st = await getQbSettings(env);
+      if (str("item_id") !== void 0) {
+        st.itemId = str("item_id");
+        st.itemName = str("item_name");
+      }
+      if (typeof a.auto_deposit === "boolean") st.autoDeposit = a.auto_deposit;
+      if (typeof a.email === "boolean") st.email = a.email;
+      await putQbSettings(env, st);
+      return { settings: st };
+    }
+    case "create_invoice": {
+      const j = await getJob(env, String(a.job_id || ""));
+      if (!j) throw new Error("No portal page for that job yet.");
+      const kind = str("kind") || "deposit";
+      const before = (j.invoices ?? []).filter((i) => i.kind !== "change").reduce((t, i) => t + i.amount, 0);
+      const amount = typeof a.amount === "number" ? a.amount : kind === "deposit" ? j.proposal.deposit : kind === "final" ? j.proposal.total - before : 0;
+      const description = str("description") || (kind === "deposit" ? depositLine(j) : kind === "final" ? `Final payment on ${j.project}: project total $${j.proposal.total.toLocaleString("en-US")} less $${before.toLocaleString("en-US")} invoiced before.` : `Change order on ${j.project}.`);
+      const inv = await makeInvoice(env, j, kind, amount, description);
+      j.invoices = [...j.invoices ?? [], inv];
+      if (kind === "deposit") j.invoiceError = void 0;
+      await putJob(env, j);
+      return status(j, url);
+    }
+    case "record_payment": {
+      const j = await getJob(env, String(a.job_id || ""));
+      const inv = j?.invoices?.find((i) => i.id === str("invoice_id"));
+      if (!j || !inv) throw new Error("That invoice isn\u2019t on this job.");
+      await recordPayment(env, j, inv, str("method") || "check", Number(a.amount), str("ref"));
+      await putJob(env, j);
       return status(j, url);
     }
     case "list_jobs": {

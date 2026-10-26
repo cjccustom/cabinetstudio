@@ -8,6 +8,8 @@ import { LOGO } from '../../src/drawings/logo';
 export const esc = (s: unknown) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const money = (v: number) => `$${Math.round(v).toLocaleString('en-US')}`;
 const paras = (text: string) => text.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean).map((p) => `<p>${esc(p).replace(/\n/g, '<br>')}</p>`).join('');
+/** The terms that go with this version of the proposal. */
+const termsOf = (j: Job, shop: Shop) => j.proposal.terms ?? shop.terms;
 export const clientName = (j: Job) => [j.client.first, j.client.last].filter(Boolean).join(' ') || 'there';
 
 const noticeCss = `.notice{border:1px solid #999;padding:14px;margin:18px 0;font-size:13px;break-inside:avoid}.notice h3{text-align:center;margin:0 0 8px}.sigline{margin-top:28px}.muted{color:#646b73}`;
@@ -30,7 +32,7 @@ label.chk{display:flex;gap:10px;align-items:flex-start;margin:10px 0}label.chk i
 input[type=text]{width:100%;padding:11px;font:inherit;border:1px solid #c9c4ba;border-radius:8px}
 canvas.pad{width:100%;height:160px;border:1px dashed #a9a296;border-radius:8px;background:#fffdf8;touch-action:none;display:block}
 .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:12px}.ok{color:#14532d;background:#ecfdf3;border:1px solid #bbf7d0;border-radius:10px;padding:12px 14px}
-.warn{color:var(--warn)}${noticeCss}footer{font-size:13px;color:var(--muted);text-align:center;margin-top:28px}
+.warn{color:var(--warn)}.pay{margin-top:14px;padding-top:12px;border-top:1px solid var(--line)}${noticeCss}footer{font-size:13px;color:var(--muted);text-align:center;margin-top:28px}
 @media print{body{background:#fff}header.top,.noprint{display:none}main{max-width:none;padding:0}.card{border:0;padding:0}}`;
 
 function shell(title: string, body: string, shop: Shop, who = ''): string {
@@ -38,6 +40,19 @@ function shell(title: string, body: string, shop: Shop, who = ''): string {
 <title>${esc(title)}</title><style>${css}</style></head><body>
 <header class="top"><div class="in"><img src="${LOGO}" alt="CJC Custom Carpentry"><div class="who">${who}</div></div></header>
 <main>${body}<footer>${shop.company.map(esc).join(' · ')}</footer></main></body></html>`;
+}
+
+/** What's owed and how to pay it: QuickBooks' own payment page for card or bank transfer, or a check. */
+function payBlock(j: Job, shop: Shop): string {
+  const invs = (j.invoices ?? []).filter((i) => i.amount > 0);
+  if (!invs.length) return '';
+  const payee = shop.company[0] || 'CJC Custom Carpentry LLC';
+  const label = { deposit: 'Deposit', final: 'Final payment', change: 'Change order' } as const;
+  return `<div class="pay">${invs.map((i) => i.balance <= 0
+    ? `<p class="ok">${label[i.kind]} of ${money(i.amount)} received. Thank you!</p>`
+    : `<p><b>${label[i.kind]} due: ${money(i.balance)}</b>${i.docNumber ? ` <span class="muted">(invoice ${esc(i.docNumber)})</span>` : ''}</p>
+${i.link ? `<div class="row"><a class="btn" href="${esc(i.link)}" target="_blank" rel="noopener">Pay by card or bank transfer</a></div>` : ''}
+<p class="muted">${i.link ? 'Or pay' : 'Pay'} by check to <b>${esc(payee)}</b>${shop.company[1] ? `, ${esc(shop.company[1])}` : ''}, or in person.</p>`).join('')}</div>`;
 }
 
 /** The client's project page. */
@@ -54,6 +69,7 @@ export function projectPage(j: Job, shop: Shop, token: string, flash = ''): stri
     : s
       ? `<div class="ok">Signed by <b>${esc(s.name)}</b> on ${esc(longDate(easternYmd(s.at)))}. Thank you!</div>
 <div class="row"><a class="btn" href="${base}/agreement" target="_blank" rel="noopener">Your signed agreement</a></div>
+${payBlock(j, shop)}
 ${canCancel(s.at) ? `<details class="noprint"><summary>Changed your mind?</summary><p>You can cancel without penalty until midnight on ${esc(longDate(cancelDeadline(easternYmd(s.at))))}. The Notice of Cancellation is at the end of your signed agreement, or use this:</p>
 <form method="post" action="${base}/cancel" onsubmit="return confirm('Cancel this agreement?')"><input type="text" name="name" placeholder="Type your full name to cancel" required><div class="row"><button class="btn ghost">Cancel the agreement</button></div></form></details>` : ''}`
       : `<p>Read the scope, price and terms above. When you’re ready, sign below; your signed copy, with your Notice of Cancellation, opens right away to save or print.</p>
@@ -81,7 +97,7 @@ ${shots}
 <div class="price"><div><span class="muted">Total project investment</span><b>${money(j.proposal.total)}</b></div><div><span class="muted">Deposit at signing (30%)</span><b>${money(j.proposal.deposit)}</b></div></div>
 <iframe class="doc" title="Project scope and purchase agreement" sandbox srcdoc="${esc(j.proposal.agreementHtml)}"></iframe>
 <p class="row"><a href="${base}/agreement" target="_blank" rel="noopener">Open the full agreement to print or save</a></p></section>
-<section class="card"><h2>Terms and conditions</h2>${shop.terms ? `<details><summary>Read the terms</summary>${paras(shop.terms)}</details>` : '<p class="muted">Terms are attached to the agreement.</p>'}${termsDoc ? `<p><a href="${base}/doc/${esc(termsDoc.id)}" target="_blank" rel="noopener">${esc(termsDoc.title)} (PDF)</a></p>` : ''}</section>
+<section class="card"><h2>Terms and conditions</h2>${termsOf(j, shop) ? `<details><summary>Read the terms</summary>${paras(termsOf(j, shop))}</details>` : '<p class="muted">Terms are attached to the agreement.</p>'}${termsDoc ? `<p><a href="${base}/doc/${esc(termsDoc.id)}" target="_blank" rel="noopener">${esc(termsDoc.title)} (PDF)</a></p>` : ''}</section>
 ${docs.length ? `<section class="card"><h2>Licenses and insurance</h2><ul class="docs">${docs.map((d) => `<li><a href="${base}/doc/${esc(d.id)}" target="_blank" rel="noopener">${esc(d.title)}</a>${d.expires ? `<span class="muted">valid through ${esc(new Date(`${d.expires}T12:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' }))}</span>` : ''}</li>`).join('')}</ul></section>` : ''}
 ${shop.about ? `<section class="card"><h2>About CJC Custom Carpentry</h2>${paras(shop.about)}</section>` : ''}
 <section class="card" id="signing"><h2>${s ? 'Signed' : 'Sign the agreement'}</h2>${signBlock}</section>`;
@@ -106,7 +122,7 @@ ${noticeOfCancellation(easternYmd(s.at), seller, address)}${noticeOfCancellation
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow">
 <title>${esc(j.project)} agreement</title><style>body{font:11pt/1.45 Georgia,serif;max-width:7.5in;margin:.5in auto;padding:0 16px;color:#111}${style}${noticeCss}
 .terms p{font-size:10pt}</style></head><body>${inner}
-${shop.terms ? `<section class="terms" style="page-break-before:always"><h2>Terms and Conditions</h2>${paras(shop.terms)}</section>` : ''}
+${termsOf(j, shop) ? `<section class="terms" style="page-break-before:always"><h2>Terms and Conditions</h2>${paras(termsOf(j, shop))}</section>` : ''}
 ${signed}</body></html>`;
 }
 
