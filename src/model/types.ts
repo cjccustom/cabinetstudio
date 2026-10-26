@@ -16,6 +16,9 @@ export interface FaceRow {
   railAbove?: number;
   /** What sits in an appliance row: a microwave, wall oven, fireplace insert... */
   appliance?: Appliance;
+  /** A solid ledge on the rail above this row, projecting past the face frame: the waist of a one-piece
+   *  bookcase with doors below and open shelves above. */
+  ledge?: { thickness: number; overhang: number };
 }
 
 export interface Cabinet {

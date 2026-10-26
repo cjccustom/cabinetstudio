@@ -3,6 +3,7 @@ import { cancelDeadline, holidays } from "../portal/src/cancel";
 import { expiring } from "../src/portal";
 import { newTable, seats, tableEstimate, tableScope } from "../src/model/furniture";
 import { contractTotal, parseWordQuote, splitNames } from "../src/model/contract";
+import { combineAll } from "../src/model/onePiece";
 // Sanity checks on the cabinet model: run with `npm test`.
 import { buildParts, layoutRows, panelExtents, realOverhang } from "../src/model/parts";
 import { placedAppliances } from "../src/model/appliances";
@@ -849,6 +850,25 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   eq('word quote: blank total and schedule flagged', [c.totalOverride ?? 'none', c.schedule.length, r.warnings.length].join(), 'none,3,3');
   c.lines[1].chosen = true;
   eq('word quote: total with the full-height option', contractTotal(c), 67150);
+}
+
+// One-piece bookcases: a base with a wood top and an open upper on it become one tall case
+{
+  const lib = { ...p, cabinets: [
+    { ...cabinetFromPreset(presets.find((x) => x.id === 'library-base')!, 'back', 0, []), id: 'b1', name: 'B1', wall: 'back' as const, offset: 0, width: 32, height: 35, depth: 12, countertop: true, topKind: 'wood' as const, topThickness: 1, topFront: 0.5 },
+    { ...cabinetFromPreset(presets.find((x) => x.id === 'library-upper')!, 'back', 0, []), id: 'w1', name: 'W1', wall: 'back' as const, offset: 0, width: 32, depth: 12, elevation: 36, height: 62.75, overrides: { topRailWidth: 6 } },
+  ] };
+  const doorsBefore = buildParts(lib.cabinets[0], s, lib).filter((x) => x.role === 'door').map((x) => `${x.length.toFixed(3)}@${x.boxes[0].min[1].toFixed(3)}`).join();
+  const r = combineAll(lib);
+  const t = r.cabinets[0];
+  const parts = buildParts(t, s, { ...lib, cabinets: r.cabinets });
+  eq('one piece: one tall case 98 3/4 high', `${r.cabinets.length} ${t.kind} ${t.height}`, '1 tall 98.75');
+  eq('one piece: doors unchanged', parts.filter((x) => x.role === 'door').map((x) => `${x.length.toFixed(3)}@${x.boxes[0].min[1].toFixed(3)}`).join(), doorsBefore);
+  const ledge = parts.find((x) => x.name === 'Ledge')!;
+  eq('one piece: ledge on top at 36", 1/2" proud', `${(ledge.boxes[0].min[1] + ledge.thickness).toFixed(3)} ${ledge.width}`, '36.000 2');
+  const fixed = parts.find((x) => x.name === 'Fixed shelf')!;
+  eq('one piece: fixed shelf flush with the ledge', (fixed.boxes[0].min[1] + fixed.boxes[0].size[1]).toFixed(3), '36.000');
+  eq('one piece: ladder top rail kept', parts.find((x) => x.name === 'Top rail')!.width, 6);
 }
 
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');

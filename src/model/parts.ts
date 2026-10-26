@@ -28,6 +28,10 @@ export const eff = (c: Cabinet, s: ShopSettings): ShopSettings => (c.overrides ?
 
 /** Width of the mid rail above row i (none above the first row). */
 export const railAbove = (c: Cabinet, s: ShopSettings, i: number) => (i <= 0 || i >= c.rows.length ? 0 : c.rows[i].railAbove ?? eff(c, s).midRailWidth);
+/** The ledge on the rail above row i, if there is one. */
+export const ledgeAbove = (c: Cabinet, i: number) => (i <= 0 || i >= c.rows.length ? null : c.rows[i].ledge && c.rows[i].ledge!.thickness > 0 ? c.rows[i].ledge! : null);
+/** Everything between row i and the row above it: the rail, plus a ledge sitting on it. */
+export const gapAbove = (c: Cabinet, s: ShopSettings, i: number) => railAbove(c, s, i) + (ledgeAbove(c, i)?.thickness ?? 0);
 
 /** Resolve each face row's opening height, top to bottom. Auto rows split what's left. */
 export function layoutRows(c: Cabinet, s: ShopSettings): { rows: RowLayout[]; leftover: number } {
@@ -36,7 +40,7 @@ export function layoutRows(c: Cabinet, s: ShopSettings): { rows: RowLayout[]; le
   const bl = baseLayout(c, s);
   const top = c.height - s.topRailWidth;
   const bottom = bl.railY + bl.railW;
-  const available = top - bottom - c.rows.reduce((t, _, i) => t + railAbove(c, s0, i), 0);
+  const available = top - bottom - c.rows.reduce((t, _, i) => t + gapAbove(c, s0, i), 0);
   const fixed = c.rows.reduce((sum, r) => sum + (r.height ?? 0), 0);
   const autos = c.rows.filter((r) => r.height == null).length;
   const leftover = available - fixed;
@@ -46,7 +50,7 @@ export function layoutRows(c: Cabinet, s: ShopSettings): { rows: RowLayout[]; le
   c.rows.forEach((r, i) => {
     const h = r.height ?? autoH;
     rows.push({ rowId: r.id, y0: y - h, y1: y, height: h });
-    y -= h + railAbove(c, s0, i + 1);
+    y -= h + gapAbove(c, s0, i + 1);
   });
   return { rows, leftover: autos ? 0 : leftover };
 }
@@ -332,6 +336,23 @@ export function buildParts(c: Cabinet, s: ShopSettings, ends: EndInfo = { left: 
         note: c.rows[i].railAbove != null ? `${fmtShort(mw)} rail for this cabinet` : undefined,
         boxes: [vb(ox0, r.y1, zF, ox1 - ox0, mw, ft)],
       });
+      // A one-piece case changes from closed to open here: a fixed shelf divides it, and a ledge
+      // (when there is one) sits on the rail and runs across the front
+      const lg = ledgeAbove(c, i);
+      const openAbove = c.rows[i - 1].type === 'open' && c.rows[i].type !== 'open';
+      if (lg || openAbove) {
+        const topY = r.y1 + mw + (lg?.thickness ?? 0);
+        const lap = lg ? 0.75 : 0;
+        parts.push({ name: 'Fixed shelf', role: 'shelf', material: 'box', length: innerW + 2 * dd, width: boxD - rw - lap, thickness: tn, cut: true,
+          note: lg ? 'Dadoed in, top flush with the top of the ledge' : 'Dadoed in, top flush with the top of the rail; divides the doors from the open shelves above',
+          boxes: [vb(xi0, topY - ta, rw, innerW, ta, boxD - rw - lap)] });
+        if (lg) {
+          const deep = ft + lg.overhang + lap;
+          parts.push({ name: 'Ledge', role: 'trim', material: 'faceframe', length: W, width: deep, thickness: lg.thickness, cut: true,
+            note: `Solid, on the ${fmtShort(mw)} rail, ${fmtShort(lg.overhang)} proud of the face frame; laps ${fmtShort(lap)} onto the case and fixed shelf. Ease the front edge.`,
+            boxes: [vb(0, r.y1 + mw, boxD - lap, W, lg.thickness, deep)] });
+        }
+      }
     }
   });
 
@@ -388,8 +409,11 @@ export function buildParts(c: Cabinet, s: ShopSettings, ends: EndInfo = { left: 
       });
     }
     // Front edges: overlay onto the outer frame, share mid rails, or sit inside the opening for inset
-    const top = inset ? -rev : i === 0 ? o : shareOv(railAbove(c, s, i));
-    const bottom = inset ? -rev : i === rows.length - 1 ? o : shareOv(railAbove(c, s, i + 1));
+    // A rail with a ledge on it, or open shelves on its other side, belongs to this front alone
+    const ownsAbove = i === 0 || !!ledgeAbove(c, i) || c.rows[i - 1].type === 'open';
+    const ownsBelow = i === rows.length - 1 || c.rows[i + 1].type === 'open';
+    const top = inset ? -rev : ownsAbove ? (i === 0 ? o : Math.min(o, railAbove(c, s, i) - 0.25)) : shareOv(railAbove(c, s, i));
+    const bottom = inset ? -rev : ownsBelow ? (i === rows.length - 1 ? o : Math.min(o, railAbove(c, s, i + 1) - 0.25)) : shareOv(railAbove(c, s, i + 1));
     const side = inset ? -rev : o;
     const fy = r.y0 - bottom;
     const fh = r.height + top + bottom;

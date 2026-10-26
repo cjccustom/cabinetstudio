@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { combine, combineAll, stackedPairs, upperOn } from '../model/onePiece';
 import { useStore } from '../store';
 import type { CabinetNote, Cabinet, CrownBuild, EndMode, FaceRow, PanelChoice, PanelMode, ShopSettings, WallId } from '../model/types';
 import { buildParts, crownLayout, layoutRows, noCrownBuild, panelOn } from '../model/parts';
@@ -89,6 +90,7 @@ export function Inspector({ cab, issues }: { cab: Cabinet; issues: string[] }) {
       {cab.kind === 'pilaster' && <PilasterSection cab={cab} set={set} />}
       {cab.kind === 'shelf' && <FloatingShelfSection cab={cab} set={set} />}
       {cab.kind === 'mantel' && <MantelSection cab={cab} set={set} />}
+      <OnePiece cab={cab} />
       {!cab.corner && cab.kind !== 'pilaster' && cab.kind !== 'shelf' && cab.kind !== 'mantel' && (
       <>
       <Section
@@ -130,6 +132,17 @@ export function Inspector({ cab, issues }: { cab: Cabinet; issues: string[] }) {
                 disabled={cab.rows.length <= 1}
                 onClick={() => set({ rows: cab.rows.filter((x) => x.id !== r.id) })}
               >×</button>
+              {i > 0 && (
+                <div className="row-ledge">
+                  <label><input type="checkbox" checked={!!r.ledge} onChange={(e) => setRow(r.id, { ledge: e.target.checked ? { thickness: 1, overhang: 0.5 } : undefined })} /> Ledge on the rail above</label>
+                  {r.ledge && (
+                    <>
+                      <span>thick</span><LengthInput id={`row-lt-${r.id}`} value={r.ledge.thickness} onChange={(v) => v != null && setRow(r.id, { ledge: { ...r.ledge!, thickness: v } })} />
+                      <span>proud</span><LengthInput id={`row-lo-${r.id}`} value={r.ledge.overhang} onChange={(v) => v != null && setRow(r.id, { ledge: { ...r.ledge!, overhang: v } })} />
+                    </>
+                  )}
+                </div>
+              )}
               {r.type === 'appliance' && r.appliance && (
                 <ApplianceEditor a={r.appliance} openingH={layout[i]?.height ?? 0} problems={placedAppliances(cab, settings).find((x) => x.row?.id === r.id)?.problems ?? []}
                   onChange={(a, h) => setRow(r.id, { appliance: a, ...(h != null ? { height: h } : {}) })} />
@@ -637,6 +650,32 @@ function NotesSection({ cab, set }: { cab: Cabinet; set: (patch: Partial<Cabinet
 }
 
 /** Each stile and rail of this cabinet's face frame; blank follows the cabinet's standard widths. */
+/** A base with an open upper standing on it, drawn as two cabinets but built as one. */
+function OnePiece({ cab }: { cab: Cabinet }) {
+  const project = useStore((s) => s.project);
+  const commit = useStore((s) => s.commit);
+  const select = useStore((s) => s.select);
+  const upper = upperOn(project, cab);
+  if (!upper) return null;
+  const pairs = stackedPairs(project).length;
+  const one = () => commit((p) => {
+    const u = upperOn(p, p.cabinets.find((c) => c.id === cab.id)!);
+    if (!u) return p;
+    const t = combine(p.cabinets.find((c) => c.id === cab.id)!, u, p.settings);
+    return { ...p, cabinets: p.cabinets.filter((c) => c.id !== u.id).map((c) => (c.id === cab.id ? t : c)) };
+  });
+  const all = () => commit((p) => ({ ...p, cabinets: combineAll(p).cabinets }));
+  return (
+    <div className="one-piece">
+      <p><b>{upper.name}</b> stands on this base. Built as one piece? The doors keep their size and the top becomes a ledge at the same height.</p>
+      <div className="order-actions">
+        <button onClick={() => { one(); select(cab.id); }}>Make {cab.name} + {upper.name} one piece</button>
+        {pairs > 1 && <button onClick={all}>All {pairs} on this job</button>}
+      </div>
+    </div>
+  );
+}
+
 function FrameWidths({ cab, settings, set, setRow }: { cab: Cabinet; settings: ShopSettings; set: (p: Partial<Cabinet>) => void; setRow: (id: string, patch: Partial<FaceRow>) => void }) {
   const s = cab.overrides ? { ...settings, ...cab.overrides } : settings;
   const changed = [cab.stileLeftWidth, cab.stileRightWidth, cab.overrides?.topRailWidth, cab.overrides?.bottomRailWidth, ...cab.rows.map((r) => r.railAbove)].filter((v) => v != null).length;
