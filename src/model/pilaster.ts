@@ -45,7 +45,7 @@ export function pilasterOpenings(c: Cabinet): { y0: number; w: number; h: number
   }).filter((o) => o.h > 0.5 && o.w > 0.5);
 }
 
-export function pilasterParts(c: Cabinet, settings: ShopSettings): Part[] {
+export function pilasterParts(c: Cabinet, settings: ShopSettings, wall: { left: boolean; right: boolean } = { left: false, right: false }): Part[] {
   const s = eff(c, settings);
   const ps = pilasterOf(c);
   const W = c.width, H = c.height;
@@ -110,16 +110,22 @@ export function pilasterParts(c: Cabinet, settings: ShopSettings): Part[] {
     boxes: [vb(0, y0, back, W, h, faceT + ps.proud)],
   });
   if (ps.plinth > 0) parts.push(block('Plinth block', 0, ps.plinth, 'base moulding wraps it'));
-  // The room's baseboard and cap wrapped around the plinth: across its face and back each side to the casework beside it
+  // The room's baseboard and cap wrapped around the plinth: across its face and back each side to the casework
+  // beside it. A side tight to a wall gets no return; the face piece is cut square and dies into the wall.
   if (ps.wrap && ps.wrap.h > 0) {
     const { h, cap, t } = ps.wrap;
     const face = c.depth + ps.proud;
     const ret = ps.proud + t;
+    const x0 = wall.left ? 0 : -t;
+    const len = W + (wall.left ? 0 : t) + (wall.right ? 0 : t);
+    const ends = wall.left && wall.right ? 'square both ends to the walls' : wall.left ? 'square to the wall on the left, mitered on the right' : wall.right ? 'mitered on the left, square to the wall on the right' : 'mitered both ends';
     for (const [nm, y, hh] of [['Baseboard', 0, h], ['Base cap', h, cap]] as const) {
       if (hh <= 0) continue;
-      parts.push({ name: `${nm} on plinth`, role: 'trim', material: 'faceframe', length: W + 2 * t, width: hh, thickness: t, cut: true, note: nm === 'Base cap' ? 'Custom, milled to match the room’s; mitered both ends' : 'Mitered both ends',
-        boxes: [vb(-t, y, face, W + 2 * t, hh, t)] });
+      const what = nm === 'Base cap' ? 'Custom, milled to match the room’s; ' : '';
+      parts.push({ name: `${nm} on plinth`, role: 'trim', material: 'faceframe', length: len, width: hh, thickness: t, cut: true, note: what + ends.charAt(0)[what ? 'toLowerCase' : 'toUpperCase']() + ends.slice(1),
+        boxes: [vb(x0, y, face, len, hh, t)] });
       for (const side of ['left', 'right'] as const) {
+        if (wall[side]) continue;
         parts.push({ name: `${nm} return on plinth`, role: 'trim', material: 'faceframe', length: ret, width: hh, thickness: t, cut: true, note: `${side}; mitered at the front, back to the casework beside it`,
           boxes: [vb(side === 'left' ? -t : W, y, face + t - ret, t, hh, ret)] });
       }

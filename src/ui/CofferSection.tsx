@@ -1,5 +1,5 @@
 import { useStore } from '../store';
-import { beadCorner, cabinetLine, cofferLayout, cofferMoldings, cofferOf, coffers, crownLimit, defaultCoffer, fasciaHeight, isCornerBead, opposite, perimOf, type CofferCeiling } from '../model/coffer';
+import { beadCorner, cabinetLine, chimneysOn, cofferLayout, cofferMoldings, cofferOf, cofferParts, coffers, crownLimit, defaultCoffer, defaultSoffitPanels, fasciaHeight, isCornerBead, opposite, perimOf, type CofferCeiling, type SoffitPanels } from '../model/coffer';
 import { wallNames } from '../model/layout';
 import type { WallId } from '../model/types';
 import { fmt } from '../units';
@@ -77,6 +77,7 @@ export function CofferSection() {
                   })}
                 </tbody>
               </table>
+              <SoffitPanelsBox c={c} put={put} />
             </>
           )}
           <MoldSlot kind="cofferCrown" label="Crown in each coffer" num={c.crown} species={species} maxHeight={crownLimit(c)} onChange={(n) => put({ crown: n })} />
@@ -117,5 +118,42 @@ export function CofferSection() {
         </>
       )}
     </Section>
+  );
+}
+
+/** Stile-and-rail panels on the underside of a deep perimeter soffit, wall by wall. */
+function SoffitPanelsBox({ c, put }: { c: CofferCeiling; put: (patch: Partial<CofferCeiling>) => void }) {
+  const project = useStore((s) => s.project);
+  const deep = (['back', 'front', 'left', 'right'] as WallId[]).filter((w) => perimOf(c, w) >= 8 || c.panels?.[w]);
+  if (!deep.length) return null;
+  const setWall = (w: WallId, v: SoffitPanels | undefined) => {
+    const panels = { ...c.panels, [w]: v };
+    if (!v) delete panels[w];
+    put({ panels: Object.keys(panels).length ? panels : undefined });
+  };
+  const parts = cofferParts(project, c);
+  return (
+    <div style={{ marginTop: 8 }}>
+      {deep.map((w) => {
+        const pan = c.panels?.[w];
+        const name = `Perimeter, ${w}`;
+        const count = parts.filter((x) => x.name === `${name} soffit panel`).length;
+        const chim = chimneysOn(project, w, project.room.height - c.drop).length;
+        const num = (k: keyof SoffitPanels, label: string) => (
+          <Field label={label} htmlFor={`cf-sp-${w}-${k}`}><LengthInput id={`cf-sp-${w}-${k}`} value={pan![k]} min={k === 'size' ? 6 : 1} onChange={(v) => setWall(w, { ...pan!, [k]: v ?? defaultSoffitPanels[k] })} /></Field>
+        );
+        return (
+          <div key={w}>
+            <label className="check-inline"><input type="checkbox" checked={!!pan} onChange={(e) => setWall(w, e.target.checked ? { ...defaultSoffitPanels } : undefined)} /> Stile-and-rail panels on the underside of the {wallNames[w].toLowerCase()} soffit</label>
+            {pan && (
+              <>
+                <div className="grid3">{num('stile', 'Stiles')}{num('rail', 'Rails')}{num('size', 'Panel length about')}</div>
+                <p className="hint">{count} panel{count === 1 ? '' : 's'}{chim ? ', stopping at the chimney on each side' : ''}. The rail at the fascia takes the {c.joint === 'bead' ? 'bead corner' : 'tongue'} the flat soffit would have.</p>
+              </>
+            )}
+          </div>
+        );
+      })}
+    </div>
   );
 }

@@ -27,6 +27,9 @@ Things the app is guessing at until Cody answers. Each one says what the app doe
   R1004) as adopted in 780 CMR 51.00. I couldn't open the state's Chapter 10 amendment PDF from
   here; what I could see of it changes only R1001.1 and a figure note. Worth a look if your
   inspector reads it differently.
+- **Soffit underside panels.** Started at 2½" stiles and rails, ¾" poplar like the fascias, ¼" MDF
+  panels in a ⅜" rabbet, about 24" long, at 1½ h a panel. On Pope's 13½" soffit that's two
+  24 × 8 panels each side of the chimney. Change the sizes in Room → Coffered ceiling.
 - **Insert manuals.** Gas and electric inserts are checked against the mantel chart you type
   in from each manual; until then the drawings say the clearances are unchecked.
 

@@ -1,14 +1,14 @@
 // Quoting: material cost from the design, labor hours from standard times, and the shop's two
 // pricing methods side by side. Every number traces back to the design or a setting.
 import { furnitureOf, tableEstimate } from './furniture';
-import type { Cabinet, Project } from './types';
+import type { Cabinet, Project, WallId } from './types';
 import { buildParts, eff } from './parts';
-import { resolveEnds } from './layout';
+import { resolveEnds, wallNames } from './layout';
 import { defaultCutlist, optimizerParts } from './cutlist';
 import { optimize } from './optimizer';
 import { defaultFaceFrameStock, faceFrameNeeds, faceFramePieces, otherSpecies, stockFor, woodNeeds, woodPieces } from './faceframe';
 import { ceilingKinds, moldLabel, moldingOrder, profileByNum, profileLabel, roomKinds, type MoldKind } from './moldings';
-import { cofferFeet, cofferLayout, cofferMoldings, cofferOf } from './coffer';
+import { chimneysOn, cofferFeet, cofferLayout, cofferMoldings, cofferOf, cofferParts, perimOf } from './coffer';
 import { panelOrder } from './panels';
 import { uid } from './defaults';
 import { eaglePrice, hingeTypes } from './eagle';
@@ -39,6 +39,8 @@ export interface LaborStandards {
   cofferInstallPerFt: number;
   cofferCrownPerCoffer: number;
   cofferPrepPerCoffer: number;
+  /** Stile-and-rail soffit underside: build each panel (frame, panel, sand) in the shop. */
+  soffitPanel?: number;
   basePiece: number;
   archCut: number;
   endPanel: number;
@@ -107,6 +109,7 @@ export const defaultStandards: LaborStandards = {
   cofferInstallPerFt: 0.27,
   cofferCrownPerCoffer: 3.5,
   cofferPrepPerCoffer: 0.67,
+  soffitPanel: 1.5,
   basePiece: 0.25,
   archCut: 0.5,
   endPanel: 0.5,
@@ -302,6 +305,8 @@ export function estimateHours(p: Project, q: QuoteSettings): HourLine[] {
     ins('Coffer beams & perimeter fascia: build & install (ft)', ft, st.cofferInstallPerFt ?? 0.27);
     if (cc.crown) ins('Crown in each coffer (incl. picture moulding)', cm.count, st.cofferCrownPerCoffer ?? 3.5);
     ins('Coffers: joinery & paint-ready prep', cm.count, st.cofferPrepPerCoffer ?? 0.67);
+    const sp = cofferParts(p, cc).filter((x) => / soffit panel$/.test(x.name)).length;
+    if (sp) add('Soffit underside: stile & rail panels (each)', sp, st.soffitPanel ?? 1.5, 'ceiling');
     if (cc.beadboard) {
       const a = Math.round(cofferMoldings(p, cc).fieldSqFt * 10) / 10;
       add('Beadboard in the coffers (sq ft)', a, st.beadboardPerSqFt * 1.5, 'ceiling', true);
@@ -537,6 +542,7 @@ export function cofferScope(p: Project): string | null {
     `${m.count} coffers (${L.xs.length} × ${L.zs.length})${c.layout === 'bigCenter' && L.xs.length >= 3 ? ', smaller around the perimeter' : ''}`,
     `${fmtIn(c.beamWidth)} wide beams dropping ${fmtIn(c.drop)}, ${c.species.toLowerCase()} fascias with ${c.joint === 'bead' ? 'the soffit set below and a bead on each corner' : 'a recessed soffit'}`,
     ...(c.perimeter ? ['perimeter fascia around the room'] : []),
+    ...(c.perimeter ? (Object.keys(c.panels ?? {}) as WallId[]).map((w) => `the ${fmtIn(perimOf(c, w))} soffit along the ${wallNames[w].toLowerCase()} with stile-and-rail panels on its underside${chimneysOn(p, w, p.room.height - c.drop).length ? ' to either side of the chimney' : ''}`) : []),
     `crown in each coffer${crown ? ` (${profileLabel(crown)})` : ''}`,
     ...(c.joint !== 'bead' && c.bead && profileByNum(c.bead) ? ['bead moulding on the beam edges'] : []),
     ...(c.picture && profileByNum(c.picture) ? ['picture moulding below the perimeter'] : []),

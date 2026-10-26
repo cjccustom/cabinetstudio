@@ -148,8 +148,15 @@ function toRoom(room: Room, c: Cabinet, lx: number, lz: number): [number, number
  * finished end, unless the cabinet says otherwise.
  */
 export function resolveEnds(room: Room, cabinets: Cabinet[], c: Cabinet): EndInfo {
-  if (c.kind === 'pilaster') return { left: true, right: true, faceAt: (side, y) => neighbourFace(cabinets, c, side, y) };
   const probe = 0.0625;
+  if (c.kind === 'pilaster') {
+    // A side tight to a wall (the probe lands outside the room): the room's base dies into the wall there
+    const past = ([x, z]: [number, number]) => x < 0 || z < 0 || x > room.width || z > room.depth;
+    return {
+      left: true, right: true, faceAt: (side, y) => neighbourFace(cabinets, c, side, y),
+      wall: { left: past(toRoom(room, c, -probe, c.depth / 2)), right: past(toRoom(room, c, c.width + probe, c.depth / 2)) },
+    };
+  }
   const tol = 0.125;
   const others = cabinets
     .filter((o) => o.id !== c.id && o.elevation < c.elevation + c.height && c.elevation < o.elevation + o.height)

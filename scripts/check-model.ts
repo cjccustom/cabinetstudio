@@ -889,6 +889,22 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   eq('fireplace: base across the front between the plinths', front.length, 52.625 - 12 - 1.5);
 }
 
+// The ~12" soffit along the fireplace wall with stile-and-rail panels underneath, to either side of the chimney
+{
+  const fp = { ...cabinetFromPreset(presets.find((x) => x.id === 'mantel-electric')!, 'front', 55, []), depth: 13.5, width: 47.25, height: 44.625 };
+  fp.mantel = { chimney: true, upper: { on: true, top: 98.75, plinth: 2, frameStile: 3, frameRail: 3.5 } } as typeof fp.mantel;
+  const room = { ...p, room: { width: 157.25, depth: 180.5, height: 104.25 }, cabinets: [fp],
+    ceiling: { on: true, across: 3, deep: 3, perimeter: true, walls: { front: 13.5, back: 13.5 }, panels: { front: { stile: 2.5, rail: 2.5, size: 24 } } } } as typeof p;
+  const parts = cofferParts(room).filter((x) => x.name.startsWith('Perimeter, front'));
+  const rails = parts.filter((x) => x.name.endsWith('soffit rail'));
+  eq('soffit panels: a run each side of the chimney, two rails each', rails.map((x) => x.length.toFixed(2)).join(), '54.25,54.25,54.25,54.25');
+  eq('soffit panels: two panels a side', parts.filter((x) => x.name.endsWith('soffit panel')).length, 4);
+  eq('soffit panels: no flat soffit board left', parts.filter((x) => x.name.endsWith(' soffit')).length, 0);
+  const wallRail = rails.find((x) => x.note?.startsWith('At the wall'))!;
+  eq('soffit panels: the wall rail is at the wall', (wallRail.boxes[0].min[2] + wallRail.boxes[0].size[2]).toFixed(2), '180.50');
+  eq('soffit panels: priced per panel', estimateHours(room, quoteOf(room)).find((l) => /stile & rail panels/.test(l.label))?.qty, 4);
+}
+
 // Sized from the insert, and the room's base with a custom cap wrapping pilaster plinths
 {
   const m = { ...mantelOf({ ...cabinetFromPreset(presets.find((x) => x.id === 'mantel-electric')!, 'front', 0, []) }), openingW: 31.25, openingH: 26.625, openingY: 8, margin: 2 };
@@ -897,6 +913,14 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   eq('base: 6" board and 1 5/8" custom cap', buildParts(tall, s).filter((x) => /^Base/.test(x.name)).map((x) => `${x.name}:${x.width}`).sort().join(), 'Base cap, front:1.625,Baseboard, front:6');
   const pil = { ...cabinetFromPreset(presets.find((x) => x.id === 'pilaster')!, 'back', 0, []), pilaster: { ...defaultPilaster, plinth: 7, proud: 0.75, wrap: { h: 6, cap: 1.625, t: 0.75 } } };
   eq('pilaster: base and cap wrap the plinth, front and returns', buildParts(pil, s).filter((x) => /on plinth/.test(x.name)).length, 6);
+  // Tight to the left wall (P1): no return on that side, the face pieces square into the wall
+  const room = { ...p.room };
+  const atWall = { ...pil, offset: 0 };
+  const ends = resolveEnds(room, [atWall], atWall);
+  eq('pilaster at a wall: the wall side is found', `${ends.wall?.left},${ends.wall?.right}`, 'true,false');
+  const wp = buildParts(atWall, s, ends).filter((x) => /on plinth/.test(x.name));
+  eq('pilaster at a wall: front pieces plus the open-side returns only', wp.length, 4);
+  eq('pilaster at a wall: front runs from the wall, one miter', wp.find((x) => x.name === 'Baseboard on plinth')!.length, atWall.width + 0.75);
 }
 
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');

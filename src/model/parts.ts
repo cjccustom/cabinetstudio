@@ -98,6 +98,8 @@ export interface EndInfo {
   right: boolean;
   /** Pilasters: how far out from the wall the neighbour's face is at a height, so returns die into it. */
   faceAt?: (side: 'left' | 'right', y: number) => number;
+  /** Pilasters: a side tight to a room wall. */
+  wall?: { left: boolean; right: boolean };
 }
 
 /** The end panel actually used on one side: only exposed ends get one. */
@@ -130,7 +132,7 @@ export function panelExtents(c: Cabinet, s: ShopSettings, ends: EndInfo) {
 export function buildParts(c: Cabinet, s: ShopSettings, ends: EndInfo = { left: false, right: false }): Part[] {
   s = eff(c, s);
   if (c.corner) return buildCornerParts(c, s);
-  if (c.kind === 'pilaster') return [...pilasterParts(c, s), ...crownParts(c, s, ends)];
+  if (c.kind === 'pilaster') return [...pilasterParts(c, s, ends.wall), ...crownParts(c, s, ends)];
   if (c.kind === 'shelf') return floatingShelfParts(c, s, ends);
   if (c.kind === 'mantel') return mantelParts(c, s);
   const parts: Part[] = [];

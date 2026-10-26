@@ -9,7 +9,8 @@ import type { Part, Project, VisualBox, WallId } from './types';
 import { fmt } from '../units';
 import { mountShape, profileByNum } from './moldings';
 import { footprint } from './layout';
-import { pilasterOf } from './pilaster';
+import { defaultPilaster, pilasterOf } from './pilaster';
+import { mantelOf, upperTop } from './mantel';
 
 export interface CofferCeiling {
   on: boolean;
@@ -49,6 +50,11 @@ export interface CofferCeiling {
    * the same on the opposite wall so the coffers stay centered on that wall's windows.
    */
   walls?: Partial<Record<WallId, number>>;
+  /**
+   * The perimeter soffit's underside built as stile-and-rail panels on a wall (a deep soffit along a
+   * fireplace wall, say) instead of a flat board: frame width, rail width, and the panel length aimed for.
+   */
+  panels?: Partial<Record<WallId, SoffitPanels>>;
   /** Which beams run through; the others are cut between them. */
   through: 'across' | 'deep';
   crown?: string;
@@ -57,6 +63,9 @@ export interface CofferCeiling {
   beadboard: boolean;
   species: string;
 }
+
+export interface SoffitPanels { stile: number; rail: number; size: number }
+export const defaultSoffitPanels: SoffitPanels = { stile: 2.5, rail: 2.5, size: 24 };
 
 export const defaultCoffer: CofferCeiling = {
   on: false, across: 3, deep: 3, layout: 'even', outer: 24,
@@ -70,6 +79,45 @@ export const perimOf = (c: CofferCeiling, wall: WallId) => (c.perimeter ? c.wall
 export const opposite: Record<WallId, WallId> = { back: 'front', front: 'back', left: 'right', right: 'left' };
 
 /** Full-height cabinets on a wall: tops within a foot of the beam bottoms. */
+/** Mantels on a wall whose faux chimney runs full height, up to the given height or near it. */
+export const chimneysOn = (p: Project, wall: WallId, under: number) => p.cabinets.filter((k) => {
+  if (k.wall !== wall || k.kind !== 'mantel') return false;
+  const m = mantelOf(k);
+  return m.chimney && m.upper.on && k.elevation + upperTop(k, m) >= under - 6;
+});
+
+/** Panels in one run of soffit underside: as many as come out nearest the length aimed for. */
+export function soffitPanelLayout(pan: SoffitPanels, len: number, width: number) {
+  const n = Math.max(1, Math.round((len - pan.stile) / (pan.size + pan.stile)));
+  return { n, w: (len - (n + 1) * pan.stile) / n, d: width - 2 * pan.rail };
+}
+
+/**
+ * A run of soffit underside built as a frame and panels: rails the length of the run (the one at the
+ * fascia carries the tongue), stiles between them at each end and between panels, and 1/4" MDF panels
+ * let into a rabbet from the top. at(w0, w, y, h, a0, l) places a box: w0 out from the wall, a0 along the run.
+ */
+function soffitPanelParts(run: string, pan: SoffitPanels, len: number, width: number, t: number, sp: string, edge: string, tail: string,
+  at: (w0: number, w: number, y: number, h: number, a0: number, l: number) => VisualBox, y: number): Part[] {
+  const L = soffitPanelLayout(pan, len, width);
+  const rb = defaultPilaster.rabbet;
+  const out: Part[] = [];
+  if (L.w < 1 || L.d < 1) {
+    return [{ name: `${run} soffit`, role: 'trim', material: 'faceframe', species: sp, length: len, width, thickness: t, cut: true, note: `Too small for panels; a flat board. ${edge}` + tail, boxes: [at(0, width, y, t, 0, len)] }];
+  }
+  out.push({ name: `${run} soffit rail`, role: 'rail', material: 'faceframe', species: sp, length: len, width: pan.rail, thickness: t, cut: true, note: `At the wall; scribed to it` + tail, boxes: [at(0, pan.rail, y, t, 0, len)] });
+  out.push({ name: `${run} soffit rail`, role: 'rail', material: 'faceframe', species: sp, length: len, width: pan.rail, thickness: t, cut: true, note: `At the fascia; ${edge}` + tail, boxes: [at(width - pan.rail, pan.rail, y, t, 0, len)] });
+  for (let i = 0; i <= L.n; i++) {
+    out.push({ name: `${run} soffit stile`, role: 'stile', material: 'faceframe', species: sp, length: L.d, width: pan.stile, thickness: t, cut: true,
+      note: (i === 0 || i === L.n ? 'End' : 'Between panels') + '; between the rails', boxes: [at(pan.rail, L.d, y, t, i * (pan.stile + L.w), pan.stile)] });
+  }
+  for (let i = 0; i < L.n; i++) {
+    out.push({ name: `${run} soffit panel`, role: 'back', material: 'back', look: 'paint', sheet: '1/4" MDF', length: L.w + 2 * rb - 0.0625, width: L.d + 2 * rb - 0.0625, thickness: 0.25, cut: true,
+      note: `${i + 1} of ${L.n}; set into a ${fmt(rb)} rabbet from the top`, boxes: [at(pan.rail, L.d, y + 0.1875, 0.25, pan.stile + i * (pan.stile + L.w), L.w)] });
+  }
+  return out;
+}
+
 const fullHeight = (p: Project, wall: WallId, c: CofferCeiling) => p.cabinets.filter((k) => k.wall === wall && k.kind !== 'shelf' && k.elevation + k.height >= p.room.height - c.drop - 12);
 
 /**
@@ -240,16 +288,23 @@ export function cofferParts(p: Project, c = cofferOf(p)): Part[] {
       const sized = (r.P !== c.perimeterWidth ? ` (${fmt(r.P)} wall to fascia face)` : '') + (backed ? `; over the cabinets, proud of the face frame by ${fmt(t)} and fastened to their extended top rail` : '');
       out.push({ name: `${r.name} fascia`, role: 'trim', material: 'faceframe', species: sp, length: len, width: fh, thickness: t, cut: true, note: dadoNote + sized, boxes: [box(r.at, t, fy, fh)] });
       // Over full-height cabinets the cabinet top closes it off: no soffit, nailer or blocking there
-      const covered = backed ? fullHeight(p, wallId, c).map((k) => { const f = footprint(p.room, k); return r.along === 'x' ? [f.x0, f.x1] : [f.z0, f.z1]; }).sort((a, b) => a[0] - b[0]) : [];
+      const span = (k: Project['cabinets'][number], pad = 0) => { const f = footprint(p.room, k); return (r.along === 'x' ? [f.x0 - pad, f.x1 + pad] : [f.z0 - pad, f.z1 + pad]) as [number, number]; };
+      // A full-height faux chimney runs up to the soffit and closes it off too (its sides are 3/4" MDF outside the mantel)
+      const chimneys = chimneysOn(p, wallId, H - c.drop).map((k) => span(k, 0.75));
+      const covered = [...(backed ? fullHeight(p, wallId, c).map((k) => span(k)) : []), ...chimneys].sort((a, b) => a[0] - b[0]);
       const segs: [number, number][] = [];
       let at = r.s0;
       for (const [a, b] of covered) { if (a > at + 0.5) segs.push([at, Math.min(a, r.s1)]); at = Math.max(at, b); }
       if (r.s1 > at + 0.5) segs.push([at, r.s1]);
-      const part = segs.length > 1 || covered.length ? (k: number) => ` (${k + 1} of ${segs.length}, beside the cabinets)` : () => '';
+      const beside = chimneys.length && !backed ? 'the chimney' : chimneys.length ? 'the cabinets and chimney' : 'the cabinets';
+      const part = segs.length > 1 || covered.length ? (k: number) => ` (${k + 1} of ${segs.length}, beside ${beside})` : () => '';
       segs.forEach(([a, b], k) => {
         const slen = b - a;
         out.push({ name: `${r.name} nailer (2x)`, role: 'nailer', material: 'faceframe', species: '2x framing', length: slen, width: nailW, thickness: c.nailer, cut: true, note: 'Ripped from 2x stock; against the wall' + part(k), boxes: [box(wall0, nailW, H - c.nailer, c.nailer, a, slen)] });
-        out.push({ name: `${r.name} soffit`, role: 'trim', material: 'faceframe', species: sp, length: slen, width: ps, thickness: c.soffit, cut: true, note: (bead ? `Wall to the fascia; hangs ${fmt(g)} below it on the blocking, ${beadName} bead in the corner; scribed to the wall` : `${fmt(c.tongue)} tongue on the bottom face at the fascia edge; scribed to the wall`) + sized + part(k), boxes: [box(wall0, nailW, soffitY, c.soffit, a, slen)] });
+        const edge = bead ? `hangs ${fmt(g)} below the fascia on the blocking, ${beadName} bead in the corner` : `${fmt(c.tongue)} tongue on the bottom face at the fascia edge`;
+        const pan = c.panels?.[wallId];
+        if (pan) out.push(...soffitPanelParts(r.name, pan, slen, ps, c.soffit, sp, edge, sized + part(k), (w0, w, y, h, a0, l) => box(r.wallSide < 0 ? wall0 + w0 : wall0 + nailW - w0 - w, w, y, h, a + a0, l), soffitY));
+        else out.push({ name: `${r.name} soffit`, role: 'trim', material: 'faceframe', species: sp, length: slen, width: ps, thickness: c.soffit, cut: true, note: (bead ? `Wall to the fascia; ${edge}; scribed to the wall` : `${edge}; scribed to the wall`) + sized + part(k), boxes: [box(wall0, nailW, soffitY, c.soffit, a, slen)] });
         blocks(r.name, slen, nailW, (u) => (r.along === 'z' ? vb(wall0, soffitY + c.soffit, a + u, nailW, blockH, 1.5) : vb(a + u, soffitY + c.soffit, wall0, 1.5, blockH, nailW)));
       });
     }
