@@ -54,8 +54,10 @@ async function saveAppt(env, a) {
     location: a.location ?? old?.location,
     phone: a.phone ?? old?.phone,
     notes: a.notes ?? old?.notes,
+    clientNote: a.clientNote ?? old?.clientNote,
     remind: (a.remind ?? old?.remind ?? [60]).filter((m) => Number.isFinite(m) && m >= 0).slice(0, 3),
     share: a.share ?? old?.share ?? false,
+    folder: a.folder && typeof a.folder.id === "string" ? { id: a.folder.id.slice(0, 80), stage: String(a.folder.stage).slice(0, 20) } : old?.folder,
     cancelled: a.cancelled ?? old?.cancelled,
     updatedAt: Date.now()
   };
@@ -83,8 +85,8 @@ function fold(line) {
 }
 function vevent(a, forClient, shop) {
   const end = new Date(Date.parse(a.start) + a.minutes * 6e4).toISOString();
-  const summary = forClient ? `${apptLabel[a.kind]} with ${shop}` : `${a.who} \u2013 ${apptLabel[a.kind]}`;
-  const desc = forClient ? [a.notes].filter(Boolean).join("\n") : [a.phone && `Phone: ${a.phone}`, a.notes].filter(Boolean).join("\n");
+  const summary = forClient ? `${apptLabel[a.kind]} with ${shop}` : a.kind === "other" ? a.who : `${a.who} \u2013 ${apptLabel[a.kind]}`;
+  const desc = forClient ? [a.clientNote].filter(Boolean).join("\n") : [a.phone && `Phone: ${a.phone}`, a.notes].filter(Boolean).join("\n");
   const lines = [
     "BEGIN:VEVENT",
     `UID:${a.id}@cjc-portal`,
@@ -95,7 +97,7 @@ function vevent(a, forClient, shop) {
     `SUMMARY:${text(summary)}`,
     ...a.location ? [`LOCATION:${text(a.location)}`] : [],
     ...desc ? [`DESCRIPTION:${text(desc)}`] : [],
-    ...a.cancelled ? ["STATUS:CANCELLED"] : ["STATUS:CONFIRMED"]
+    "STATUS:CONFIRMED"
   ];
   for (const m of forClient ? [24 * 60] : a.remind) {
     lines.push("BEGIN:VALARM", "ACTION:DISPLAY", `DESCRIPTION:${text(summary)}`, `TRIGGER:-PT${m}M`, "END:VALARM");
@@ -255,7 +257,7 @@ document.getElementById('clear').onclick=()=>{x.clearRect(0,0,c.width,c.height);
 f.addEventListener('submit',()=>{document.getElementById('image').value=c.toDataURL('image/png');go.disabled=true;go.textContent='Signing\u2026'});})();</script>`;
   const body = `${flash ? `<p class="ok">${esc(flash)}</p>` : ""}
 <h1>${esc(j.project)}</h1><p class="muted">Prepared for ${esc(clientName(j))}${j.client.address ? ` \xB7 ${esc(j.client.address)}` : ""}</p>
-${visits.length ? `<section class="card"><h2>Coming up</h2>${visits.map((v) => `<p><b>${esc(apptLabel[v.kind])}</b> \xB7 ${esc(whenEastern(v.start))}${v.location ? `<br><span class="muted">${esc(v.location)}</span>` : ""}${v.notes ? `<br>${esc(v.notes)}` : ""}</p><p><a class="btn ghost" href="${base}/visit/${esc(v.id)}.ics">Add to my calendar</a></p>`).join("")}</section>` : ""}
+${visits.length ? `<section class="card"><h2>Coming up</h2>${visits.map((v) => `<p><b>${esc(apptLabel[v.kind])}</b> \xB7 ${esc(whenEastern(v.start))}${v.location ? `<br><span class="muted">${esc(v.location)}</span>` : ""}${v.clientNote ? `<br>${esc(v.clientNote)}` : ""}</p><p><a class="btn ghost" href="${base}/visit/${esc(v.id)}.ics">Add to my calendar</a></p>`).join("")}</section>` : ""}
 ${shots}
 <section class="card"><h2>Your proposal</h2>
 <div class="price"><div><span class="muted">Total project investment</span><b>${money(j.proposal.total)}</b></div><div><span class="muted">Deposit at signing (30%)</span><b>${money(j.proposal.deposit)}</b></div></div>
@@ -473,7 +475,7 @@ var worker_default = {
     if (cal) {
       if (!key || cal[1] !== await feedCode(key)) return new Response("Not found", { status: 404 });
       const since = new Date(Date.now() - 90 * 864e5).toISOString();
-      const appts = (await listAppts(env)).filter((a) => a.start >= since);
+      const appts = (await listAppts(env)).filter((a) => a.start >= since && !a.cancelled);
       return new Response(calendar(appts, "CJC Jobs"), { headers: { "content-type": "text/calendar; charset=utf-8", "cache-control": "no-store" } });
     }
     if (path === "/" || path === "/setup") return setup(request, url, key);
@@ -669,7 +671,7 @@ var TOOLS = [
   {
     name: "save_appointment",
     description: "Add an appointment, or change one (pass its id). Times are ISO with an offset or Z.",
-    inputSchema: { type: "object", properties: { id: { type: "string" }, job_id: { type: "string" }, who: { type: "string" }, kind: { type: "string", enum: ["measure", "design", "review", "install", "delivery", "other"] }, start: { type: "string" }, minutes: { type: "number" }, location: { type: "string" }, phone: { type: "string" }, notes: { type: "string" }, remind: { type: "array", items: { type: "number" }, description: "Alerts, minutes before." }, share: { type: "boolean", description: "Show on the client\u2019s project page." }, cancelled: { type: "boolean" } }, required: ["start"] }
+    inputSchema: { type: "object", properties: { id: { type: "string" }, job_id: { type: "string" }, who: { type: "string" }, kind: { type: "string", enum: ["measure", "design", "review", "install", "delivery", "other"] }, start: { type: "string" }, minutes: { type: "number" }, location: { type: "string" }, phone: { type: "string" }, notes: { type: "string", description: "Private to Cody." }, client_note: { type: "string", description: "Shown to the client." }, remind: { type: "array", items: { type: "number" }, description: "Alerts, minutes before." }, share: { type: "boolean", description: "Show on the client\u2019s project page." }, folder: { type: "object", properties: { id: { type: "string" }, stage: { type: "string" } } }, cancelled: { type: "boolean" } }, required: ["start"] }
   },
   { name: "delete_appointment", description: "Remove an appointment from the calendar.", inputSchema: { type: "object", properties: { id: { type: "string" } }, required: ["id"] } },
   { name: "calendar_feed", description: "The private calendar address for Cody\u2019s phone to subscribe to.", inputSchema: { type: "object", properties: {} } },
@@ -818,8 +820,8 @@ ${shop.terms}`);
       return { appointments: (await listAppts(env)).filter((a2) => a2.start >= from && (!str("job_id") || a2.jobId === str("job_id"))) };
     }
     case "save_appointment": {
-      const { job_id, ...rest } = a;
-      return { appointment: await saveAppt(env, { ...rest, ...job_id !== void 0 ? { jobId: String(job_id) || void 0 } : {}, start: String(a.start) }) };
+      const { job_id, client_note, ...rest } = a;
+      return { appointment: await saveAppt(env, { ...rest, ...job_id !== void 0 ? { jobId: String(job_id) || void 0 } : {}, ...client_note !== void 0 ? { clientNote: String(client_note) } : {}, start: String(a.start) }) };
     }
     case "delete_appointment": {
       await deleteAppt(env, String(a.id || ""));

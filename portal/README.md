@@ -73,6 +73,14 @@ sample company first, then switch to your real one.
 The QuickBooks connection lasts about 100 days at a time and renews itself whenever the portal
 uses it. If it ever lapses, Portal settings says so; reconnect at `/qb`.
 
+## Appointments on your iPhone
+
+Appointments you add in Cabinet Studio (Clients tab: Coming up, or a client's Appointments)
+are kept by the portal and published as a private calendar, **CJC Jobs**. Subscribe to it once:
+Clients tab → Coming up → **On my iPhone** gives the address and the steps. Your notes stay
+private; a visit you mark "show on the client's page" appears there with an Add to my calendar
+button and only the note you write for the client.
+
 ## Updating
 
 When Cabinet Studio ships a new `portal-worker.js`, paste it over the old code (step 3) and

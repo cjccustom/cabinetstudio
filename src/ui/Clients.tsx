@@ -10,6 +10,7 @@ import { createClientFolder, listClients, listFolder, moveFolder, readFile, wher
 import { Field, Section } from './fields';
 import { ClientPortal } from './Portal';
 import { ContractSection } from './Contract';
+import { ClientAppointments, ComingUp } from './Schedule';
 
 const DESIGN_FILE = 'Cabinet Studio design.json';
 const INFO_FILE = 'Client info.md';
@@ -146,6 +147,10 @@ export function ClientsSide() {
           )}
           <input type="search" aria-label="Find a client" placeholder="Find a client" value={q} onChange={(e) => setQ(e.target.value)} style={{ marginTop: 8 }} />
         </Section>
+        <ComingUp openClient={(id, stage) => {
+          const f = folders && Object.values(folders).flat().find((x) => x.id === id);
+          if (f) openFolder(f, (stages.find((x) => (folders[x.id] ?? []).some((y) => y.id === id))?.id ?? stage) as StageId);
+        }} />
         {busy && <p className="hint" role="status">{busy}</p>}
         {error && <p className="warn" role="status">{error}</p>}
         {note && !error && !busy && <p className="ok" role="status">{note}</p>}
@@ -214,6 +219,8 @@ export function ClientMain() {
           </div>
           {text('source', 'How they found us')}
         </section>
+
+        <ClientAppointments />
 
         <section className="sheet-sec">
           <h3>Project scope</h3>

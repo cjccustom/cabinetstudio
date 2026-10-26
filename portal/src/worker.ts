@@ -29,7 +29,8 @@ export default {
     if (cal) {
       if (!key || cal[1] !== (await feedCode(key))) return new Response('Not found', { status: 404 });
       const since = new Date(Date.now() - 90 * 864e5).toISOString();
-      const appts = (await listAppts(env)).filter((a) => a.start >= since);
+      // Cancelled ones drop off the phone
+      const appts = (await listAppts(env)).filter((a) => a.start >= since && !a.cancelled);
       return new Response(calendar(appts, 'CJC Jobs'), { headers: { 'content-type': 'text/calendar; charset=utf-8', 'cache-control': 'no-store' } });
     }
     if (path === '/' || path === '/setup') return setup(request, url, key);
@@ -222,7 +223,7 @@ const TOOLS = [
   { name: 'list_appointments', description: 'Appointments on the portal calendar, soonest first. By default from yesterday on; pass from (ISO date) for older.', inputSchema: { type: 'object', properties: { from: { type: 'string' }, job_id: { type: 'string' } } } },
   {
     name: 'save_appointment', description: 'Add an appointment, or change one (pass its id). Times are ISO with an offset or Z.',
-    inputSchema: { type: 'object', properties: { id: { type: 'string' }, job_id: { type: 'string' }, who: { type: 'string' }, kind: { type: 'string', enum: ['measure', 'design', 'review', 'install', 'delivery', 'other'] }, start: { type: 'string' }, minutes: { type: 'number' }, location: { type: 'string' }, phone: { type: 'string' }, notes: { type: 'string' }, remind: { type: 'array', items: { type: 'number' }, description: 'Alerts, minutes before.' }, share: { type: 'boolean', description: 'Show on the client’s project page.' }, cancelled: { type: 'boolean' } }, required: ['start'] },
+    inputSchema: { type: 'object', properties: { id: { type: 'string' }, job_id: { type: 'string' }, who: { type: 'string' }, kind: { type: 'string', enum: ['measure', 'design', 'review', 'install', 'delivery', 'other'] }, start: { type: 'string' }, minutes: { type: 'number' }, location: { type: 'string' }, phone: { type: 'string' }, notes: { type: 'string', description: 'Private to Cody.' }, client_note: { type: 'string', description: 'Shown to the client.' }, remind: { type: 'array', items: { type: 'number' }, description: 'Alerts, minutes before.' }, share: { type: 'boolean', description: 'Show on the client’s project page.' }, folder: { type: 'object', properties: { id: { type: 'string' }, stage: { type: 'string' } } }, cancelled: { type: 'boolean' } }, required: ['start'] },
   },
   { name: 'delete_appointment', description: 'Remove an appointment from the calendar.', inputSchema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] } },
   { name: 'calendar_feed', description: 'The private calendar address for Cody’s phone to subscribe to.', inputSchema: { type: 'object', properties: {} } },
@@ -359,8 +360,8 @@ async function tool(name: string, a: Record<string, unknown>, env: Env, url: URL
       return { appointments: (await listAppts(env)).filter((a) => a.start >= from && (!str('job_id') || a.jobId === str('job_id'))) };
     }
     case 'save_appointment': {
-      const { job_id, ...rest } = a as Record<string, unknown>;
-      return { appointment: await saveAppt(env, { ...(rest as Partial<Appointment>), ...(job_id !== undefined ? { jobId: String(job_id) || undefined } : {}), start: String(a.start) }) };
+      const { job_id, client_note, ...rest } = a as Record<string, unknown>;
+      return { appointment: await saveAppt(env, { ...(rest as Partial<Appointment>), ...(job_id !== undefined ? { jobId: String(job_id) || undefined } : {}), ...(client_note !== undefined ? { clientNote: String(client_note) } : {}), start: String(a.start) }) };
     }
     case 'delete_appointment': { await deleteAppt(env, String(a.id || '')); return { ok: true }; }
     case 'calendar_feed': {

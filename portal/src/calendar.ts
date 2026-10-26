@@ -19,11 +19,16 @@ export interface Appointment {
   minutes: number;
   location?: string;
   phone?: string;
+  /** Cody's own notes: what to bring, what to ask. Never shown to the client. */
   notes?: string;
+  /** A note for the client, shown on their page and in their calendar file. */
+  clientNote?: string;
   /** Alerts, in minutes before the start. */
   remind: number[];
   /** Show it on the client's project page. */
   share: boolean;
+  /** The client's Dropbox folder, so Cabinet Studio can open them from the schedule. */
+  folder?: { id: string; stage: string };
   cancelled?: boolean;
   updatedAt: number;
 }
@@ -52,8 +57,10 @@ export async function saveAppt(env: Env, a: Partial<Appointment> & { start: stri
     location: a.location ?? old?.location,
     phone: a.phone ?? old?.phone,
     notes: a.notes ?? old?.notes,
+    clientNote: a.clientNote ?? old?.clientNote,
     remind: (a.remind ?? old?.remind ?? [60]).filter((m) => Number.isFinite(m) && m >= 0).slice(0, 3),
     share: a.share ?? old?.share ?? false,
+    folder: a.folder && typeof a.folder.id === 'string' ? { id: a.folder.id.slice(0, 80), stage: String(a.folder.stage).slice(0, 20) } : old?.folder,
     cancelled: a.cancelled ?? old?.cancelled,
     updatedAt: Date.now(),
   };
@@ -86,9 +93,9 @@ function fold(line: string): string {
 
 function vevent(a: Appointment, forClient: boolean, shop: string): string[] {
   const end = new Date(Date.parse(a.start) + a.minutes * 60e3).toISOString();
-  const summary = forClient ? `${apptLabel[a.kind]} with ${shop}` : `${a.who} – ${apptLabel[a.kind]}`;
+  const summary = forClient ? `${apptLabel[a.kind]} with ${shop}` : a.kind === 'other' ? a.who : `${a.who} – ${apptLabel[a.kind]}`;
   const desc = forClient
-    ? [a.notes].filter(Boolean).join('\n')
+    ? [a.clientNote].filter(Boolean).join('\n')
     : [a.phone && `Phone: ${a.phone}`, a.notes].filter(Boolean).join('\n');
   const lines = [
     'BEGIN:VEVENT',
@@ -100,7 +107,7 @@ function vevent(a: Appointment, forClient: boolean, shop: string): string[] {
     `SUMMARY:${text(summary)}`,
     ...(a.location ? [`LOCATION:${text(a.location)}`] : []),
     ...(desc ? [`DESCRIPTION:${text(desc)}`] : []),
-    ...(a.cancelled ? ['STATUS:CANCELLED'] : ['STATUS:CONFIRMED']),
+    'STATUS:CONFIRMED',
   ];
   for (const m of forClient ? [24 * 60] : a.remind) {
     lines.push('BEGIN:VALARM', 'ACTION:DISPLAY', `DESCRIPTION:${text(summary)}`, `TRIGGER:-PT${m}M`, 'END:VALARM');

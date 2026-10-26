@@ -21,7 +21,7 @@ const day = (ymd: string) => new Date(`${ymd}T12:00:00`).toLocaleDateString('en-
 const errText = (e: unknown) => (e instanceof PortalError ? e.message : `Something went wrong: ${(e as Error).message}`);
 
 /** A job id the portal can use in a URL-safe key: the client's last name plus a short random tail, made once per job. */
-const newJobId = (p: Project) => {
+export const newJobId = (p: Project) => {
   const c = clientOf(p);
   const base = (c.last || c.first || p.name || 'job').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 30) || 'job';
   return `${base}-${Math.random().toString(36).slice(2, 8)}`;
@@ -59,7 +59,7 @@ export function ClientPortal() {
   const keep = (status: JobStatus, jobId: string) =>
     commit((p) => ({ ...p, portal: { jobId, url: status.url, status, checkedAt: Date.now() } }));
 
-  const publish = () => run(portal ? 'Updating the client’s page…' : 'Publishing the proposal…', async () => {
+  const publish = () => run(portal?.url ? 'Updating the client’s page…' : 'Publishing the proposal…', async () => {
     if (!total) throw new PortalError('The quote is $0. Price the job in the Quote tab first.');
     if (!clientName(c).trim()) throw new PortalError('Add the client’s name above first.');
     let replaceSigned = false;
@@ -105,8 +105,8 @@ export function ClientPortal() {
       {st && <PortalStatus st={st} checkedAt={portal?.checkedAt} />}
       {st?.signed && !st.cancelled && <Invoices st={st} total={st ? total : 0} busy={!!busy} run={run} keep={(s2) => keep(s2, portal!.jobId)} />}
       <div className="order-actions">
-        <button className="primary" disabled={!!busy} onClick={publish}>{portal ? 'Update the client’s page' : 'Publish proposal'}</button>
-        {portal && <button disabled={!!busy} onClick={refresh}>Check status</button>}
+        <button className="primary" disabled={!!busy} onClick={publish}>{portal?.url ? 'Update the client’s page' : 'Publish proposal'}</button>
+        {portal?.url && <button disabled={!!busy} onClick={refresh}>Check status</button>}
         {busy && <span className="hint">{busy}</span>}
       </div>
       {note && <p className="ok">{note}</p>}

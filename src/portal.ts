@@ -69,6 +69,26 @@ export const uploadShopDoc = async (doc: { id?: string; title: string; kind: Sho
 export const deleteShopDoc = (id: string) => call('delete_shop_doc', { id });
 export const publishProposal = (p: Proposal) => call<JobStatus>('publish_proposal', p as unknown as Raw);
 export const jobStatus = (jobId: string) => call<JobStatus>('job_status', { job_id: jobId });
+export type ApptKind = 'measure' | 'design' | 'review' | 'install' | 'delivery' | 'other';
+export const apptKinds: { v: ApptKind; label: string }[] = [
+  { v: 'measure', label: 'Measure' }, { v: 'design', label: 'Design meeting' }, { v: 'review', label: 'Review & sign' },
+  { v: 'install', label: 'Install' }, { v: 'delivery', label: 'Delivery' }, { v: 'other', label: 'Other' },
+];
+export interface Appointment {
+  id: string; jobId?: string; who: string; kind: ApptKind; start: string; minutes: number;
+  location?: string; phone?: string; notes?: string; clientNote?: string; remind: number[]; share: boolean;
+  /** The client's Dropbox folder, to open them from the schedule. */
+  folder?: { id: string; stage: string };
+  updatedAt: number;
+}
+export const listAppointments = async (from?: string) => (await call<{ appointments: Appointment[] }>('list_appointments', from ? { from } : {})).appointments;
+export const saveAppointment = async (a: Partial<Appointment> & { start: string }) => {
+  const { jobId, clientNote, ...rest } = a;
+  return (await call<{ appointment: Appointment }>('save_appointment', { ...rest, ...(jobId !== undefined ? { job_id: jobId } : {}), ...(clientNote !== undefined ? { client_note: clientNote } : {}) })).appointment;
+};
+export const deleteAppointment = (id: string) => call('delete_appointment', { id });
+export const calendarFeed = () => call<{ url: string; webcal: string }>('calendar_feed');
+
 export const qbStatus = () => call<QbStatus>('qb_status');
 export const qbItems = async () => (await call<{ items: { id: string; name: string }[] }>('qb_items')).items;
 export const qbSettings = (patch: { item_id?: string; item_name?: string; auto_deposit?: boolean; email?: boolean }) => call('qb_settings', patch);
