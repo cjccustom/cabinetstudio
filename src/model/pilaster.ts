@@ -110,6 +110,21 @@ export function pilasterParts(c: Cabinet, settings: ShopSettings): Part[] {
     boxes: [vb(0, y0, back, W, h, faceT + ps.proud)],
   });
   if (ps.plinth > 0) parts.push(block('Plinth block', 0, ps.plinth, 'base moulding wraps it'));
+  // The room's baseboard and cap wrapped around the plinth: across its face and back each side to the casework beside it
+  if (ps.wrap && ps.wrap.h > 0) {
+    const { h, cap, t } = ps.wrap;
+    const face = c.depth + ps.proud;
+    const ret = ps.proud + t;
+    for (const [nm, y, hh] of [['Baseboard', 0, h], ['Base cap', h, cap]] as const) {
+      if (hh <= 0) continue;
+      parts.push({ name: `${nm} on plinth`, role: 'trim', material: 'faceframe', length: W + 2 * t, width: hh, thickness: t, cut: true, note: nm === 'Base cap' ? 'Custom, milled to match the room’s; mitered both ends' : 'Mitered both ends',
+        boxes: [vb(-t, y, face, W + 2 * t, hh, t)] });
+      for (const side of ['left', 'right'] as const) {
+        parts.push({ name: `${nm} return on plinth`, role: 'trim', material: 'faceframe', length: ret, width: hh, thickness: t, cut: true, note: `${side}; mitered at the front, back to the casework beside it`,
+          boxes: [vb(side === 'left' ? -t : W, y, face + t - ret, t, hh, ret)] });
+      }
+    }
+  }
   if (ps.face === 'eagle') for (const b of pilasterSections(c).slice(1)) parts.push(block('Pilaster band', b.y0 - ps.band, ps.band, `at ${fmt(b.y0 - ps.band / 2)}`));
   if (ps.capital > 0) parts.push(block('Capital block', H - ps.capital, ps.capital, 'under the frieze'));
   return parts;

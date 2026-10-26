@@ -3,6 +3,8 @@ import { cancelDeadline, holidays } from "../portal/src/cancel";
 import { expiring } from "../src/portal";
 import { newTable, seats, tableEstimate, tableScope } from "../src/model/furniture";
 import { contractTotal, parseWordQuote, splitNames } from "../src/model/contract";
+import { mantelOf, shelfFor } from "../src/model/mantel";
+import { defaultPilaster } from "../src/model/pilaster";
 import { combineAll } from "../src/model/onePiece";
 // Sanity checks on the cabinet model: run with `npm test`.
 import { buildParts, layoutRows, panelExtents, realOverhang } from "../src/model/parts";
@@ -885,6 +887,16 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   eq('fireplace: two-piece base in 7 runs', `${names(/^Baseboard$/)}/${names(/^Base cap$/)}`, '7/7');
   const front = parts.find((x) => x.name === 'Baseboard' && x.note?.startsWith('front'))!;
   eq('fireplace: base across the front between the plinths', front.length, 52.625 - 12 - 1.5);
+}
+
+// Sized from the insert, and the room's base with a custom cap wrapping pilaster plinths
+{
+  const m = { ...mantelOf({ ...cabinetFromPreset(presets.find((x) => x.id === 'mantel-electric')!, 'front', 0, []) }), openingW: 31.25, openingH: 26.625, openingY: 8, margin: 2 };
+  eq('fireplace: shelf from the insert up (8 + 26 5/8 + 2 + 6 frieze + 2 shelf)', shelfFor(m, 6), 44.625);
+  const tall = { ...cabinetFromPreset(presets.find((x) => x.id === 'library-base')!, 'back', 0, []), kind: 'tall' as const, height: 98.75, base: { style: 'baseboard' as const, height: 6, cap: 1.625, build: 'faceframe' as const, shape: 'bracket' as const, rise: 3, foot: 2.25 } };
+  eq('base: 6" board and 1 5/8" custom cap', buildParts(tall, s).filter((x) => /^Base/.test(x.name)).map((x) => `${x.name}:${x.width}`).sort().join(), 'Base cap, front:1.625,Baseboard, front:6');
+  const pil = { ...cabinetFromPreset(presets.find((x) => x.id === 'pilaster')!, 'back', 0, []), pilaster: { ...defaultPilaster, plinth: 7, proud: 0.75, wrap: { h: 6, cap: 1.625, t: 0.75 } } };
+  eq('pilaster: base and cap wrap the plinth, front and returns', buildParts(pil, s).filter((x) => /on plinth/.test(x.name)).length, 6);
 }
 
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');

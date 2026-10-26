@@ -111,6 +111,8 @@ export interface PilasterSpec {
   panelMold?: string;
   /** Stiles, rails, plinth and capital in this species; empty = the job's face frame stock. */
   species?: string;
+  /** The room's baseboard and cap wrapped around the plinth: heights and thickness. */
+  wrap?: { h: number; cap: number; t: number };
 }
 
 /** Floating shelf: 3/4" plywood top and bottom with a mitered solid face, open in the middle for the bracket. */
@@ -360,6 +362,8 @@ export interface CabinetBase {
   style: 'kick' | 'baseboard' | 'arch';
   /** Baseboard or skirt height off the floor, not counting a cap moulding on top. */
   height: number;
+  /** A custom base cap milled to match the room's (not an A&M profile): its height. 0 = none. */
+  cap?: number;
   /** Decorative base: cut into a wide face frame rail, or an applied skirt board. */
   build: 'faceframe' | 'applied';
   shape: 'bracket' | 'arch' | 'straight';

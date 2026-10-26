@@ -311,6 +311,17 @@ export function buildParts(c: Cabinet, s: ShopSettings, ends: EndInfo = { left: 
       ? { boxes: [], shapes: [cutShape(along, min, n, h, boardT, a, b, BL.b.shape, BL.rise)] }
       : { boxes: [along === 'x' ? vb(min[0], 0, min[2], n, h, boardT) : vb(min[0], 0, min[2], boardT, h, n)] };
     const note = arch ? `Cut ${archShapes[BL.b.shape].toLowerCase()}, ${fmtShort(BL.rise)} high` : undefined;
+    // A custom cap (milled to match the room's) runs on top of the baseboard, front and returns
+    const capH = !arch && !c.baseMold ? Math.max(0, BL.b.cap ?? 0) : 0;
+    if (capH > 0) {
+      parts.push({ name: 'Base cap, front', role: 'trim', material: 'faceframe', length: len, width: capH, thickness: boardT, cut: true, note: 'Custom, milled to match the room’s',
+        boxes: [vb(xL, h, D, len, capH, boardT)] });
+      for (const side of ['left', 'right'] as const) {
+        if (!ends[side]) continue;
+        parts.push({ name: `Base cap, ${side} return`, role: 'trim', material: 'faceframe', length: D, width: capH, thickness: boardT, cut: true,
+          boxes: [vb(side === 'left' ? xL : xR - boardT, h, 0, boardT, capH, D)] });
+      }
+    }
     if (h > 0) {
       parts.push({
         name: `${name}, front`, role: 'trim', material: 'faceframe', length: len, width: h, thickness: boardT, cut: true, note,

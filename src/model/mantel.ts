@@ -109,6 +109,11 @@ export const legWidth = (c: Cabinet, m = mantelOf(c)) => (m.legs === 'none' ? 0 
 /** The overall width that gives legs of a given width. */
 export const widthFor = (m: MantelSpec, legW: number) => m.openingW + 2 * m.margin + (m.legs === 'none' ? 0 : 2 * legW);
 
+/** The frieze: from the facing over the opening up to the shelf. */
+export const friezeHeight = (c: Cabinet, m = mantelOf(c)) => c.height - m.shelfThickness - (m.openingY + m.openingH + m.margin);
+/** The shelf top that gives a frieze this tall. */
+export const shelfFor = (m: MantelSpec, frieze: number) => m.openingY + m.openingH + m.margin + Math.max(0, frieze) + m.shelfThickness;
+
 /** The heights everything hangs off. */
 export function mantelLayout(c: Cabinet, m = mantelOf(c)) {
   const bed = profileByNum(c.crown);

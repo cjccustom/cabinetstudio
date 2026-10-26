@@ -50,7 +50,7 @@ export function baseLayout(c: Cabinet, s: ShopSettings): BaseLayout {
   }
   const cap = profileByNum(c.baseMold);
   const flat = Math.max(0, b.height);
-  const top = flat + (cap ? mountShape(cap).height : 0);
+  const top = flat + (cap ? mountShape(cap).height : Math.max(0, b.cap ?? 0));
   if (b.style === 'baseboard') {
     return { style: 'baseboard', kick: 0, stileY: 0, railY: 0, railW: top + R, flat, top, rise: 0, applied: true, out: boardT, b };
   }

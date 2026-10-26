@@ -15,7 +15,7 @@ import { OrderList, PartsTable } from './PartsTable';
 import { OverridesSection } from './Overrides';
 import { MoldSlot } from './ProfilePicker';
 import { ModelField } from './ModelField';
-import { fuelLabel, hearthRequired, legWidth, mantelClearances, mantelCodeBasis, mantelOf, needsManualChart, usesListing, usesMasonryRules, widthFor, type Fuel, type MantelSpec } from '../model/mantel';
+import { friezeHeight, shelfFor, fuelLabel, hearthRequired, legWidth, mantelClearances, mantelCodeBasis, mantelOf, needsManualChart, usesListing, usesMasonryRules, widthFor, type Fuel, type MantelSpec } from '../model/mantel';
 import { applianceKinds, appliancePresets, newAppliance, openingFor, placedAppliances, type Appliance, type ApplianceKind } from '../model/appliances';
 import { cabinetCallouts } from '../drawings/notes';
 import { archBuilds, archShapes, baseLayout, baseOf, baseStyles, cutOutline, floorStanding } from '../model/cabinetBase';
@@ -439,6 +439,7 @@ function PilasterSection({ cab, set }: { cab: Cabinet; set: (patch: Partial<Cabi
   const ps = pilasterOf(cab);
   const all = useStore((s) => s.project.cabinets);
   const put = (patch: Partial<typeof ps>) => set({ pilaster: { ...ps, ...patch } });
+  const commit = useStore((st) => st.commit);
   // Neighbours' tops on this wall, offered as break heights (the base cabinet top, typically)
   const tops = [...new Set(all.filter((c) => c.wall === cab.wall && c.id !== cab.id && c.kind === 'base').map((c) => c.height + (c.countertop ? c.topThickness ?? 1.25 : 0)))].filter((h) => !ps.breaks.some((b) => Math.abs(b - h) < 1e-3));
   return (
@@ -462,6 +463,22 @@ function PilasterSection({ cab, set }: { cab: Cabinet; set: (patch: Partial<Cabi
         </Field>
         <Field label="Blocks proud of panel" htmlFor="pil-proud"><LengthInput id="pil-proud" value={ps.proud} onChange={(v) => put({ proud: v ?? 0 })} /></Field>
       </div>
+      <label className="chk-row"><input type="checkbox" checked={!!ps.wrap} onChange={(e) => {
+        // Start from the room baseboard the cabinets beside it use
+        const nb = all.find((c) => c.wall === cab.wall && c.base?.style === 'baseboard');
+        put({ wrap: e.target.checked ? { h: nb?.base?.height ?? 6, cap: nb?.base?.cap ?? 0, t: 0.75 } : undefined });
+      }} /> Baseboard and cap wrap the plinth</label>
+      {ps.wrap && (
+        <div className="grid3">
+          <Field label="Baseboard" htmlFor="pil-wh"><LengthInput id="pil-wh" value={ps.wrap.h} onChange={(v) => put({ wrap: { ...ps.wrap!, h: v ?? 0 } })} /></Field>
+          <Field label="Cap" htmlFor="pil-wc"><LengthInput id="pil-wc" value={ps.wrap.cap} onChange={(v) => put({ wrap: { ...ps.wrap!, cap: v ?? 0 } })} /></Field>
+          <Field label="Thickness" htmlFor="pil-wt"><LengthInput id="pil-wt" value={ps.wrap.t} onChange={(v) => put({ wrap: { ...ps.wrap!, t: v ?? 0.75 } })} /></Field>
+        </div>
+      )}
+      {all.filter((c) => c.kind === 'pilaster' && c.id !== cab.id).length > 0 && (
+        <div className="order-actions"><button className="mini" onClick={() => commit((p) => ({ ...p, cabinets: p.cabinets.map((c) => (c.kind === 'pilaster' && c.id !== cab.id ? { ...c, pilaster: { ...pilasterOf(c), plinth: ps.plinth, capital: ps.capital, stile: ps.stile, rail: ps.rail, proud: ps.proud, wrap: ps.wrap } } : c)) }))}>Same plinth, capital, frame and base wrap on the other pilasters</button></div>
+      )}
+      {ps.wrap && ps.plinth < ps.wrap.h + ps.wrap.cap && <p className="hint">The {fmt(ps.wrap.h + ps.wrap.cap)} base and cap cover the whole {fmt(ps.plinth)} plinth block.</p>}
       <h4 className="sub">Panel breaks</h4>
       {ps.breaks.map((b, i) => (
         <div key={i} className="row-inline">
@@ -565,6 +582,8 @@ function BaseSection({ cab, set }: { cab: Cabinet; set: (patch: Partial<Cabinet>
   const L = baseLayout(cab, s);
   const put = (patch: Partial<typeof b>) => set({ base: { ...b, ...patch } });
   const cap = profileByNum(cab.baseMold);
+  const commit = useStore((st) => st.commit);
+  const others = useStore((st) => st.project.cabinets).filter((c) => c.id !== cab.id && c.wall === cab.wall && (c.kind === 'base' || c.kind === 'tall'));
   return (
     <Section title="Base">
       <div className="grid3">
@@ -576,6 +595,9 @@ function BaseSection({ cab, set }: { cab: Cabinet; set: (patch: Partial<Cabinet>
         {b.style !== 'kick' && (
           <Field label={b.style === 'arch' ? 'Skirt height' : 'Board height'} htmlFor="base-h"><LengthInput id="base-h" value={b.height} onChange={(v) => put({ height: v ?? 4.5 })} /></Field>
         )}
+        {b.style === 'baseboard' && !cab.baseMold && (
+          <Field label="Custom cap" htmlFor="base-cap"><LengthInput id="base-cap" value={b.cap ?? 0} onChange={(v) => put({ cap: v ?? 0 })} /></Field>
+        )}
         {b.style === 'arch' && (
           <Field label="Build" htmlFor="base-build">
             <select id="base-build" value={b.build} onChange={(e) => put({ build: e.target.value as typeof b.build })}>
@@ -584,6 +606,7 @@ function BaseSection({ cab, set }: { cab: Cabinet; set: (patch: Partial<Cabinet>
           </Field>
         )}
       </div>
+      {others.length > 0 && <div className="order-actions"><button className="mini" onClick={() => commit((p) => ({ ...p, cabinets: p.cabinets.map((c) => (others.some((o) => o.id === c.id) ? { ...c, base: { ...b }, baseMold: cab.baseMold } : c)) }))}>Same base on the other {others.length} on this wall</button></div>}
       {b.style === 'arch' && (
         <div className="grid3">
           <Field label="Shape" htmlFor="base-shape">
@@ -765,9 +788,15 @@ function MantelSection({ cab, set }: { cab: Cabinet; set: (patch: Partial<Cabine
   const soffitW = ceil.on && ceil.perimeter ? perimOf(ceil, cab.wall) : 0;
   const legW = legWidth(cab, m);
   // Changing the opening keeps the legs the same width, so the overall width follows
+  // Sized from the insert out: the legs keep their width and the frieze its height, so changing the
+  // opening (or the facing, or how high it sits) moves the overall width and the shelf with it
+  const frieze = friezeHeight(cab, m);
   const put = (patch: Partial<MantelSpec>, keepLegs = true) => {
     const next = { ...m, ...patch };
-    set({ mantel: next, ...(keepLegs ? { width: widthFor(next, legW) } : {}) });
+    if (!keepLegs) { set({ mantel: next }); return; }
+    const width = widthFor(next, legW);
+    // Grow or shrink about its center, so it stays where it was placed (centered between the doors)
+    set({ mantel: next, width, offset: cab.offset + (cab.width - width) / 2, height: shelfFor(next, frieze) });
   };
   const len = (k: 'hearthFront' | 'hearthSide' | 'hearthThickness' | 'openingW' | 'openingH' | 'openingY' | 'margin' | 'legProud' | 'plinth' | 'capital' | 'blockProud' | 'shelfThickness' | 'shelfDepth' | 'shelfOverhang' | 'corbelW' | 'corbelH' | 'pedimentH', label: string) => (
     <Field label={label} htmlFor={`mt-${k}`}><LengthInput id={`mt-${k}`} value={m[k]} onChange={(v) => put({ [k]: v ?? 0 })} /></Field>
@@ -812,7 +841,9 @@ function MantelSection({ cab, set }: { cab: Cabinet; set: (patch: Partial<Cabine
           {len('openingH', 'Opening height')}
           {len('openingY', 'Off the floor')}
           {len('margin', m.fuel === 'wood' ? 'Facing to surround' : 'Gap to surround')}
+          <Field label="Frieze height" htmlFor="mt-frieze"><LengthInput id="mt-frieze" value={frieze} onChange={(v) => set({ height: shelfFor(m, v ?? 0) })} /></Field>
         </div>
+        <p className="hint">Worked out from the insert: {fmt(m.openingW)} opening + {fmt(m.margin)} facing each side + {fmt(legW)} legs = <b>{fmt(cab.width)} wide</b>; shelf top at <b>{fmt(cab.height)}</b> ({fmt(m.openingY)} off the floor + {fmt(m.openingH)} opening + {fmt(m.margin)} facing + {fmt(frieze)} frieze + {fmt(m.shelfThickness)} shelf).{m.insert?.top ? ` The manual wants ${fmt(m.insert.top)} clear above the insert${m.margin < m.insert.top ? ': raise the facing gap to that' : ''}.` : ''}</p>
         {m.fuel !== 'electric' && (
           <Field label="Fireplace" htmlFor="mt-install">
             <select id="mt-install" value={m.install} onChange={(e) => put({ install: e.target.value as MantelSpec['install'] })}>
@@ -864,7 +895,7 @@ function MantelSection({ cab, set }: { cab: Cabinet; set: (patch: Partial<Cabine
               <option value="none">No legs (shelf only)</option>
             </select>
           </Field>
-          {m.legs !== 'none' && <Field label="Leg width" htmlFor="mt-legw"><LengthInput id="mt-legw" value={legW} onChange={(v) => set({ width: widthFor(m, v ?? 0) })} /></Field>}
+          {m.legs !== 'none' && <Field label="Leg width" htmlFor="mt-legw"><LengthInput id="mt-legw" value={legW} onChange={(v) => { const width = widthFor(m, v ?? 0); set({ width, offset: cab.offset + (cab.width - width) / 2 }); }} /></Field>}
           {m.legs === 'pilaster' && len('legProud', 'Proud of frieze')}
           {m.legs === 'pilaster' && (
             <Field label="Built as" htmlFor="mt-build">
@@ -882,8 +913,8 @@ function MantelSection({ cab, set }: { cab: Cabinet; set: (patch: Partial<Cabine
           {m.legs !== 'none' && !pilBuild && len('plinth', 'Plinth height')}
           {m.legs !== 'none' && !pilBuild && len('capital', 'Capital height')}
           {m.legs !== 'none' && !pilBuild && len('blockProud', 'Blocks proud')}
-          {pilBuild && (['plinth', 'capital'] as const).map((k) => (
-            <Field key={k} label={k === 'plinth' ? 'Plinth height' : 'Capital height'} htmlFor={`mt-p-${k}`}>
+          {pilBuild && (['plinth', 'capital', 'stile', 'rail'] as const).map((k) => (
+            <Field key={k} label={{ plinth: 'Plinth height', capital: 'Capital height', stile: 'Pilaster stiles', rail: 'Pilaster rails' }[k]} htmlFor={`mt-p-${k}`}>
               <LengthInput id={`mt-p-${k}`} value={m.pilaster[k] ?? defaultPilaster[k]} onChange={(v) => put({ pilaster: { ...m.pilaster, [k]: v ?? 0 } })} />
             </Field>
           ))}
