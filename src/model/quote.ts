@@ -1,5 +1,6 @@
 // Quoting: material cost from the design, labor hours from standard times, and the shop's two
 // pricing methods side by side. Every number traces back to the design or a setting.
+import { furnitureOf, tableEstimate } from './furniture';
 import type { Cabinet, Project } from './types';
 import { buildParts, eff } from './parts';
 import { resolveEnds } from './layout';
@@ -178,8 +179,8 @@ export const quoteOf = (p: Project): QuoteSettings => {
   return { ...q, standards: { ...defaultStandards, ...p.quote?.standards }, workloadAdj: { ...defaultQuote.workloadAdj, ...p.quote?.workloadAdj } };
 };
 
-export type Group = 'cabinets' | 'tops' | 'paneling' | 'room' | 'ceiling';
-export const groupLabel: Record<Group, string> = { cabinets: 'Cabinets', tops: 'Solid wood tops & seats', paneling: 'Wall paneling', room: 'Room trim', ceiling: 'Coffered ceiling' };
+export type Group = 'cabinets' | 'tops' | 'paneling' | 'room' | 'ceiling' | 'furniture';
+export const groupLabel: Record<Group, string> = { cabinets: 'Cabinets', tops: 'Solid wood tops & seats', paneling: 'Wall paneling', room: 'Room trim', ceiling: 'Coffered ceiling', furniture: 'Furniture' };
 const moldGroup = (kinds: MoldKind[]): Group => (kinds.includes('cap') ? 'paneling' : kinds.every((k) => ceilingKinds.includes(k)) ? 'ceiling' : kinds.every((k) => roomKinds.includes(k)) ? 'room' : 'cabinets');
 
 export interface HourLine { group: Group; label: string; qty: number; each: number; hours: number; install?: boolean }
@@ -411,13 +412,18 @@ export function priceQuote(p: Project): QuoteResult {
   const tax = p.settings.purchaseTax;
   const hours = estimateHours(p, q);
   const materials = estimateMaterials(p, q);
+  for (const t of furnitureOf(p)) {
+    const e = tableEstimate(t, p);
+    hours.push(...e.hours.map((h) => ({ group: 'furniture' as Group, label: `${t.name}: ${h.label}`, qty: 1, each: h.hours, hours: h.hours, install: h.label.startsWith('Delivery') })));
+    materials.push(...e.materials.map((m) => ({ group: 'furniture' as Group, label: `${t.name}: ${m.label}`, cost: m.cost, detail: m.detail, ...(m.detail.includes('enter a $/BF') ? { missing: `${t.species} $/BF` } : {}) })));
+  }
   const price = (h: number, m: number) => {
     const mt = m * (1 + tax);
     const a = (mt + h * q.laborCost) * q.multiplier;
     const b = h * q.billRate + mt * (1 + q.materialMarkup);
     return { a, b, chosen: q.method === 'multiplier' ? a : b };
   };
-  const groups = (['cabinets', 'tops', 'paneling', 'room', 'ceiling'] as Group[])
+  const groups = (['cabinets', 'tops', 'paneling', 'room', 'ceiling', 'furniture'] as Group[])
     .map((g) => {
       const h = hours.filter((x) => x.group === g).reduce((t, x) => t + x.hours, 0);
       const m = materials.filter((x) => x.group === g).reduce((t, x) => t + x.cost, 0);

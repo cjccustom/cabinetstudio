@@ -337,6 +337,8 @@ export interface Project {
   portal?: { jobId: string; url?: string; status?: import('../portal').JobStatus; checkedAt?: number };
   /** Drawing sets: paper, revision, cover picture, notes. */
   drawings?: Partial<import('../drawings/sheets').DrawingSettings>;
+  /** Free-standing furniture on the job (dining tables for now). */
+  furniture?: Partial<import('./furniture').DiningTable>[];
   /** A coffered ceiling over the room. */
   ceiling?: Partial<import('./coffer').CofferCeiling>;
 }

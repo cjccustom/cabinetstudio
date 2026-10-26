@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { cancelDeadline, holidays } from "../portal/src/cancel";
 import { expiring } from "../src/portal";
+import { newTable, seats, tableEstimate, tableScope } from "../src/model/furniture";
 // Sanity checks on the cabinet model: run with `npm test`.
 import { buildParts, layoutRows, panelExtents, realOverhang } from "../src/model/parts";
 import { placedAppliances } from "../src/model/appliances";
@@ -823,6 +824,17 @@ eq('portal: documents expiring within 45 days', expiring([
   { id: 'b', title: 'HIC', kind: 'license', mimeType: 'application/pdf', size: 1, expires: '2027-06-01', uploadedAt: 0 },
 ], 45, Date.parse('2027-02-01T12:00:00')).map((d) => `${d.title}:${d.daysLeft}`).join(), 'COI:26');
 eq('portal: online agreement has no paper signature lines', [quoteDoc(p).includes('class="sign"'), quoteDoc(p, { online: true }).includes('class="sign"')].join(), 'true,false');
+
+// Furniture: a dining table prices into its own Furniture line
+{
+  const t = { ...newTable(), species: 'Walnut', pricePerBF: 16, leaves: 2, base: 'double-pedestal' as const, length: 72, width: 44 };
+  eq('table: seats 8, 10 with two 18" leaves', `${seats(t)}/${seats(t, true)}`, '8/10');
+  eq('table: scope wording', tableScope(t).includes('(2) 18" extension leaves; seats 8–10'), true);
+  const tp = { ...p, cabinets: [], furniture: [t] };
+  const r = priceQuote(tp);
+  eq('table: priced as Furniture', r.groups.map((g) => g.group).join(), 'furniture');
+  eq('table: lumber from its own $/BF', Math.round(tableEstimate(t, tp).materials[0].cost), Math.round(tableEstimate(t, tp).bf * 16));
+}
 
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');
 

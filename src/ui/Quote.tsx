@@ -3,6 +3,8 @@ import { useStore } from '../store';
 import { cofferScope, defaultStandards, groupLabel, newExtra, priceQuote, quoteOf, scopeLine, type LaborStandards, type QuoteSettings, type Workload } from '../model/quote';
 import { Field, Section } from './fields';
 import { QuoteRendering } from './Rendering';
+import { FurnitureSection } from './Furniture';
+import { furnitureOf, tableScope } from '../model/furniture';
 import { defaultSupplies, driverLabel, newSupply, supplyLines, type SupplyDriver, type SupplyItem } from '../model/supplies';
 
 const money = (v: number) => `$${Math.round(v).toLocaleString('en-US')}`;
@@ -170,7 +172,7 @@ export function QuoteSummary() {
   const rounded = lines.map((l) => ({ ...l, price: Math.round(((l.price / sum) * r.total) / 10) * 10 }));
   const drift = r.total - rounded.reduce((t, l) => t + l.price, 0);
   if (rounded.length) rounded[0].price += drift;
-  const scope = [...project.cabinets.map((c) => scopeLine(c, project)), cofferScope(project)].filter((x): x is string => !!x);
+  const scope = [...project.cabinets.map((c) => scopeLine(c, project)), cofferScope(project), ...furnitureOf(project).map(tableScope)].filter((x): x is string => !!x);
   const text = [
     ...scope,
     '',
@@ -198,6 +200,8 @@ export function QuoteSummary() {
             {q.adjustment ? `, your adjustment ${q.adjustment > 0 ? '+' : '−'}${money(Math.abs(q.adjustment))}` : ''}.
           </p>
         </Section>
+
+        <FurnitureSection />
 
         <Section title="Additional work" aside={<button className="mini" onClick={() => set({ extras: [...q.extras, newExtra()] })}>Add</button>}>
           {q.extras.length === 0 && <p className="hint">Demo, trim, casing, hardware installs: anything priced by hours or a flat amount.</p>}

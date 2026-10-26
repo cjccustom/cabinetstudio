@@ -550,3 +550,15 @@ details.opening .grid3 { margin-top: 8px; }
 .sheet-sec .pay-form input:not([type=checkbox]) { width: auto; flex: 1 1 120px; }
 .qb-box { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; margin-top: 6px; }
 .portal-settings label.chk-row { display: flex; gap: 8px; align-items: center; color: inherit; font-size: 13px; }
+
+/* Furniture */
+.table-ed .table-sketch { width: 100%; max-width: 360px; display: block; margin: 6px auto 10px; }
+.table-sketch .ts-top { fill: color-mix(in srgb, var(--accent) 18%, var(--surface)); stroke: var(--ink, currentColor); stroke-width: 1; }
+.table-sketch .ts-base { fill: color-mix(in srgb, var(--accent) 30%, var(--surface)); stroke: var(--ink, currentColor); stroke-width: 1; }
+.table-sketch .ts-chairs { fill: none; stroke: var(--muted); stroke-width: 1; }
+.table-sketch .ts-line { stroke: var(--muted); stroke-width: 1; }
+.table-sketch .ts-line.dash { stroke-dasharray: 4 3; }
+.table-sketch text { font-size: 10px; fill: var(--muted); }
+.table-checks { margin: 8px 0; padding-left: 18px; font-size: 12px; color: var(--muted); }
+.table-checks li { margin: 3px 0; }
+.table-ed label.chk-row { display: flex; gap: 8px; align-items: center; font-size: 13px; margin: 6px 0; }

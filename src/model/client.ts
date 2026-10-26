@@ -1,6 +1,7 @@
 // The customer side of a job: who they are, what they want, what was measured on site, and where
 // their folder lives in Dropbox (/CJC/Jobs/<stage>/<Last, First - Location>). The documents written
 // into that folder are built here as plain text so they read well in the Dropbox app.
+import { furnitureOf, tableScope } from './furniture';
 import type { Project } from './types';
 import { cofferScope, priceQuote, quoteOf, scopeLine, groupLabel } from './quote';
 import { eagleRequests, requestText } from './eagleRequest';
@@ -140,7 +141,7 @@ table{border-collapse:collapse;width:100%;margin:8px 0}th,td{border:1px solid #9
 <section class="page">${head}<h1>PROJECT SCOPE OF WORK</h1>${who}<tr><th>Cell Phone</th><td>${esc(c.phone)}</td></tr><tr><th>E-Mail</th><td>${esc(c.email)}</td></tr></table>
 <h2>${esc(p.name)}</h2>
 ${c.scope ? `<p>${esc(c.scope).replace(/\n/g, '<br>')}</p>` : ''}
-<ol>${p.cabinets.map((cab) => `<li>${esc(scopeLine(cab, p))}</li>`).join('')}${cofferScope(p) ? `<li>${esc(cofferScope(p)!)}</li>` : ''}</ol>
+<ol>${p.cabinets.map((cab) => `<li>${esc(scopeLine(cab, p))}</li>`).join('')}${furnitureOf(p).map((t) => `<li>${esc(tableScope(t))}</li>`).join('')}${cofferScope(p) ? `<li>${esc(cofferScope(p)!)}</li>` : ''}</ol>
 ${r.extras.length ? `<p><b>Additional work:</b> ${r.extras.map((e) => esc(e.label)).join('; ')}</p>` : ''}
 <p>Final dimensions will be field verified. The homeowner will approve door style, finish and hardware before ordering.</p></section>
 <section>${head}<h1>PURCHASE AGREEMENT</h1>${who}<tr><th>Agreement Date</th><td>${date()}</td></tr><tr><th>Estimated Start Date</th><td></td></tr><tr><th>Project Duration</th><td></td></tr></table>
