@@ -1,6 +1,7 @@
 // The client portal from Cabinet Studio's side: publish the proposal and renderings to the
 // client's private page, send them the link, see whether they've looked and signed, and keep
 // the shop profile (about, terms, licenses, insurance) every client page shows.
+import { contractTotal } from '../model/contract';
 import { useEffect, useState } from 'react';
 import { useStore } from '../store';
 import { clientName, clientOf, COMPANY, quoteDoc, quoteTotals } from '../model/client';
@@ -50,6 +51,8 @@ export function ClientPortal() {
   const portal = project.portal;
   const st = portal?.status;
   const { total, deposit } = quoteTotals(project);
+  // A sold job's price is its contract; the design's calculated quote never goes to the client
+  const sold = project.contract;
   const renderings = renderOf(project).images.filter((i) => i.kind === 'rendering').length;
 
   const run = async (label: string, fn: () => Promise<void>) => {
@@ -60,6 +63,7 @@ export function ClientPortal() {
     commit((p) => ({ ...p, portal: { jobId, url: status.url, status, checkedAt: Date.now() } }));
 
   const publish = () => run(portal?.url ? 'Updating the client’s page…' : 'Publishing the proposal…', async () => {
+    if (sold) throw new PortalError('This job is sold under its contract, so Cabinet Studio’s calculated proposal isn’t published.');
     if (!total) throw new PortalError('The quote is $0. Price the job in the Quote tab first.');
     if (!clientName(c).trim()) throw new PortalError('Add the client’s name above first.');
     let replaceSigned = false;
@@ -90,7 +94,9 @@ export function ClientPortal() {
       </div>
       <p className="hint">The client’s private page: renderings, the scope and purchase agreement, your terms, licenses and insurance. They sign on their phone and get the signed copy with the 3-day Notice of Cancellation.</p>
       <p>
-        Proposal: <b>{money(total)}</b>, deposit {money(deposit)} · {renderings ? `${Math.min(renderings, 6)} rendering${renderings === 1 ? '' : 's'}` : 'no renderings yet (Rendering tab)'}
+        {sold
+          ? <>Sold: <b>{money(contractTotal(sold))}</b> under the contract above. Cabinet Studio’s calculated proposal ({money(total)}) stays off the portal for this job.</>
+          : <>Proposal: <b>{money(total)}</b>, deposit {money(deposit)} · {renderings ? `${Math.min(renderings, 6)} rendering${renderings === 1 ? '' : 's'}` : 'no renderings yet (Rendering tab)'}</>}
       </p>
       {portal?.url && (
         <div className="portal-link">
@@ -105,7 +111,7 @@ export function ClientPortal() {
       {st && <PortalStatus st={st} checkedAt={portal?.checkedAt} />}
       {st?.signed && !st.cancelled && <Invoices st={st} total={st ? total : 0} busy={!!busy} run={run} keep={(s2) => keep(s2, portal!.jobId)} />}
       <div className="order-actions">
-        <button className="primary" disabled={!!busy} onClick={publish}>{portal?.url ? 'Update the client’s page' : 'Publish proposal'}</button>
+        {!sold && <button className="primary" disabled={!!busy} onClick={publish}>{portal?.url ? 'Update the client’s page' : 'Publish proposal'}</button>}
         {portal?.url && <button disabled={!!busy} onClick={refresh}>Check status</button>}
         {busy && <span className="hint">{busy}</span>}
       </div>

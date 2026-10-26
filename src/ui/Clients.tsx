@@ -69,7 +69,8 @@ export async function saveToDropbox(extra: { quote?: boolean; orders?: boolean }
     const next = { ...placed, dropbox: { ...placed.dropbox!, saved } };
     await writeFile(next.dropbox!.path, INFO_FILE, clientInfoDoc(next));
     await writeFile(next.dropbox!.path, DESIGN_FILE, JSON.stringify(next));
-    if (extra.quote) await writeFile(next.dropbox!.path, QUOTE_FILE, quoteDoc(next));
+    // A sold job's agreement is its contract; never overwrite it with the calculated quote
+    if (extra.quote && !next.contract) await writeFile(next.dropbox!.path, QUOTE_FILE, quoteDoc(next));
     if (extra.orders) await writeFile(next.dropbox!.path, ORDERS_FILE, ordersDoc(next));
     useStore.getState().transient(() => next);
     useDbx.getState().set({ note: `Saved to ${next.dropbox!.path}`, savedSig: sig(next) });
@@ -336,7 +337,7 @@ export function ClientPanel() {
                 <tbody>
                   <tr><td>Client info</td><td className="muted">{when('info')}</td><td></td></tr>
                   <tr><td>Design file</td><td className="muted">{when('design')}</td><td></td></tr>
-                  <tr><td>Quote & purchase agreement</td><td className="muted">{when('quote')}</td><td><button className="mini" disabled={!!busy} onClick={() => saveToDropbox({ quote: true })}>Save</button></td></tr>
+                  <tr><td>Quote & purchase agreement</td><td className="muted">{project.contract ? 'Sold: the contract is the agreement' : when('quote')}</td><td>{!project.contract && <button className="mini" disabled={!!busy} onClick={() => saveToDropbox({ quote: true })}>Save</button>}</td></tr>
                   <tr><td>Orders (Eagle, hardware)</td><td className="muted">{when('orders')}</td><td><button className="mini" disabled={!!busy || !project.cabinets.length} onClick={() => saveToDropbox({ orders: true })}>Save</button></td></tr>
                 </tbody>
               </table>
