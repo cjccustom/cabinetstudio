@@ -59,10 +59,11 @@ async function placeFolder(p: Project): Promise<Project> {
 }
 
 /** Save the client sheet and the design into the client's folder. */
-export async function saveToDropbox(extra: { quote?: boolean; orders?: boolean } = {}) {
+/** Returns false when the save didn't happen (the error is shown), so nothing that follows should replace the design. */
+export async function saveToDropbox(extra: { quote?: boolean; orders?: boolean } = {}): Promise<boolean> {
   const st = useStore.getState();
-  if (!st.project.dropbox) return;
-  await run('Saving to Dropbox…', async () => {
+  if (!st.project.dropbox) return true;
+  return (await run('Saving to Dropbox…', async () => {
     const placed = await placeFolder(st.project);
     const now = Date.now();
     const saved = { ...placed.dropbox!.saved, info: now, design: now, ...(extra.quote ? { quote: now } : {}), ...(extra.orders ? { orders: now } : {}) };
@@ -74,7 +75,17 @@ export async function saveToDropbox(extra: { quote?: boolean; orders?: boolean }
     if (extra.orders) await writeFile(next.dropbox!.path, ORDERS_FILE, ordersDoc(next));
     useStore.getState().transient(() => next);
     useDbx.getState().set({ note: `Saved to ${next.dropbox!.path}`, savedSig: sig(next) });
-  });
+    return true;
+  })) === true;
+}
+
+/** Before another client replaces this design: save it, and if that fails, stop and say so. */
+async function saveBeforeLeaving(): Promise<boolean> {
+  const cur = useStore.getState().project;
+  if (await saveToDropbox()) return true;
+  const err = useDbx.getState().error;
+  useDbx.getState().set({ error: `${cur.name} wasn’t saved, so it’s still open and nothing was replaced. ${err}` });
+  return false;
 }
 
 /** Open a client folder: its saved design if there is one, else a new job for that client. */
@@ -85,7 +96,7 @@ async function openFolder(f: DbxEntry, stage: StageId) {
   if (same) {
     // Clicking the open client reloads its saved design (after asking, if there are unsaved changes)
     if (sig(cur) !== useDbx.getState().savedSig && !(await askConfirm(`Reload ${f.name} from Dropbox? Changes since it was last saved will be lost.`, 'Reload'))) return;
-  } else if (cur.dropbox) await saveToDropbox();
+  } else if (cur.dropbox && !(await saveBeforeLeaving())) return;
   else if (cur.cabinets.length && !(await askConfirm('The design open now isn’t linked to a client. Open this client anyway? (Use Project file first if you want to keep it.)', 'Open client'))) return;
   await run(`Opening ${f.name}…`, async () => {
     const text = await readFile(`${f.path}/${DESIGN_FILE}`);
@@ -106,7 +117,7 @@ async function openFolder(f: DbxEntry, stage: StageId) {
 /** Start a new client: a fresh job and their folder in To quote. */
 async function newClient(c: ClientInfo) {
   const st = useStore.getState();
-  if (st.project.dropbox) await saveToDropbox();
+  if (st.project.dropbox && !(await saveBeforeLeaving())) return;
   else if (st.project.cabinets.length && !(await askConfirm('The design open now isn’t linked to a client. Start a new client anyway?', 'Start new client'))) return;
   await run('Creating the client folder…', async () => {
     const folder = await createClientFolder('quote', folderName(c));

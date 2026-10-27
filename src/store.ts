@@ -7,6 +7,8 @@ import { defaultCutlist, sheetPrice } from './model/cutlist';
 export type ViewMode = '3d' | 'plan' | `elev-${WallId}`;
 
 const STORAGE_KEY = 'cabinet-studio.project.v1';
+/** The design last replaced by opening another one. */
+export const BACKUP_KEY = 'cabinet-studio.replaced.v1';
 
 function loadSaved(): Project | null {
   try {
@@ -150,6 +152,8 @@ export const useStore = create<State>((set, get) => ({
   updatePanel: (id, patch) =>
     get().commit((p) => ({ ...p, panels: (p.panels ?? []).map((w) => (w.id === id ? { ...w, ...patch } : w)) })),
   loadProject: (p) => {
+    // Keep the design being replaced, in case it held work that never got saved anywhere
+    try { localStorage.setItem(BACKUP_KEY, JSON.stringify({ at: Date.now(), project: get().project })); } catch { /* storage blocked */ }
     get().commit(() => normalize(p));
     set({ selectedId: null });
   },
