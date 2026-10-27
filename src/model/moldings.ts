@@ -43,15 +43,32 @@ export const moldCategories: Record<MoldKind, string[]> = {
 export const ceilingKinds: MoldKind[] = ['cofferCrown', 'cofferBead', 'picture'];
 
 /** A moulding profile from either supplier. Brosco numbers are stored as BR-<number> so they never collide with A&M's. */
-export type Profile = AMProfile & { supplier?: 'am' | 'brosco'; code?: string; name?: string; wm?: string };
-export type Supplier = 'am' | 'brosco';
-export const supplierName: Record<Supplier, string> = { am: 'Anderson & McQuaid', brosco: 'Brosco' };
+export type Profile = AMProfile & { supplier?: Supplier; code?: string; name?: string; wm?: string; custom?: CustomProfile };
+export type Supplier = 'am' | 'brosco' | 'custom';
+export const supplierName: Record<Supplier, string> = { am: 'Anderson & McQuaid', brosco: 'Brosco', custom: 'Custom-milled' };
+
+/**
+ * A profile milled to match the house's existing trim, from a sample: no catalog number, just its
+ * size as installed and who mills it. Stored in place of a catalog number as custom:<category>:<h>x<d>:<by>.
+ */
+export interface CustomProfile { category: string; height: number; projection: number; by: 'shop' | 'supplier' }
+export const customNum = (c: CustomProfile) => `custom:${c.category}:${c.height}x${c.projection}:${c.by}`;
+export function parseCustom(num: string): CustomProfile | null {
+  const m = /^custom:([^:]+):([\d.]+)x([\d.]+):(shop|supplier)$/.exec(num);
+  return m ? { category: m[1], height: +m[2], projection: +m[3], by: m[4] as CustomProfile['by'] } : null;
+}
+function customProfile(num: string): Profile | undefined {
+  const c = parseCustom(num);
+  if (!c) return undefined;
+  return { num, category: c.category, t: c.projection, w: c.height, prices: {}, supplier: 'custom', custom: c,
+    name: c.by === 'shop' ? 'Milled in the shop to match' : 'Milled by the supplier to match' };
+}
 export const catalog: Profile[] = [...amCatalog, ...broscoCatalog];
 export const supplierOf = (p: Profile): Supplier => p.supplier ?? 'am';
 /** How a profile is named on an order: "A&M 1827" or "Brosco 8712". */
-export const profileLabel = (p: Profile) => (supplierOf(p) === 'brosco' ? `Brosco ${p.code}` : `A&M ${p.num}`);
+export const profileLabel = (p: Profile) => (p.custom ? `Custom ${p.custom.category.toLowerCase()}` : supplierOf(p) === 'brosco' ? `Brosco ${p.code}` : `A&M ${p.num}`);
 
-export const profileByNum = (num?: string): Profile | undefined => (num ? catalog.find((p) => p.num === num) : undefined);
+export const profileByNum = (num?: string): Profile | undefined => (num ? catalog.find((p) => p.num === num) ?? customProfile(num) : undefined);
 
 export const amSpecies = [...new Set(amCatalog.flatMap((p) => Object.keys(p.prices)))].sort();
 
@@ -66,7 +83,13 @@ export function priceOf(p: AMProfile, species: string): { species: string; price
  * The profile turned so its flat back (the side that goes against the cabinet or wall) is at u = 0,
  * with u running out into the room and v up. Profiles without a traced shape fall back to a rectangle.
  */
-export function mountShape(p: AMProfile): { pts: [number, number][]; depth: number; height: number } {
+export function mountShape(p: Profile): { pts: [number, number][]; depth: number; height: number } {
+  // Milled to match: its size as installed, height down the wall (a crown's drop) by projection
+  if (p.custom) {
+    const { height: h, projection: d } = p.custom;
+    const pts: [number, number][] = p.category === 'Crown' ? [[0, 0], [0.25, 0], [d, h - 0.25], [d, h], [0, h]] : [[0, 0], [d, 0], [d, h], [0, h]];
+    return { pts, depth: d, height: h };
+  }
   if (!p.shape || !p.sw || !p.sh) {
     // Crowns stand at about 45°; everything else lies flat against the face
     const [d, h] = p.category === 'Crown' ? [p.w * 0.7, p.w * 0.7] : [p.t, p.w];

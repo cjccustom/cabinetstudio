@@ -4,7 +4,8 @@ import type { Project } from '../model/types';
 import { priceQuote, quoteOf, type HourLine } from '../model/quote';
 import { eagleRequests, requestTitle } from '../model/eagleRequest';
 import { hardwareOrder } from '../model/hardware';
-import { moldingOrder, supplierName } from '../model/moldings';
+import { fmt } from '../units';
+import { moldingOrder, profileLabel, supplierName } from '../model/moldings';
 import { optimize } from '../model/optimizer';
 import { defaultCutlist, optimizerParts } from '../model/cutlist';
 import { defaultFaceFrameStock, faceFrameNeeds, faceFramePieces, otherSpecies, stockFor } from '../model/faceframe';
@@ -60,6 +61,10 @@ export function starterTodos(p: Project): string[] {
     const mine = molds.filter((m) => m.supplier === sup);
     if (mine.length) out.push(`Order ${supplierName[sup]} mouldings: ${mine.map((m) => `${m.profile.code ?? m.num} (${m.feet}')`).join(', ')}`);
   }
+  // Milled to match: the supplier's knives from your samples, or your own
+  const custom = (by: 'shop' | 'supplier') => molds.filter((m) => m.profile.custom?.by === by).map((m) => `${profileLabel(m.profile).replace(/^Custom /, '')} ${fmt(m.profile.custom!.height)} × ${fmt(m.profile.custom!.projection)} (${m.feet}')`).join(', ');
+  if (custom('supplier')) out.push(`Order custom-milled mouldings from the millwork supplier (send samples for the knives): ${custom('supplier')}`);
+  if (custom('shop')) out.push(`Mill to match in the shop: ${custom('shop')}`);
   if ((p.panels ?? []).some((w) => panelOrder(w).qty)) out.push('Order Nantucket beadboard');
   const doors = doorOrder(p);
   if (doors.length) out.push(`Order Reeb interior doors: ${doors.map((d) => `${d.qty} × ${d.key}, hinge ${d.hinge}`).join('; ')}`);

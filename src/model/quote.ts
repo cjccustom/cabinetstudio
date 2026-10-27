@@ -387,7 +387,7 @@ export function estimateMaterials(p: Project, q: QuoteSettings): MaterialLine[] 
   if (hw.hinges) out.push({ group: 'cabinets', label: `Hinges (${[...hingeKinds].join(' & ')})`, cost: hwCost('hinges'), detail: `${hw.hinges} hinges on ${doors} doors`, missing: hwMissing('hinges') });
   if (hw.drawers) out.push({ group: 'cabinets', label: 'Blum Tandem slides & locking devices', cost: hwCost('slides'), detail: `${hw.drawers} drawers`, missing: hwMissing('slides') });
   for (const m of moldingOrder(p)) {
-    out.push({ group: moldGroup(m.kinds), label: `${profileLabel(m.profile)} ${m.kinds.every((k) => roomKinds.includes(k)) ? m.kinds.map((k) => moldLabel[k].toLowerCase()).join(' & ') : 'moulding'}`, cost: m.cost, detail: `${m.feet} lin ft`, missing: m.price == null ? (m.supplier === 'brosco' ? 'Enter the Brosco price per foot on the Orders tab' : 'No A&M price') : undefined });
+    out.push({ group: moldGroup(m.kinds), label: `${profileLabel(m.profile)} ${m.kinds.every((k) => roomKinds.includes(k)) ? m.kinds.map((k) => moldLabel[k].toLowerCase()).join(' & ') : 'moulding'}`, cost: m.cost, detail: `${m.feet} lin ft`, missing: m.price == null ? (m.supplier === 'brosco' ? 'Enter the Brosco price per foot on the Orders tab' : m.supplier === 'custom' ? 'Enter the custom-milled price per foot on the Orders tab' : 'No A&M price') : undefined });
   }
   const reeb = doorOrder(p);
   if (reeb.length) {

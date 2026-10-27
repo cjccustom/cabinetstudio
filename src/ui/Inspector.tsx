@@ -453,7 +453,7 @@ function PilasterSection({ cab, set }: { cab: Cabinet; set: (patch: Partial<Cabi
         </Field>
         {ps.face === 'shop' && <Field label="Stiles" htmlFor="pil-stile"><LengthInput id="pil-stile" value={ps.stile} onChange={(v) => put({ stile: v ?? defaultPilaster.stile })} /></Field>}
         {ps.face === 'shop' && <Field label="Top & bottom rails" htmlFor="pil-rail"><LengthInput id="pil-rail" value={ps.rail} onChange={(v) => put({ rail: v ?? defaultPilaster.rail })} /></Field>}
-        <Field label="Plinth block" htmlFor="pil-plinth"><LengthInput id="pil-plinth" value={ps.plinth} onChange={(v) => put({ plinth: v ?? 0 })} /></Field>
+        <Field label="Plinth block (0 = none)" htmlFor="pil-plinth"><LengthInput id="pil-plinth" value={ps.plinth} onChange={(v) => put({ plinth: v ?? 0 })} /></Field>
         <Field label="Capital block" htmlFor="pil-cap"><LengthInput id="pil-cap" value={ps.capital} onChange={(v) => put({ capital: v ?? 0 })} /></Field>
         <Field label="Frame stock" htmlFor="pil-species">
           <select id="pil-species" value={ps.species ?? ''} onChange={(e) => put({ species: e.target.value || undefined })}>
@@ -478,7 +478,8 @@ function PilasterSection({ cab, set }: { cab: Cabinet; set: (patch: Partial<Cabi
       {all.filter((c) => c.kind === 'pilaster' && c.id !== cab.id).length > 0 && (
         <div className="order-actions"><button className="mini" onClick={() => commit((p) => ({ ...p, cabinets: p.cabinets.map((c) => (c.kind === 'pilaster' && c.id !== cab.id ? { ...c, pilaster: { ...pilasterOf(c), plinth: ps.plinth, capital: ps.capital, stile: ps.stile, rail: ps.rail, proud: ps.proud, wrap: ps.wrap } } : c)) }))}>Same plinth, capital, frame and base wrap on the other pilasters</button></div>
       )}
-      {ps.wrap && ps.plinth < ps.wrap.h + ps.wrap.cap && <p className="hint">The {fmt(ps.wrap.h + ps.wrap.cap)} base and cap cover the whole {fmt(ps.plinth)} plinth block.</p>}
+      {ps.wrap && ps.plinth === 0 && <p className="hint">No plinth block: the {fmt(ps.wrap.h + ps.wrap.cap)} base and cap go straight on the pilaster face, and the bottom rail runs from the floor to {fmt(ps.rail)} above the cap.</p>}
+      {ps.wrap && ps.plinth > 0 && ps.plinth < ps.wrap.h + ps.wrap.cap && <p className="hint">The {fmt(ps.wrap.h + ps.wrap.cap)} base and cap cover the whole {fmt(ps.plinth)} plinth block. Set the plinth to 0 for no block.</p>}
       <h4 className="sub">Panel breaks</h4>
       {ps.breaks.map((b, i) => (
         <div key={i} className="row-inline">
@@ -914,7 +915,7 @@ function MantelSection({ cab, set }: { cab: Cabinet; set: (patch: Partial<Cabine
           {m.legs !== 'none' && !pilBuild && len('capital', 'Capital height')}
           {m.legs !== 'none' && !pilBuild && len('blockProud', 'Blocks proud')}
           {pilBuild && (['plinth', 'capital', 'stile', 'rail'] as const).map((k) => (
-            <Field key={k} label={{ plinth: 'Plinth height', capital: 'Capital height', stile: 'Pilaster stiles', rail: 'Pilaster rails' }[k]} htmlFor={`mt-p-${k}`}>
+            <Field key={k} label={{ plinth: 'Plinth (0 = none)', capital: 'Capital height', stile: 'Pilaster stiles', rail: 'Pilaster rails' }[k]} htmlFor={`mt-p-${k}`}>
               <LengthInput id={`mt-p-${k}`} value={m.pilaster[k] ?? defaultPilaster[k]} onChange={(v) => put({ pilaster: { ...m.pilaster, [k]: v ?? 0 } })} />
             </Field>
           ))}

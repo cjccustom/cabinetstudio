@@ -1,9 +1,16 @@
 import { useMemo, useState } from 'react';
-import { catalog, moldCategories, moldLabel, mountShape, priceOf, profileByNum, profileLabel, supplierName, supplierOf, type MoldKind, type Profile, type Supplier } from '../model/moldings';
+import { catalog, customNum, moldCategories, moldLabel, mountShape, parseCustom, priceOf, profileByNum, profileLabel, supplierName, supplierOf, type CustomProfile, type MoldKind, type Profile, type Supplier } from '../model/moldings';
 import { fmt } from '../units';
+import { LengthInput } from './fields';
 
 /** A small drawing of a profile as it appears in the supplier's catalog. */
 export function ProfileThumb({ p, size = 64 }: { p: Profile; size?: number }) {
+  if (p.custom) {
+    const m = mountShape(p);
+    const span = Math.max(m.depth, m.height) + 0.3;
+    const pts = m.pts.map(([u, v]) => `${u + 0.15 + (span - 0.3 - m.depth) / 2},${span - (v + 0.15 + (span - 0.3 - m.height) / 2)}`).join(' ');
+    return <svg width={size} height={size} viewBox={`0 0 ${span} ${span}`} className="prof-thumb" aria-hidden="true"><polygon points={pts} className="prof-shape" /></svg>;
+  }
   if (!p.shape || !p.sw || !p.sh) {
     return (
       <svg width={size} height={size} viewBox="0 0 64 64" className="prof-thumb" aria-hidden="true">
@@ -26,8 +33,10 @@ export function ProfilePicker({ kind, current, species, onPick, onClose, maxHeig
   /** Profiles taller than this as installed are marked and listed last (coffer crown: half the fascia). */
   maxHeight?: number;
 }) {
-  const [sup, setSup] = useState<Supplier | 'all'>(() => (current && profileByNum(current) ? supplierOf(profileByNum(current)!) : 'all'));
+  const [sup, setSup] = useState<Supplier | 'all'>(() => (current && profileByNum(current) && supplierOf(profileByNum(current)!) !== 'custom' ? supplierOf(profileByNum(current)!) : 'all'));
   const pool = useMemo(() => catalog.filter((p) => sup === 'all' || supplierOf(p) === sup), [sup]);
+  const own = parseCustom(current ?? '');
+  const [mine, setMine] = useState<CustomProfile>(own ?? { category: customCategory(kind), height: 0, projection: 0, by: 'shop' });
   const cats = useMemo(() => [...new Set(pool.map((p) => p.category))].sort(), [pool]);
   const [cat, setCat] = useState<string>(moldCategories[kind][0]);
   const [q, setQ] = useState('');
@@ -56,6 +65,17 @@ export function ProfilePicker({ kind, current, species, onPick, onClose, maxHeig
           <input id="pp-q" placeholder="Number, WM number or name" value={q} onChange={(e) => setQ(e.target.value)} />
           {maxHeight != null && <span className="muted">Fits: up to {fmt(maxHeight)} tall installed; taller ones are listed last.</span>}
           <span className="muted">A&amp;M prices per lineal foot in {species.toLowerCase()}; Brosco is priced per job on the Orders tab.</span>
+        </div>
+        <div className="pp-custom">
+          <strong>Milled to match the existing trim</strong>
+          <label>Height <LengthInput id="pp-ch" value={mine.height || null} onChange={(v) => setMine({ ...mine, height: v ?? 0 })} /></label>
+          <label>Projection <LengthInput id="pp-cd" value={mine.projection || null} onChange={(v) => setMine({ ...mine, projection: v ?? 0 })} /></label>
+          <select aria-label="Milled by" value={mine.by} onChange={(e) => setMine({ ...mine, by: e.target.value as CustomProfile['by'] })}>
+            <option value="shop">Milled in the shop</option>
+            <option value="supplier">Milled by the supplier</option>
+          </select>
+          <button className="mini" disabled={!(mine.height > 0 && mine.projection > 0)} onClick={() => { onPick(customNum(mine)); onClose(); }}>Use it</button>
+          <span className="muted">{mine.category === 'Crown' ? 'Height is the drop from the ceiling; projection is how far it comes out onto the ceiling.' : 'Height up the wall, projection off it.'}</span>
         </div>
         <div className="pp-grid">
           {list.map((p) => {
@@ -101,4 +121,13 @@ export function MoldSlot({ kind, num, species, onChange, extra, label, maxHeight
       {open && <ProfilePicker kind={kind} current={num} species={species} maxHeight={maxHeight} onPick={onChange} onClose={() => setOpen(false)} />}
     </div>
   );
+}
+
+/** The catalog category a profile milled to match is treated as. */
+function customCategory(kind: MoldKind): string {
+  if (kind === 'crown' || kind === 'roomCrown' || kind === 'cofferCrown') return 'Crown';
+  if (kind === 'picture') return 'Picture Moulding';
+  if (kind === 'roomBase' || kind === 'baseMold') return 'Base Board and Base Cap';
+  if (kind === 'casing') return 'Window and Door Casing';
+  return moldCategories[kind][0];
 }

@@ -149,7 +149,7 @@ export function mantelParts(c: Cabinet, s: ShopSettings): Part[] {
   /** A pilaster built like the bookcase ones, applied to the chimney face (or standing off the wall). */
   const pilasterAt = (name: string, x0: number, y0: number, w: number, h: number, plinth: number): Part[] => {
     const back = m.chimney ? zc : 0;
-    const virt: Cabinet = { ...c, kind: 'pilaster', width: w, height: h, depth: L.legFace - back, crown: undefined, pilaster: { ...defaultPilaster, proud: 0.75, ...m.pilaster, plinth, breaks: [] } };
+    const virt: Cabinet = { ...c, kind: 'pilaster', width: w, height: h, depth: L.legFace - back, crown: undefined, pilaster: { ...defaultPilaster, proud: 0.75, ...m.pilaster, plinth, breaks: [], ...(plinth > 0 ? {} : { foot: y0 === 0 ? m.baseH + m.baseCapH : 0 }) } };
     return pilasterParts(virt, s).map((p) => ({ ...p, name: p.name.replace(/^Pilaster/, name).replace(/^Plinth block/, `${name} plinth`).replace(/^Capital block/, `${name} capital`), note: [x0 < W / 2 ? 'Left' : 'Right', p.note].filter(Boolean).join(', '), boxes: p.boxes.map((b) => shift(b, x0, y0, back)) }));
   };
   if (pil && L.legW > 0.5) {
@@ -240,7 +240,8 @@ export function mantelParts(c: Cabinet, s: ShopSettings): Part[] {
   // The room's two-piece baseboard wrapped around the chimney sides, the plinths and across the front
   if (m.baseH > 0) {
     const bt = m.baseT, bh = m.baseH, ch = m.baseCapH;
-    const plinthFace = pil ? L.legFace + (m.pilaster.proud ?? 0.75) : L.legFace + m.blockProud;
+    // A pilaster leg with no plinth block takes the base straight on its face
+    const plinthFace = pil ? L.legFace + ((m.pilaster.plinth ?? defaultPilaster.plinth) > 0 ? m.pilaster.proud ?? 0.75 : 0) : L.legFace + m.blockProud;
     const sideX = m.chimney ? -0.75 : 0;
     type Run = { name: string; len: number; box: (y: number, h: number) => VisualBox };
     const all: Run[] = [

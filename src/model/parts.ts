@@ -132,7 +132,7 @@ export function panelExtents(c: Cabinet, s: ShopSettings, ends: EndInfo) {
 export function buildParts(c: Cabinet, s: ShopSettings, ends: EndInfo = { left: false, right: false }): Part[] {
   s = eff(c, s);
   if (c.corner) return buildCornerParts(c, s);
-  if (c.kind === 'pilaster') return [...pilasterParts(c, s, ends.wall), ...crownParts(c, s, ends)];
+  if (c.kind === 'pilaster') return [...pilasterParts(c, s, ends), ...crownParts(c, s, ends)];
   if (c.kind === 'shelf') return floatingShelfParts(c, s, ends);
   if (c.kind === 'mantel') return mantelParts(c, s);
   const parts: Part[] = [];

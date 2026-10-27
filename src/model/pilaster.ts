@@ -2,20 +2,26 @@
 // block and topped with a capital under the frieze. The face is shop-built (solid stiles and rails with
 // the panel let into a rabbet from the back, rails at each break) or recessed panels ordered from Eagle.
 import type { Cabinet, Part, PilasterSpec, ShopSettings } from './types';
-import { eff, frontBoxes, vb } from './parts';
+import { eff, frontBoxes, vb, type EndInfo } from './parts';
 import { panelByCode, styleById } from './eagle';
 import { fmt } from '../units';
 import { profileByNum, profileLabel } from './moldings';
 
 export const defaultPilaster: PilasterSpec = { plinth: 6, capital: 3.5, breaks: [], band: 1.5, proud: 0.25, face: 'shop', stile: 1.5, rail: 2, panelThickness: 0.25, rabbet: 0.375 };
 export const pilasterOf = (c: Cabinet): PilasterSpec => ({ ...defaultPilaster, ...c.pilaster });
+/**
+ * Where the panel frame starts: on the plinth block, or with no block, above the room's base and cap
+ * applied straight over the face.
+ */
+export const pilasterFoot = (ps: PilasterSpec) => (ps.plinth > 0 ? ps.plinth : ps.foot ?? (ps.wrap ? ps.wrap.h + ps.wrap.cap : 0));
 
 /** Panel sections between the plinth, bands and capital, bottom to top. */
 export function pilasterSections(c: Cabinet): { y0: number; y1: number }[] {
   const ps = pilasterOf(c);
-  const cuts = [...ps.breaks].filter((b) => b > ps.plinth + ps.band && b < c.height - ps.capital - ps.band).sort((a, b) => a - b);
+  const foot = pilasterFoot(ps);
+  const cuts = [...ps.breaks].filter((b) => b > foot + ps.band && b < c.height - ps.capital - ps.band).sort((a, b) => a - b);
   const out: { y0: number; y1: number }[] = [];
-  let y = ps.plinth;
+  let y = foot;
   for (const b of cuts) {
     out.push({ y0: y, y1: b - ps.band / 2 });
     y = b + ps.band / 2;
@@ -28,7 +34,8 @@ export function pilasterSections(c: Cabinet): { y0: number; y1: number }[] {
 export function pilasterRails(c: Cabinet): { name: string; y0: number; y1: number }[] {
   const ps = pilasterOf(c);
   const secs = pilasterSections(c);
-  const out = [{ name: 'Pilaster bottom rail', y0: ps.plinth, y1: ps.plinth + ps.rail }];
+  // With no plinth block the bottom rail runs down behind the base to the floor
+  const out = [{ name: 'Pilaster bottom rail', y0: ps.plinth, y1: pilasterFoot(ps) + ps.rail }];
   for (const sec of secs.slice(1)) out.push({ name: 'Pilaster mid rail', y0: sec.y0 - ps.band, y1: sec.y0 });
   out.push({ name: 'Pilaster top rail', y0: c.height - ps.capital - ps.rail, y1: c.height - ps.capital });
   return out;
@@ -45,7 +52,8 @@ export function pilasterOpenings(c: Cabinet): { y0: number; w: number; h: number
   }).filter((o) => o.h > 0.5 && o.w > 0.5);
 }
 
-export function pilasterParts(c: Cabinet, settings: ShopSettings, wall: { left: boolean; right: boolean } = { left: false, right: false }): Part[] {
+export function pilasterParts(c: Cabinet, settings: ShopSettings, ends?: EndInfo): Part[] {
+  const wall = ends?.wall ?? { left: false, right: false };
   const s = eff(c, settings);
   const ps = pilasterOf(c);
   const W = c.width, H = c.height;
@@ -114,20 +122,28 @@ export function pilasterParts(c: Cabinet, settings: ShopSettings, wall: { left: 
   // beside it. A side tight to a wall gets no return; the face piece is cut square and dies into the wall.
   if (ps.wrap && ps.wrap.h > 0) {
     const { h, cap, t } = ps.wrap;
-    const face = c.depth + ps.proud;
-    const ret = ps.proud + t;
-    const x0 = wall.left ? 0 : -t;
-    const len = W + (wall.left ? 0 : t) + (wall.right ? 0 : t);
-    const ends = wall.left && wall.right ? 'square both ends to the walls' : wall.left ? 'square to the wall on the left, mitered on the right' : wall.right ? 'mitered on the left, square to the wall on the right' : 'mitered both ends';
+    // On the plinth block, or with none, straight on the pilaster face
+    const face = ps.plinth > 0 ? c.depth + ps.proud : c.depth;
+    // Back to the face of the casework beside it; flush with it, the base runs straight through
+    const retOf = (side: 'left' | 'right', y: number) => {
+      const nb = ends?.faceAt?.(side, y) ?? 0;
+      return nb > 0 ? face + t - nb : ps.proud + t;
+    };
     for (const [nm, y, hh] of [['Baseboard', 0, h], ['Base cap', h, cap]] as const) {
       if (hh <= 0) continue;
+      const ret = { left: retOf('left', y + hh / 2), right: retOf('right', y + hh / 2) };
+      const miter = { left: !wall.left && ret.left > t + 0.01, right: !wall.right && ret.right > t + 0.01 };
+      const x0 = miter.left ? -t : 0;
+      const len = W + (miter.left ? t : 0) + (miter.right ? t : 0);
+      const endNote = (side: 'left' | 'right') => (miter[side] ? 'mitered' : wall[side] ? 'square to the wall' : 'butts the base beside it');
+      const ends2 = endNote('left') === endNote('right') ? `${endNote('left')} both ends` : `${endNote('left')} on the left, ${endNote('right')} on the right`;
       const what = nm === 'Base cap' ? 'Custom, milled to match the room’s; ' : '';
-      parts.push({ name: `${nm} on plinth`, role: 'trim', material: 'faceframe', length: len, width: hh, thickness: t, cut: true, note: what + ends.charAt(0)[what ? 'toLowerCase' : 'toUpperCase']() + ends.slice(1),
+      parts.push({ name: `${nm} on plinth`, role: 'trim', material: 'faceframe', length: len, width: hh, thickness: t, cut: true, note: what + ends2.charAt(0)[what ? 'toLowerCase' : 'toUpperCase']() + ends2.slice(1),
         boxes: [vb(x0, y, face, len, hh, t)] });
       for (const side of ['left', 'right'] as const) {
-        if (wall[side]) continue;
-        parts.push({ name: `${nm} return on plinth`, role: 'trim', material: 'faceframe', length: ret, width: hh, thickness: t, cut: true, note: `${side}; mitered at the front, back to the casework beside it`,
-          boxes: [vb(side === 'left' ? -t : W, y, face + t - ret, t, hh, ret)] });
+        if (!miter[side]) continue;
+        parts.push({ name: `${nm} return on plinth`, role: 'trim', material: 'faceframe', length: ret[side], width: hh, thickness: t, cut: true, note: `${side}; mitered at the front, back to the casework beside it`,
+          boxes: [vb(side === 'left' ? -t : W, y, face + t - ret[side], t, hh, ret[side])] });
       }
     }
   }

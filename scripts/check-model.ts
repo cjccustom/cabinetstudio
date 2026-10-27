@@ -921,6 +921,13 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   const wp = buildParts(atWall, s, ends).filter((x) => /on plinth/.test(x.name));
   eq('pilaster at a wall: front pieces plus the open-side returns only', wp.length, 4);
   eq('pilaster at a wall: front runs from the wall, one miter', wp.find((x) => x.name === 'Baseboard on plinth')!.length, atWall.width + 0.75);
+  // No plinth block (Pope): the base and cap wrap the pilaster face itself; the frame starts above the cap
+  const bare = { ...pil, pilaster: { ...pil.pilaster, plinth: 0 } };
+  const bp = buildParts(bare, s);
+  eq('pilaster, no plinth: no plinth block', bp.some((x) => x.name === 'Plinth block'), false);
+  const br = bp.find((x) => x.name === 'Pilaster bottom rail')!;
+  eq('pilaster, no plinth: bottom rail from the floor to 2" above the cap', `${br.boxes[0].min[1]}-${br.boxes[0].min[1] + br.boxes[0].size[1]}`, '0-9.625');
+  eq('pilaster, no plinth: base on the pilaster face', bp.find((x) => x.name === 'Baseboard on plinth')!.boxes[0].min[2], bare.depth);
 }
 
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');

@@ -11,7 +11,7 @@ export function MoldingOrder() {
   const project = useStore((s) => s.project);
   const lines = useMemo(() => moldingOrder(project), [project]);
   if (!lines.length) return null;
-  return <>{(['am', 'brosco'] as Supplier[]).map((sup) => lines.some((l) => l.supplier === sup) && <SupplierOrder key={sup} sup={sup} lines={lines.filter((l) => l.supplier === sup)} />)}</>;
+  return <>{(['am', 'brosco', 'custom'] as Supplier[]).map((sup) => lines.some((l) => l.supplier === sup) && <SupplierOrder key={sup} sup={sup} lines={lines.filter((l) => l.supplier === sup)} />)}</>;
 }
 
 function SupplierOrder({ sup, lines }: { sup: Supplier; lines: ReturnType<typeof moldingOrder> }) {
@@ -36,10 +36,10 @@ function SupplierOrder({ sup, lines }: { sup: Supplier; lines: ReturnType<typeof
           {lines.map((l) => (
             <tr key={l.num}>
               <td><ProfileThumb p={l.profile} size={30} /></td>
-              <td>{profileLabel(l.profile)} <span className="muted mono">{fmt(l.profile.t)} × {fmt(l.profile.w)}</span><span className="note">{l.kinds.map((k) => moldLabel[k]).join(', ')}{sup === 'am' && l.species !== project.settings.moldSpecies ? `; not offered in ${project.settings.moldSpecies.toLowerCase()}, priced in ${l.species.toLowerCase()}` : ''}</span></td>
+              <td>{profileLabel(l.profile)} <span className="muted mono">{fmt(l.profile.t)} × {fmt(l.profile.w)}</span><span className="note">{l.kinds.map((k) => moldLabel[k]).join(', ')}{l.profile.custom ? `; ${l.profile.name?.toLowerCase()}` : ''}{sup === 'am' && l.species !== project.settings.moldSpecies ? `; not offered in ${project.settings.moldSpecies.toLowerCase()}, priced in ${l.species.toLowerCase()}` : ''}</span></td>
               <td className="num">{l.feet}</td>
               <td className="num">
-                {sup === 'brosco'
+                {sup !== 'am'
                   ? <input className="price-in" aria-label={`${profileLabel(l.profile)} price per foot`} inputMode="decimal" placeholder="$/ft" defaultValue={project.moldPrices?.[l.num] ?? ''}
                       onBlur={(e) => { const v = parseFloat(e.target.value); setPrice(l.num, Number.isFinite(v) ? v : null); }} />
                   : l.price != null ? `$${l.price.toFixed(2)}` : '—'}
@@ -53,7 +53,9 @@ function SupplierOrder({ sup, lines }: { sup: Supplier; lines: ReturnType<typeof
       </table>
       <p className="hint">{sup === 'am'
         ? 'Prices from andersonmcquaid.com/price-list as of Oct 22, 2026. They change without notice.'
-        : 'Brosco sells through dealers and doesn’t publish prices. Enter your price per foot for each profile; it’s saved with this job and used in the quote.'}</p>
+        : sup === 'brosco'
+          ? 'Brosco sells through dealers and doesn’t publish prices. Enter your price per foot for each profile; it’s saved with this job and used in the quote.'
+          : 'Milled to match the existing trim. Enter the supplier’s price per foot, or your stock cost for the ones you mill; it’s saved with this job and used in the quote.'}</p>
     </div>
   );
 }

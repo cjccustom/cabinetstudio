@@ -113,6 +113,8 @@ export interface PilasterSpec {
   species?: string;
   /** The room's baseboard and cap wrapped around the plinth: heights and thickness. */
   wrap?: { h: number; cap: number; t: number };
+  /** With no plinth block: how high the base and cap applied over the face reach, so the panel frame starts above it. */
+  foot?: number;
 }
 
 /** Floating shelf: 3/4" plywood top and bottom with a mitered solid face, open in the middle for the bracket. */

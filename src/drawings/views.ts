@@ -8,7 +8,7 @@ import { casingReach, openingTrim, roomMoldings } from '../model/room';
 import { View, dimText, fitScale, type Frame } from './draw';
 import { applianceName, placedAppliances, type PlacedAppliance } from '../model/appliances';
 import { mantelLayout, mantelOf } from '../model/mantel';
-import { beadCorner, cofferLayout, cofferOf, coffers, perimOf } from '../model/coffer';
+import { beadCorner, cofferLayout, cofferOf, coffers, fasciaHeight, perimOf } from '../model/coffer';
 
 export const partsOf = (p: Project, c: Cabinet) => buildParts(c, p.settings, resolveEnds(p.room, p.cabinets, c));
 export const cabinetsOn = (p: Project, wall: WallId) => p.cabinets.filter((c) => c.wall === wall).sort((a, b) => a.offset - b.offset);
@@ -91,6 +91,19 @@ function elevationItems(p: Project, wall: WallId): Item[] {
       items.push({ x: c.offset + pc.x, y: c.elevation + (pc.hang ? pc.y - h : pc.y), w: pc.length, h, z: 10 + pc.z + 2, cls: 'o' });
     }
   }
+  // The coffered ceiling's perimeter fascia across the top of the wall, and the picture moulding under it
+  const cc = cofferOf(p);
+  if (cc.on && cc.perimeter) {
+    const L = wallLength(p.room, wall);
+    const fb = H - fasciaHeight(cc);
+    const zf = 10 + perimOf(cc, wall);
+    items.push({ x: 0, y: fb, w: L, h: H - fb, z: zf, cls: 'o' });
+    const pic = profileByNum(cc.picture);
+    if (pic) {
+      const m = mountShape(pic);
+      items.push({ x: 0, y: fb - m.height, w: L, h: m.height, z: zf + m.depth, cls: 'o' });
+    }
+  }
   // Furthest first, so nearer parts cover what's behind them
   return items.filter((i) => i.y < H + 24).sort((a, b) => a.z - b.z);
 }
@@ -140,7 +153,9 @@ export function wallElevation(p: Project, wall: WallId, frame: Frame, mode: 'cus
   v.dimH(0, L, 0, -0.83, undefined, true);
   // Heights up the right side: counter, bottom and top of the uppers, ceiling
   const tops = floor.filter((c) => c.kind === 'base').map((c) => c.elevation + c.height + (c.countertop ? (c.topKind === 'wood' ? c.topThickness ?? 1.25 : 1.5) : 0));
-  const ys = [0, H, ...tops, ...uppers.flatMap((c) => [c.elevation, c.elevation + c.height])];
+  const cc = cofferOf(p);
+  const fasciaY = cc.on && cc.perimeter ? [H - fasciaHeight(cc), ...(profileByNum(cc.picture) ? [H - fasciaHeight(cc) - mountShape(profileByNum(cc.picture)!).height] : [])] : [];
+  const ys = [0, H, ...tops, ...uppers.flatMap((c) => [c.elevation, c.elevation + c.height]), ...fasciaY];
   v.chainV(ys, L + 4.5, 0.35);
   v.dimV(0, H, L + 4.5, 0.75, undefined, true);
   // Cabinet tags, and opening sizes
