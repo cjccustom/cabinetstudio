@@ -11,6 +11,7 @@ import { Field, Section } from './fields';
 import { ClientPortal } from './Portal';
 import { ContractSection } from './Contract';
 import { ClientAppointments, ComingUp } from './Schedule';
+import { ClientPhotos } from './Photos';
 
 const DESIGN_FILE = 'Cabinet Studio design.json';
 const INFO_FILE = 'Client info.md';
@@ -233,6 +234,8 @@ export function ClientMain() {
         </section>
 
         <ClientAppointments />
+
+        <ClientPhotos />
 
         <section className="sheet-sec">
           <h3>Project scope</h3>

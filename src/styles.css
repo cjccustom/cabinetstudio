@@ -614,3 +614,12 @@ details.opening .grid3 { margin-top: 8px; }
 .appt-form .chk-line label.chk-row { margin-top: 0; }
 .appt-form label.chk-row input { width: auto; display: inline; margin: 0; }
 ol.steps li { margin: 8px 0; }
+
+.photo-bar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.photo-bar input { flex: 1 1 200px; min-width: 0; }
+.photo-bar button { min-height: 44px; }
+.photo-grid { list-style: none; padding: 0; margin: 8px 0 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; }
+.photo-grid li { display: flex; flex-direction: column; gap: 4px; font-size: 12px; }
+.photo-grid img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 6px; background: var(--line, #ddd); }
+.photo-grid li.sending img { opacity: 0.55; }
+.photo-grid li.failed img { outline: 2px solid #b3261e; }

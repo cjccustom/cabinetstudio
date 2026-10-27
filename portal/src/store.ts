@@ -14,7 +14,7 @@ export interface KV {
   list(opts?: { prefix?: string; cursor?: string }): Promise<{ keys: { name: string }[]; list_complete: boolean; cursor?: string }>;
 }
 
-export interface Env { PORTAL: KV; SHOP_KEY?: string; QB_CLIENT_ID?: string; QB_CLIENT_SECRET?: string; QB_ENV?: string }
+export interface Env { PORTAL: KV; SHOP_KEY?: string; QB_CLIENT_ID?: string; QB_CLIENT_SECRET?: string; QB_ENV?: string; DBX_APP_KEY?: string; DBX_APP_SECRET?: string }
 
 export interface ShopDoc { id: string; title: string; kind: 'license' | 'insurance' | 'terms' | 'other'; mimeType: string; size: number; expires?: string; uploadedAt: number }
 export interface Shop {

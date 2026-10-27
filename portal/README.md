@@ -73,6 +73,32 @@ sample company first, then switch to your real one.
 The QuickBooks connection lasts about 100 days at a time and renews itself whenever the portal
 uses it. If it ever lapses, Portal settings says so; reconnect at `/qb`.
 
+## Photos from the phone (Dropbox)
+
+A client's sheet in Cabinet Studio has a **Photos** section: **Take photo** opens the iPhone camera
+and **Choose photos** picks several at once. Each photo is shrunk to 2560 px on its long side and
+saved in the client's Dropbox folder under **Photos**, named by date and time plus the label you
+type ("2026-10-27 0915 Sink wall.jpg"). Photos taken this way don't go to your camera roll. A name
+that's already taken gets a number added; nothing in Dropbox is ever replaced.
+
+Cabinet Studio's own Dropbox connector can only save text files, so the photos go through the
+portal, which needs its own Dropbox key. It's free and takes about ten minutes, once:
+
+1. **Make the app.** Go to dropbox.com/developers → App Console → **Create app**. Choose
+   **Scoped access** and **Full Dropbox**, and name it something like CJC Portal Photos.
+2. **Permissions.** On the app's **Permissions** tab, tick **files.content.write** (leave
+   account_info.read ticked) and click **Submit**.
+3. **Redirect URI.** On the **Settings** tab, under OAuth 2 → Redirect URIs, add
+   `https://cjc-portal.<you>.workers.dev/dropbox/callback`, the exact Worker address.
+4. **Give the portal the keys.** From the same Settings tab, copy the **App key** and
+   **App secret**. In Cloudflare, Worker → Settings → Variables and Secrets: add Secret
+   `DBX_APP_KEY` and Secret `DBX_APP_SECRET`. Deploy.
+5. **Connect.** Open `https://cjc-portal.<you>.workers.dev/dropbox`, paste your SHOP_KEY and click
+   Connect. Sign in to Dropbox and click Allow.
+
+The app stays in Dropbox's "development" status, which is fine: it's only ever used by you.
+To stop it, Disconnect on the `/dropbox` page, or delete the app in the App Console.
+
 ## Appointments on your iPhone
 
 Appointments you add in Cabinet Studio (Clients tab: Coming up, or a client's Appointments)

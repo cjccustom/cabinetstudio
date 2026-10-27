@@ -4,14 +4,17 @@
 //                      from the SHOP_KEY secret, like the Gemini connector
 //   /                  setup page
 //   /qb                connecting QuickBooks Online (and /qb/callback, where Intuit returns)
+//   /dropbox           connecting Dropbox, for photos from the phone (and /dropbox/callback)
 //   /legal/...         the end-user agreement and privacy pages Intuit asks an app to have
 //   /cal/<code>.ics    Cody's private appointment calendar, for his iPhone to subscribe to
 // Setup in Cloudflare: a KV namespace bound as PORTAL, and a Secret named SHOP_KEY; for
-// QuickBooks, Secrets QB_CLIENT_ID and QB_CLIENT_SECRET (and QB_ENV = sandbox to test first).
+// QuickBooks, Secrets QB_CLIENT_ID and QB_CLIENT_SECRET (and QB_ENV = sandbox to test first);
+// for photos, Secrets DBX_APP_KEY and DBX_APP_SECRET.
 import { type Env, type Job, type ShopDoc, b64ToBytes, getJob, getShop, jobByToken, putJob, putShop, randomToken, sha256 } from './store';
 import { agreementPage, esc, projectPage, simplePage } from './pages';
 import { canCancel, cancelDeadline, easternYmd } from './cancel';
 import { calendar, deleteAppt, feedCode, listAppts, saveAppt, apptLabel, type Appointment } from './calendar';
+import { dbxConnectUrl, dbxDisconnect, dbxFinish, dbxReady, dbxRedirect, dbxUpload, getDbx } from './dbx';
 import { connectUrl, disconnect, finishConnect, getConn, getQbSettings, listItems, makeInvoice, putQbSettings, qbReady, recordPayment, refreshInvoice, type QbInvoice } from './qb';
 
 const html = (body: string, status = 200) => new Response(body, { status, headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', 'x-robots-tag': 'noindex', 'referrer-policy': 'no-referrer' } });
@@ -35,6 +38,7 @@ export default {
     }
     if (path === '/' || path === '/setup') return setup(request, url, key);
     if (path === '/qb' || path === '/qb/connect' || path === '/qb/callback') return qbPage(request, env, url, key, path);
+    if (path === '/dropbox' || path === '/dropbox/callback') return dbxPage(request, env, url, key, path);
     if (path === '/legal/eula' || path === '/legal/privacy') return html(legalPage(path.endsWith('eula')));
     const code = key ? await shopCode(key) : '';
     let p = path;
@@ -158,6 +162,32 @@ async function qbPage(request: Request, env: Env, url: URL, key: string, path: s
 }
 const qbForm = (connected = false) => `<form method="post" action="/qb"><input name="key" type="password" placeholder="SHOP_KEY" autocomplete="off" required><p><button name="action" value="connect">${connected ? 'Reconnect' : 'Connect to QuickBooks'}</button>${connected ? ' <button name="action" value="disconnect" style="background:#8a2a1e">Disconnect</button>' : ''}</p></form>`;
 
+/* ---------- Dropbox connection (photos) ---------- */
+
+async function dbxPage(request: Request, env: Env, url: URL, key: string, path: string): Promise<Response> {
+  if (!dbxReady(env)) {
+    return setupPage('Connect Dropbox', `<p>First make an app at <b>dropbox.com/developers</b> (Create app → Scoped access → Full Dropbox), give it the <b>files.content.write</b> permission, then add its keys to this worker as <b>Secrets</b> in <b>Settings → Variables and Secrets</b>: <code>DBX_APP_KEY</code> and <code>DBX_APP_SECRET</code>. In the Dropbox app's Settings, add this Redirect URI:</p><input readonly value="${dbxRedirect(url.origin)}" onclick="this.select()"><p>Then reload this page.</p>`);
+  }
+  if (path === '/dropbox/callback') {
+    try {
+      const c = await dbxFinish(env, url);
+      return setupPage('Dropbox connected', `<p>The portal can now save photos into <b>${esc(c.name || 'your')}</b>${c.name ? '’s' : ''} Dropbox${c.email ? ` (${esc(c.email)})` : ''}. Go back to Cabinet Studio and take a photo from a client's page.</p>`);
+    } catch (e) {
+      return setupPage('Dropbox didn’t connect', `<p>${esc((e as Error).message)}</p><p><a href="/dropbox">Try again</a></p>`);
+    }
+  }
+  if (request.method === 'POST') {
+    const f = await request.formData();
+    const pasted = String(f.get('key') || '').trim();
+    if (!key || !pasted || (await shopCode(pasted)) !== (await shopCode(key))) return setupPage('That key doesn’t match', '<p>Paste the same SHOP_KEY you saved in Cloudflare.</p>' + dbxForm());
+    if (f.get('action') === 'disconnect') { await dbxDisconnect(env); return setupPage('Dropbox disconnected', '<p>The portal can no longer save to Dropbox. Photos already saved stay where they are.</p><p><a href="/dropbox">Connect again</a></p>'); }
+    return Response.redirect(await dbxConnectUrl(env, url.origin), 302);
+  }
+  const conn = await getDbx(env);
+  return setupPage('Dropbox', `<p>${conn ? `Connected to <b>${esc(conn.name || 'your Dropbox')}</b>${conn.email ? ` (${esc(conn.email)})` : ''} since ${esc(new Date(conn.connectedAt).toLocaleDateString('en-US'))}.` : 'Not connected yet.'}</p><p>The portal uses it only to save photos you take in Cabinet Studio into the client's folder. Paste your SHOP_KEY to ${conn ? 'reconnect or disconnect' : 'connect'}; Dropbox then asks you to sign in and allow it.</p>${dbxForm(!!conn)}`);
+}
+const dbxForm = (connected = false) => `<form method="post" action="/dropbox"><input name="key" type="password" placeholder="SHOP_KEY" autocomplete="off" required><p><button name="action" value="connect">${connected ? 'Reconnect' : 'Connect to Dropbox'}</button>${connected ? ' <button name="action" value="disconnect" style="background:#8a2a1e">Disconnect</button>' : ''}</p></form>`;
+
 function legalPage(eula: boolean) {
   const body = eula
     ? '<p>This portal is used only by CJC Custom Carpentry LLC to share proposals, agreements and invoices with its own clients. It is provided as is. Clients use it to view and sign their own project documents and to reach QuickBooks’ payment page for their invoices.</p>'
@@ -228,6 +258,11 @@ const TOOLS = [
   { name: 'delete_appointment', description: 'Remove an appointment from the calendar.', inputSchema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] } },
   { name: 'calendar_feed', description: 'The private calendar address for Cody’s phone to subscribe to.', inputSchema: { type: 'object', properties: {} } },
   { name: 'qb_status', description: 'Whether QuickBooks Online is set up and connected, to which company, the invoice settings, and the address of the page for connecting it.', inputSchema: { type: 'object', properties: {} } },
+  { name: 'dropbox_status', description: 'Whether the portal can save photos to Dropbox, whose Dropbox it is, and the address of the page for connecting it.', inputSchema: { type: 'object', properties: {} } },
+  {
+    name: 'save_photo', description: 'Save one photo (base64 JPEG/PNG/HEIC) into a Dropbox folder, e.g. a client\'s folder plus /Photos. Never replaces a file: a taken name gets a number added. Up to about 15 MB.',
+    inputSchema: { type: 'object', properties: { folder: { type: 'string', description: 'Dropbox path of the folder, like /CJC/Jobs/To quote/Smith, Jane/Photos. Made if missing.' }, name: { type: 'string', description: 'File name, like 2026-10-27 0915 Kitchen.jpg' }, data: { type: 'string', description: 'Base64 bytes.' } }, required: ['folder', 'name', 'data'] },
+  },
   { name: 'qb_items', description: 'The QuickBooks products/services (type Service) an invoice line can use.', inputSchema: { type: 'object', properties: {} } },
   {
     name: 'qb_settings', description: 'Change the invoice settings. Only the fields sent change.',
@@ -373,6 +408,19 @@ async function tool(name: string, a: Record<string, unknown>, env: Env, url: URL
     case 'qb_status': {
       const conn = qbReady(env) ? await getConn(env) : null;
       return { configured: qbReady(env), connected: !!conn, company: conn?.companyName ?? null, sandbox: String(env.QB_ENV || '').toLowerCase() === 'sandbox', connectPage: `${url.origin}/qb`, redirectUri: `${url.origin}/qb/callback`, settings: await getQbSettings(env), expiresAt: conn?.refreshExp ?? null };
+    }
+    case 'dropbox_status': {
+      const conn = dbxReady(env) ? await getDbx(env) : null;
+      return { configured: dbxReady(env), connected: !!conn, name: conn?.name ?? null, email: conn?.email ?? null, connectPage: `${url.origin}/dropbox`, redirectUri: dbxRedirect(url.origin) };
+    }
+    case 'save_photo': {
+      const folder = str('folder') || '', name = str('name') || '';
+      if (!folder.startsWith('/') || !name) throw new Error('A photo needs a Dropbox folder (starting with /) and a file name.');
+      if (!/\.(jpe?g|png|heic|heif|webp)$/i.test(name)) throw new Error('Only photos (jpg, png, heic, webp) can be saved this way.');
+      const bytes = new Uint8Array(b64ToBytes(str('data') || ''));
+      if (!bytes.length) throw new Error('The photo came through empty.');
+      if (bytes.length > 15e6) throw new Error('That photo is over 15 MB.');
+      return await dbxUpload(env, folder, name, bytes);
     }
     case 'qb_items': return { items: await listItems(env) };
     case 'qb_settings': {

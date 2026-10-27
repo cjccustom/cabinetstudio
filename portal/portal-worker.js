@@ -289,12 +289,84 @@ ${signed}</body></html>`;
 }
 var simplePage = (title, text2, shop) => shell(title, `<h1>${esc(title)}</h1><p>${esc(text2)}</p>`, shop);
 
+// portal/src/dbx.ts
+var dbxReady = (env) => Boolean(env.DBX_APP_KEY && env.DBX_APP_SECRET);
+var dbxRedirect = (origin) => `${origin}/dropbox/callback`;
+var getDbx = async (env) => await env.PORTAL.get("dbx", "json");
+var TOKEN_URL = "https://api.dropboxapi.com/oauth2/token";
+async function dbxConnectUrl(env, origin) {
+  const state = randomToken(18);
+  await env.PORTAL.put(`dbxstate:${state}`, JSON.stringify(Date.now() + 10 * 6e4));
+  const q = new URLSearchParams({ client_id: env.DBX_APP_KEY, response_type: "code", token_access_type: "offline", redirect_uri: dbxRedirect(origin), state });
+  return `https://www.dropbox.com/oauth2/authorize?${q}`;
+}
+async function tokenCall(env, body) {
+  const res = await fetch(TOKEN_URL, { method: "POST", headers: { authorization: `Basic ${btoa(`${env.DBX_APP_KEY}:${env.DBX_APP_SECRET}`)}`, "content-type": "application/x-www-form-urlencoded" }, body: new URLSearchParams(body) });
+  const j = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(`Dropbox sign-in failed: ${j.error_description || j.error || res.status}`);
+  return j;
+}
+async function dbxFinish(env, url) {
+  const state = url.searchParams.get("state") || "";
+  const exp = await env.PORTAL.get(`dbxstate:${state}`, "json");
+  await env.PORTAL.delete(`dbxstate:${state}`);
+  if (!exp || exp < Date.now()) throw new Error("That connect link expired. Start again from the Dropbox page.");
+  if (url.searchParams.get("error")) throw new Error(`Dropbox said: ${url.searchParams.get("error_description") || url.searchParams.get("error")}`);
+  const t = await tokenCall(env, { grant_type: "authorization_code", code: url.searchParams.get("code") || "", redirect_uri: dbxRedirect(url.origin) });
+  if (!t.refresh_token) throw new Error("Dropbox didn\u2019t give the portal lasting access. Try again.");
+  const conn = { refresh: t.refresh_token, access: t.access_token, accessExp: Date.now() + (t.expires_in - 60) * 1e3, connectedAt: Date.now() };
+  const acct = await api(conn, "users/get_current_account", null);
+  conn.name = acct.name?.display_name;
+  conn.email = acct.email;
+  conn.rootNs = acct.root_info?.root_namespace_id;
+  conn.homeNs = acct.root_info?.home_namespace_id;
+  await env.PORTAL.put("dbx", JSON.stringify(conn));
+  return conn;
+}
+var dbxDisconnect = (env) => env.PORTAL.delete("dbx");
+async function accessToken(env, conn) {
+  if (conn.access && (conn.accessExp ?? 0) > Date.now()) return conn.access;
+  const t = await tokenCall(env, { grant_type: "refresh_token", refresh_token: conn.refresh });
+  conn.access = t.access_token;
+  conn.accessExp = Date.now() + (t.expires_in - 60) * 1e3;
+  await env.PORTAL.put("dbx", JSON.stringify(conn));
+  return conn.access;
+}
+var rootHeader = (conn) => conn.rootNs && conn.rootNs !== conn.homeNs ? { "Dropbox-API-Path-Root": JSON.stringify({ ".tag": "root", root: conn.rootNs }) } : {};
+async function api(conn, endpoint, body) {
+  const res = await fetch(`https://api.dropboxapi.com/2/${endpoint}`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${conn.access}`, ...body === null ? {} : { "content-type": "application/json" }, ...rootHeader(conn) },
+    body: body === null ? void 0 : JSON.stringify(body)
+  });
+  const text2 = await res.text();
+  if (!res.ok) throw new Error(`Dropbox: ${text2.slice(0, 200) || res.status}`);
+  return text2 ? JSON.parse(text2) : {};
+}
+var asciiJson = (v) => JSON.stringify(v).replace(/[\u007f-￿]/g, (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, "0")}`);
+async function dbxUpload(env, folder, name, bytes) {
+  const conn = await getDbx(env);
+  if (!conn) throw new Error("Dropbox isn\u2019t connected to the portal yet. Open the portal\u2019s /dropbox page to connect it.");
+  const token = await accessToken(env, conn);
+  const clean = (s) => s.replace(/[\\:*?"<>|]/g, "-").trim();
+  const path = `/${folder.split("/").filter(Boolean).map(clean).join("/")}/${clean(name)}`;
+  const res = await fetch("https://content.dropboxapi.com/2/files/upload", {
+    method: "POST",
+    headers: { authorization: `Bearer ${token}`, "content-type": "application/octet-stream", "Dropbox-API-Arg": asciiJson({ path, mode: "add", autorename: true, mute: true }), ...rootHeader(conn) },
+    body: bytes
+  });
+  const text2 = await res.text();
+  if (!res.ok) throw new Error(`Dropbox didn\u2019t take the photo: ${text2.slice(0, 200) || res.status}`);
+  const j = JSON.parse(text2);
+  return { path: j.path_display, size: j.size };
+}
+
 // portal/src/qb.ts
 var defaultQbSettings = { autoDeposit: true, email: true };
 var qbReady = (env) => Boolean(env.QB_CLIENT_ID && env.QB_CLIENT_SECRET);
 var sandbox = (env) => String(env.QB_ENV || "").toLowerCase() === "sandbox";
 var apiBase = (env) => sandbox(env) ? "https://sandbox-quickbooks.api.intuit.com" : "https://quickbooks.api.intuit.com";
-var TOKEN_URL = "https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer";
+var TOKEN_URL2 = "https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer";
 var REVOKE_URL = "https://developer.api.intuit.com/v2/oauth2/tokens/revoke";
 var MINOR = "75";
 var redirectUri = (origin) => `${origin}/qb/callback`;
@@ -310,8 +382,8 @@ async function connectUrl(env, origin) {
   return `https://appcenter.intuit.com/connect/oauth2?${q}`;
 }
 var basic = (env) => `Basic ${btoa(`${env.QB_CLIENT_ID}:${env.QB_CLIENT_SECRET}`)}`;
-async function tokenCall(env, body) {
-  const res = await fetch(TOKEN_URL, { method: "POST", headers: { authorization: basic(env), accept: "application/json", "content-type": "application/x-www-form-urlencoded" }, body: new URLSearchParams(body) });
+async function tokenCall2(env, body) {
+  const res = await fetch(TOKEN_URL2, { method: "POST", headers: { authorization: basic(env), accept: "application/json", "content-type": "application/x-www-form-urlencoded" }, body: new URLSearchParams(body) });
   const j = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(`QuickBooks sign-in failed: ${j.error_description || j.error || res.status}`);
   return j;
@@ -325,7 +397,7 @@ async function finishConnect(env, url) {
   const code = url.searchParams.get("code") || "";
   const realmId = url.searchParams.get("realmId") || "";
   if (!code || !realmId) throw new Error("QuickBooks didn\u2019t send the company back. Try again.");
-  const t = await tokenCall(env, { grant_type: "authorization_code", code, redirect_uri: redirectUri(url.origin) });
+  const t = await tokenCall2(env, { grant_type: "authorization_code", code, redirect_uri: redirectUri(url.origin) });
   const now = Date.now();
   const conn = { realmId, access: t.access_token, accessExp: now + t.expires_in * 1e3, refresh: t.refresh_token, refreshExp: now + t.x_refresh_token_expires_in * 1e3, connectedAt: now };
   await env.PORTAL.put("qb", JSON.stringify(conn));
@@ -347,7 +419,7 @@ async function access(env) {
   if (!c) throw new Error("QuickBooks isn\u2019t connected. Connect it from the portal\u2019s QuickBooks page.");
   if (c.accessExp - Date.now() > 6e4) return c;
   if (c.refreshExp < Date.now()) throw new Error("The QuickBooks connection expired. Connect it again from the portal\u2019s QuickBooks page.");
-  const t = await tokenCall(env, { grant_type: "refresh_token", refresh_token: c.refresh });
+  const t = await tokenCall2(env, { grant_type: "refresh_token", refresh_token: c.refresh });
   const now = Date.now();
   const next = { ...c, access: t.access_token, accessExp: now + t.expires_in * 1e3, refresh: t.refresh_token, refreshExp: now + t.x_refresh_token_expires_in * 1e3 };
   await env.PORTAL.put("qb", JSON.stringify(next));
@@ -480,6 +552,7 @@ var worker_default = {
     }
     if (path === "/" || path === "/setup") return setup(request, url, key);
     if (path === "/qb" || path === "/qb/connect" || path === "/qb/callback") return qbPage(request, env, url, key, path);
+    if (path === "/dropbox" || path === "/dropbox/callback") return dbxPage(request, env, url, key, path);
     if (path === "/legal/eula" || path === "/legal/privacy") return html(legalPage(path.endsWith("eula")));
     const code = key ? await shopCode(key) : "";
     let p = path;
@@ -605,6 +678,32 @@ async function qbPage(request, env, url, key, path) {
   return setupPage("QuickBooks", `<p>${conn ? `Connected to <b>${esc(conn.companyName || "your company")}</b> since ${esc(new Date(conn.connectedAt).toLocaleDateString("en-US"))}.` : "Not connected yet."}${String(env.QB_ENV).toLowerCase() === "sandbox" ? " <b>Test mode</b> (QB_ENV is sandbox)." : ""}</p><p>Paste your SHOP_KEY to ${conn ? "reconnect or disconnect" : "connect"}. QuickBooks then asks you to sign in and pick the company.</p>${qbForm(!!conn)}`);
 }
 var qbForm = (connected = false) => `<form method="post" action="/qb"><input name="key" type="password" placeholder="SHOP_KEY" autocomplete="off" required><p><button name="action" value="connect">${connected ? "Reconnect" : "Connect to QuickBooks"}</button>${connected ? ' <button name="action" value="disconnect" style="background:#8a2a1e">Disconnect</button>' : ""}</p></form>`;
+async function dbxPage(request, env, url, key, path) {
+  if (!dbxReady(env)) {
+    return setupPage("Connect Dropbox", `<p>First make an app at <b>dropbox.com/developers</b> (Create app \u2192 Scoped access \u2192 Full Dropbox), give it the <b>files.content.write</b> permission, then add its keys to this worker as <b>Secrets</b> in <b>Settings \u2192 Variables and Secrets</b>: <code>DBX_APP_KEY</code> and <code>DBX_APP_SECRET</code>. In the Dropbox app's Settings, add this Redirect URI:</p><input readonly value="${dbxRedirect(url.origin)}" onclick="this.select()"><p>Then reload this page.</p>`);
+  }
+  if (path === "/dropbox/callback") {
+    try {
+      const c = await dbxFinish(env, url);
+      return setupPage("Dropbox connected", `<p>The portal can now save photos into <b>${esc(c.name || "your")}</b>${c.name ? "\u2019s" : ""} Dropbox${c.email ? ` (${esc(c.email)})` : ""}. Go back to Cabinet Studio and take a photo from a client's page.</p>`);
+    } catch (e) {
+      return setupPage("Dropbox didn\u2019t connect", `<p>${esc(e.message)}</p><p><a href="/dropbox">Try again</a></p>`);
+    }
+  }
+  if (request.method === "POST") {
+    const f = await request.formData();
+    const pasted = String(f.get("key") || "").trim();
+    if (!key || !pasted || await shopCode(pasted) !== await shopCode(key)) return setupPage("That key doesn\u2019t match", "<p>Paste the same SHOP_KEY you saved in Cloudflare.</p>" + dbxForm());
+    if (f.get("action") === "disconnect") {
+      await dbxDisconnect(env);
+      return setupPage("Dropbox disconnected", '<p>The portal can no longer save to Dropbox. Photos already saved stay where they are.</p><p><a href="/dropbox">Connect again</a></p>');
+    }
+    return Response.redirect(await dbxConnectUrl(env, url.origin), 302);
+  }
+  const conn = await getDbx(env);
+  return setupPage("Dropbox", `<p>${conn ? `Connected to <b>${esc(conn.name || "your Dropbox")}</b>${conn.email ? ` (${esc(conn.email)})` : ""} since ${esc(new Date(conn.connectedAt).toLocaleDateString("en-US"))}.` : "Not connected yet."}</p><p>The portal uses it only to save photos you take in Cabinet Studio into the client's folder. Paste your SHOP_KEY to ${conn ? "reconnect or disconnect" : "connect"}; Dropbox then asks you to sign in and allow it.</p>${dbxForm(!!conn)}`);
+}
+var dbxForm = (connected = false) => `<form method="post" action="/dropbox"><input name="key" type="password" placeholder="SHOP_KEY" autocomplete="off" required><p><button name="action" value="connect">${connected ? "Reconnect" : "Connect to Dropbox"}</button>${connected ? ' <button name="action" value="disconnect" style="background:#8a2a1e">Disconnect</button>' : ""}</p></form>`;
 function legalPage(eula) {
   const body = eula ? "<p>This portal is used only by CJC Custom Carpentry LLC to share proposals, agreements and invoices with its own clients. It is provided as is. Clients use it to view and sign their own project documents and to reach QuickBooks\u2019 payment page for their invoices.</p>" : "<p>The portal keeps what CJC Custom Carpentry LLC publishes for each client (proposal, renderings, documents), the client\u2019s signature with its time, IP address and browser, and page view times. QuickBooks is used only to make and track the shop\u2019s own invoices; no QuickBooks data is shared with anyone else. Data is stored with Cloudflare. Contact the shop to have a record removed where the law allows.</p>";
   return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${eula ? "End-user agreement" : "Privacy"}</title><style>body{font:16px/1.55 system-ui,sans-serif;max-width:640px;margin:8vh auto;padding:0 16px}</style></head><body><h1>${eula ? "End-user license agreement" : "Privacy policy"}</h1>${body}</body></html>`;
@@ -676,6 +775,12 @@ var TOOLS = [
   { name: "delete_appointment", description: "Remove an appointment from the calendar.", inputSchema: { type: "object", properties: { id: { type: "string" } }, required: ["id"] } },
   { name: "calendar_feed", description: "The private calendar address for Cody\u2019s phone to subscribe to.", inputSchema: { type: "object", properties: {} } },
   { name: "qb_status", description: "Whether QuickBooks Online is set up and connected, to which company, the invoice settings, and the address of the page for connecting it.", inputSchema: { type: "object", properties: {} } },
+  { name: "dropbox_status", description: "Whether the portal can save photos to Dropbox, whose Dropbox it is, and the address of the page for connecting it.", inputSchema: { type: "object", properties: {} } },
+  {
+    name: "save_photo",
+    description: "Save one photo (base64 JPEG/PNG/HEIC) into a Dropbox folder, e.g. a client's folder plus /Photos. Never replaces a file: a taken name gets a number added. Up to about 15 MB.",
+    inputSchema: { type: "object", properties: { folder: { type: "string", description: "Dropbox path of the folder, like /CJC/Jobs/To quote/Smith, Jane/Photos. Made if missing." }, name: { type: "string", description: "File name, like 2026-10-27 0915 Kitchen.jpg" }, data: { type: "string", description: "Base64 bytes." } }, required: ["folder", "name", "data"] }
+  },
   { name: "qb_items", description: "The QuickBooks products/services (type Service) an invoice line can use.", inputSchema: { type: "object", properties: {} } },
   {
     name: "qb_settings",
@@ -836,6 +941,19 @@ ${shop.terms}`);
     case "qb_status": {
       const conn = qbReady(env) ? await getConn(env) : null;
       return { configured: qbReady(env), connected: !!conn, company: conn?.companyName ?? null, sandbox: String(env.QB_ENV || "").toLowerCase() === "sandbox", connectPage: `${url.origin}/qb`, redirectUri: `${url.origin}/qb/callback`, settings: await getQbSettings(env), expiresAt: conn?.refreshExp ?? null };
+    }
+    case "dropbox_status": {
+      const conn = dbxReady(env) ? await getDbx(env) : null;
+      return { configured: dbxReady(env), connected: !!conn, name: conn?.name ?? null, email: conn?.email ?? null, connectPage: `${url.origin}/dropbox`, redirectUri: dbxRedirect(url.origin) };
+    }
+    case "save_photo": {
+      const folder = str("folder") || "", name2 = str("name") || "";
+      if (!folder.startsWith("/") || !name2) throw new Error("A photo needs a Dropbox folder (starting with /) and a file name.");
+      if (!/\.(jpe?g|png|heic|heif|webp)$/i.test(name2)) throw new Error("Only photos (jpg, png, heic, webp) can be saved this way.");
+      const bytes = new Uint8Array(b64ToBytes(str("data") || ""));
+      if (!bytes.length) throw new Error("The photo came through empty.");
+      if (bytes.length > 15e6) throw new Error("That photo is over 15 MB.");
+      return await dbxUpload(env, folder, name2, bytes);
     }
     case "qb_items":
       return { items: await listItems(env) };

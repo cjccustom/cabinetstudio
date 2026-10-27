@@ -89,6 +89,11 @@ export const saveAppointment = async (a: Partial<Appointment> & { start: string 
 export const deleteAppointment = (id: string) => call('delete_appointment', { id });
 export const calendarFeed = () => call<{ url: string; webcal: string }>('calendar_feed');
 
+export interface DbxStatus { configured: boolean; connected: boolean; name: string | null; email: string | null; connectPage: string; redirectUri: string }
+export const dropboxStatus = () => call<DbxStatus>('dropbox_status');
+/** One photo into a Dropbox folder, through the portal (Cabinet Studio's own Dropbox connector can't write pictures). */
+export const savePhoto = (folder: string, name: string, data: string) => call<{ path: string; size: number }>('save_photo', { folder, name, data });
+
 export const qbStatus = () => call<QbStatus>('qb_status');
 export const qbItems = async () => (await call<{ items: { id: string; name: string }[] }>('qb_items')).items;
 export const qbSettings = (patch: { item_id?: string; item_name?: string; auto_deposit?: boolean; email?: boolean }) => call('qb_settings', patch);
