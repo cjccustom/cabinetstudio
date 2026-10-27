@@ -331,6 +331,11 @@ export interface Project {
   floor?: Floor;
   /** $ per lineal foot for this job by profile number, where there's no list price (Brosco) or a quoted one. */
   moldPrices?: Record<string, number>;
+  /**
+   * Drawings of profiles milled to match, by their custom:... number: a name and the outline as
+   * installed (inches, back against the wall at u = 0, v up), traced from a sample or knife drawing.
+   */
+  profiles?: Record<string, { name?: string; pts: [number, number][] }>;
   /** $ per door for this job by Reeb design and size, e.g. "PR8730 2/8x6/8 prehung". */
   doorPrices?: Record<string, number>;
   /** Up or down from Reeb's catalog prices, e.g. your dealer's discount. -0.1 = 10% off. */

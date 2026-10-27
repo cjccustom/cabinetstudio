@@ -3,6 +3,7 @@ import type { Cabinet, Project, WallId, WallPanel } from './model/types';
 import { cabinetFromPreset, defaultSettings, presets, sampleProject, uid } from './model/defaults';
 import { findIssues, nextFreeOffset, wallLength } from './model/layout';
 import { defaultCutlist, sheetPrice } from './model/cutlist';
+import { setCustomDrawings } from './model/moldings';
 
 export type ViewMode = '3d' | 'plan' | `elev-${WallId}`;
 
@@ -159,7 +160,10 @@ export const useStore = create<State>((set, get) => ({
   },
 }));
 
+// Custom profile drawings travel with the design
+setCustomDrawings(useStore.getState().project.profiles);
 useStore.subscribe((s, prev) => {
+  if (s.project.profiles !== prev.project.profiles) setCustomDrawings(s.project.profiles);
   const dragEnded = prev.dragging && !s.dragging;
   if ((s.project === prev.project && !dragEnded) || s.dragging) return;
   try {

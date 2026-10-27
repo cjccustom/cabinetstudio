@@ -20,7 +20,7 @@ import { optimize } from "../src/model/optimizer";
 import { defaultFaceFrameStock, faceFrameNeeds, faceFramePieces, otherSpecies, roughQuarters, woodPieces } from "../src/model/faceframe";
 import { panelAbove, panelOrder } from "../src/model/panels";
 import { amCatalog } from "../src/model/andersonMcquaid";
-import { cabinetMoldings, moldingOrder, mountShape } from "../src/model/moldings";
+import { cabinetMoldings, moldingOrder, mountShape, profileByNum, setCustomDrawings } from "../src/model/moldings";
 import { estimateHours, priceQuote, quoteOf, scopeLine } from "../src/model/quote";
 import { optimizerParts } from "../src/model/cutlist";
 import { normalize } from "../src/store";
@@ -954,6 +954,16 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   const lib = [pil('P1', 0), tall('T1', 6, 30), pil('P2', 36, ), tall('T2', 42, 33), pil('P3', 75), tall('T3', 81, 31)];
   const ev2 = evenRun({ width: 118, depth: 150, height: 104 }, lib, lib[1], s);
   eq('even run: bookcases between pilasters', ['T1', 'T2', 'T3', 'P2', 'P3'].map((n) => `${n}@${ev2.get(n)!.offset}:${ev2.get(n)!.width}`).join(' '), 'T1@6:33.375 T2@45.375:33.3125 T3@84.6875:33.3125 P2@39.375:6 P3@78.6875:6');
+}
+
+// A custom profile's traced drawing, carried in the design
+{
+  const num = 'custom:Picture Moulding:1.5x0.75:shop';
+  setCustomDrawings({ [num]: { name: 'Picture moulding, from the sample', pts: [[0, 0], [0.75, 0.2], [0.5, 1.5], [0, 1.5]] } });
+  const pr = profileByNum(num)!;
+  eq('custom profile: traced outline and name from the design', `${pr.name} ${mountShape(pr).pts.length} ${mountShape(pr).height}`, 'Picture moulding, from the sample 4 1.5');
+  setCustomDrawings(undefined);
+  eq('custom profile: plain outline without a drawing', mountShape(profileByNum(num)!).pts.length, 4);
 }
 
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');

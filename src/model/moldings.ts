@@ -51,7 +51,11 @@ export const supplierName: Record<Supplier, string> = { am: 'Anderson & McQuaid'
  * A profile milled to match the house's existing trim, from a sample: no catalog number, just its
  * size as installed and who mills it. Stored in place of a catalog number as custom:<category>:<h>x<d>:<by>.
  */
-export interface CustomProfile { category: string; height: number; projection: number; by: 'shop' | 'supplier' }
+export interface CustomProfile { category: string; height: number; projection: number; by: 'shop' | 'supplier'; pts?: [number, number][] }
+
+/** The open job's drawings of its custom profiles; the store keeps this in step with the design. */
+let drawn: Project['profiles'] = {};
+export const setCustomDrawings = (p: Project['profiles']) => { drawn = p ?? {}; };
 export const customNum = (c: CustomProfile) => `custom:${c.category}:${c.height}x${c.projection}:${c.by}`;
 export function parseCustom(num: string): CustomProfile | null {
   const m = /^custom:([^:]+):([\d.]+)x([\d.]+):(shop|supplier)$/.exec(num);
@@ -60,8 +64,9 @@ export function parseCustom(num: string): CustomProfile | null {
 function customProfile(num: string): Profile | undefined {
   const c = parseCustom(num);
   if (!c) return undefined;
-  return { num, category: c.category, t: c.projection, w: c.height, prices: {}, supplier: 'custom', custom: c,
-    name: c.by === 'shop' ? 'Milled in the shop to match' : 'Milled by the supplier to match' };
+  const d = drawn?.[num];
+  return { num, category: c.category, t: c.projection, w: c.height, prices: {}, supplier: 'custom', custom: d && Array.isArray(d.pts) && d.pts.length > 2 ? { ...c, pts: d.pts } : c,
+    name: d?.name || (c.by === 'shop' ? 'Milled in the shop to match' : 'Milled by the supplier to match') };
 }
 export const catalog: Profile[] = [...amCatalog, ...broscoCatalog];
 export const supplierOf = (p: Profile): Supplier => p.supplier ?? 'am';
@@ -87,6 +92,7 @@ export function mountShape(p: Profile): { pts: [number, number][]; depth: number
   // Milled to match: its size as installed, height down the wall (a crown's drop) by projection
   if (p.custom) {
     const { height: h, projection: d } = p.custom;
+    if (p.custom.pts) return { pts: p.custom.pts, depth: d, height: h };
     const pts: [number, number][] = p.category === 'Crown' ? [[0, 0], [0.25, 0], [d, h - 0.25], [d, h], [0, h]] : [[0, 0], [d, 0], [d, h], [0, h]];
     return { pts, depth: d, height: h };
   }
