@@ -12,15 +12,16 @@ export function priceId(kind: PriceItem['kind'], name: string) {
   return `${kind === 'plywood' ? 'ply' : 'lum'}-${name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}`;
 }
 
-/** The shop's starting entries; editing one saves an override under the same id. */
+/** The shop's starting entries, at the supplier's prices per sheet before tax (Oct 2026); editing one saves an override under the same id. */
 export const builtinPrices: PriceItem[] = [
   { id: 'ply-prefinished-birch', kind: 'plywood', name: 'Prefinished birch', sheet: { '3/4"': 86.4, '1/2"': 74.91 }, updatedAt: 0, builtin: true },
-  { id: 'ply-prefinished-maple', kind: 'plywood', name: 'Prefinished maple', sheet: {}, updatedAt: 0, builtin: true },
+  { id: 'ply-prefinished-maple', kind: 'plywood', name: 'Prefinished maple', sheet: { '3/4"': 145, '1/2"': 115 }, updatedAt: 0, builtin: true },
   { id: 'ply-paint-grade-birch', kind: 'plywood', name: 'Paint-grade birch', sheet: {}, updatedAt: 0, builtin: true },
-  { id: 'ply-red-oak', kind: 'plywood', name: 'Red oak', sheet: {}, updatedAt: 0, builtin: true },
+  { id: 'ply-red-oak', kind: 'plywood', name: 'Red oak', sheet: { '3/4"': 174, '1/2"': 164 }, updatedAt: 0, builtin: true },
   { id: 'ply-white-oak', kind: 'plywood', name: 'White oak', sheet: {}, updatedAt: 0, builtin: true },
   { id: 'ply-cherry', kind: 'plywood', name: 'Cherry', sheet: {}, updatedAt: 0, builtin: true },
-  { id: 'ply-walnut', kind: 'plywood', name: 'Walnut', sheet: {}, updatedAt: 0, builtin: true },
+  { id: 'ply-walnut', kind: 'plywood', name: 'Walnut', sheet: { '3/4"': 244, '1/2"': 230 }, updatedAt: 0, builtin: true },
+  { id: 'ply-sapele-mahogany', kind: 'plywood', name: 'Sapele mahogany', sheet: { '3/4"': 254, '1/2"': 240 }, updatedAt: 0, builtin: true },
   { id: 'ply-mdf', kind: 'plywood', name: 'MDF', sheet: {}, updatedAt: 0, builtin: true },
   ...['Hard maple', 'Red oak', 'White oak', 'Cherry', 'Walnut', 'Poplar', 'Sapele', 'Quartersawn white oak', ...Object.keys(amLumber)]
     .filter((n, i, all) => all.indexOf(n) === i && n !== 'Flex')

@@ -996,6 +996,14 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   eq('eagle quote: doors replaced, fronts still estimated', withDoors.cost > 1234.5 - 0.01 && withDoors.detail.includes('partly Eagle’s quote'), true);
 }
 
+{
+  const book = priceBook({});
+  const prices = (n: string) => JSON.stringify(book.find((x) => x.name === n)!.sheet);
+  eq('price book: supplier plywood prices', ['Prefinished maple', 'Red oak', 'Sapele mahogany', 'Walnut'].map(prices).join(' '), '{"3/4\\"":145,"1/2\\"":115} {"3/4\\"":174,"1/2\\"":164} {"3/4\\"":254,"1/2\\"":240} {"3/4\\"":244,"1/2\\"":230}');
+  const sap = choosePlywood({ ...p, cutlist: defaultCutlist(p) }, 'plywood', 'Sapele mahogany', book);
+  eq('price book: sapele sheets', sap.cutlist!.stock.map((x) => `${x.material} ${x.price}`).join(', '), '3/4" sapele mahogany plywood 254, 1/2" sapele mahogany plywood 240');
+}
+
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');
 
 console.log(failed ? `${failed} check(s) failed` : 'All model checks passed');
