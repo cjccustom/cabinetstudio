@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { useStore } from '../store';
 import { defaultFaceFrameStock, faceFrameNeeds, faceFramePieces, otherSpecies, stockFor, woodNeeds, woodPieces, type FaceFrameResult, type FaceFrameStock } from '../model/faceframe';
 import { fmt, fmtFeet } from '../units';
+import { amLumberPulled, amSizes, boardSize } from '../model/amLumber';
 import { Field, LengthInput, Section } from './fields';
 
 function useFF() {
@@ -18,6 +19,7 @@ const lf = (inches: number) => `${(inches / 12).toFixed(1)} lf`;
 
 export function FaceFrameInputs() {
   const { stock: s, set } = useFF();
+  const sizes = amSizes(s.species.replace(/,.*$/, '')) ?? {};
   const num = (id: string, label: string, value: number, onChange: (v: number) => void, step = '1') => (
     <Field label={label} htmlFor={id}>
       <input id={id} inputMode="decimal" step={step} value={Number.isFinite(value) ? value : ''} onChange={(e) => onChange(parseFloat(e.target.value) || 0)} />
@@ -33,7 +35,21 @@ export function FaceFrameInputs() {
             <Field label="Typical board width" htmlFor="ff-bw"><LengthInput id="ff-bw" value={s.boardWidth} min={1} onChange={(v) => set({ boardWidth: v! })} /></Field>
             {num('ff-nt', 'Thickness for BF (4/4 = 1)', s.nominalThickness, (v) => set({ nominalThickness: v }), '0.25')}
             {num('ff-price', '$ per board foot', s.pricePerBF, (v) => set({ pricePerBF: v }), '0.05')}
+            <Field label="Board bought (exact size)" htmlFor="ff-board">
+              <select id="ff-board" value={s.board ?? ''} onChange={(e) => {
+                const b = e.target.value;
+                if (!b) return set({ board: undefined, pricePerLF: undefined });
+                const size = boardSize(b);
+                set({ board: b, pricePerLF: sizes[b] ?? 0, ...(size ? { boardWidth: size.w } : {}) });
+              }}>
+                <option value="">Rough, by the board foot</option>
+                {Object.keys(sizes).filter((b) => (boardSize(b)?.t ?? 0) >= 0.75).map((b) => <option key={b} value={b}>{b}{b === '3/4 x 5-1/2' ? ' (1x6)' : ''}: ${sizes[b].toFixed(2)}/lf</option>)}
+                {s.board && !sizes[s.board] && <option value={s.board}>{s.board}</option>}
+              </select>
+            </Field>
+            {s.board && num('ff-lf', '$ per lineal foot', s.pricePerLF ?? 0, (v) => set({ pricePerLF: v }), '0.05')}
           </div>
+          {s.board && <p className="hint">Priced by the lineal foot{sizes[s.board] ? `; A&M lists ${s.board} ${s.species.replace(/,.*$/, '').toLowerCase()} at $${sizes[s.board].toFixed(2)}/lf (${amLumberPulled})` : ''}. Tops and glue-ups stay by the board foot.</p>}
           <Field label="Supplier" htmlFor="ff-sup"><input id="ff-sup" value={s.supplier} onChange={(e) => set({ supplier: e.target.value })} /></Field>
         </Section>
         <Section title="Milling allowances">
@@ -213,7 +229,9 @@ export function FaceFrameSummary() {
     '',
     ...r.groups.map((g) => `${fmt(g.width)} finished (rip ${fmt(g.ripWidth)}): ${g.count} pcs, ${fmtFeet(g.totalLength)} (${lf(g.cutLength)} with allowances)`),
     '',
-    `Buy about ${Math.ceil(r.buyBF)} BF (${r.boards.length} boards ${fmt(s.boardWidth)} x ${fmtFeet(s.boardLength)} + ${Math.round(s.waste * 100)}% waste)`,
+    s.pricePerLF
+      ? `Buy ${Math.ceil(r.boards.length * (1 + s.waste))} boards ${s.board} x ${fmtFeet(s.boardLength)} (${Math.ceil(r.buyLF)} lf, ${Math.round(s.waste * 100)}% waste included)`
+      : `Buy about ${Math.ceil(r.buyBF)} BF (${r.boards.length} boards ${fmt(s.boardWidth)} x ${fmtFeet(s.boardLength)} + ${Math.round(s.waste * 100)}% waste)`,
   ].join('\n');
   const copy = () => navigator.clipboard.writeText(text).then(() => setCopied('Copied.'), () => setCopied('Couldn’t reach the clipboard.'));
   return (
@@ -222,7 +240,7 @@ export function FaceFrameSummary() {
         <Section title="To buy">
           <div className="big-stat"><span className="mono">{Math.ceil(r.buyBF + woodBF)}</span> board feet</div>
           {wood.map((g) => <p key={g.quarters} className="hint" style={{ marginTop: 0 }}>{g.quarters}/4 for tops, seats & caps: {Math.ceil(g.buyBF)} BF</p>)}
-          <p className="hint" style={{ marginTop: 0 }}>Face frames (4/4): {Math.ceil(r.buyBF)} BF</p>
+          <p className="hint" style={{ marginTop: 0 }}>Face frames: {s.pricePerLF ? `${Math.ceil(r.boards.length * (1 + s.waste))} boards ${s.board}, ${Math.ceil(r.buyLF)} lf at $${s.pricePerLF.toFixed(2)} = $${r.cost.toFixed(2)}` : `${Math.ceil(r.buyBF)} BF (4/4)`}</p>
           {others.map((o) => <p key={o.sp} className="hint" style={{ marginTop: 0 }}>{o.sp} (4/4): {Math.ceil(o.bf)} BF, listed separately</p>)}
           <table className="totals">
             <tbody>
@@ -233,7 +251,7 @@ export function FaceFrameSummary() {
               {s.pricePerBF > 0 && tax > 0 && <tr className="sum"><td>With {+(tax * 100).toFixed(3)}% sales tax</td><td className="num">${((r.buyBF + woodBF) * s.pricePerBF * (1 + tax)).toFixed(2)}</td></tr>}
             </tbody>
           </table>
-          {!s.pricePerBF && <p className="hint">Enter your price per board foot to see the cost. It will feed the quote.</p>}
+          {!s.pricePerBF && !s.pricePerLF && <p className="hint">Enter your price per board foot to see the cost. It will feed the quote.</p>}
           <p className="hint">Yield from rough to finished: {r.buyBF ? Math.round((100 * r.netBF) / r.buyBF) : 0}%.</p>
           <div className="order-actions" style={{ marginTop: 10 }}>
             <button onClick={copy}>Copy material list</button>

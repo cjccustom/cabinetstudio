@@ -2,6 +2,7 @@
 // to buy when ripping and jointing strips out of wider stock.
 import { cofferParts } from './coffer';
 import type { Project } from './types';
+import { amSizes } from './amLumber';
 import { buildParts } from './parts';
 import { resolveEnds } from './layout';
 import { inScope, roomFlatStock } from './room';
@@ -27,6 +28,10 @@ export interface FaceFrameStock {
   /** Defects, knots and color you cut around. 0.15 = 15%. */
   waste: number;
   pricePerBF: number;
+  /** The surfaced board bought, by its exact size ("3/4 x 5-1/2", a 1x6), when it's bought by the lineal foot. */
+  board?: string;
+  /** $ per lineal foot of that board (A&M's price list); when set, the stock is priced by length, not board feet. */
+  pricePerLF?: number;
 }
 
 export const defaultFaceFrameStock: FaceFrameStock = {
@@ -87,6 +92,8 @@ export interface FaceFrameResult {
   netBF: number;
   roughBF: number;
   buyBF: number;
+  /** Lineal feet of board to buy, waste included. */
+  buyLF: number;
   cost: number;
 }
 
@@ -142,7 +149,8 @@ export function faceFrameNeeds(pieces: FFPiece[], s: FaceFrameStock): FaceFrameR
   const netBF = groups.reduce((t, g) => t + bf(g.width, g.totalLength), 0);
   const roughBF = boards.length * bf(s.boardWidth, s.boardLength);
   const buyBF = roughBF * (1 + s.waste);
-  return { groups, boards, tooLong, netBF, roughBF, buyBF, cost: buyBF * s.pricePerBF };
+  const buyLF = (boards.length * s.boardLength * (1 + s.waste)) / 12;
+  return { groups, boards, tooLong, netBF, roughBF, buyBF, buyLF, cost: s.pricePerLF ? buyLF * s.pricePerLF : buyBF * s.pricePerBF };
 }
 
 /** Solid wood tops, bench seats and beadboard caps: glued up or milled from thicker stock. */
@@ -186,4 +194,9 @@ export function otherSpecies(p: Project): string[] {
 }
 
 /** The face frame stock settings with another species and its price. */
-export const stockFor = (p: Project, species: string): FaceFrameStock => ({ ...defaultFaceFrameStock, ...p.faceFrame, species: `${species}, 4/4`, pricePerBF: p.speciesPrices?.[species] ?? 0 });
+export function stockFor(p: Project, species: string): FaceFrameStock {
+  const ff = { ...defaultFaceFrameStock, ...p.faceFrame };
+  // A price per board foot entered for the species wins; otherwise A&M's price for the same board
+  const lf = ff.board && !p.speciesPrices?.[species] ? amSizes(species)?.[ff.board] : undefined;
+  return { ...ff, species: `${species}, 4/4`, pricePerBF: p.speciesPrices?.[species] ?? 0, pricePerLF: lf };
+}

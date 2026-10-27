@@ -35,8 +35,10 @@ export interface PriceItem {
   name: string;
   /** Plywood: $ per 4x8 sheet before tax, by thickness as written ("3/4\""). */
   sheet?: Record<string, number>;
-  /** Lumber: $ per board foot, 4/4. */
+  /** Lumber: $ per board foot, for tops and glue-ups. */
   perBF?: number;
+  /** Lumber: $ per lineal foot of surfaced board by exact size ("3/4 x 5-1/2"), over A&M's list price. */
+  perLF?: Record<string, number>;
   updatedAt: number;
   /** One of the shop's starting entries (it can be re-priced, not removed). */
   builtin?: boolean;

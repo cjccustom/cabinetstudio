@@ -975,6 +975,12 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   const oak = chooseSpecies(choosePlywood(base, 'plywood', 'Red oak', book), 'Red oak', book);
   eq('price book: cutlist rows follow the plywood with its prices', oak.cutlist!.stock.map((x) => `${x.material} ${x.price}`).join(', '), '3/4" red oak plywood 120, 1/2" red oak plywood 100');
   eq('price book: face frame species and $/BF', `${oak.settings.woodSpecies} / ${oak.faceFrame!.species} / ${oak.faceFrame!.pricePerBF}`, 'Red oak / Red oak, 4/4 / 7.5');
+  eq('A&M: red oak face frames from a 1x6 by the lineal foot', `${oak.faceFrame!.board} ${oak.faceFrame!.pricePerLF} ${oak.faceFrame!.boardWidth}`, '3/4 x 5-1/2 3.45 5.5');
+  const ffLine = estimateMaterials(oak, quoteOf(oak)).find((l) => l.label.startsWith('Face frame stock'))!;
+  const need = faceFrameNeeds(faceFramePieces(oak), { ...defaultFaceFrameStock, ...oak.faceFrame });
+  eq('A&M: quote prices face frames by length', `${ffLine.cost.toFixed(2)} ${ffLine.detail}`, `${(need.buyLF * 3.45).toFixed(2)} ${need.boards.length} boards, ${Math.ceil(need.buyLF)} lf at $3.45`);
+  const own = priceBook({ 'lum-red-oak': { id: 'lum-red-oak', kind: 'lumber', name: 'Red oak', perLF: { '3/4 x 5-1/2': 3.75 }, updatedAt: 3 } });
+  eq('A&M: the shop’s own price beats the list', applyBook(oak, own).faceFrame!.pricePerLF, 3.75);
   const mats = new Set(optimizerParts(oak, oak.cutlist!).map((x) => x.material));
   eq('price book: every part cut from red oak', [...mats].every((m) => m.includes('red oak')), true);
   const exp = choosePlywood(oak, 'exposedPlywood', 'Walnut', book);

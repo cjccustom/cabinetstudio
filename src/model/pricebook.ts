@@ -6,6 +6,11 @@ import type { MaterialKey, Project } from './types';
 import type { PriceItem } from '../shop/shop';
 import { fmt } from '../units';
 import { defaultFaceFrameStock } from './faceframe';
+import { amLumber, amSizes, boardSize, defaultBoard } from './amLumber';
+
+export function priceId(kind: PriceItem['kind'], name: string) {
+  return `${kind === 'plywood' ? 'ply' : 'lum'}-${name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}`;
+}
 
 /** The shop's starting entries; editing one saves an override under the same id. */
 export const builtinPrices: PriceItem[] = [
@@ -17,13 +22,10 @@ export const builtinPrices: PriceItem[] = [
   { id: 'ply-cherry', kind: 'plywood', name: 'Cherry', sheet: {}, updatedAt: 0, builtin: true },
   { id: 'ply-walnut', kind: 'plywood', name: 'Walnut', sheet: {}, updatedAt: 0, builtin: true },
   { id: 'ply-mdf', kind: 'plywood', name: 'MDF', sheet: {}, updatedAt: 0, builtin: true },
-  { id: 'lum-hard-maple', kind: 'lumber', name: 'Hard maple', perBF: 0, updatedAt: 0, builtin: true },
+  ...['Hard maple', 'Red oak', 'White oak', 'Cherry', 'Walnut', 'Poplar', 'Sapele', 'Quartersawn white oak', ...Object.keys(amLumber)]
+    .filter((n, i, all) => all.indexOf(n) === i && n !== 'Flex')
+    .map((name): PriceItem => ({ id: priceId('lumber', name), kind: 'lumber', name, perBF: 0, updatedAt: 0, builtin: true })),
   { id: 'lum-soft-maple', kind: 'lumber', name: 'Soft maple', perBF: 0, updatedAt: 0, builtin: true },
-  { id: 'lum-poplar', kind: 'lumber', name: 'Poplar', perBF: 0, updatedAt: 0, builtin: true },
-  { id: 'lum-red-oak', kind: 'lumber', name: 'Red oak', perBF: 0, updatedAt: 0, builtin: true },
-  { id: 'lum-white-oak', kind: 'lumber', name: 'White oak', perBF: 0, updatedAt: 0, builtin: true },
-  { id: 'lum-cherry', kind: 'lumber', name: 'Cherry', perBF: 0, updatedAt: 0, builtin: true },
-  { id: 'lum-walnut', kind: 'lumber', name: 'Walnut', perBF: 0, updatedAt: 0, builtin: true },
 ];
 
 /** The book as it stands: built-in entries with the shop's edits, then everything added, by name. */
@@ -33,8 +35,6 @@ export function priceBook(saved: Record<string, PriceItem>): PriceItem[] {
   return [...out, ...added].sort((a, b) => (a.builtin === b.builtin ? (a.builtin ? 0 : a.name.localeCompare(b.name)) : a.builtin ? -1 : 1));
 }
 
-export const priceId = (kind: PriceItem['kind'], name: string) =>
-  `${kind === 'plywood' ? 'ply' : 'lum'}-${name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}`;
 
 const same = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
 export const findItem = (book: PriceItem[], kind: PriceItem['kind'], name: string | undefined) =>
@@ -65,6 +65,12 @@ export function bookSheetPrice(book: PriceItem[], plywood: string | undefined, t
   return v ? v : undefined;
 }
 
+/** $ per lineal foot of a board: the shop's own price if it has one, else A&M's list. */
+export function boardPrice(book: PriceItem[], species: string, board: string): number | undefined {
+  const own = findItem(book, 'lumber', species)?.perLF?.[board];
+  return own || amSizes(species)?.[board] || undefined;
+}
+
 /** Prices in the job that differ from the book (or are missing from the job): what "Update" would change. */
 export function stalePrices(p: Project, book: PriceItem[]): { label: string; job: number | undefined; book: number }[] {
   const out: { label: string; job: number | undefined; book: number }[] = [];
@@ -77,7 +83,9 @@ export function stalePrices(p: Project, book: PriceItem[]): { label: string; job
   const species = p.settings.woodSpecies;
   const bf = findItem(book, 'lumber', species)?.perBF;
   const ff = { ...defaultFaceFrameStock, ...p.faceFrame };
-  if (bf && ff.species.toLowerCase().startsWith(species.toLowerCase()) && Math.abs(ff.pricePerBF - bf) > 0.005) out.push({ label: `${species}, per board foot`, job: ff.pricePerBF || undefined, book: bf });
+  const lf = ff.board ? boardPrice(book, species, ff.board) : undefined;
+  if (lf && ff.species.toLowerCase().startsWith(species.toLowerCase()) && Math.abs((ff.pricePerLF ?? 0) - lf) > 0.005) out.push({ label: `${species} ${ff.board}, per lineal foot`, job: ff.pricePerLF || undefined, book: lf });
+  if (!ff.board && bf && ff.species.toLowerCase().startsWith(species.toLowerCase()) && Math.abs(ff.pricePerBF - bf) > 0.005) out.push({ label: `${species}, per board foot`, job: ff.pricePerBF || undefined, book: bf });
   return out;
 }
 
@@ -92,7 +100,9 @@ export function applyBook(p: Project, book: PriceItem[]): Project {
   const cutlist = p.cutlist && { ...p.cutlist, stock: p.cutlist.stock.map((x) => (prices.has(x.material) ? { ...x, price: prices.get(x.material)! } : x)) };
   const ff = { ...defaultFaceFrameStock, ...p.faceFrame };
   const bf = findItem(book, 'lumber', p.settings.woodSpecies)?.perBF;
-  const faceFrame = bf && ff.species.toLowerCase().startsWith(p.settings.woodSpecies.toLowerCase()) ? { ...ff, pricePerBF: bf } : p.faceFrame;
+  const lf = ff.board ? boardPrice(book, p.settings.woodSpecies, ff.board) : undefined;
+  const mine = ff.species.toLowerCase().startsWith(p.settings.woodSpecies.toLowerCase());
+  const faceFrame = mine && (bf || lf) ? { ...ff, ...(bf ? { pricePerBF: bf } : {}), ...(lf ? { pricePerLF: lf } : {}) } : p.faceFrame;
   return { ...p, sheetPrices, ...(cutlist ? { cutlist } : {}), ...(faceFrame ? { faceFrame } : {}) };
 }
 
@@ -125,10 +135,22 @@ export function choosePlywood(p: Project, which: 'plywood' | 'exposedPlywood', n
   return applyBook({ ...next, ...(cutlist ? { cutlist } : {}) }, book);
 }
 
-/** Change the face frame and solid wood species, with the book's price per board foot. */
-export function chooseSpecies(p: Project, name: string, book: PriceItem[]): Project {
+/**
+ * Change the face frame and solid wood species. Face frames are ripped from a surfaced board
+ * bought by the lineal foot (a 1x6 unless the job picked another size), priced from the book or
+ * A&M's list; tops and glue-ups stay by the board foot.
+ */
+export function chooseSpecies(p: Project, name: string, book: PriceItem[], board?: string): Project {
   const ff = { ...defaultFaceFrameStock, ...p.faceFrame };
-  const thick = /,\s*(.+)$/.exec(ff.species)?.[1] ?? '4/4';
+  const b = board ?? ff.board ?? defaultBoard;
+  const size = boardSize(b);
   const bf = findItem(book, 'lumber', name)?.perBF;
-  return { ...p, settings: { ...p.settings, woodSpecies: name }, faceFrame: { ...ff, species: `${name}, ${thick}`, pricePerBF: bf || 0 } };
+  return {
+    ...p,
+    settings: { ...p.settings, woodSpecies: name },
+    faceFrame: {
+      ...ff, species: `${name}, 4/4`, board: b, pricePerLF: boardPrice(book, name, b) ?? 0, pricePerBF: bf || 0,
+      ...(size ? { boardWidth: size.w, nominalThickness: Math.max(1, size.t), supplier: 'Anderson & McQuaid' } : {}),
+    },
+  };
 }

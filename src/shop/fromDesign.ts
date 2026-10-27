@@ -54,7 +54,8 @@ export function starterTodos(p: Project): string[] {
   const sheets = optimize(optimizerParts(p, data), cutStock(p, data), data.options).filter((m) => m.sheets.length);
   if (sheets.length) out.push(`Buy sheet goods: ${sheets.map((m) => `${m.sheets.length} × ${m.material}`).join(', ')}`);
   const ff = faceFrameNeeds(faceFramePieces(p), { ...defaultFaceFrameStock, ...p.faceFrame });
-  if (ff.groups.length) out.push(`Buy face frame lumber: about ${Math.ceil(ff.buyBF)} BF ${({ ...defaultFaceFrameStock, ...p.faceFrame }).species}`);
+  const ffs = { ...defaultFaceFrameStock, ...p.faceFrame };
+  if (ff.groups.length) out.push(ffs.pricePerLF ? `Buy face frame lumber: ${ff.boards.length} × ${ffs.species.replace(/,.*$/, '').toLowerCase()} ${ffs.board} at ${Math.round(ffs.boardLength / 12)}' (${Math.ceil(ff.buyLF)} lf with waste)` : `Buy face frame lumber: about ${Math.ceil(ff.buyBF)} BF ${ffs.species}`);
   for (const sp of otherSpecies(p)) out.push(`Buy ${sp.toLowerCase()}: about ${Math.ceil(faceFrameNeeds(faceFramePieces(p, sp), stockFor(p, sp)).buyBF)} BF for pilasters`);
   const molds = moldingOrder(p);
   for (const sup of ['am', 'brosco'] as const) {

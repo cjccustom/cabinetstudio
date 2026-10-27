@@ -331,14 +331,16 @@ export function estimateMaterials(p: Project, q: QuoteSettings): MaterialLine[] 
   const ffStock = { ...defaultFaceFrameStock, ...p.faceFrame };
   const ff = faceFrameNeeds(faceFramePieces(p), ffStock);
   if (ff.groups.length) {
-    out.push({ group: 'cabinets', label: `Face frame stock (${ffStock.species})`, cost: ff.buyBF * ffStock.pricePerBF, detail: `${Math.ceil(ff.buyBF)} BF`, missing: ffStock.pricePerBF ? undefined : 'Enter $/BF on the Solid wood tab' });
+    out.push(ffStock.pricePerLF
+      ? { group: 'cabinets', label: `Face frame stock (${ffStock.species.replace(/,.*$/, '')} ${ffStock.board ?? ''})`, cost: ff.cost, detail: `${ff.boards.length} boards, ${Math.ceil(ff.buyLF)} lf at $${ffStock.pricePerLF.toFixed(2)}` }
+      : { group: 'cabinets', label: `Face frame stock (${ffStock.species})`, cost: ff.cost, detail: `${Math.ceil(ff.buyBF)} BF`, missing: ffStock.pricePerBF ? undefined : 'Pick the species under Materials (Shop standards) or enter a price on the Solid wood tab' });
   }
   for (const sp of otherSpecies(p)) {
     const st = stockFor(p, sp);
     const pieces = faceFramePieces(p, sp, { ceiling: false });
     if (!pieces.length) continue;
     const need = faceFrameNeeds(pieces, st);
-    out.push({ group: 'cabinets', label: `${sp} stock (pilasters, mantels)`, cost: need.buyBF * st.pricePerBF, detail: `${Math.ceil(need.buyBF)} BF`, missing: st.pricePerBF ? undefined : `Enter $/BF for ${sp.toLowerCase()} on the Solid wood tab` });
+    out.push({ group: 'cabinets', label: `${sp} stock (pilasters, mantels)`, cost: need.cost, detail: st.pricePerLF ? `${Math.ceil(need.buyLF)} lf ${st.board}` : `${Math.ceil(need.buyBF)} BF`, missing: st.pricePerLF || st.pricePerBF ? undefined : `Enter $/BF for ${sp.toLowerCase()} on the Solid wood tab` });
   }
   // The coffered ceiling: stock bought prepped from the millwork supplier, by the foot of beam
   if (cofferOf(p).on) {
