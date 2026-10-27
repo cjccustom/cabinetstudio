@@ -231,8 +231,15 @@ export interface ShopSettings {
   scribeAllowance: number;
   /** Default extra blind stile width on blind corners, past the face frame stile. */
   blindClearance: number;
-  /** Solid wood species for tops, seats and caps. */
+  /** Solid wood species for face frames, tops, seats and caps. */
   woodSpecies: string;
+  /**
+   * Plywood for the cases (sides, tops, bottoms, shelves, backs), e.g. "Prefinished birch", "Red oak".
+   * Unset on older jobs: their sheets are just "3/4\" plywood".
+   */
+  plywood?: string;
+  /** Plywood for exposed case sides and toe kick skins when it differs from the cases; empty = the same. */
+  exposedPlywood?: string;
   /** Species for Anderson & McQuaid mouldings, as they list it (Maple, Poplar…). */
   moldSpecies: string;
   /** Extra moulding for miters and defects. 0.15 = 15%. */
@@ -331,6 +338,10 @@ export interface Project {
   floor?: Floor;
   /** $ per lineal foot for this job by profile number, where there's no list price (Brosco) or a quoted one. */
   moldPrices?: Record<string, number>;
+  /** $ per sheet for this job by sheet material ("3/4\" red oak plywood"), for plywood without a shop price. */
+  sheetPrices?: Record<string, number>;
+  /** Eagle's quoted totals for this job by request (doors & panels, drawer fronts, drawer boxes), used in place of the estimate. */
+  eagleQuotes?: Partial<Record<'doors' | 'fronts' | 'boxes', number>>;
   /**
    * Drawings of profiles milled to match, by their custom:... number: a name and the outline as
    * installed (inches, back against the wall at u = 0, v up), traced from a sample or knife drawing.

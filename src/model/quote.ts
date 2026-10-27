@@ -4,14 +4,14 @@ import { furnitureOf, tableEstimate } from './furniture';
 import type { Cabinet, Project, WallId } from './types';
 import { buildParts, eff } from './parts';
 import { resolveEnds, wallNames } from './layout';
-import { defaultCutlist, optimizerParts } from './cutlist';
+import { cutStock, defaultCutlist, optimizerParts } from './cutlist';
 import { optimize } from './optimizer';
 import { defaultFaceFrameStock, faceFrameNeeds, faceFramePieces, otherSpecies, stockFor, woodNeeds, woodPieces } from './faceframe';
 import { ceilingKinds, moldLabel, moldingOrder, profileByNum, profileLabel, roomKinds, type MoldKind } from './moldings';
 import { chimneysOn, cofferFeet, cofferLayout, cofferMoldings, cofferOf, cofferParts, perimOf } from './coffer';
 import { panelOrder } from './panels';
 import { uid } from './defaults';
-import { eaglePrice, hingeTypes } from './eagle';
+import { eaglePrice, eagleWood, hingeTypes } from './eagle';
 import { hardwareOrder } from './hardware';
 import { bracketCount, bracketLength, bracketProduct, finishedEnds } from './floatingShelf';
 import { doorOrder } from './doorOrder';
@@ -323,7 +323,7 @@ export function estimateHours(p: Project, q: QuoteSettings): HourLine[] {
 export function estimateMaterials(p: Project, q: QuoteSettings): MaterialLine[] {
   const out: MaterialLine[] = [];
   const data = p.cutlist ?? defaultCutlist(p);
-  const sheets = optimize(optimizerParts(p, data), data.stock, data.options);
+  const sheets = optimize(optimizerParts(p, data), cutStock(p, data), data.options);
   for (const m of sheets) {
     const cost = m.sheets.reduce((t, sh) => t + sh.stock.price, 0);
     out.push({ group: 'cabinets', label: `${m.material} sheets`, cost, detail: `${m.sheets.length} sheets`, missing: cost ? undefined : 'Enter a price per sheet on the Sheet cutlist tab' });
@@ -351,7 +351,9 @@ export function estimateMaterials(p: Project, q: QuoteSettings): MaterialLine[] 
   const woodBF = wood.reduce((t, g) => t + g.buyBF, 0);
   if (woodBF) out.push({ group: 'tops', label: 'Solid wood for tops, seats & caps', cost: woodBF * ffStock.pricePerBF, detail: `${Math.ceil(woodBF)} BF`, missing: ffStock.pricePerBF ? undefined : 'Enter $/BF on the Solid wood tab' });
 
-  let fronts = 0, frontCost = 0, frontArea = 0, doors = 0, drawers = 0, boxCost = 0;
+  let fronts = 0, frontArea = 0, doors = 0, drawers = 0, boxCost = 0;
+  /** Estimates by Eagle request: doors with end panels, and drawer fronts. */
+  const est = { doors: 0, fronts: 0 };
   const hingeKinds = new Set<string>();
   const k = 1 + q.eagleAdjust;
   for (const c of p.cabinets) {
@@ -364,7 +366,7 @@ export function estimateMaterials(p: Project, q: QuoteSettings): MaterialLine[] 
       } else {
         fronts++;
         frontArea += sqft(o.w, o.h);
-        frontCost += eaglePrice(o.item, o.w, o.h) * k;
+        est[o.item === 'drawerFront' ? 'fronts' : 'doors'] += eaglePrice(o.item, o.w, o.h) * k;
         if (o.item === 'door') {
           doors++;
           hingeKinds.add(hingeTypes[eff(c, p.settings).hingeType].name);
@@ -372,8 +374,14 @@ export function estimateMaterials(p: Project, q: QuoteSettings): MaterialLine[] 
       }
     }
   }
-  if (fronts) out.push({ group: 'cabinets', label: 'Eagle doors, fronts & end panels', cost: frontCost, detail: `${fronts} pcs, ${frontArea.toFixed(1)} sq ft` });
-  if (drawers) out.push({ group: 'cabinets', label: 'Eagle dovetail drawer boxes', cost: boxCost, detail: `${drawers} boxes` });
+  // Eagle's own quote, where it's come back, beats the estimate
+  const eq = p.eagleQuotes ?? {};
+  const quoted = (['doors', 'fronts'] as const).filter((kind) => est[kind] > 0 && eq[kind] != null);
+  const frontCost = (eq.doors != null && est.doors > 0 ? eq.doors : est.doors) + (eq.fronts != null && est.fronts > 0 ? eq.fronts : est.fronts);
+  const eWood = eagleWood[p.settings.doorMaterial] ?? p.settings.doorMaterial;
+  const qNote = (n: number, of: number) => (n === of ? ', Eagle’s quote' : n ? ', partly Eagle’s quote' : `, estimate${p.settings.doorMaterial === 'Paint-grade maple' || p.settings.doorMaterial === 'MDF' ? '' : ` (${eWood}: check with Eagle)`}`);
+  if (fronts) out.push({ group: 'cabinets', label: 'Eagle doors, fronts & end panels', cost: frontCost, detail: `${fronts} pcs, ${frontArea.toFixed(1)} sq ft${qNote(quoted.length, (['doors', 'fronts'] as const).filter((kind) => est[kind] > 0).length)}` });
+  if (drawers) out.push({ group: 'cabinets', label: 'Eagle dovetail drawer boxes', cost: eq.boxes ?? boxCost, detail: `${drawers} boxes${eq.boxes != null ? ', Eagle’s quote' : ''}` });
   // Brackets by length: a 12" shelf takes the 10" bracket
   const byLen = new Map<number, number>();
   for (const c of p.cabinets) if (c.kind === 'shelf') byLen.set(bracketLength(c), (byLen.get(bracketLength(c)) ?? 0) + bracketCount(c));

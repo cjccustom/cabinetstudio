@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useStore } from '../store';
 import type { Project } from '../model/types';
-import { defaultCutlist, designParts, optimizerParts, sheetPrice, type CutlistData, type ExtraPart } from '../model/cutlist';
+import { cutStock, defaultCutlist, designParts, optimizerParts, sheetPrice, type CutlistData, type ExtraPart } from '../model/cutlist';
 import { optimize, type MaterialResult, type SheetLayout, type Stock } from '../model/optimizer';
 import { uid } from '../model/defaults';
 import { fmt } from '../units';
@@ -21,7 +21,7 @@ export function useOptimized() {
   const project = useStore((s) => s.project);
   return useMemo(() => {
     const data = project.cutlist ?? defaultCutlist(project);
-    return optimize(optimizerParts(project, data), data.stock, data.options);
+    return optimize(optimizerParts(project, data), cutStock(project, data), data.options);
   }, [project]);
 }
 

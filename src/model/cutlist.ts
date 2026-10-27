@@ -1,9 +1,9 @@
 import type { MaterialKey, PartRole, Project } from './types';
 import { buildParts } from './parts';
 import { resolveEnds } from './layout';
-import { fmt } from '../units';
 import type { CutPart, OptimizerOptions, Stock } from './optimizer';
 import { uid } from './defaults';
+import { sheetName } from './pricebook';
 
 /** A part typed in by hand, like a row in cutlistoptimizer.com. */
 export interface ExtraPart {
@@ -34,21 +34,41 @@ const grainByRole: Partial<Record<PartRole, boolean>> = {
   stretcher: false, nailer: false,
 };
 
-export const sheetMaterial = (key: MaterialKey, p: Project): string | null => {
+/** The sheet a part is cut from. Exposed case sides and toe kick skins can be a different plywood. */
+export const sheetMaterial = (key: MaterialKey, p: Project, partName?: string): string | null => {
   const s = p.settings;
-  if (key === 'box') return `${fmt(s.boxThickness)} plywood`;
-  if (key === 'back') return `${fmt(s.backThickness)} plywood`;
-  if (key === 'toeSkin') return `${fmt(s.toeKickSkin)} plywood`;
+  const exposed = s.exposedPlywood || s.plywood;
+  if (key === 'box') return sheetName(s.boxThickness, partName === 'Side, exposed' ? exposed : s.plywood);
+  if (key === 'back') return sheetName(s.backThickness, s.plywood);
+  if (key === 'toeSkin') return sheetName(s.toeKickSkin, exposed);
   return null;
 };
 
-/** Shop's current price per sheet before tax (imported prefinished birch, Oct 2026). */
-export const sheetPrice = (material: string) => (material.startsWith('3/4"') ? 86.4 : material.startsWith('1/2"') ? 74.91 : 0);
+/** Shop's current price per sheet before tax (imported prefinished birch, Oct 2026); other plywood is priced per job. */
+export const sheetPrice = (material: string) => {
+  if (!/^\S+ (prefinished birch )?plywood$/.test(material)) return 0;
+  return material.startsWith('3/4"') ? 86.4 : material.startsWith('1/2"') ? 74.91 : 0;
+};
+
+/**
+ * The stock the optimizer cuts from: what's on the Sheet cutlist tab, plus a 4x8 row for any
+ * material the design now needs that has none (after a plywood change, say), priced from
+ * the job's sheet prices when known.
+ */
+export function cutStock(p: Project, data: CutlistData): Stock[] {
+  const need = new Set(optimizerParts(p, data).map((x) => x.material));
+  const out = [...data.stock];
+  for (const m of need) {
+    if (out.some((x) => x.material === m)) continue;
+    out.push({ id: `auto:${m}`, label: `4×8 ${m.replace(/^\S+ /, '')}`, material: m, length: 96, width: 48, qty: null, price: p.sheetPrices?.[m] ?? sheetPrice(m) });
+  }
+  return out;
+}
 
 export function defaultCutlist(p: Project): CutlistData {
   const mats = [...new Set((['box', 'back', 'toeSkin'] as MaterialKey[]).map((m) => sheetMaterial(m, p)!))];
   return {
-    stock: mats.map((m) => ({ id: uid('stock'), label: '4×8 prefinished birch', material: m, length: 96, width: 48, qty: null, price: sheetPrice(m) })),
+    stock: mats.map((m) => ({ id: uid('stock'), label: p.settings.plywood ? `4×8 ${m.replace(/^\S+ /, '')}` : '4×8 prefinished birch', material: m, length: 96, width: 48, qty: null, price: p.sheetPrices?.[m] ?? sheetPrice(m) })),
     extra: [],
     options: { kerf: 0.125, trim: 0, considerGrain: true, minOffcut: 6, bandShelves: true, taxRate: 0 },
     grain: {},
@@ -65,7 +85,7 @@ export function designParts(p: Project, data: CutlistData): DesignPart[] {
     const counts = new Map<string, number>();
     for (const part of buildParts(c, p.settings, resolveEnds(p.room, p.cabinets, c))) {
       if (!part.cut) continue;
-      const material = part.sheet ?? sheetMaterial(part.material, p);
+      const material = part.sheet ?? sheetMaterial(part.material, p, part.name);
       if (!material) continue;
       const n = (counts.get(part.name) ?? 0) + 1;
       counts.set(part.name, n);

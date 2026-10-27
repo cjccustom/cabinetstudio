@@ -25,6 +25,22 @@ export interface ShopJob {
 export interface Entry { id: string; jobId: string; phase: Phase; start: number; end: number; note?: string }
 export interface Timer { jobId: string; phase: Phase; start: number }
 export interface Todo { id: string; jobId: string; text: string; done: boolean; createdAt: number }
+/**
+ * The shop's price book: plywood by the sheet at each thickness, lumber by the board foot. Shared
+ * by every job and device; a job keeps the prices it was quoted with until they're updated.
+ */
+export interface PriceItem {
+  id: string;
+  kind: 'plywood' | 'lumber';
+  name: string;
+  /** Plywood: $ per 4x8 sheet before tax, by thickness as written ("3/4\""). */
+  sheet?: Record<string, number>;
+  /** Lumber: $ per board foot, 4/4. */
+  perBF?: number;
+  updatedAt: number;
+  /** One of the shop's starting entries (it can be re-priced, not removed). */
+  builtin?: boolean;
+}
 
 interface ShopState {
   mode: 'loading' | 'db' | 'local';
@@ -33,11 +49,13 @@ interface ShopState {
   todos: Record<string, Todo>;
   timer: Timer | null;
   rate: number;
+  /** Edits and additions to the price book, by id; the built-in entries fill in the rest. */
+  prices: Record<string, PriceItem>;
   error: string | null;
   canExport: boolean;
 }
 
-export const useShop = create<ShopState>(() => ({ mode: 'loading', jobs: {}, entries: {}, todos: {}, timer: null, rate: 75, error: null, canExport: false }));
+export const useShop = create<ShopState>(() => ({ mode: 'loading', jobs: {}, entries: {}, todos: {}, timer: null, rate: 75, prices: {}, error: null, canExport: false }));
 
 type Db = {
   doc(path: string): { set(d: Record<string, unknown>): Promise<void>; delete(): Promise<void>; onSnapshot(n: (s: { exists: boolean; data(): Record<string, unknown> | undefined }) => void, e?: (err: { code: string }) => void): () => void };
@@ -52,12 +70,12 @@ const LKEY = 'cabinet-studio.shop.v1';
 
 function saveLocal() {
   const s = useShop.getState();
-  try { localStorage.setItem(LKEY, JSON.stringify({ jobs: s.jobs, entries: s.entries, todos: s.todos, timer: s.timer, rate: s.rate })); } catch { /* storage blocked */ }
+  try { localStorage.setItem(LKEY, JSON.stringify({ jobs: s.jobs, entries: s.entries, todos: s.todos, timer: s.timer, rate: s.rate, prices: s.prices })); } catch { /* storage blocked */ }
 }
 function loadLocal() {
   try {
     const d = JSON.parse(localStorage.getItem(LKEY) || 'null');
-    if (d) useShop.setState({ jobs: d.jobs ?? {}, entries: d.entries ?? {}, todos: d.todos ?? {}, timer: d.timer ?? null, rate: d.rate ?? 75 });
+    if (d) useShop.setState({ jobs: d.jobs ?? {}, entries: d.entries ?? {}, todos: d.todos ?? {}, timer: d.timer ?? null, rate: d.rate ?? 75, prices: d.prices ?? {} });
   } catch { /* storage blocked */ }
 }
 
@@ -85,6 +103,7 @@ export async function startShop() {
   db.collection('jobs').onSnapshot((s) => useShop.setState({ jobs: toMap<ShopJob>(s.docs), mode: 'db' }), lostConnection);
   db.collection('entries').onSnapshot((s) => useShop.setState({ entries: toMap<Entry>(s.docs) }), lostConnection);
   db.collection('todos').onSnapshot((s) => useShop.setState({ todos: toMap<Todo>(s.docs) }), lostConnection);
+  db.collection('prices').onSnapshot((s) => useShop.setState({ prices: toMap<PriceItem>(s.docs) }), lostConnection);
   db.doc('timer/active').onSnapshot((d) => {
     const v = d.exists ? (d.data() as Partial<Timer>) : null;
     useShop.setState({ timer: v?.jobId ? (v as Timer) : null });
@@ -92,7 +111,7 @@ export async function startShop() {
   db.doc('settings/shop').onSnapshot((d) => { if (d.exists) useShop.setState({ rate: Number(d.data()?.rate) || 75 }); }, lostConnection);
 }
 
-type Kind = 'jobs' | 'entries' | 'todos';
+type Kind = 'jobs' | 'entries' | 'todos' | 'prices';
 
 /** Change local state at once, then save to the database (or this browser). */
 async function write(kind: Kind | 'timer' | 'settings', id: string, data: Record<string, unknown> | null) {
@@ -142,6 +161,8 @@ export const saveTodo = (t: Todo) => write('todos', t.id, t as unknown as Record
 export const deleteTodo = (id: string) => write('todos', id, null);
 export const newTodo = (jobId: string, text: string, n = 0): Todo => ({ id: uid('todo'), jobId, text, done: false, createdAt: Date.now() + n });
 export const setRate = (rate: number) => write('settings', '', { rate });
+export const savePrice = (item: PriceItem) => write('prices', item.id, { ...item, updatedAt: Date.now() } as unknown as Record<string, unknown>);
+export const deletePrice = (id: string) => write('prices', id, null);
 export const dismissError = () => useShop.setState({ error: null });
 
 export const hours = (ms: number) => ms / 36e5;

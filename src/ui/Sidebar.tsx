@@ -6,6 +6,7 @@ import { amSpecies } from '../model/moldings';
 import { wallNames, wallOrder } from '../model/layout';
 import type { PanelMode, ShopSettings, WallId } from '../model/types';
 import { RoomDetails } from './RoomDetails';
+import { MaterialsSection } from './Materials';
 import { fmt } from '../units';
 import { centerPanels, doorMaterials, doorStyles, hingeTypes, outsideEdges, panelLabel, sideThicknesses, slides, stileWidths, styleById, type HingeType, type OutsideEdge } from '../model/eagle';
 import { realOverhang } from '../model/parts';
@@ -171,7 +172,7 @@ function RoomPanel() {
   );
 }
 
-type NumKey = { [K in keyof ShopSettings]: ShopSettings[K] extends number ? K : never }[keyof ShopSettings];
+type NumKey = { [K in keyof ShopSettings]-?: ShopSettings[K] extends number ? K : never }[keyof ShopSettings];
 const shopFields: { title: string; fields: [NumKey, string][] }[] = [
   { title: 'Case', fields: [
     ['boxThickness', 'Case stock, nominal'], ['boxActualThickness', 'Case stock, actual'],
@@ -199,6 +200,8 @@ function ShopPanel() {
   return (
     <div>
       <p className="hint">How you build. Every cabinet and every part size comes from these numbers, and changes apply to the whole job.</p>
+
+      <MaterialsSection />
 
       <Section title="Doors & fronts (Eagle Woodworking)">
         <Field label="Style (framing bead)" htmlFor="door-style">

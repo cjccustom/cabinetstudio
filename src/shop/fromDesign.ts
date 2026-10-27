@@ -7,7 +7,7 @@ import { hardwareOrder } from '../model/hardware';
 import { fmt } from '../units';
 import { moldingOrder, profileLabel, supplierName } from '../model/moldings';
 import { optimize } from '../model/optimizer';
-import { defaultCutlist, optimizerParts } from '../model/cutlist';
+import { cutStock, defaultCutlist, optimizerParts } from '../model/cutlist';
 import { defaultFaceFrameStock, faceFrameNeeds, faceFramePieces, otherSpecies, stockFor } from '../model/faceframe';
 import { panelOrder } from '../model/panels';
 import { bracketCount, bracketLength, bracketProduct } from '../model/floatingShelf';
@@ -51,7 +51,7 @@ export function starterTodos(p: Project): string[] {
   const hw = hardwareOrder(p);
   if (hw.lines.length) out.push(`Order Blum hardware from Woodworker Express (${hw.hinges} hinges, ${hw.drawers} drawer slides)`);
   const data = p.cutlist ?? defaultCutlist(p);
-  const sheets = optimize(optimizerParts(p, data), data.stock, data.options).filter((m) => m.sheets.length);
+  const sheets = optimize(optimizerParts(p, data), cutStock(p, data), data.options).filter((m) => m.sheets.length);
   if (sheets.length) out.push(`Buy sheet goods: ${sheets.map((m) => `${m.sheets.length} × ${m.material}`).join(', ')}`);
   const ff = faceFrameNeeds(faceFramePieces(p), { ...defaultFaceFrameStock, ...p.faceFrame });
   if (ff.groups.length) out.push(`Buy face frame lumber: about ${Math.ceil(ff.buyBF)} BF ${({ ...defaultFaceFrameStock, ...p.faceFrame }).species}`);

@@ -3,7 +3,7 @@ import { centerPanels, doorStyles, hingeTypes, outsideEdges, panelLabel, sideThi
 import { fmt } from '../units';
 import { Field, LengthInput } from './fields';
 
-type NumKey = { [K in keyof ShopSettings]: ShopSettings[K] extends number ? K : never }[keyof ShopSettings];
+type NumKey = { [K in keyof ShopSettings]-?: ShopSettings[K] extends number ? K : never }[keyof ShopSettings];
 
 const groups: { title: string; fields: [NumKey, string][] }[] = [
   { title: 'Face frame', fields: [['stileWidth', 'Stile width'], ['topRailWidth', 'Top rail'], ['bottomRailWidth', 'Bottom rail'], ['midRailWidth', 'Mid rail'], ['ffThickness', 'Thickness'], ['ffOverhang', 'Extra overhang per side']] },

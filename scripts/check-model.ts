@@ -21,8 +21,9 @@ import { defaultFaceFrameStock, faceFrameNeeds, faceFramePieces, otherSpecies, r
 import { panelAbove, panelOrder } from "../src/model/panels";
 import { amCatalog } from "../src/model/andersonMcquaid";
 import { cabinetMoldings, moldingOrder, mountShape, profileByNum, setCustomDrawings } from "../src/model/moldings";
-import { estimateHours, priceQuote, quoteOf, scopeLine } from "../src/model/quote";
-import { optimizerParts } from "../src/model/cutlist";
+import { estimateHours, estimateMaterials, priceQuote, quoteOf, scopeLine } from "../src/model/quote";
+import { cutStock, defaultCutlist, optimizerParts } from "../src/model/cutlist";
+import { applyBook, choosePlywood, chooseSpecies, priceBook, stalePrices } from "../src/model/pricebook";
 import { normalize } from "../src/store";
 import { fieldChecks, releaseStatus } from "../src/model/release";
 import { eagleFraction, eagleRequests, requestText } from "../src/model/eagleRequest";
@@ -964,6 +965,29 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   eq('custom profile: traced outline and name from the design', `${pr.name} ${mountShape(pr).pts.length} ${mountShape(pr).height}`, 'Picture moulding, from the sample 4 1.5');
   setCustomDrawings(undefined);
   eq('custom profile: plain outline without a drawing', mountShape(profileByNum(num)!).pts.length, 4);
+}
+
+// Plywood and species from the price book: red oak cases, birch for nothing, oak face frames
+{
+  const book = priceBook({ 'ply-red-oak': { id: 'ply-red-oak', kind: 'plywood', name: 'Red oak', sheet: { '3/4"': 120, '1/2"': 100 }, updatedAt: 1 }, 'lum-red-oak': { id: 'lum-red-oak', kind: 'lumber', name: 'Red oak', perBF: 7.5, updatedAt: 1 } });
+  const base = { ...p, cutlist: defaultCutlist(p) };
+  eq('price book: legacy job sheets', base.cutlist.stock.map((x) => `${x.material} ${x.price}`).join(', '), '3/4" plywood 86.4, 1/2" plywood 74.91');
+  const oak = chooseSpecies(choosePlywood(base, 'plywood', 'Red oak', book), 'Red oak', book);
+  eq('price book: cutlist rows follow the plywood with its prices', oak.cutlist!.stock.map((x) => `${x.material} ${x.price}`).join(', '), '3/4" red oak plywood 120, 1/2" red oak plywood 100');
+  eq('price book: face frame species and $/BF', `${oak.settings.woodSpecies} / ${oak.faceFrame!.species} / ${oak.faceFrame!.pricePerBF}`, 'Red oak / Red oak, 4/4 / 7.5');
+  const mats = new Set(optimizerParts(oak, oak.cutlist!).map((x) => x.material));
+  eq('price book: every part cut from red oak', [...mats].every((m) => m.includes('red oak')), true);
+  const exp = choosePlywood(oak, 'exposedPlywood', 'Walnut', book);
+  const stock = cutStock(exp, exp.cutlist!).map((x) => x.material);
+  eq('price book: exposed ends get their own sheets', stock.includes('3/4" walnut plywood') && stock.includes('3/4" red oak plywood'), true);
+  const later = priceBook({ 'ply-red-oak': { id: 'ply-red-oak', kind: 'plywood', name: 'Red oak', sheet: { '3/4"': 125, '1/2"': 100 }, updatedAt: 2 } });
+  eq('price book: a price change shows as stale', stalePrices(oak, later).map((x) => `${x.label} ${x.job}->${x.book}`).join('; '), '3/4" red oak plywood, per sheet 120->125');
+  eq('price book: updating brings it in', applyBook(oak, later).cutlist!.stock[0].price, 125);
+  const doorLine = (x: typeof oak) => estimateMaterials(x, quoteOf(x)).find((l) => l.label.startsWith('Eagle doors'))!;
+  const estd = doorLine({ ...oak, settings: { ...oak.settings, doorMaterial: 'Red oak' } });
+  eq('eagle: red oak doors are an estimate to check', estd.detail.includes('Red Oak: check with Eagle') || estd.detail.includes('check with Eagle'), true);
+  const withDoors = doorLine({ ...oak, eagleQuotes: { doors: 1234.5 } });
+  eq('eagle quote: doors replaced, fronts still estimated', withDoors.cost > 1234.5 - 0.01 && withDoors.detail.includes('partly Eagle’s quote'), true);
 }
 
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');

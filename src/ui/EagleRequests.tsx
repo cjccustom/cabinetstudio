@@ -6,6 +6,7 @@ import { releaseStatus } from '../model/release';
 /** The quote requests to enter on Eagle's website, laid out like Eagle's confirmation emails. */
 export function EagleRequests() {
   const project = useStore((s) => s.project);
+  const commit = useStore((s) => s.commit);
   const requests = useMemo(() => eagleRequests(project), [project]);
   const release = useMemo(() => releaseStatus(project), [project]);
   const [copied, setCopied] = useState<number | null>(null);
@@ -18,7 +19,7 @@ export function EagleRequests() {
       <h4>Eagle quote requests</h4>
       <p className="hint">
         Enter each one on Eagle’s website as its own quote request.
-        {!release.ready && ' Locked until the deposit is in and the measurements are checked.'}
+        {!release.ready && ' Before the deposit, send them for pricing only; once Eagle’s price comes back, enter it below and the quote uses it in place of the estimate.'}
       </p>
       {requests.map((r, i) => (
         <div key={i} className="pgroup eagle-request">
@@ -43,10 +44,25 @@ export function EagleRequests() {
           </div>
           {r.check.map((c) => <p key={c} className="warn">Check: {c}</p>)}
           <div className="order-actions">
-            <button disabled={!release.ready} onClick={() => copy(i)}>Copy request</button>
+            <button onClick={() => copy(i)}>{release.ready ? 'Copy request' : 'Copy for pricing'}</button>
             {copied === i && <span className="ok">Copied</span>}
             {copied === -1 && <span className="warn">Couldn’t reach the clipboard</span>}
           </div>
+          {requests.findIndex((x) => x.kind === r.kind) === i && (
+            <div className="eagle-quote">
+              <label htmlFor={`eq-${r.kind}`}>Eagle’s price{requests.filter((x) => x.kind === r.kind).length > 1 ? `, all ${requestTitle[r.kind].toLowerCase()} requests` : ''}</label>
+              <input id={`eq-${r.kind}`} key={project.eagleQuotes?.[r.kind] ?? 'none'} inputMode="decimal" placeholder="$ total" defaultValue={project.eagleQuotes?.[r.kind]?.toFixed(2) ?? ''}
+                onBlur={(e) => {
+                  const v = parseFloat(e.target.value.replace(/[$,]/g, ''));
+                  commit((p) => {
+                    const eq = { ...p.eagleQuotes };
+                    if (Number.isFinite(v) && v > 0) eq[r.kind] = v; else delete eq[r.kind];
+                    return { ...p, eagleQuotes: Object.keys(eq).length ? eq : undefined };
+                  });
+                }} />
+              <span className="hint">{project.eagleQuotes?.[r.kind] != null ? 'Used on the quote. Clear it to go back to the estimate.' : 'Blank: the quote uses the estimate from Eagle’s price list.'}</span>
+            </div>
+          )}
         </div>
       ))}
     </div>
