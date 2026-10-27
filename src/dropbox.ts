@@ -89,8 +89,14 @@ export async function moveFolder(id: string, to: string): Promise<DbxEntry> {
 /** Write a text file into a folder, replacing an earlier copy (which goes to Dropbox's Deleted files). */
 export async function writeFile(folderPath: string, name: string, content: string): Promise<void> {
   const path = `${folderPath}/${name}`;
-  await call('delete', { entries: [{ source_path: path }] }).catch(() => undefined);
-  await call('create_file', { path, content });
+  // Only "not there yet" is fine; anything else would leave the old copy in place and the save would quietly not happen
+  await call('delete', { entries: [{ source_path: path }] }).catch((e: DropboxError) => {
+    if (e.code === 'NOT_FOUND' || /not.?found/i.test(e.message)) return;
+    throw new DropboxError(`Couldn’t replace ${name} in Dropbox, so it wasn’t saved. ${e.message}`, e.code);
+  });
+  await call('create_file', { path, content }).catch((e: DropboxError) => {
+    throw new DropboxError(`Couldn’t save ${name} to Dropbox. ${e.message}`, e.code);
+  });
 }
 
 /** A text file's contents, or null when it isn't there. */
