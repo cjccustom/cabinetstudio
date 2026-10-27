@@ -132,7 +132,8 @@ export function pilasterParts(c: Cabinet, settings: ShopSettings, ends?: EndInfo
     for (const [nm, y, hh] of [['Baseboard', 0, h], ['Base cap', h, cap]] as const) {
       if (hh <= 0) continue;
       const ret = { left: retOf('left', y + hh / 2), right: retOf('right', y + hh / 2) };
-      const miter = { left: !wall.left && ret.left > t + 0.01, right: !wall.right && ret.right > t + 0.01 };
+      // A return wherever this base stands out past what's beside it (a neighbour's own base included)
+      const miter = { left: !wall.left && ret.left > 0.01, right: !wall.right && ret.right > 0.01 };
       const x0 = miter.left ? -t : 0;
       const len = W + (miter.left ? t : 0) + (miter.right ? t : 0);
       const endNote = (side: 'left' | 'right') => (miter[side] ? 'mitered' : wall[side] ? 'square to the wall' : 'butts the base beside it');
