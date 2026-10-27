@@ -6,7 +6,7 @@ import type { CabinetNote, Cabinet, CrownBuild, EndMode, FaceRow, PanelChoice, P
 import { buildParts, crownLayout, layoutRows, noCrownBuild, panelOn } from '../model/parts';
 import { defaultPilaster, pilasterOf, pilasterSections } from '../model/pilaster';
 import { bracketCount, bracketGap, bracketLength, bracketProduct, finishedEnds, floatingOf, shelfPly } from '../model/floatingShelf';
-import { gapBeside, resolveEnds, wallLength, wallNames, wallOrder } from '../model/layout';
+import { evenRun, fillSpan, gapBeside, resolveEnds, runOf, wallLength, wallNames, wallOrder } from '../model/layout';
 import { panelLabel } from '../model/eagle';
 import { nextName, uid } from '../model/defaults';
 import { fmt } from '../units';
@@ -72,6 +72,7 @@ export function Inspector({ cab, issues }: { cab: Cabinet; issues: string[] }) {
           <Field label="Height" htmlFor="cab-h"><LengthInput id="cab-h" value={cab.height} min={6} onChange={(v) => set({ height: v! })} /></Field>
           <Field label="Depth" htmlFor="cab-d"><LengthInput id="cab-d" value={cab.depth} min={4} onChange={(v) => set({ depth: v! })} /></Field>
         </div>
+        <FitButtons cab={cab} />
       </Section>
 
       <Section title="Placement">
@@ -401,7 +402,7 @@ function CrownBuildEditor({ cab, set, species }: { cab: Cabinet; set: (patch: Pa
         <Field label="Flat sub-crown" htmlFor="cb-sub">
           <LengthInput id="cb-sub" value={b.subCrown || null} allowAuto placeholder="none" onChange={(v) => put({ subCrown: v ?? 0 })} />
         </Field>
-        <Field label="Raise above top" htmlFor="cb-rise">
+        <Field label={L.seat > 0 ? "Raise above the case" : "Raise above top"} htmlFor="cb-rise">
           <LengthInput id="cb-rise" value={b.rise || null} allowAuto placeholder="0" onChange={(v) => put({ rise: v ?? 0 })} />
         </Field>
         <Field label="Crown down from top" htmlFor="cb-drop">
@@ -427,8 +428,10 @@ function CrownBuildEditor({ cab, set, species }: { cab: Cabinet; set: (patch: Pa
       </div>
       {overlap > 1e-3 && <p className="warn">The sub-crown laps {fmt(overlap)} down over the doors. Make it shorter or raise it.</p>}
       <p className="hint">
-        The sub-crown is flat stock with its face flush with the doors; it’s on the Solid wood list with the face frames. Raising the build adds a 3/4" plywood nailer on the cabinet top.
-        {' '}Crown top: {fmt(L.crownTop)} off the cabinet bottom{L.top !== cab.height ? `, ${fmt(L.top - cab.height)} above the case` : ''}.
+        {L.seat > 0
+          ? <>With no sub-crown the crown sits on the case: its bottom at the top of the case, on a 3/4" plywood nailer {fmt(L.seat)} tall (the crown’s height). Raise it to lift it further. Add a sub-crown to set the crown on its face instead.</>
+          : <>The sub-crown is flat stock with its face flush with the doors; it’s on the Solid wood list with the face frames. Raising the build adds a 3/4" plywood nailer on the cabinet top.</>}
+        {' '}Crown top: {fmt(L.crownTop)} off the cabinet bottom{L.top !== cab.height ? `, ${fmt(L.top - cab.height)} above the case` : ''}{cab.elevation ? `, ${fmt(cab.elevation + L.crownTop)} off the floor` : ''}.
       </p>
     </div>
   );
@@ -972,5 +975,37 @@ function MantelSection({ cab, set }: { cab: Cabinet; set: (patch: Partial<Cabine
         <Field label="Species" htmlFor="mt-sp"><input id="mt-sp" value={m.species} onChange={(e) => put({ species: e.target.value || 'Poplar' })} /></Field>
       </Section>
     </>
+  );
+}
+
+/** Fit a cabinet into its stretch of wall, or make its whole run equal widths, instead of working the numbers out. */
+function FitButtons({ cab }: { cab: Cabinet }) {
+  const project = useStore((s) => s.project);
+  const commit = useStore((s) => s.commit);
+  if (cab.corner || cab.kind === 'shelf') return null;
+  const { room, cabinets, settings } = project;
+  const same = (a: Pick<Cabinet, 'offset' | 'width'>) => Math.abs(a.width - cab.width) < 1 / 32 && Math.abs(a.offset - cab.offset) < 1 / 32;
+  const fills = (['right', 'left', 'both'] as const).map((side) => ({ side, to: fillSpan(room, cabinets, cab, settings, side) }))
+    .filter((f, i, all) => f.to.width >= 6 && !same(f.to) && all.findIndex((g) => Math.abs(g.to.width - f.to.width) < 1 / 32 && Math.abs(g.to.offset - f.to.offset) < 1 / 32) === i);
+  const run = runOf(cabinets, cab);
+  const even = run.length > 1 ? evenRun(room, cabinets, cab, settings) : null;
+  const evenW = even ? [...new Set(run.map((r) => fmt(even.get(r.id)!.width)))] : [];
+  const evenChanges = even && run.some((r) => { const n = even.get(r.id)!; return Math.abs(n.width - r.width) > 1 / 32 || Math.abs(n.offset - r.offset) > 1 / 32; });
+  const apply = (moves: Map<string, Pick<Cabinet, 'offset' | 'width'>>) => commit((p) => ({ ...p, cabinets: p.cabinets.map((c) => (moves.has(c.id) ? { ...c, ...moves.get(c.id)! } : c)) }));
+  const label = { right: 'Fill to the right', left: 'Fill to the left', both: 'Fill the space' };
+  if (!fills.length && !evenChanges) return null;
+  return (
+    <div className="order-actions" style={{ marginTop: 6 }}>
+      {fills.map((f) => (
+        <button key={f.side} className="mini" title="Widen or narrow it to meet the cabinet or wall beside it, end panels counted" onClick={() => apply(new Map([[cab.id, f.to]]))}>
+          {label[f.side]}: {fmt(f.to.width)} wide
+        </button>
+      ))}
+      {evenChanges && (
+        <button className="mini" title={`${run.map((r) => r.name).join(', ')}: equal widths filling the wall between whatever bounds the run; anything between them (pilasters) keeps its width`} onClick={() => apply(even!)}>
+          Make the {run.length} {cab.kind === 'wall' ? 'uppers' : cab.kind === 'base' ? 'bases' : 'cabinets'} in this run equal: {evenW.join(' / ')}
+        </button>
+      )}
+    </div>
   );
 }

@@ -6,6 +6,7 @@ import { pilasterOf, pilasterParts } from './pilaster';
 import { floatingShelfParts } from './floatingShelf';
 import { fmt as fmtShort, fmt } from '../units';
 import { baseLayout, boardT, cutShape, archShapes } from './cabinetBase';
+import { mountShape, profileByNum } from './moldings';
 import type { CutShape } from './types';
 
 export const vb = (x: number, y: number, z: number, sx: number, sy: number, sz: number, shade?: number): VisualBox => ({
@@ -538,11 +539,15 @@ export function crownLayout(c: Cabinet, s: ShopSettings) {
   const b = { ...noCrownBuild, ...c.crownBuild };
   // The sub-crown's face lines up with the door faces (or sits a door's thickness proud on inset jobs)
   const subT = b.subCrown > 0 ? s.doorThickness : 0;
-  const top = c.height + b.rise;
+  // With no sub-crown the crown (and anything stacked under it) sits on the case: its bottom at the
+  // top of the case, on a nailer as tall as the stack; the raise lifts it further
+  const seat = b.subCrown > 0 || c.kind === 'pilaster' ? 0 : [c.crown, ...b.extra].reduce((t, num) => { const p = profileByNum(num); return t + (p ? mountShape(p).height : 0); }, 0);
+  const rise = b.rise + seat;
+  const top = c.height + rise;
   // On a pilaster the frieze breaks out flush with the capital block
   const back = c.kind === 'pilaster' ? c.depth + pilasterOf(c).proud - subT : c.depth;
   const face = c.kind === 'pilaster' && !subT ? c.depth + pilasterOf(c).proud : back + subT;
-  return { build: b, top, subT, back, subBottom: top - b.subCrown, face, crownTop: top - b.drop };
+  return { build: b, top, subT, back, subBottom: top - b.subCrown, face, crownTop: top - b.drop, rise, seat };
 }
 
 /** How far the face frame actually sticks out past each case side once real plywood thickness is counted. */
@@ -556,15 +561,15 @@ function crownParts(c: Cabinet, s: ShopSettings, ends: EndInfo): Part[] {
   const ext = panelExtents(c, s, ends);
   const x0 = -ext.left, x1 = c.width + ext.right;
   const nt = s.boxActualThickness;
-  if (b.rise > 0) {
+  if (L.rise > 0) {
     // Nailer screwed to the cabinet top, behind the face frame, for the sub-crown and crown to land on
-    out.push({ name: 'Crown nailer', role: 'nailer', material: 'box', length: c.width, width: b.rise, thickness: s.boxThickness, cut: true,
-      note: `on the cabinet top, raises the crown ${fmtShort(b.rise)}`,
-      boxes: [vb(0, c.height, c.depth - nt, c.width, b.rise, nt)] });
+    out.push({ name: 'Crown nailer', role: 'nailer', material: 'box', length: c.width, width: L.rise, thickness: s.boxThickness, cut: true,
+      note: L.seat ? `on the cabinet top, as tall as the crown, which sits on the case` : `on the cabinet top, raises the crown ${fmtShort(L.rise)}`,
+      boxes: [vb(0, c.height, c.depth - nt, c.width, L.rise, nt)] });
     for (const side of ['left', 'right'] as const) {
       if (!ends[side]) continue;
-      out.push({ name: 'Crown nailer return', role: 'nailer', material: 'box', length: c.depth - nt, width: b.rise, thickness: s.boxThickness, cut: true,
-        boxes: [vb(side === 'left' ? 0 : c.width - nt, c.height, 0, nt, b.rise, c.depth - nt)] });
+      out.push({ name: 'Crown nailer return', role: 'nailer', material: 'box', length: c.depth - nt, width: L.rise, thickness: s.boxThickness, cut: true,
+        boxes: [vb(side === 'left' ? 0 : c.width - nt, c.height, 0, nt, L.rise, c.depth - nt)] });
     }
   }
   if (subT > 0) {

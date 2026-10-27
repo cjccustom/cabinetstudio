@@ -209,3 +209,77 @@ export function gapBeside(room: Room, cabinets: Cabinet[], c: Cabinet, side: 'le
   }
   return best != null && best > 0.01 && best <= reach ? Math.round(best * 16) / 16 : null;
 }
+
+/** Cabinets that share wall space with c at some height (the ones it could run into). */
+const sameBand = (cabinets: Cabinet[], c: Cabinet) => cabinets.filter((o) => o.id !== c.id && o.wall === c.wall && o.elevation < c.elevation + c.height && c.elevation < o.elevation + o.height);
+const r16 = (x: number) => Math.round(x * 16) / 16;
+
+/**
+ * The open stretch of wall a cabinet sits in: from the cabinet (or wall end) on its left to the one
+ * on its right, end panels counted.
+ */
+export function openSpan(room: Room, cabinets: Cabinet[], c: Cabinet, s: ShopSettings): { left: number; right: number } {
+  const mid = c.offset + c.width / 2;
+  let left = 0, right = wallLength(room, c.wall);
+  for (const o of sameBand(cabinets, c)) {
+    const e = extentsOf(room, cabinets, o, s);
+    if (o.offset + o.width / 2 < mid) left = Math.max(left, o.offset + o.width + e.right);
+    else right = Math.min(right, o.offset - e.left);
+  }
+  return { left, right };
+}
+
+/**
+ * Widen or narrow a cabinet so it fills its open stretch on one side (or both). A filled side ends
+ * against the wall or a neighbour, so it's a hidden end with no end panel to allow for.
+ */
+export function fillSpan(room: Room, cabinets: Cabinet[], c: Cabinet, s: ShopSettings, side: 'left' | 'right' | 'both'): Pick<Cabinet, 'offset' | 'width'> {
+  const span = openSpan(room, cabinets, c, s);
+  const l = side === 'right' ? c.offset : span.left;
+  const r = side === 'left' ? c.offset + c.width : span.right;
+  return { offset: r16(l), width: r16(r - l) };
+}
+
+/**
+ * The run c belongs to: the cabinets of the same kind, height and elevation beside it on the wall,
+ * end to end, left to right.
+ */
+export function runOf(cabinets: Cabinet[], c: Cabinet): Cabinet[] {
+  const like = cabinets.filter((o) => o.wall === c.wall && o.kind === c.kind && Math.abs(o.elevation - c.elevation) < 0.5 && Math.abs(o.height - c.height) < 0.5).sort((a, b) => a.offset - b.offset);
+  const i = like.findIndex((o) => o.id === c.id);
+  let a = i, b = i;
+  // Neighbours within a pilaster's width count as the same run (a pilaster may sit between them)
+  const touches = (x: Cabinet, y: Cabinet) => y.offset - (x.offset + x.width) < 8;
+  while (a > 0 && touches(like[a - 1], like[a])) a--;
+  while (b < like.length - 1 && touches(like[b], like[b + 1])) b++;
+  return like.slice(a, b + 1);
+}
+
+/**
+ * Make every cabinet in c's run the same width so the run fills its open stretch of wall, keeping
+ * whatever sits between them (pilasters) where it belongs. Returns the new offset and width by id.
+ */
+export function evenRun(room: Room, cabinets: Cabinet[], c: Cabinet, s: ShopSettings): Map<string, Pick<Cabinet, 'offset' | 'width'>> {
+  const run = runOf(cabinets, c);
+  const ids = new Set(run.map((x) => x.id));
+  const all = cabinets, cur = run;
+  const first = cur[0], last = cur[cur.length - 1];
+  // The run fills wall to wall (or to whatever bounds it): its two ends are hidden, no end panels
+  const left = openSpan(room, all.filter((o) => !ids.has(o.id) || o.id === first.id), first, s).left;
+  const right = openSpan(room, all.filter((o) => !ids.has(o.id) || o.id === last.id), last, s).right;
+  // Whatever isn't one of the run's cabinets but sits between them keeps its width (pilasters, fillers)
+  const between = all.filter((o) => !ids.has(o.id) && o.wall === c.wall && o.offset >= first.offset - 0.01 && o.offset + o.width <= last.offset + last.width + 0.01 && sameBand([o], { ...c, id: '' }).length);
+  const fixed = between.reduce((t, o) => t + o.width, 0);
+  // In sixteenths: any left over go one each on the first cabinets, so none differs by more than 1/16
+  const units = Math.round((right - left - fixed) * 16);
+  const base = Math.floor(units / cur.length), extra = units - base * cur.length;
+  const widthOf = new Map(cur.map((o, i) => [o.id, (base + (i < extra ? 1 : 0)) / 16]));
+  const order = [...cur, ...between].sort((a, b) => a.offset - b.offset);
+  const next = new Map<string, Pick<Cabinet, 'offset' | 'width'>>();
+  let x = left;
+  for (const o of order) {
+    if (ids.has(o.id)) { const width = widthOf.get(o.id)!; next.set(o.id, { offset: r16(x), width }); x += width; }
+    else { next.set(o.id, { offset: r16(x), width: o.width }); x += o.width; }
+  }
+  return next;
+}

@@ -7,13 +7,13 @@ import { mantelOf, shelfFor } from "../src/model/mantel";
 import { defaultPilaster } from "../src/model/pilaster";
 import { combineAll } from "../src/model/onePiece";
 // Sanity checks on the cabinet model: run with `npm test`.
-import { buildParts, layoutRows, panelExtents, realOverhang } from "../src/model/parts";
+import { buildParts, crownLayout, layoutRows, panelExtents, realOverhang } from "../src/model/parts";
 import { placedAppliances } from "../src/model/appliances";
 import { legWidth, mantelClearances } from "../src/model/mantel";
 import { defaultBack, planToProject, readPlan } from "../src/model/planImport";
 import { fromDwgDatabase, parseDxf } from "../src/import/cad";
 import { sampleProject, defaultSettings, presets, cabinetFromPreset } from "../src/model/defaults";
-import { findIssues, gapBeside, nextFreeOffset, resolveEnds } from "../src/model/layout";
+import { evenRun, fillSpan, findIssues, gapBeside, nextFreeOffset, resolveEnds } from "../src/model/layout";
 import { fmt, parseLength } from "../src/units";
 import { drawerBoxSize, eaglePrice, hingeHoles } from "../src/model/eagle";
 import { optimize } from "../src/model/optimizer";
@@ -928,6 +928,32 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   const br = bp.find((x) => x.name === 'Pilaster bottom rail')!;
   eq('pilaster, no plinth: bottom rail from the floor to 2" above the cap', `${br.boxes[0].min[1]}-${br.boxes[0].min[1] + br.boxes[0].size[1]}`, '0-9.625');
   eq('pilaster, no plinth: base on the pilaster face', bp.find((x) => x.name === 'Baseboard on plinth')!.boxes[0].min[2], bare.depth);
+}
+
+// Crown sits on the case unless there's a sub-crown; fitting the last cabinet; equal runs
+{
+  const room = { width: 159.875, depth: 150, height: 96.5 };
+  const up = (name: string, offset: number, width: number) => ({ ...cabinetFromPreset(presets.find((x) => x.kind === 'wall')!, 'front', offset, []), id: name, name, elevation: 31, height: 56, depth: 12.75, crown: 'BR-8010' });
+  const w1 = up('W1', 0, 32);
+  const L = crownLayout(w1, s);
+  const crownPiece = cabinetMoldings(w1, s, { left: true, right: true }).find((m) => m.kind === 'crown' && m.along === 'x')!;
+  eq('crown: bottom at the top of the case with no sub-crown', crownPiece.y.toFixed(3), '56.000');
+  eq('crown: nailer as tall as the crown', buildParts(w1, s).find((x) => x.name === 'Crown nailer')!.width.toFixed(4), L.seat.toFixed(4));
+  const w1sub = { ...w1, crownBuild: { subCrown: 3, rise: 0, drop: 0, extra: [] } };
+  eq('crown: with a sub-crown it goes on its face, top at the top of the build', crownLayout(w1sub, s).crownTop, 56);
+  const run = [w1, up('W2', 32, 32), up('W3', 64, 32), up('W4', 96, 32), up('W5', 128, 31.5)];
+  const f = fillSpan(room, run, run[4], s, 'right');
+  eq('fill: last upper widens to the wall', `${f.offset}/${f.width}`, '128/31.875');
+  const uneven = [up('U1', 0, 30), up('U2', 30, 33), up('U3', 63, 31), up('U4', 94, 32), up('U5', 126, 30)];
+  const ev = evenRun(room, uneven, uneven[2], s);
+  const ws = uneven.map((u) => ev.get(u.id)!.width);
+  eq('even run: five fill the wall within 1/16', `${ws.join(',')} = ${ws.reduce((t, w) => t + w, 0)}`, '32,32,32,31.9375,31.9375 = 159.875');
+  // Pilasters between keep their width
+  const pil = (name: string, offset: number) => ({ ...cabinetFromPreset(presets.find((x) => x.id === 'pilaster')!, 'back', offset, []), id: name, name, width: 6, height: 98.75 });
+  const tall = (name: string, offset: number, width: number) => ({ ...cabinetFromPreset(presets.find((x) => x.id === 'library-base')!, 'back', offset, []), id: name, name, kind: 'tall' as const, width, height: 98.75 });
+  const lib = [pil('P1', 0), tall('T1', 6, 30), pil('P2', 36, ), tall('T2', 42, 33), pil('P3', 75), tall('T3', 81, 31)];
+  const ev2 = evenRun({ width: 118, depth: 150, height: 104 }, lib, lib[1], s);
+  eq('even run: bookcases between pilasters', ['T1', 'T2', 'T3', 'P2', 'P3'].map((n) => `${n}@${ev2.get(n)!.offset}:${ev2.get(n)!.width}`).join(' '), 'T1@6:33.375 T2@45.375:33.3125 T3@84.6875:33.3125 P2@39.375:6 P3@78.6875:6');
 }
 
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');
