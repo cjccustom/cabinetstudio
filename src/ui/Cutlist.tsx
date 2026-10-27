@@ -6,6 +6,8 @@ import { optimize, type MaterialResult, type SheetLayout, type Stock } from '../
 import { uid } from '../model/defaults';
 import { fmt } from '../units';
 import { Field, LengthInput, Section } from './fields';
+import { labelDocument, labelFormats, partLabels, type LabelFormat } from '../drawings/labels';
+import { capability, type Downloads } from '../runtime';
 
 function useCutlist() {
   const project = useStore((s) => s.project);
@@ -136,6 +138,7 @@ export function CutlistLayouts() {
         <label><input id="co-showcuts" type="checkbox" checked={showCuts} onChange={(e) => setShowCuts(e.target.checked)} /> Show cut sequence</label>
         <span className="muted">Rip strips the full length first, then crosscut, then rip each piece to width. Numbers follow the order to cut.</span>
       </div>
+      {results.some((m) => m.sheets.length) && <LabelBar results={results} />}
       {results.length === 0 && <div className="empty pad"><p>No sheet-goods parts yet. Add cabinets in Design.</p></div>}
       {results.map((m) => <MaterialBlock key={m.material} m={m} showCuts={showCuts} />)}
     </main>
@@ -302,5 +305,58 @@ export function CutlistSummary() {
         </Section>
       </div>
     </aside>
+  );
+}
+
+/** Part labels for every piece on the layouts, on standard letter label sheets. */
+function LabelBar({ results }: { results: MaterialResult[] }) {
+  const project = useStore((s) => s.project);
+  const [format, setFormat] = useState<LabelFormat>(() => { try { const f = localStorage.getItem('cabinet-studio.labels') as LabelFormat; return f in labelFormats ? f : '8163'; } catch { return '8163'; } });
+  const [start, setStart] = useState(1);
+  const [msg, setMsg] = useState('');
+  const f = labelFormats[format];
+  const per = f.cols * f.rows;
+  const labels = partLabels(results, project.client?.last || project.name);
+  const sheets = Math.ceil((labels.length + start - 1) / per);
+  const pick = (v: LabelFormat) => { setFormat(v); setStart(1); try { localStorage.setItem('cabinet-studio.labels', v); } catch { /* storage blocked */ } };
+  const doc = () => labelDocument(labels, format, `${project.name} - part labels`, start - 1);
+  const print = () => {
+    setMsg('');
+    // Print just the labels, from a hidden frame, so the app's own page isn't what prints
+    const frame = document.createElement('iframe');
+    frame.style.cssText = 'position:fixed;width:0;height:0;border:0;right:0;bottom:0';
+    frame.srcdoc = doc();
+    frame.onload = () => {
+      try { frame.contentWindow!.focus(); frame.contentWindow!.print(); }
+      catch { setMsg('This browser wouldn’t print from here. Use Download, open the file and print it.'); }
+      setTimeout(() => frame.remove(), 60_000);
+    };
+    document.body.appendChild(frame);
+  };
+  const download = async () => {
+    setMsg('');
+    const name = `${project.name} - part labels.html`.replace(/[\\/:*?"<>|]/g, '');
+    const blob = new Blob([doc()], { type: 'text/html' });
+    try {
+      const downloads = await capability<Downloads>('downloads');
+      if (downloads) await downloads.save({ filename: name, data: blob });
+      else { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.click(); }
+    } catch (e) {
+      const code = (e as { code?: string }).code;
+      if (code !== 'declined' && code !== 'cancelled') setMsg('Couldn’t save the file.');
+    }
+  };
+  return (
+    <div className="cut-toolbar label-bar">
+      <b>Part labels</b>
+      <select aria-label="Label sheet" value={format} onChange={(e) => pick(e.target.value as LabelFormat)}>
+        {(Object.keys(labelFormats) as LabelFormat[]).map((k) => <option key={k} value={k}>{labelFormats[k].name}</option>)}
+      </select>
+      <label>Start at label <input type="number" min={1} max={per} value={start} style={{ width: 56 }} onChange={(e) => setStart(Math.min(per, Math.max(1, parseInt(e.target.value, 10) || 1)))} /></label>
+      <button className="primary" onClick={print}>Print {labels.length} labels</button>
+      <button onClick={download}>Download</button>
+      <span className="muted">{sheets} label sheet{sheets === 1 ? '' : 's'}, in cutting order, sheet and # matching the layouts. Print at 100% (Actual size), no scaling.</span>
+      {msg && <span className="warn-text">{msg}</span>}
+    </div>
   );
 }
