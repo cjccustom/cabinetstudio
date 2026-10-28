@@ -50,6 +50,18 @@ Things the app is guessing at until Cody answers. Each one says what the app doe
   upper: the app needs a single full-height cabinet with doors below and open shelves above.
   The tops are painted, not wood (Cody will change it). The coffers aren't yet centered on the
   windows; Cody is checking his notes for whether the windows are truly symmetrical first.
+- **Next Day Moulding catalog.** Their in-stock mouldings (linked to the matching Brosco
+  profiles) and sheet goods prices, from nextdaymoulding.com. Their site holds automated
+  visitors in a queue, so this has to be read through a real browser: open a Claude Code session
+  in the Claude Desktop app on your computer and have it use the built-in browser (or Claude in
+  Chrome). Or get their in-stock list as a spreadsheet or PDF and drop it in.
+- **Photos from the phone.** Set up the Dropbox app for the portal (DBX_APP_KEY, DBX_APP_SECRET,
+  redirect to /dropbox/callback), then connect it at the portal's /dropbox page. Steps in
+  `portal/README.md` under "Photos from the phone".
+- **Part labels.** Test-print a sheet on the Brother MFC-J6960DW once the inkjet labels arrive
+  (Cutlist tab → labels, print at 100%).
+- **Plywood prices still blank.** White oak, cherry, paint-grade birch, MDF, and every 1/4"
+  sheet: enter them under Shop standards → Materials → Price book.
 - **Old Chief jobs.** The importer reads Chief's DWG/DXF floor plan exports (walls, doors,
   windows, cabinets, pilasters). Heights still come from each job's elevations.
 
