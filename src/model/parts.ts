@@ -43,7 +43,9 @@ function frameless(s: ShopSettings): ShopSettings {
 export const isFrameless = (c: Cabinet, s: ShopSettings) => eff(c, s).construction === 'frameless';
 
 /** Open to the room: open shelves, or hanging space. */
-export const isOpenRow = (t: FaceRow['type']) => t === 'open' || t === 'hang';
+export const isOpenRow = (t: FaceRow['type']) => t === 'open' || t === 'hang' || t === 'shoes';
+/** Shoe shelves: tipped about 15° to the front, a fence on the front edge to stop the heels. */
+export const shoeShelf = { fence: 1.5, lip: 0.75, slope: 0.27, maxDrop: 4 };
 export const closetRod = { diameter: 1.3125, drop: 1.75 };
 
 /** Width of the mid rail above row i (none above the first row). */
@@ -378,7 +380,7 @@ export function buildParts(c: Cabinet, s: ShopSettings, ends: EndInfo = { left: 
       // A one-piece case changes from closed to open here: a fixed shelf divides it, and a ledge
       // (when there is one) sits on the rail and runs across the front
       const lg = ledgeAbove(c, i);
-      const openAbove = c.rows[i - 1].type === 'open' && c.rows[i].type !== 'open';
+      const openAbove = isOpenRow(c.rows[i - 1].type) && !isOpenRow(c.rows[i].type);
       // Hanging space has a fixed shelf over it to carry the rod, and under it to close it off
       const hang = c.rows[i].type === 'hang' || c.rows[i - 1].type === 'hang';
       if (lg || openAbove || hang) {
@@ -504,6 +506,30 @@ export function buildParts(c: Cabinet, s: ShopSettings, ends: EndInfo = { left: 
       parts.push({ name: 'Closet rod', role: 'rod', material: 'hardware', length: len, width: d, thickness: d, cut: false,
         note: `${fmtShort(d)} round ${s.closetRod === 'metal' ? 'metal' : 'wood'} rod in 2 sockets, center ${fmtShort(drop)} below the shelf (${fmtShort(c.elevation + under - drop)} off the floor) and ${fmtShort(zc - rw)} off the back; ${fmtShort(r.height - drop - d / 2)} clear below`,
         boxes: [vb(xi0 + 0.0625, under - drop - d / 2, zc - d / 2, len, d, d, 0.35)] });
+    }
+    if (row.type === 'shoes' && row.shelves > 0) {
+      // Shelves on pins, the back pins higher than the front for slanted ones; a solid fence on the front edge
+      const shelfW = innerW - s.shelfClearance;
+      const shelfD = boxD - rw - s.shelfSetback - 0.75;
+      const slant = !row.flatShoes;
+      const drop = slant ? Math.min(shoeShelf.maxDrop, shelfD * shoeShelf.slope) : 0;
+      const lo = Math.max(r.y0, botTop);
+      const hi = Math.min(r.y1, topUnder);
+      const n = row.shelves;
+      const pitch = (hi - lo) / n;
+      for (let k = 0; k < n; k++) {
+        // Front edge of each shelf a fence height up from the bottom of its space; the back rises by the drop
+        const yF = lo + pitch * k + (k === 0 ? 0.25 : 0);
+        const x0 = xi0 + s.shelfClearance / 2;
+        const steps = slant ? 4 : 1;
+        const boxes = Array.from({ length: steps }, (_, j) => vb(x0, yF + (drop * (steps - 1 - j)) / steps, rw + (shelfD * j) / steps, shelfW, ta, shelfD / steps));
+        parts.push({ name: slant ? 'Shoe shelf, slanted' : 'Shoe shelf', role: 'shelf', material: 'box', length: shelfW, width: shelfD, thickness: tn, cut: true, banded: false,
+          note: slant ? `On pins, back ${fmtShort(drop)} higher than the front (about 15°); fence on the front edge` : 'On pins; fence on the front edge',
+          boxes });
+        parts.push({ name: 'Shoe fence', role: 'trim', material: 'faceframe', length: shelfW, width: shoeShelf.fence, thickness: 0.75, cut: true,
+          note: `Glued and nailed to the shelf's front edge, standing ${fmtShort(shoeShelf.lip)} above it`,
+          boxes: [vb(x0, yF + ta + shoeShelf.lip - shoeShelf.fence, rw + shelfD, shelfW, shoeShelf.fence, 0.75)] });
+      }
     }
     if ((row.type === 'doors' || row.type === 'open') && row.shelves > 0) {
       const shelfW = innerW - s.shelfClearance;

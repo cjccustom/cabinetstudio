@@ -125,7 +125,11 @@ function PresetGlyph({ rows, w, h, kind }: { rows: { type: string; doors: number
         const rh = r.h != null ? r.h * scale : autoH;
         const el = [];
         if (r.type === 'open') el.push(<rect key={i} x="1.5" y={y} width={W - 3} height={rh} className="g-open" />);
-        else if (r.type === 'hang') {
+        else if (r.type === 'shoes') {
+          el.push(<rect key={i} x="1.5" y={y} width={W - 3} height={rh} className="g-open" />);
+          const n = Math.max(1, Math.round(rh / 3.2));
+          for (let k = 1; k <= n; k++) el.push(<line key={`${i}s${k}`} x1="2.5" x2={W - 2.5} y1={y + (rh * k) / (n + 0.2) - 1.2} y2={y + (rh * k) / (n + 0.2)} className="g-rod" />);
+        } else if (r.type === 'hang') {
           el.push(<rect key={i} x="1.5" y={y} width={W - 3} height={rh} className="g-open" />);
           el.push(<line key={`${i}r`} x1="2.5" x2={W - 2.5} y1={y + 1.6} y2={y + 1.6} className="g-rod" />);
         }

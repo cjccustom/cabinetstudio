@@ -28,6 +28,7 @@ const rowTypes: { v: FaceRow['type']; label: string }[] = [
   { v: 'falseFront', label: 'False front' },
   { v: 'open', label: 'Open' },
   { v: 'hang', label: 'Hanging (rod)' },
+  { v: 'shoes', label: 'Shoe shelves' },
   { v: 'appliance', label: 'Appliance' },
 ];
 
@@ -125,6 +126,10 @@ export function Inspector({ cab, issues }: { cab: Cabinet; issues: string[] }) {
               ) : <span />}
               {r.type === 'hang' ? (
                 <LengthInput id={`row-rod-${r.id}`} value={r.rodDrop ?? null} allowAuto placeholder={fmt(settings.rodDrop ?? closetRod.drop)} onChange={(v) => setRow(r.id, { rodDrop: v ?? undefined })} />
+              ) : r.type === 'shoes' ? (
+                <select id={`row-sh-${r.id}`} aria-label="Shoe shelves" value={r.shelves} onChange={(e) => setRow(r.id, { shelves: Number(e.target.value) })}>
+                  {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((n) => <option key={n} value={n}>{n} shel{n === 1 ? 'f' : 'ves'}</option>)}
+                </select>
               ) : r.type === 'doors' || r.type === 'open' ? (
                 <select id={`row-sh-${r.id}`} aria-label="Shelves" value={r.shelves} onChange={(e) => setRow(r.id, { shelves: Number(e.target.value) })}>
                   {[0, 1, 2, 3, 4, 5, 6].map((n) => <option key={n} value={n}>{n} shelf{n === 1 ? '' : 'ves'}</option>)}
@@ -155,6 +160,19 @@ export function Inspector({ cab, issues }: { cab: Cabinet; issues: string[] }) {
             </li>
           ))}
         </ol>
+        {cab.rows.some((r) => r.type === 'shoes') && (
+          <div className="hint">
+            {cab.rows.filter((r) => r.type === 'shoes').map((r) => {
+              const lay = layout[cab.rows.indexOf(r)];
+              return (
+                <label key={r.id} className="check-inline">
+                  <input type="checkbox" checked={!r.flatShoes} onChange={(e) => setRow(r.id, { flatShoes: !e.target.checked || undefined })} /> Slanted shoe shelves, {fmt((lay?.height ?? 0) / Math.max(1, r.shelves))} apart{r.flatShoes ? ' (flat)' : ''}
+                </label>
+              );
+            })}
+            <span> About 7" apart suits flats and sneakers, 9" slanted; boots want 14" or more.</span>
+          </div>
+        )}
         {cab.rows.some((r) => r.type === 'hang') && (
           <p className="hint">Hanging: the last box is the rod’s center below the shelf over it (blank = Shop standards). Each rod’s height off the floor and clear hang are in its parts note.</p>
         )}

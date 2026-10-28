@@ -23,6 +23,10 @@ import { mantelOf } from './mantel';
 /** Shop hours per item. Start from these and calibrate against tracked jobs. */
 export interface LaborStandards {
   jobSetup: number;
+  /** Frameless case: banding the front edges, in place of building a face frame. */
+  frameless?: number;
+  /** Cutting a closet rod and setting it in its sockets. */
+  closetRod?: number;
   perBox: number;
   tallBox: number;
   faceFrame: number;
@@ -258,7 +262,8 @@ export function estimateHours(p: Project, q: QuoteSettings): HourLine[] {
     const n = (role: string) => parts.filter((x) => x.role === role).length;
     add('Case', 1, st.perBox);
     if (tall) add('Tall case (extra)', 1, st.tallBox);
-    add('Face frame', 1, st.faceFrame);
+    if (s.construction !== 'frameless') add('Face frame', 1, st.faceFrame);
+    else add('Edge banding the case (frameless)', 1, st.frameless ?? 0.75);
     add('Face frame openings', c.rows.length + (c.corner ? 1 : 0), st.perOpening);
     add(inset > 1 ? 'Doors, inset (fit & hang)' : 'Doors (fit & hang)', n('door'), st.perDoor * inset);
     add(inset > 1 ? 'Drawers, inset (slides & fronts)' : 'Drawers (slides & fronts)', n('drawerBox') + parts.filter((x) => x.name === 'False front').length * 0.5, st.perDrawer * inset);
@@ -267,6 +272,9 @@ export function estimateHours(p: Project, q: QuoteSettings): HourLine[] {
     add('Baseboard / skirt pieces (fit & miter)', baseTrim.length, st.basePiece ?? 0.25);
     add('Arched cuts (layout & cut)', parts.filter((x) => (x.note ?? '').startsWith('Cut ') && /feet|arch/i.test(x.note ?? '')).length, st.archCut ?? 0.5);
     add('Applied shelf fronts', parts.filter((x) => x.name === 'Shelf front').length, st.shelfFront ?? 0.15);
+    add('Shoe fences', parts.filter((x) => x.name === 'Shoe fence').length, st.shelfFront ?? 0.15);
+    add('Closet rods (cut & set in sockets)', n('rod'), st.closetRod ?? 0.25, 'cabinets', true);
+    installHours += n('rod') * (st.closetRod ?? 0.25);
     add('End panels', n('endPanel'), st.endPanel);
     add('Extended stiles', parts.filter((x) => x.name === 'Stile, extended').length, st.extendedStile);
     for (const t of parts.filter((x) => x.role === 'woodTop')) {
@@ -533,6 +541,8 @@ export function scopeLine(c: Cabinet, p: Project): string {
   if (adj) bits.push(`(${adj}) adjustable shel${adj > 1 ? 'ves' : 'f'}`);
   const hang = c.rows.filter((r) => r.type === 'hang').length;
   if (hang) bits.push(hang === 2 ? 'double hang, two closet rods' : hang === 1 ? `${c.rows.some((r) => r.type === 'open') ? 'hanging with shelf storage above, ' : 'hanging, '}closet rod` : `(${hang}) hanging sections with closet rods`);
+  const shoes = c.rows.filter((r) => r.type === 'shoes').reduce((t, r) => t + r.shelves, 0);
+  if (shoes) bits.push(`(${shoes}) ${c.rows.some((r) => r.type === 'shoes' && !r.flatShoes) ? 'slanted ' : ''}shoe shel${shoes > 1 ? 'ves' : 'f'} with fences`);
   for (const r of c.rows) if (r.type === 'appliance' && r.appliance) bits.push(`${r.appliance.mount === 'shelf' ? 'open space' : 'built-in opening'} for owner's ${applianceKinds[r.appliance.kind].short.toLowerCase()}`);
   if (n('endPanel')) bits.push(`(${n('endPanel')}) finished end panel${n('endPanel') > 1 ? 's' : ''}`);
   if (c.countertop && c.topKind === 'wood') bits.push(`${fmtIn(c.topThickness ?? 1.25)} thick solid wood top`);

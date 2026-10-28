@@ -7,13 +7,15 @@ export type CabinetKind = 'base' | 'wall' | 'tall' | 'pilaster' | 'shelf' | 'man
 /** One horizontal band of the face frame, top to bottom, separated by mid rails. */
 export interface FaceRow {
   id: string;
-  type: 'drawer' | 'doors' | 'falseFront' | 'open' | 'appliance' | 'hang';
+  type: 'drawer' | 'doors' | 'falseFront' | 'open' | 'appliance' | 'hang' | 'shoes';
   /** Face frame opening height. null = share the leftover height with other auto rows. */
   height: number | null;
   doors: 1 | 2;
   shelves: number;
   /** Width of the mid rail above this row, when it isn't the cabinet's standard (e.g. a tall rail for a ladder rail). */
   railAbove?: number;
+  /** Shoe rows: shelves tipped down to the front (the default) or flat. */
+  flatShoes?: boolean;
   /** Hanging rows: how far the rod's center sits below the shelf above it, when not the shop's standard. */
   rodDrop?: number;
   /** What sits in an appliance row: a microwave, wall oven, fireplace insert... */

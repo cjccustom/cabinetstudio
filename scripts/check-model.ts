@@ -1042,6 +1042,28 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   eq('frameless: one cabinet can stay face frame', buildParts({ ...base, overrides: { construction: 'faceframe' } }, fs).some((x) => x.role === 'stile'), true);
 }
 
+// Closets: shoe shelves and drawer banks
+{
+  const mk = (id: string) => ({ ...cabinetFromPreset(presets.find((x) => x.id === id)!, 'back', 0, []), id, name: id });
+  const tower = buildParts(mk('closet-shoes'), s);
+  const shelves = tower.filter((x) => x.name === 'Shoe shelf, slanted');
+  eq('shoes: nine slanted shelves, each with a fence', `${shelves.length} ${tower.filter((x) => x.name === 'Shoe fence').length}`, '9 9');
+  const sh = shelves[3].boxes;
+  eq('shoes: back of the shelf higher than the front', sh[0].min[1] > sh[sh.length - 1].min[1] && sh[0].min[2] < sh[sh.length - 1].min[2], true);
+  const flat = buildParts({ ...mk('closet-shoes'), rows: [{ ...mk('closet-shoes').rows[0], flatShoes: true }] }, s);
+  eq('shoes: flat when asked', flat.filter((x) => x.name === 'Shoe shelf').length, 9);
+  const combo = buildParts(mk('closet-shoes-hang'), s);
+  eq('shoes: under a long hang, a fixed shelf between them', `${combo.filter((x) => x.role === 'rod').length} rod, ${combo.filter((x) => x.name === 'Fixed shelf').length} fixed, ${combo.filter((x) => x.name === 'Shoe fence').length} fences`, '1 rod, 1 fixed, 3 fences');
+  const bank = buildParts(mk('closet-drawers'), s);
+  eq('drawer bank: four drawers, a fixed shelf under the open shelves', `${bank.filter((x) => x.role === 'drawerBox').length} drawers, ${bank.filter((x) => x.name === 'Fixed shelf').length} fixed`, '4 drawers, 1 fixed');
+  const dresser = mk('closet-dresser');
+  const dp = buildParts(dresser, s);
+  eq('dresser: four drawers under a wood top', `${dp.filter((x) => x.role === 'drawerBox').length} ${dp.some((x) => x.role === 'woodTop')}`, '4 true');
+  const proj = { ...p, cabinets: [mk('closet-shoes')] };
+  eq('shoes: scope wording', scopeLine(proj.cabinets[0], proj).includes('(9) slanted shoe shelves with fences'), true);
+  eq('shoes: fence labor', estimateHours(proj, quoteOf(proj)).some((h) => h.label === 'Shoe fences' && h.qty === 9), true);
+}
+
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');
 
 console.log(failed ? `${failed} check(s) failed` : 'All model checks passed');
