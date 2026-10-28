@@ -42,6 +42,25 @@ export function shiftInRoom(c: Cabinet, dx: number, dz: number): Pick<Cabinet, '
   return { offset: c.offset + dx * a.along[0] + dz * a.along[1], wallInset: inset > 1e-6 ? inset : undefined };
 }
 
+/**
+ * Hang a cabinet off a wall so it faces into the room from it, with the center of its plan at (cx, cz):
+ * the offset along the wall and the distance off it that put it there.
+ */
+export function placeOn(room: Room, c: Cabinet, wall: WallId, cx: number, cz: number): Pick<Cabinet, 'wall' | 'offset' | 'wallInset'> {
+  const W = c.width, D = c.depth;
+  const r = (v: number) => Math.round(v * 16) / 16;
+  const pick = (offset: number, inset: number) => ({ wall, offset: r(offset), wallInset: inset > 1e-6 ? r(inset) : undefined });
+  switch (wall) {
+    case 'back': return pick(cx - W / 2, cz - D / 2);
+    case 'front': return pick(room.width - cx - W / 2, room.depth - cz - D / 2);
+    case 'left': return pick(room.depth - cz - W / 2, cx - D / 2);
+    case 'right': return pick(cz - W / 2, room.width - cx - D / 2);
+  }
+}
+
+/** Which way a cabinet hung off each wall faces, in words. */
+export const facesFrom: Record<WallId, string> = { back: 'Toward the front of the room', front: 'Toward the back wall', left: 'To the right', right: 'To the left' };
+
 /** Position along a wall for a point on the floor. */
 export function alongWall(room: Room, wall: WallId, x: number, z: number): number {
   switch (wall) {

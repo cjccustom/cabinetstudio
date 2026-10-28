@@ -6,7 +6,7 @@ import type { CabinetNote, Cabinet, CrownBuild, EndMode, FaceRow, PanelChoice, P
 import { buildParts, closetRod, crownFit, crownLayout, crownRoom, layoutRows, noCrownBuild, panelOn } from '../model/parts';
 import { defaultPilaster, pilasterOf, pilasterSections } from '../model/pilaster';
 import { bracketCount, bracketGap, bracketLength, bracketProduct, finishedEnds, floatingOf, shelfPly } from '../model/floatingShelf';
-import { evenRun, fillSpan, footprint, gapBeside, resolveEnds, runOf, shiftInRoom, wallLength, wallNames, wallOrder } from '../model/layout';
+import { evenRun, facesFrom, fillSpan, footprint, gapBeside, placeOn, resolveEnds, runOf, shiftInRoom, wallLength, wallNames, wallOrder } from '../model/layout';
 import { panelLabel } from '../model/eagle';
 import { nextName, uid } from '../model/defaults';
 import { fmt } from '../units';
@@ -50,6 +50,7 @@ export function Inspector({ cab, issues }: { cab: Cabinet; issues: string[] }) {
   const setRow = (id: string, patch: Partial<FaceRow>) => set({ rows: cab.rows.map((r) => (r.id === id ? { ...r, ...patch } : r)) });
   const { rows: layout, leftover } = layoutRows(cab, settings);
   const [shrunk, setShrunk] = useState(0);
+  const free = freeStanding(cab) && !cab.corner;
   useEffect(() => setShrunk(0), [cab.id]);
 
   return (
@@ -80,6 +81,36 @@ export function Inspector({ cab, issues }: { cab: Cabinet; issues: string[] }) {
       </Section>
 
       <Section title="Placement">
+        {free ? (() => {
+          // Standing out in the room: placed by where it is in the plan, the way you'd tape it
+          const f = footprint(room, cab);
+          const cx = (f.x0 + f.x1) / 2, cz = (f.z0 + f.z1) / 2;
+          return (
+            <>
+              <div className="grid3">
+                <Field label="Faces" htmlFor="cab-faces">
+                  <select id="cab-faces" value={cab.wall} onChange={(e) => set(placeOn(room, cab, e.target.value as WallId, cx, cz))}>
+                    {wallOrder.map((w) => <option key={w} value={w}>{facesFrom[w]}</option>)}
+                  </select>
+                </Field>
+                <Field label="From left wall" htmlFor="cab-px"><LengthInput id="cab-px" value={Math.round(f.x0 * 16) / 16} min={-1000} onChange={(v) => v != null && set(shiftInRoom(cab, v - f.x0, 0))} /></Field>
+                <Field label="From back wall" htmlFor="cab-pz"><LengthInput id="cab-pz" value={Math.round(f.z0 * 16) / 16} min={-1000} onChange={(v) => v != null && set(shiftInRoom(cab, 0, v - f.z0))} /></Field>
+              </div>
+              <div className="grid3">
+                <Field label="Off floor" htmlFor="cab-elev"><LengthInput id="cab-elev" value={cab.elevation} onChange={(v) => set({ elevation: v! })} /></Field>
+                <span className="hint" style={{ gridColumn: 'span 2', alignSelf: 'end' }}>Measured in the plan to its nearest corner: {fmt(f.x1 - f.x0)} across × {fmt(f.z1 - f.z0)} deep.</span>
+              </div>
+              <details className="supplies">
+                <summary>Measured along the wall it hangs off</summary>
+                <div className="grid3">
+                  <Field label="Hangs off" htmlFor="cab-wall"><select id="cab-wall" value={cab.wall} onChange={(e) => set({ wall: e.target.value as WallId })}>{wallOrder.map((w) => <option key={w} value={w}>{wallNames[w]}</option>)}</select></Field>
+                  <Field label="Along it" htmlFor="cab-off"><LengthInput id="cab-off" value={cab.offset} min={-1000} onChange={(v) => set({ offset: v! })} /></Field>
+                  <Field label="Off it" htmlFor="cab-inset"><LengthInput id="cab-inset" value={cab.wallInset ?? 0} onChange={(v) => set({ wallInset: v || undefined })} /></Field>
+                </div>
+              </details>
+            </>
+          );
+        })() : (
         <div className="grid3">
           <Field label="Wall" htmlFor="cab-wall">
             <select id="cab-wall" value={cab.wall} onChange={(e) => set({ wall: e.target.value as WallId })}>
@@ -89,9 +120,10 @@ export function Inspector({ cab, issues }: { cab: Cabinet; issues: string[] }) {
           <Field label="From left" htmlFor="cab-off"><LengthInput id="cab-off" value={cab.offset} min={-1000} onChange={(v) => set({ offset: v! })} /></Field>
           <Field label="Off floor" htmlFor="cab-elev"><LengthInput id="cab-elev" value={cab.elevation} onChange={(v) => set({ elevation: v! })} /></Field>
         </div>
-        {(cab.kind === 'base' || cab.kind === 'tall' || cab.island || (cab.wallInset ?? 0) > 0) && !cab.corner && (
+        )}
+        {(cab.kind === 'base' || cab.kind === 'tall') && !cab.corner && (
           <div className="grid3">
-            <Field label="Off the wall" htmlFor="cab-inset"><LengthInput id="cab-inset" value={cab.wallInset ?? 0} onChange={(v) => set({ wallInset: v || undefined })} /></Field>
+            {!free ? <Field label="Off the wall" htmlFor="cab-inset"><LengthInput id="cab-inset" value={cab.wallInset ?? 0} onChange={(v) => set({ wallInset: v || undefined })} /></Field> : <span />}
             {cab.kind === 'base' && (
               <label className="check-inline" style={{ gridColumn: 'span 2', alignSelf: 'end' }}>
                 <input type="checkbox" checked={!!cab.island} onChange={(e) => set(e.target.checked
@@ -101,17 +133,6 @@ export function Inspector({ cab, issues }: { cab: Cabinet; issues: string[] }) {
             )}
           </div>
         )}
-        {freeStanding(cab) && !cab.corner && (() => {
-          // Where it stands in the plan, measured the way you'd tape it: from the left and back walls
-          const f = footprint(room, cab);
-          return (
-            <div className="grid3">
-              <Field label="Plan: from left wall" htmlFor="cab-px"><LengthInput id="cab-px" value={Math.round(f.x0 * 16) / 16} min={-1000} onChange={(v) => v != null && set(shiftInRoom(cab, v - f.x0, 0))} /></Field>
-              <Field label="Plan: from back wall" htmlFor="cab-pz"><LengthInput id="cab-pz" value={Math.round(f.z0 * 16) / 16} min={-1000} onChange={(v) => v != null && set(shiftInRoom(cab, 0, v - f.z0))} /></Field>
-              <span className="hint" style={{ alignSelf: 'end' }}>{fmt(f.x1 - f.x0)} × {fmt(f.z1 - f.z0)} in the plan</span>
-            </div>
-          );
-        })()}
         {cab.island && (
           <label className="check-inline">
             <input type="checkbox" checked={cab.islandSides === 2} onChange={(e) => set(e.target.checked

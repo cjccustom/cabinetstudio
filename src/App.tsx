@@ -66,7 +66,7 @@ export default function App() {
       <header className="topbar">
         <div className="brand">
           <span className="mark" aria-hidden="true" />
-          <span className="brand-name">Cabinet Studio</span>
+          <span className="brand-name" title={`Build ${__BUILD__}`}>Cabinet Studio</span>
           <span className="job">{project.name}</span>
         </div>
         <div className="seg mode" role="tablist" aria-label="Workspace">

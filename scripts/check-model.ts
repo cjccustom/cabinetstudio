@@ -14,7 +14,7 @@ import { legWidth, mantelClearances } from "../src/model/mantel";
 import { defaultBack, planToProject, readPlan } from "../src/model/planImport";
 import { fromDwgDatabase, parseDxf } from "../src/import/cad";
 import { sampleProject, defaultSettings, presets, cabinetFromPreset } from "../src/model/defaults";
-import { evenRun, fillSpan, findIssues, footprint, gapBeside, nextFreeOffset, resolveEnds, shiftInRoom } from "../src/model/layout";
+import { evenRun, fillSpan, findIssues, footprint, gapBeside, nextFreeOffset, placeOn, resolveEnds, shiftInRoom } from "../src/model/layout";
 import { fmt, parseLength } from "../src/units";
 import { drawerBoxSize, eaglePrice, hingeHoles } from "../src/model/eagle";
 import { optimize } from "../src/model/optimizer";
@@ -1145,6 +1145,11 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   const t3 = { ...cabinetFromPreset(presets.find((x) => x.id === 'tall-pantry')!, 'left', 90, []), id: 'T3', name: 'T3', depth: 14, wallInset: 102.75 };
   const before = [footprint(room, t1), footprint(room, t3)];
   const after = [{ ...t1, ...shiftInRoom(t1, 3, 0) }, { ...t3, ...shiftInRoom(t3, 3, 0) }].map((c) => footprint(room, c));
+  for (const w of ['back', 'left', 'right', 'front'] as const) {
+    const f0 = footprint(room, t3), c0 = [(f0.x0 + f0.x1) / 2, (f0.z0 + f0.z1) / 2];
+    const f1 = footprint(room, { ...t3, ...placeOn(room, t3, w, c0[0], c0[1]) });
+    eq(`placeOn: turned to hang off the ${w} wall, same center`, `${(f1.x0 + f1.x1) / 2},${(f1.z0 + f1.z1) / 2}`, `${c0[0]},${c0[1]}`);
+  }
   eq('group move: both shift 3" to the right in the room', after.map((f, i) => `${+(f.x0 - before[i].x0).toFixed(3)},${+(f.z0 - before[i].z0).toFixed(3)}`).join(' '), '3,0 3,0');
 }
 
