@@ -6,7 +6,9 @@ import { useNav } from './three/navigation';
 import { DesignRenderButton } from './ui/DesignRender';
 import { RenderInputs, RenderSide, RenderStage } from './ui/Rendering';
 import { useEffect, useMemo, useState } from 'react';
-import { picked, useStore, type ViewMode } from './store';
+import { freeStanding, picked, useStore, type ViewMode } from './store';
+import { shiftInRoom, wallAxes } from './model/layout';
+import type { WallId } from './model/types';
 import { GroupPanel } from './ui/GroupPanel';
 import { Scene } from './three/Scene';
 import { Sidebar } from './ui/Sidebar';
@@ -235,11 +237,23 @@ function useKeyboard() {
       if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); st.removeCabinet(id); }
       else if (mod && e.key.toLowerCase() === 'd') { e.preventDefault(); st.duplicateCabinet(id); }
       else if (e.key === 'Escape') st.select(null);
-      else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
-        e.preventDefault();
+      else if (e.key.startsWith('Arrow')) {
         const step = e.shiftKey ? 1 : 1 / 16;
         const c = st.project.cabinets.find((x) => x.id === id);
-        if (c) st.updateCabinet(id, { offset: c.offset + (e.key === 'ArrowLeft' ? -step : step) });
+        if (!c) return;
+        const sign = e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? -1 : 1;
+        if (freeStanding(c)) {
+          // Standing off its wall: arrows move it the way they point on screen. In the plan (back
+          // wall at the top) left/right is across the room and up/down toward or away from the back
+          // wall; in an elevation, left/right runs along that wall
+          e.preventDefault();
+          const elev = st.view.startsWith('elev-') ? (st.view.slice(5) as WallId) : null;
+          if (elev) { if (e.key === 'ArrowUp' || e.key === 'ArrowDown') return; const [ax, az] = wallAxes[elev].along; st.updateCabinet(id, shiftInRoom(c, sign * step * ax, sign * step * az)); }
+          else st.updateCabinet(id, e.key === 'ArrowLeft' || e.key === 'ArrowRight' ? shiftInRoom(c, sign * step, 0) : shiftInRoom(c, 0, sign * step));
+        } else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+          e.preventDefault();
+          st.updateCabinet(id, { offset: c.offset + sign * step });
+        }
       }
     };
     window.addEventListener('keydown', onKey);

@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { Canvas, ThreeEvent, useThree } from '@react-three/fiber';
 import { Html, Line, OrbitControls, OrthographicCamera, PerspectiveCamera } from '@react-three/drei';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
-import { picked, useStore, type ViewMode } from '../store';
+import { freeStanding, picked, runWall, useStore, type ViewMode } from '../store';
 import type { Cabinet, Finishes, Room, ShopSettings, WallId, WallPanel } from '../model/types';
 import { spacingOf } from '../model/panels';
 import { cabinetMoldings, panelMoldings } from '../model/moldings';
@@ -133,6 +133,8 @@ interface DragState {
   starts: Map<string, Cabinet>;
   plane: THREE.Plane;
   startAlong: number;
+  /** Where the pointer first hit, in the room's plan (x, z). */
+  startHit: [number, number];
   startOffset: number;
   moved: boolean;
 }
@@ -188,7 +190,7 @@ function CabinetModel(props: {
       plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -e.point.y);
     }
     if (!e.ray.intersectPlane(plane, hit)) return;
-    drag.current = { pointerId: e.pointerId, plane, starts: new Map(movers.map((c) => [c.id, c])), startAlong: alongWall(room, cab.wall, hit.x, hit.z), startOffset: cab.offset, moved: false };
+    drag.current = { pointerId: e.pointerId, plane, starts: new Map(movers.map((c) => [c.id, c])), startHit: [hit.x, hit.z], startAlong: alongWall(room, cab.wall, hit.x, hit.z), startOffset: cab.offset, moved: false };
     (e.target as unknown as Element).setPointerCapture?.(e.pointerId);
     if (controls) controls.enabled = false;
   };
@@ -197,24 +199,38 @@ function CabinetModel(props: {
     const d = drag.current;
     if (!d || e.pointerId !== d.pointerId) return;
     if (!e.ray.intersectPlane(d.plane, hit)) return;
-    const delta = alongWall(room, cab.wall, hit.x, hit.z) - d.startAlong;
     const st = useStore.getState();
+    const dx = hit.x - d.startHit[0], dz = hit.z - d.startHit[1];
     if (!d.moved) {
-      if (Math.abs(delta) < 0.5) return;
+      if (Math.hypot(dx, dz) < 0.5) return;
       d.moved = true;
       st.checkpoint();
       st.setDragging(true);
     }
-    // The one under the pointer snaps (to the cabinets not moving with it); the rest keep their spacing
-    const others = st.project.cabinets.filter((c) => c.id === cab.id || !d.starts.has(c.id));
-    const offset = snapOffset(room, others, cab, d.startOffset + delta, st.project.settings);
-    const moved = offset - d.startOffset;
-    // The rest move the same way in the room, even ones standing off another wall
-    const [ax, az] = wallAxes[cab.wall].along;
+    const group = d.starts.size > 1;
+    const elevWall = view.startsWith('elev-') ? (view.slice(5) as WallId) : null;
+    // Which way things move: a group along its run; one cabinet standing off its wall either way in the
+    // plan (whichever way the drag mostly goes); anything else along its own wall
+    const run = group ? runWall([...d.starts.values()], cab.id)! : elevWall && freeStanding(cab) ? elevWall : null;
+    let mx = 0, mz = 0;
+    if (run) {
+      const [ax, az] = wallAxes[run].along;
+      let t = dx * ax + dz * az;
+      // Snap the one under the pointer when it runs the same way
+      if (cab.wall === run) t = snapOffset(room, st.project.cabinets.filter((c) => c.id === cab.id || !d.starts.has(c.id)), cab, d.startOffset + t, st.project.settings) - d.startOffset;
+      mx = t * ax; mz = t * az;
+    } else if (freeStanding(cab)) {
+      if (Math.abs(dx) >= Math.abs(dz)) mx = dx; else mz = dz;
+    } else {
+      const delta = alongWall(room, cab.wall, hit.x, hit.z) - d.startAlong;
+      const offset = snapOffset(room, st.project.cabinets.filter((c) => c.id === cab.id || !d.starts.has(c.id)), cab, d.startOffset + delta, st.project.settings);
+      const [ax, az] = wallAxes[cab.wall].along;
+      mx = (offset - d.startOffset) * ax; mz = (offset - d.startOffset) * az;
+    }
+    // Everyone moving goes the same way in the room, whatever wall they hang on
     st.transient((p) => ({ ...p, cabinets: p.cabinets.map((c) => {
       const from = d.starts.get(c.id);
-      if (!from) return c;
-      return c.id === cab.id ? { ...c, offset } : { ...c, ...shiftInRoom(from, moved * ax, moved * az) };
+      return from ? { ...c, ...shiftInRoom(from, mx, mz) } : c;
     }) }));
   };
 

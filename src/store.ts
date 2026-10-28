@@ -133,12 +133,12 @@ export const useStore = create<State>((set, get) => ({
   moveGroup: (along, up = 0) => {
     const st = get();
     const ids = picked(st);
-    // "Along" is along the wall of the cabinet you're working from; every cabinet in the group
+    // "Along" is along the run: the wall most of the group hangs on; every cabinet in the group
     // moves that same way in the room, including one standing off another wall (a plate cabinet
     // facing the dining room beside a fridge)
-    const lead = st.project.cabinets.find((c) => c.id === st.selectedId) ?? st.project.cabinets.find((c) => ids.includes(c.id));
-    if (!lead) return;
-    const [ax, az] = wallAxes[lead.wall].along;
+    const wall = runWall(st.project.cabinets.filter((c) => ids.includes(c.id)), st.selectedId);
+    if (!wall) return;
+    const [ax, az] = wallAxes[wall].along;
     st.commit((p) => ({ ...p, cabinets: p.cabinets.map((c) => (ids.includes(c.id) ? { ...c, ...shiftInRoom(c, along * ax, along * az), elevation: Math.max(0, c.elevation + up) } : c)) }));
   },
   setView: (view) => set({ view }),
@@ -219,3 +219,19 @@ useStore.subscribe((s, prev) => {
 export function picked(st: { selectedId: string | null; group: string[] }): string[] {
   return st.group.length > 1 && st.selectedId && st.group.includes(st.selectedId) ? st.group : st.selectedId ? [st.selectedId] : [];
 }
+
+/**
+ * The wall a group runs along: the one most of its cabinets hang on (a cabinet turned to face a side
+ * room doesn't change it), or the selected cabinet's on a tie.
+ */
+export function runWall(cabs: Cabinet[], selectedId: string | null): WallId | null {
+  if (!cabs.length) return null;
+  const count = new Map<WallId, number>();
+  for (const c of cabs) count.set(c.wall, (count.get(c.wall) ?? 0) + 1);
+  const best = Math.max(...count.values());
+  const lead = cabs.find((c) => c.id === selectedId);
+  return lead && count.get(lead.wall) === best ? lead.wall : [...count].find(([, n]) => n === best)![0];
+}
+
+/** A cabinet standing off its wall (an island, or one turned to face another room) can move either way in the plan. */
+export const freeStanding = (c: Cabinet) => !!c.island || (c.wallInset ?? 0) > 0;

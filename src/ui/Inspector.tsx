@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
 import { cofferOf, perimOf } from '../model/coffer';
 import { combine, combineAll, stackedPairs, upperOn } from '../model/onePiece';
-import { useStore } from '../store';
+import { freeStanding, useStore } from '../store';
 import type { CabinetNote, Cabinet, CrownBuild, EndMode, FaceRow, PanelChoice, PanelMode, ShopSettings, WallId } from '../model/types';
 import { buildParts, closetRod, crownFit, crownLayout, crownRoom, layoutRows, noCrownBuild, panelOn } from '../model/parts';
 import { defaultPilaster, pilasterOf, pilasterSections } from '../model/pilaster';
 import { bracketCount, bracketGap, bracketLength, bracketProduct, finishedEnds, floatingOf, shelfPly } from '../model/floatingShelf';
-import { evenRun, fillSpan, gapBeside, resolveEnds, runOf, wallLength, wallNames, wallOrder } from '../model/layout';
+import { evenRun, fillSpan, footprint, gapBeside, resolveEnds, runOf, shiftInRoom, wallLength, wallNames, wallOrder } from '../model/layout';
 import { panelLabel } from '../model/eagle';
 import { nextName, uid } from '../model/defaults';
 import { fmt } from '../units';
@@ -101,6 +101,17 @@ export function Inspector({ cab, issues }: { cab: Cabinet; issues: string[] }) {
             )}
           </div>
         )}
+        {freeStanding(cab) && !cab.corner && (() => {
+          // Where it stands in the plan, measured the way you'd tape it: from the left and back walls
+          const f = footprint(room, cab);
+          return (
+            <div className="grid3">
+              <Field label="Plan: from left wall" htmlFor="cab-px"><LengthInput id="cab-px" value={Math.round(f.x0 * 16) / 16} min={-1000} onChange={(v) => v != null && set(shiftInRoom(cab, v - f.x0, 0))} /></Field>
+              <Field label="Plan: from back wall" htmlFor="cab-pz"><LengthInput id="cab-pz" value={Math.round(f.z0 * 16) / 16} min={-1000} onChange={(v) => v != null && set(shiftInRoom(cab, 0, v - f.z0))} /></Field>
+              <span className="hint" style={{ alignSelf: 'end' }}>{fmt(f.x1 - f.x0)} × {fmt(f.z1 - f.z0)} in the plan</span>
+            </div>
+          );
+        })()}
         {cab.island && (
           <label className="check-inline">
             <input type="checkbox" checked={cab.islandSides === 2} onChange={(e) => set(e.target.checked
@@ -108,7 +119,12 @@ export function Inspector({ cab, issues }: { cab: Cabinet; issues: string[] }) {
               : { islandSides: undefined, backRows: undefined, wallInset: Math.max(0, (cab.wallInset ?? 0) - cab.depth) })} /> Drawers on both sides (a second case back to back, same openings)
           </label>
         )}
-        <div className="order-actions"><button className="mini" onClick={() => useStore.getState().selectWall(cab.wall)}>Pick everything on the {wallNames[cab.wall].toLowerCase()} to move it together</button></div>
+        {(() => {
+          // A cabinet standing off its wall belongs with the run it stands against
+          const f = footprint(room, cab);
+          const against = !freeStanding(cab) ? cab.wall : f.z0 < 0.5 ? 'back' : f.z1 > room.depth - 0.5 ? 'front' : f.x0 < 0.5 ? 'left' : f.x1 > room.width - 0.5 ? 'right' : null;
+          return against && !cab.island && <div className="order-actions"><button className="mini" onClick={() => useStore.getState().selectWall(against)}>Pick everything on the {wallNames[against].toLowerCase()} to move it together</button></div>;
+        })()}
         <p className="hint">{cab.island
           ? cab.islandSides === 2
             ? `Island, fronts both ways: ${fmt(2 * cab.depth)} deep over the two cases, the seam between them ${fmt(cab.wallInset ?? 0)} off the ${wallNames[cab.wall].toLowerCase()}. The far side mirrors these openings; the base wraps all four sides and the top runs over both.`
