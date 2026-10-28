@@ -24,6 +24,24 @@ export function wallTransform(room: Room, wall: WallId, offset: number, inset = 
   }
 }
 
+/** Room-plan directions (x, z) for a wall: running along it, left to right facing it, and out from it into the room. */
+export const wallAxes: Record<WallId, { along: [number, number]; out: [number, number] }> = {
+  back: { along: [1, 0], out: [0, 1] },
+  front: { along: [-1, 0], out: [0, -1] },
+  left: { along: [0, -1], out: [1, 0] },
+  right: { along: [0, 1], out: [-1, 0] },
+};
+
+/**
+ * Move a cabinet by (dx, dz) in the room's plan, whatever wall it hangs off: the part along its wall
+ * changes its offset, the part across it how far it stands off the wall.
+ */
+export function shiftInRoom(c: Cabinet, dx: number, dz: number): Pick<Cabinet, 'offset' | 'wallInset'> {
+  const a = wallAxes[c.wall];
+  const inset = (c.wallInset ?? 0) + dx * a.out[0] + dz * a.out[1];
+  return { offset: c.offset + dx * a.along[0] + dz * a.along[1], wallInset: inset > 1e-6 ? inset : undefined };
+}
+
 /** Position along a wall for a point on the floor. */
 export function alongWall(room: Room, wall: WallId, x: number, z: number): number {
   switch (wall) {

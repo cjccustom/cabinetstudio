@@ -14,7 +14,7 @@ import { legWidth, mantelClearances } from "../src/model/mantel";
 import { defaultBack, planToProject, readPlan } from "../src/model/planImport";
 import { fromDwgDatabase, parseDxf } from "../src/import/cad";
 import { sampleProject, defaultSettings, presets, cabinetFromPreset } from "../src/model/defaults";
-import { evenRun, fillSpan, findIssues, gapBeside, nextFreeOffset, resolveEnds } from "../src/model/layout";
+import { evenRun, fillSpan, findIssues, footprint, gapBeside, nextFreeOffset, resolveEnds, shiftInRoom } from "../src/model/layout";
 import { fmt, parseLength } from "../src/units";
 import { drawerBoxSize, eaglePrice, hingeHoles } from "../src/model/eagle";
 import { optimize } from "../src/model/optimizer";
@@ -1136,6 +1136,16 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   eq('two-sided island: no layout issues mid-room', findIssues(proj.room, proj.cabinets, proj.settings).map((i) => i.message).join('; '), '');
   eq('two-sided island: labor counts two cases', estimateHours(proj, quoteOf(proj)).find((h) => h.label === 'Case')!.qty, 2);
   eq('wall opening: no trim, floor to ceiling', JSON.stringify((() => { const o = newOpening('open', 'left', p); return [o.trim.flat, o.height === p.room.height, o.name]; })()), JSON.stringify([0, true, 'Wall opening 1']));
+}
+
+// A group moves the same way in the room, even a cabinet standing off another wall
+{
+  const room = { width: 156, depth: 120, height: 80.75 };
+  const t1 = { ...cabinetFromPreset(presets.find((x) => x.id === 'tall-pantry')!, 'back', 12.75, []), id: 'T1', name: 'T1', depth: 21 };
+  const t3 = { ...cabinetFromPreset(presets.find((x) => x.id === 'tall-pantry')!, 'left', 90, []), id: 'T3', name: 'T3', depth: 14, wallInset: 102.75 };
+  const before = [footprint(room, t1), footprint(room, t3)];
+  const after = [{ ...t1, ...shiftInRoom(t1, 3, 0) }, { ...t3, ...shiftInRoom(t3, 3, 0) }].map((c) => footprint(room, c));
+  eq('group move: both shift 3" to the right in the room', after.map((f, i) => `${+(f.x0 - before[i].x0).toFixed(3)},${+(f.z0 - before[i].z0).toFixed(3)}`).join(' '), '3,0 3,0');
 }
 
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');

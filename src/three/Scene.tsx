@@ -14,7 +14,7 @@ import { live, onWheel, useNav } from './navigation';
 import { RoomModel } from './RoomModel';
 import { CofferModel } from './CofferModel';
 import { buildParts } from '../model/parts';
-import { alongWall, footprint, resolveEnds, snapOffset, wallLength, wallTransform } from '../model/layout';
+import { alongWall, footprint, resolveEnds, shiftInRoom, snapOffset, wallAxes, wallLength, wallTransform } from '../model/layout';
 import { buildCabinetGeometry } from './cabinetGeometry';
 import { fmt, fmtFeet } from '../units';
 
@@ -129,8 +129,8 @@ function Cameras({ view, room }: { view: ViewMode; room: Room }) {
 /** Walls only face inward, so the ones between you and the cabinets disappear on their own. */
 interface DragState {
   pointerId: number;
-  /** Everyone moving with this one (a picked group) and where each started. */
-  starts: Map<string, number>;
+  /** Everyone moving with this one (a picked group), as each was when the drag started. */
+  starts: Map<string, Cabinet>;
   plane: THREE.Plane;
   startAlong: number;
   startOffset: number;
@@ -188,7 +188,7 @@ function CabinetModel(props: {
       plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -e.point.y);
     }
     if (!e.ray.intersectPlane(plane, hit)) return;
-    drag.current = { pointerId: e.pointerId, plane, starts: new Map(movers.map((c) => [c.id, c.offset])), startAlong: alongWall(room, cab.wall, hit.x, hit.z), startOffset: cab.offset, moved: false };
+    drag.current = { pointerId: e.pointerId, plane, starts: new Map(movers.map((c) => [c.id, c])), startAlong: alongWall(room, cab.wall, hit.x, hit.z), startOffset: cab.offset, moved: false };
     (e.target as unknown as Element).setPointerCapture?.(e.pointerId);
     if (controls) controls.enabled = false;
   };
@@ -209,7 +209,13 @@ function CabinetModel(props: {
     const others = st.project.cabinets.filter((c) => c.id === cab.id || !d.starts.has(c.id));
     const offset = snapOffset(room, others, cab, d.startOffset + delta, st.project.settings);
     const moved = offset - d.startOffset;
-    st.transient((p) => ({ ...p, cabinets: p.cabinets.map((c) => (d.starts.has(c.id) ? { ...c, offset: d.starts.get(c.id)! + moved } : c)) }));
+    // The rest move the same way in the room, even ones standing off another wall
+    const [ax, az] = wallAxes[cab.wall].along;
+    st.transient((p) => ({ ...p, cabinets: p.cabinets.map((c) => {
+      const from = d.starts.get(c.id);
+      if (!from) return c;
+      return c.id === cab.id ? { ...c, offset } : { ...c, ...shiftInRoom(from, moved * ax, moved * az) };
+    }) }));
   };
 
   const onUp = (e: ThreeEvent<PointerEvent>) => {

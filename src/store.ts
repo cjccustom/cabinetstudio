@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import type { Cabinet, Project, WallId, WallPanel } from './model/types';
 import { cabinetFromPreset, defaultSettings, presets, sampleProject, uid } from './model/defaults';
-import { findIssues, nextFreeOffset, wallLength } from './model/layout';
+import { findIssues, footprint, nextFreeOffset, shiftInRoom, wallAxes, wallLength } from './model/layout';
 import { defaultCutlist, sheetPrice } from './model/cutlist';
 import { setCustomDrawings } from './model/moldings';
 
@@ -120,12 +120,26 @@ export const useStore = create<State>((set, get) => ({
   },
   selectWall: (wall) => {
     // Islands stand out in the room; shift-click one to bring it along
-    const ids = get().project.cabinets.filter((c) => c.wall === wall && !c.island).map((c) => c.id);
+    // Also anything set off another wall that stands against this one (a cabinet turned to face a
+    // side room, its end at this wall)
+    const { room, cabinets } = get().project;
+    const touches = (c: Cabinet) => {
+      const f = footprint(room, c);
+      return wall === 'back' ? f.z0 < 0.5 : wall === 'front' ? f.z1 > room.depth - 0.5 : wall === 'left' ? f.x0 < 0.5 : f.x1 > room.width - 0.5;
+    };
+    const ids = cabinets.filter((c) => !c.island && (c.wall === wall || ((c.wallInset ?? 0) > 0 && touches(c)))).map((c) => c.id);
     set({ group: ids.length > 1 ? ids : [], selectedId: ids[0] ?? null });
   },
   moveGroup: (along, up = 0) => {
-    const ids = picked(get());
-    get().commit((p) => ({ ...p, cabinets: p.cabinets.map((c) => (ids.includes(c.id) ? { ...c, offset: c.offset + along, elevation: Math.max(0, c.elevation + up) } : c)) }));
+    const st = get();
+    const ids = picked(st);
+    // "Along" is along the wall of the cabinet you're working from; every cabinet in the group
+    // moves that same way in the room, including one standing off another wall (a plate cabinet
+    // facing the dining room beside a fridge)
+    const lead = st.project.cabinets.find((c) => c.id === st.selectedId) ?? st.project.cabinets.find((c) => ids.includes(c.id));
+    if (!lead) return;
+    const [ax, az] = wallAxes[lead.wall].along;
+    st.commit((p) => ({ ...p, cabinets: p.cabinets.map((c) => (ids.includes(c.id) ? { ...c, ...shiftInRoom(c, along * ax, along * az), elevation: Math.max(0, c.elevation + up) } : c)) }));
   },
   setView: (view) => set({ view }),
   setDragging: (dragging) => set({ dragging }),
