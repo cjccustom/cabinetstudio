@@ -13,12 +13,13 @@ export function wallLength(room: Room, wall: WallId): number {
  * Room coordinates: x = 0..width along the back wall, z = 0 (back wall) .. depth (front), y up.
  * Offsets along a wall are measured from its left end as you stand in the room facing it.
  */
-export function wallTransform(room: Room, wall: WallId, offset: number): { pos: [number, number, number]; rotY: number } {
+export function wallTransform(room: Room, wall: WallId, offset: number, inset = 0): { pos: [number, number, number]; rotY: number } {
+  inset = +inset || 0;
   switch (wall) {
-    case 'back': return { pos: [offset, 0, 0], rotY: 0 };
-    case 'left': return { pos: [0, 0, room.depth - offset], rotY: Math.PI / 2 };
-    case 'right': return { pos: [room.width, 0, offset], rotY: -Math.PI / 2 };
-    case 'front': return { pos: [room.width - offset, 0, room.depth], rotY: Math.PI };
+    case 'back': return { pos: [offset, 0, inset], rotY: 0 };
+    case 'left': return { pos: [inset, 0, room.depth - offset], rotY: Math.PI / 2 };
+    case 'right': return { pos: [room.width - inset, 0, offset], rotY: -Math.PI / 2 };
+    case 'front': return { pos: [room.width - offset, 0, room.depth - inset], rotY: Math.PI };
   }
 }
 
@@ -36,7 +37,7 @@ export interface Footprint { x0: number; x1: number; z0: number; z1: number; y0:
 
 /** Room-space bounding box of the case, face frame and any end panels (doors and counters excluded). */
 export function footprint(room: Room, c: Cabinet, ext = { left: 0, right: 0 }): Footprint {
-  const { pos, rotY } = wallTransform(room, c.wall, c.offset);
+  const { pos, rotY } = wallTransform(room, c.wall, c.offset, c.wallInset);
   const cos = Math.round(Math.cos(rotY));
   const sin = Math.round(Math.sin(rotY));
   const l = -ext.left;
@@ -136,7 +137,7 @@ export function snapOffset(room: Room, cabinets: Cabinet[], moving: Cabinet, raw
 
 /** Room coordinates of a point given in a cabinet's own coordinates. */
 function toRoom(room: Room, c: Cabinet, lx: number, lz: number): [number, number] {
-  const { pos, rotY } = wallTransform(room, c.wall, c.offset);
+  const { pos, rotY } = wallTransform(room, c.wall, c.offset, c.wallInset);
   const cos = Math.round(Math.cos(rotY));
   const sin = Math.round(Math.sin(rotY));
   return [pos[0] + lx * cos + lz * sin, pos[2] - lx * sin + lz * cos];

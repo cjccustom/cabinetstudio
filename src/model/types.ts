@@ -32,6 +32,8 @@ export interface Cabinet {
   offset: number;
   /** Height of the cabinet bottom off the floor. */
   elevation: number;
+  /** Distance the back of the cabinet stands off its wall (0 = against it). */
+  wallInset?: number;
   width: number;
   height: number;
   depth: number;

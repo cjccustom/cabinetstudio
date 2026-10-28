@@ -148,7 +148,7 @@ function CabinetModel(props: {
     geo.meshes.forEach((m) => m.geometry.dispose());
     geo.edges.dispose();
   }, [geo]);
-  const { pos, rotY } = wallTransform(room, cab.wall, cab.offset);
+  const { pos, rotY } = wallTransform(room, cab.wall, cab.offset, cab.wallInset);
   const controls = useThree((s) => s.controls) as unknown as OrbitControlsImpl | null;
   const drag = useRef<DragState | null>(null);
   const hit = useMemo(() => new THREE.Vector3(), []);
