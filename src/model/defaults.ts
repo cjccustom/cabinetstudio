@@ -161,6 +161,9 @@ export const presets: Preset[] = [
     rows: () => [row('drawer', 6), row('drawer', null), row('drawer', null)] },
   { id: 'closet-bench', label: 'Bench seat, drawer, cushion', kind: 'base', width: 48, height: 14.5, depth: 18, elevation: 0, countertop: true, group: 'closet',
     top: { topKind: 'wood', topThickness: 1, topFront: 0.75, cushion: { thickness: 3, edge: 'boxed' } }, rows: () => [row('drawer', null)] },
+  // The fridge stands on the floor between the case sides, which run down as its panels
+  { id: 'tall-fridge', label: 'Refrigerator surround, cabinet above', kind: 'tall', width: 39.5, height: 84, depth: 30, elevation: 0,
+    rows: () => [row('doors', null, 2, 0), { ...row('appliance', 71), appliance: newAppliance('fridge') }] },
   { id: 'tall-open', label: 'Tall, open shelves', kind: 'tall', width: 18, height: 84, depth: 12, elevation: 0,
     rows: () => [row('open', null, 1, 5)] },
 ];

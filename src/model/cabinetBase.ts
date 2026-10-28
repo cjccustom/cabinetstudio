@@ -39,9 +39,14 @@ export interface BaseLayout {
   b: CabinetBase;
 }
 
+/** A fridge standing on the floor in the bottom opening: the case sides run to the floor as its panels. */
+export const fridgeBelow = (c: Cabinet) => { const r = c.rows[c.rows.length - 1]; return !!r && r.type === 'appliance' && r.appliance?.kind === 'fridge'; };
+
 export function baseLayout(c: Cabinet, s: ShopSettings): BaseLayout {
   const R = s.bottomRailWidth;
   const b = baseOf(c);
+  // A fridge surround has no toe kick, case bottom or bottom rail: the fridge stands on the floor
+  if (fridgeBelow(c)) return { style: 'kick', kick: 0, stileY: 0, railY: 0, railW: 0, flat: 0, top: 0, rise: 0, applied: false, out: 0, b };
   if (!floorStanding(c) || b.style === 'kick') {
     const k = c.kind === 'wall' || c.kind === 'shelf' || c.kind === 'pilaster' || c.kind === 'mantel' ? 0 : s.toeKickHeight;
     // A bookcase standing on a countertop has no case bottom, and by default no bottom rail either

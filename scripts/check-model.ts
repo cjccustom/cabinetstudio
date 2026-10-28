@@ -1153,6 +1153,21 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   eq('group move: both shift 3" to the right in the room', after.map((f, i) => `${+(f.x0 - before[i].x0).toFixed(3)},${+(f.z0 - before[i].z0).toFixed(3)}`).join(' '), '3,0 3,0');
 }
 
+// Refrigerator surround: sides to the floor as the fridge panels, cabinet above built in between
+{
+  const fs = { ...cabinetFromPreset(presets.find((x) => x.id === 'tall-fridge')!, 'back', 0, []), id: 'RF', name: 'RF' };
+  const fp = buildParts(fs, s);
+  const side = fp.find((x) => x.role === 'side')!;
+  eq('fridge surround: sides full height and full depth', `${side.length} ${side.width} ${side.boxes.length}`, `${fs.height} ${fs.depth - s.ffThickness} 1`);
+  eq('fridge surround: no bottom, toe kick or bottom rail', fp.some((x) => x.name === 'Bottom' || x.role === 'toekick' || x.name === 'Bottom rail'), false);
+  const shelf = fp.find((x) => x.name === 'Fixed shelf')!;
+  const back = fp.find((x) => x.role === 'back')!;
+  eq('fridge surround: cabinet above closed by a fixed shelf, back only above it', Math.abs(back.boxes[0].min[1] - shelf.boxes[0].min[1]) < 1e-6, true);
+  const L = layoutRows(fs, s).rows;
+  eq('fridge surround: fridge opening from the floor', `${L[1].y0} ${L[1].height}`, '0 71');
+  eq('fridge surround: opening clears a 36" fridge', fs.width - 2 * s.stileWidth >= 35.75 + 2 * 0.375, true);
+}
+
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');
 
 console.log(failed ? `${failed} check(s) failed` : 'All model checks passed');

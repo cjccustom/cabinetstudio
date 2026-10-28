@@ -5,7 +5,7 @@ import { buildCornerParts } from './corner';
 import { pilasterOf, pilasterParts } from './pilaster';
 import { floatingShelfParts } from './floatingShelf';
 import { fmt as fmtShort, fmt } from '../units';
-import { baseLayout, boardT, cutShape, archShapes } from './cabinetBase';
+import { baseLayout, boardT, cutShape, archShapes, fridgeBelow } from './cabinetBase';
 import { mountShape, profileByNum } from './moldings';
 import type { CutShape } from './types';
 
@@ -167,6 +167,7 @@ export function buildParts(c: Cabinet, s: ShopSettings, ends: EndInfo = { left: 
   const ta = s.boxActualThickness;
   const dd = s.dadoDepth;
   const BL = baseLayout(c, s);
+  const fridge = fridgeBelow(c);
   const kick = BL.kick;
   const railTop = BL.railY + BL.railW;
   // A shaped face frame base cuts its feet into a bare exposed end as well
@@ -205,6 +206,7 @@ export function buildParts(c: Cabinet, s: ShopSettings, ends: EndInfo = { left: 
     else if (kick > 0) notes.push(`Toe notch ${fmtShort(kick)} × ${fmtShort(notch)}${c.island ? ', front and back' : ''}`);
     const bare = exposed && panel === 'none';
     notes.push(bare ? 'Exposed end: pocket screw from inside' : exposed ? 'Under end panel: glue & staple' : 'Hidden: glue & staple');
+    if (fridge) notes.push('Runs to the floor as the fridge panel');
     if (fl) notes.push('Band the front edge');
     parts.push({
       name: bare ? 'Side, exposed' : 'Side', role: 'side', material: 'box', length: H, width: boxD, thickness: tn, cut: true, banded: fl || undefined,
@@ -216,7 +218,7 @@ export function buildParts(c: Cabinet, s: ShopSettings, ends: EndInfo = { left: 
   // Bottom: in dados, a hair below the top of the bottom rail, or flush with the bottom of the
   // face frame on wall cabinets hung high enough that the underside shows.
   const flush = c.kind === 'wall' && !!c.bottomFlush;
-  const noBottom = c.kind !== 'base' && !!c.noBottom;
+  const noBottom = (c.kind !== 'base' && !!c.noBottom) || fridge;
   const botTop = flush ? ta : railTop - s.bottomReveal;
   if (!noBottom) parts.push({
     name: 'Bottom', role: 'bottom', material: 'box', length: cutW, width: boxD - rw, thickness: tn, cut: true, banded: fl || undefined,
@@ -247,7 +249,9 @@ export function buildParts(c: Cabinet, s: ShopSettings, ends: EndInfo = { left: 
 
   // Back, in a rabbet at the back of the sides
   // With no bottom the back runs down to the countertop with the sides
-  const backBottom = noBottom ? 0 : botTop - ta;
+  // Over a fridge the back starts at the fixed shelf that closes the cabinet above it
+  const fr = fridge && c.rows.length > 1 ? layoutRows(c, s).rows[c.rows.length - 1] : null;
+  const backBottom = fr ? fr.y1 + gapAbove(c, s, c.rows.length - 1) - ta : noBottom ? 0 : botTop - ta;
   parts.push({
     name: 'Back', role: 'back', material: 'back', length: H - backBottom, width: cutW, thickness: bt, cut: true,
     note: `In ${fmtShort(rw)} × ${dados} rabbet`,
@@ -402,7 +406,9 @@ export function buildParts(c: Cabinet, s: ShopSettings, ends: EndInfo = { left: 
       const openAbove = isOpenRow(c.rows[i - 1].type, c.rows[i - 1].covered) && !isOpenRow(c.rows[i].type, c.rows[i].covered);
       // Hanging space has a fixed shelf over it to carry the rod, and under it to close it off
       const hang = c.rows[i].type === 'hang' || c.rows[i - 1].type === 'hang';
-      if (lg || openAbove || hang) {
+      // The cabinet over a fridge closes off with a fixed shelf on the rail
+      const overFridge = c.rows[i].type === 'appliance' && c.rows[i].appliance?.kind === 'fridge';
+      if (lg || openAbove || hang || overFridge) {
         const topY = r.y1 + mw + (lg?.thickness ?? 0);
         const lap = lg ? 0.75 : 0;
         parts.push({ name: 'Fixed shelf', role: 'shelf', material: 'box', length: innerW + 2 * dd, width: boxD - rw - lap, thickness: tn, cut: true,

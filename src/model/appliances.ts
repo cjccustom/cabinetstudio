@@ -8,7 +8,7 @@ import { eff, layoutRows } from './parts';
 import { fmt } from '../units';
 import { mantelOf } from './mantel';
 
-export type ApplianceKind = 'microwave' | 'builtInMicrowave' | 'microwaveDrawer' | 'oven' | 'fireplace' | 'gasInsert' | 'masonry' | 'beverage' | 'tv' | 'other';
+export type ApplianceKind = 'fridge' | 'microwave' | 'builtInMicrowave' | 'microwaveDrawer' | 'oven' | 'fireplace' | 'gasInsert' | 'masonry' | 'beverage' | 'tv' | 'other';
 
 export interface Appliance {
   kind: ApplianceKind;
@@ -32,6 +32,7 @@ export interface Appliance {
 
 /** Each kind with typical sizes to start from. Every one gets checked against the spec sheet. */
 export const applianceKinds: Record<ApplianceKind, { label: string; short: string; size: Omit<Appliance, 'kind' | 'model'>; note: string }> = {
+  fridge: { label: 'Refrigerator, full height (in a surround)', short: 'Refrigerator', size: { w: 35.75, h: 70, d: 29.25, side: 0.375, top: 1, back: 1, mount: 'flush' }, note: 'Full-size fridge standing on the floor between the surround sides; leave the door swing and hinge clearance the spec sheet asks for' },
   microwave: { label: 'Microwave on a shelf', short: 'Microwave', size: { w: 22, h: 13, d: 17, side: 1, top: 2, back: 1, mount: 'shelf' }, note: 'Countertop microwave in its own open space; keep its venting clearance and put an outlet in the space' },
   builtInMicrowave: { label: 'Built-in microwave with trim kit', short: 'Microwave', size: { w: 24, h: 13.5, d: 18, side: 1.5, top: 2, back: 1, mount: 'flush' }, note: 'Built-in microwave; the trim kit covers the gap to the face frame. Size the opening to the trim kit cutout' },
   microwaveDrawer: { label: 'Microwave drawer', short: 'Microwave drawer', size: { w: 30, h: 15, d: 23, side: 0, top: 0, back: 1, mount: 'flush' }, note: 'Microwave drawer; size the opening to its cutout and give it an outlet behind' },
@@ -73,6 +74,9 @@ export const modelUrl = (m: Model3D) => (m.assetId ? `/_blob/${m.assetId}` : m.u
  */
 export interface AppliancePreset { kind: ApplianceKind; label: string; model?: string; size: Omit<Appliance, 'kind' | 'model'>; note: string }
 export const appliancePresets: AppliancePreset[] = [
+  { kind: 'fridge', label: '36" French door (typical)', size: { w: 35.75, h: 70, d: 29.25, side: 0.375, top: 1, back: 1, mount: 'flush' }, note: 'Typical 36" French door, standard depth; case depth without doors and handles' },
+  { kind: 'fridge', label: '36" counter depth (typical)', size: { w: 35.75, h: 70, d: 24.5, side: 0.375, top: 1, back: 1, mount: 'flush' }, note: 'Typical 36" counter-depth; case depth without doors' },
+  { kind: 'fridge', label: '30" top freezer (typical)', size: { w: 29.75, h: 66.25, d: 28.75, side: 0.375, top: 1, back: 1, mount: 'flush' }, note: 'Typical 30" top-freezer' },
   { kind: 'microwave', label: 'Compact countertop (typical)', size: { w: 18, h: 10.5, d: 14, side: 1, top: 2, back: 1, mount: 'shelf' }, note: 'Typical 0.7 cu ft class' },
   { kind: 'microwave', label: 'Mid-size countertop (typical)', size: { w: 22, h: 13, d: 17, side: 1, top: 2, back: 1, mount: 'shelf' }, note: 'Typical 1.2–1.6 cu ft class' },
   { kind: 'microwave', label: 'Large countertop (typical)', size: { w: 24, h: 14.25, d: 19.5, side: 1, top: 2, back: 1, mount: 'shelf' }, note: 'Typical 2.0–2.2 cu ft class' },
