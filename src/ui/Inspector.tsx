@@ -87,7 +87,21 @@ export function Inspector({ cab, issues }: { cab: Cabinet; issues: string[] }) {
           <Field label="From left" htmlFor="cab-off"><LengthInput id="cab-off" value={cab.offset} min={-1000} onChange={(v) => set({ offset: v! })} /></Field>
           <Field label="Off floor" htmlFor="cab-elev"><LengthInput id="cab-elev" value={cab.elevation} onChange={(v) => set({ elevation: v! })} /></Field>
         </div>
-        <p className="hint">Drag the cabinet in the 3D, Plan or Elevation view to slide it along the wall. It snaps to neighbors and wall ends.</p>
+        {(cab.kind === 'base' || cab.kind === 'tall' || cab.island || (cab.wallInset ?? 0) > 0) && !cab.corner && (
+          <div className="grid3">
+            <Field label="Off the wall" htmlFor="cab-inset"><LengthInput id="cab-inset" value={cab.wallInset ?? 0} onChange={(v) => set({ wallInset: v || undefined })} /></Field>
+            {cab.kind === 'base' && (
+              <label className="check-inline" style={{ gridColumn: 'span 2', alignSelf: 'end' }}>
+                <input type="checkbox" checked={!!cab.island} onChange={(e) => set(e.target.checked
+                  ? { island: true, topBack: cab.topBack ?? cab.topFront ?? 1, wallInset: cab.wallInset || Math.max(0, Math.round(((cab.wall === 'back' || cab.wall === 'front' ? room.depth : room.width) - cab.depth) / 2)) }
+                  : { island: undefined, topBack: undefined })} /> Freestanding island, back finished
+              </label>
+            )}
+          </div>
+        )}
+        <p className="hint">{cab.island
+          ? `Island: back ${fmt(cab.wallInset ?? 0)} off the ${wallNames[cab.wall].toLowerCase()}, facing away from it. The back gets a panel in the door style, the toe kick runs around it, and the top overhangs all four sides.`
+          : 'Drag the cabinet in the 3D, Plan or Elevation view to slide it along the wall. It snaps to neighbors and wall ends.'}</p>
       </Section>
 
       {(cab.blind || cab.corner) && <CornerSection cab={cab} set={set} />}
@@ -120,6 +134,15 @@ export function Inspector({ cab, issues }: { cab: Cabinet; issues: string[] }) {
               <LengthInput id={`row-h-${r.id}`} value={r.height} allowAuto placeholder={`auto ${fmt(layout[i]?.height ?? 0)}`} onChange={(v) => setRow(r.id, { height: v })} />
               {r.type === 'doors' ? (
                 <select id={`row-doors-${r.id}`} aria-label="Door count" value={r.doors} onChange={(e) => setRow(r.id, { doors: Number(e.target.value) as 1 | 2 })}>
+                  <option value={1}>1 door</option>
+                  <option value={2}>2 doors</option>
+                </select>
+              ) : r.type === 'hang' || r.type === 'shoes' ? (
+                <select id={`row-doors-${r.id}`} aria-label="Open or behind doors" value={r.covered ? r.doors : 0} onChange={(e) => {
+                  const n = Number(e.target.value);
+                  setRow(r.id, n ? { covered: true, doors: n as 1 | 2 } : { covered: undefined });
+                }}>
+                  <option value={0}>Open</option>
                   <option value={1}>1 door</option>
                   <option value={2}>2 doors</option>
                 </select>
@@ -239,6 +262,11 @@ export function Inspector({ cab, issues }: { cab: Cabinet; issues: string[] }) {
             {cab.countertop && (
               <Field label="Right overhang" htmlFor="cab-topr">
                 <LengthInput id="cab-topr" value={cab.topRight ?? null} allowAuto placeholder="0&quot;" onChange={(v) => set({ topRight: v ?? undefined })} />
+              </Field>
+            )}
+            {cab.countertop && cab.island && (
+              <Field label="Back overhang" htmlFor="cab-topb" hint="Past the back panel">
+                <LengthInput id="cab-topb" value={cab.topBack ?? null} allowAuto placeholder={fmt(cab.topFront ?? settings.counterOverhang)} onChange={(v) => set({ topBack: v ?? undefined })} />
               </Field>
             )}
           </div>
@@ -1006,7 +1034,7 @@ function MantelSection({ cab, set }: { cab: Cabinet; set: (patch: Partial<Cabine
 function FitButtons({ cab }: { cab: Cabinet }) {
   const project = useStore((s) => s.project);
   const commit = useStore((s) => s.commit);
-  if (cab.corner || cab.kind === 'shelf') return null;
+  if (cab.corner || cab.kind === 'shelf' || cab.island) return null;
   const { room, cabinets, settings } = project;
   const same = (a: Pick<Cabinet, 'offset' | 'width'>) => Math.abs(a.width - cab.width) < 1 / 32 && Math.abs(a.offset - cab.offset) < 1 / 32;
   const fills = (['right', 'left', 'both'] as const).map((side) => ({ side, to: fillSpan(room, cabinets, cab, settings, side) }))

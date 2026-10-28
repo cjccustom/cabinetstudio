@@ -43,7 +43,9 @@ function frameless(s: ShopSettings): ShopSettings {
 export const isFrameless = (c: Cabinet, s: ShopSettings) => eff(c, s).construction === 'frameless';
 
 /** Open to the room: open shelves, or hanging space. */
-export const isOpenRow = (t: FaceRow['type']) => t === 'open' || t === 'hang' || t === 'shoes';
+export const isOpenRow = (t: FaceRow['type'], covered?: boolean) => t === 'open' || ((t === 'hang' || t === 'shoes') && !covered);
+/** Rows behind doors: door rows, and hanging or shoe space closed in for a wardrobe. */
+export const hasDoors = (r: FaceRow) => r.type === 'doors' || (!!r.covered && (r.type === 'hang' || r.type === 'shoes'));
 /** Shoe shelves: tipped about 15° to the front, a fence on the front edge to stop the heels. */
 export const shoeShelf = { fence: 1.5, lip: 0.75, slope: 0.27, maxDrop: 4 };
 export const closetRod = { diameter: 1.3125, drop: 1.75 };
@@ -190,6 +192,7 @@ export function buildParts(c: Cabinet, s: ShopSettings, ends: EndInfo = { left: 
   const sideShapes = (x: number): CutShape[] => [cutShape('z', [x, 0, 0], boxD, BL.top, ta, BL.b.foot, boxD - Math.max(0.75, BL.b.foot - s.ffThickness), BL.b.shape, BL.rise)];
   const sideBoxes = (x: number, arch = false): VisualBox[] => {
     if (arch) return [vb(x, BL.top, 0, ta, H - BL.top, boxD)];
+    if (kick > 0 && c.island) return [vb(x, kick, 0, ta, H - kick, boxD), vb(x, 0, notch, ta, kick, boxD - 2 * notch)];
     return kick > 0
       ? [vb(x, kick, 0, ta, H - kick, boxD), vb(x, 0, 0, ta, kick, boxD - notch)]
       : [vb(x, 0, 0, ta, H, boxD)];
@@ -198,7 +201,7 @@ export function buildParts(c: Cabinet, s: ShopSettings, ends: EndInfo = { left: 
     const notes = [];
     const arch = archSide(exposed, panel);
     if (arch) notes.push(`Cut ${archShapes[BL.b.shape].toLowerCase()} to match the face frame, ${fmtShort(BL.rise)} high`);
-    else if (kick > 0) notes.push(`Toe notch ${fmtShort(kick)} × ${fmtShort(notch)}`);
+    else if (kick > 0) notes.push(`Toe notch ${fmtShort(kick)} × ${fmtShort(notch)}${c.island ? ', front and back' : ''}`);
     const bare = exposed && panel === 'none';
     notes.push(bare ? 'Exposed end: pocket screw from inside' : exposed ? 'Under end panel: glue & staple' : 'Hidden: glue & staple');
     if (fl) notes.push('Band the front edge');
@@ -269,14 +272,21 @@ export function buildParts(c: Cabinet, s: ShopSettings, ends: EndInfo = { left: 
       note: 'Applied at install; run it continuous where cabinets butt',
       boxes: [vb(0, 0, D - s.toeKickDepth - s.toeKickSkin, W, kick, s.toeKickSkin)],
     });
+    if (c.island) {
+      // An island's kick runs around the back too
+      parts.push({ name: 'Toe kick nailer, back', role: 'nailer', material: 'box', length: innerW, width: kick, thickness: tn, cut: true, note: 'Scrap 3/4" ply',
+        boxes: [vb(xi0, 0, kickBack, innerW, kick, ta)] });
+      parts.push({ name: 'Toe kick skin, back', role: 'toekick', material: 'toeSkin', length: W, width: kick, thickness: s.toeKickSkin, cut: true, note: 'Applied at install',
+        boxes: [vb(0, 0, s.toeKickDepth, W, kick, s.toeKickSkin)] });
+    }
     // The skin wraps around exposed ends, tucked under the end panel
     for (const [exposed, x] of [[ends.left, xi0 - ta - s.toeKickSkin], [ends.right, xi1 + ta]] as const) {
       if (!exposed || BL.style !== 'kick') continue;
-      const len = D - s.toeKickDepth - s.toeKickSkin;
+      const len = D - s.toeKickDepth - s.toeKickSkin - (c.island ? s.toeKickDepth + s.toeKickSkin : 0);
       parts.push({
         name: 'Toe kick return', role: 'toekick', material: 'toeSkin', length: len, width: kick, thickness: s.toeKickSkin, cut: true,
         note: 'Applied at install on the exposed end',
-        boxes: [vb(x, 0, 0, s.toeKickSkin, kick, len)],
+        boxes: [vb(x, 0, c.island ? s.toeKickDepth + s.toeKickSkin : 0, s.toeKickSkin, kick, len)],
       });
     }
   }
@@ -380,7 +390,7 @@ export function buildParts(c: Cabinet, s: ShopSettings, ends: EndInfo = { left: 
       // A one-piece case changes from closed to open here: a fixed shelf divides it, and a ledge
       // (when there is one) sits on the rail and runs across the front
       const lg = ledgeAbove(c, i);
-      const openAbove = isOpenRow(c.rows[i - 1].type) && !isOpenRow(c.rows[i].type);
+      const openAbove = isOpenRow(c.rows[i - 1].type, c.rows[i - 1].covered) && !isOpenRow(c.rows[i].type, c.rows[i].covered);
       // Hanging space has a fixed shelf over it to carry the rod, and under it to close it off
       const hang = c.rows[i].type === 'hang' || c.rows[i - 1].type === 'hang';
       if (lg || openAbove || hang) {
@@ -444,7 +454,7 @@ export function buildParts(c: Cabinet, s: ShopSettings, ends: EndInfo = { left: 
   c.rows.forEach((row, i) => {
     const r = rows[i];
     if (r.height <= 0) return;
-    const split = row.type === 'doors' && row.doors === 2 && c.centerStile;
+    const split = hasDoors(row) && row.doors === 2 && c.centerStile;
     if (split) {
       parts.push({
         name: 'Center stile', role: 'stile', material: 'faceframe', length: r.height, width: sw, thickness: ft, cut: true,
@@ -453,8 +463,8 @@ export function buildParts(c: Cabinet, s: ShopSettings, ends: EndInfo = { left: 
     }
     // Front edges: overlay onto the outer frame, share mid rails, or sit inside the opening for inset
     // A rail with a ledge on it, or open shelves on its other side, belongs to this front alone
-    const ownsAbove = i === 0 || !!ledgeAbove(c, i) || isOpenRow(c.rows[i - 1].type);
-    const ownsBelow = i === rows.length - 1 || isOpenRow(c.rows[i + 1].type);
+    const ownsAbove = i === 0 || !!ledgeAbove(c, i) || isOpenRow(c.rows[i - 1].type, c.rows[i - 1].covered);
+    const ownsBelow = i === rows.length - 1 || isOpenRow(c.rows[i + 1].type, c.rows[i + 1].covered);
     const top = inset ? -rev : ownsAbove ? (i === 0 ? o : Math.min(o, railAbove(c, s, i) - 0.25)) : shareOv(railAbove(c, s, i));
     const bottom = inset ? -rev : ownsBelow ? (i === rows.length - 1 ? o : Math.min(o, railAbove(c, s, i + 1) - 0.25)) : shareOv(railAbove(c, s, i + 1));
     const side = inset ? -rev : o;
@@ -464,7 +474,7 @@ export function buildParts(c: Cabinet, s: ShopSettings, ends: EndInfo = { left: 
     const pairGap = inset ? rev : gap;
     if (row.type === 'drawer' || row.type === 'falseFront') {
       addFront(row.type === 'drawer' ? 'Drawer front' : 'False front', 'drawerFront', ox0 - side, fy, fullW, fh, row.type === 'falseFront' ? 'Fixed, no drawer box' : undefined);
-    } else if (row.type === 'doors') {
+    } else if (hasDoors(row)) {
       if (row.doors === 1) addFront('Door', 'door', ox0 - side, fy, fullW, fh);
       else if (split) {
         const mid = inset ? -rev : shareOv(sw);
@@ -590,6 +600,18 @@ export function buildParts(c: Cabinet, s: ShopSettings, ends: EndInfo = { left: 
     }
   }
 
+  if (c.island) {
+    // The back is finished like an end: a panel in the door style across the case and the end panels
+    const ext = panelExtents(c, s, ends);
+    const len = W + ext.left + ext.right;
+    const [py0, py1] = [doorBottom, doorTop];
+    parts.push({
+      name: 'Back panel, finished', role: 'endPanel', material: 'door', length: py1 - py0, width: len, thickness: pt, cut: false,
+      note: `Island back, over the case back; ${fmtShort(py0)} off cabinet bottom, lined up with the fronts`,
+      order: { item: 'endPanel', w: len, h: py1 - py0, spec: `${doorSpec}, end panel`, ...(style.profile === 'slab' ? {} : { rail: doorStile, stile: doorStile }) },
+      boxes: frontBoxes(-ext.left, py0, -pt, len, py1 - py0, pt, style.profile, doorStile, raised),
+    });
+  }
   if (c.kind === 'base' && c.countertop) parts.push(topPart(c, s, W, D + dt, panelExtents(c, s, ends)));
   if (c.kind !== 'base') parts.push(...crownParts(c, s, ends));
   return fl ? parts.filter((x) => !(x.material === 'faceframe' && (x.role === 'stile' || x.role === 'rail'))) : parts;
@@ -664,15 +686,17 @@ export function topPart(c: Cabinet, s: ShopSettings, W: number, frontFace: numbe
   const left = ext.left + (c.topLeft ?? 0);
   const right = ext.right + (c.topRight ?? 0);
   const len = W + left + right;
-  const depth = frontFace + front;
+  // An island's top also covers its finished back and overhangs it
+  const back = c.island ? s.endPanelThickness + (c.topBack ?? front) : 0;
+  const depth = frontFace + front + back;
   return wood
     ? {
         name: 'Wood top', role: 'woodTop', material: 'solidWood', length: len, width: depth, thickness: t, cut: true,
-        note: `${s.woodSpecies}, glued up; ${fmt(front)} front overhang`,
-        boxes: [vb(-left, c.height, 0, len, t, depth)],
+        note: `${s.woodSpecies}, glued up; ${fmt(front)} front overhang${c.island ? `, ${fmt(back - s.endPanelThickness)} past the back panel` : ''}`,
+        boxes: [vb(-left, c.height, -back, len, t, depth)],
       }
     : {
         name: 'Countertop', role: 'counter', material: 'counter', length: len, width: depth, thickness: t, cut: false,
-        boxes: [vb(-left, c.height, 0, len, t, depth)],
+        boxes: [vb(-left, c.height, -back, len, t, depth)],
       };
 }

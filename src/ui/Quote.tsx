@@ -34,7 +34,7 @@ export function QuoteInputs() {
   const setStd = (patch: Partial<LaborStandards>) => set({ standards: { ...q.standards, ...patch } });
   const stdFields: [keyof LaborStandards, string][] = [
     ['jobSetup', 'Drawings, ordering, setup (per job)'], ['perBox', 'Case (per cabinet)'], ['tallBox', 'Tall case extra'], ['faceFrame', 'Face frame (per cabinet)'],
-    ['perOpening', 'Per face frame opening'], ['perDoor', 'Per door'], ['perDrawer', 'Per drawer'], ['insetFactor', 'Inset multiplier (×)'],
+    ['perOpening', 'Per face frame opening'], ['perDoor', 'Per door'], ['perDrawer', 'Per drawer'], ['insetFactor', 'Inset multiplier (×)'], ['stainShop', 'Stain grade, shop work (×)'], ['stainInstall', 'Stain grade, install & trim (×)'],
     ['perShelf', 'Per shelf'], ['shelfFront', 'Per applied shelf front'], ['cofferLayout', 'Coffers: layout & prep (per ceiling)'], ['cofferInstallPerFt', 'Coffer beams & fascia, install, per ft'], ['cofferCrownPerCoffer', 'Crown per coffer'], ['cofferPrepPerCoffer', 'Coffer joinery & paint prep, per coffer'], ['soffitPanel', 'Per soffit underside panel'], ['basePiece', 'Per baseboard / skirt piece'], ['archCut', 'Per arched cut'], ['endPanel', 'Per end panel'], ['extendedStile', 'Per extended stile'], ['woodTop', 'Per wood top / seat'],
     ['woodTopPerSqFt', 'Wood top per sq ft'], ['moldingPerFt', 'Moulding prep per ft'], ['beadboardPerSqFt', 'Beadboard per sq ft'],
     ['installPerBox', 'Install per cabinet'], ['installTall', 'Install tall extra'], ['installDay', 'Per install day (load-in, cleanup)'],

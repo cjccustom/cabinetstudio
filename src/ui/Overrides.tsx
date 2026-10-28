@@ -39,6 +39,7 @@ export function OverridesSection({ cab, settings, set }: { cab: Cabinet; setting
       <p className="hint">Blank fields follow the job’s shop standards. Fill one in to change it for this cabinet only.</p>
       <div className="grid2">
         {choice('construction', 'Case', [{ v: 'faceframe', label: 'Face frame' }, { v: 'frameless', label: 'Frameless' }])}
+        {choice('finish', 'Finish', [{ v: 'paint', label: 'Paint grade' }, { v: 'stain', label: 'Stain grade' }])}
         {choice('doorStyleId', 'Door style (framing bead)', doorStyles.map((d) => ({ v: d.id, label: d.bead ? `${d.name} (${d.bead})` : d.name })))}
         {style.panelChoice && choice('centerPanel', 'Center panel', centerPanels.map((c) => ({ v: c.code, label: `${c.code} ${c.name}` })))}
         {style.panelChoice && choice('frontPanel', 'Drawer front panel', centerPanels.map((c) => ({ v: c.code, label: `${c.code} ${c.name}` })))}

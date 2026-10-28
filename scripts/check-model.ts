@@ -1064,6 +1064,33 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   eq('shoes: fence labor', estimateHours(proj, quoteOf(proj)).some((h) => h.label === 'Shoe fences' && h.qty === 9), true);
 }
 
+// Wardrobe, closet island, stain grade labor
+{
+  const mk = (id: string) => ({ ...cabinetFromPreset(presets.find((x) => x.id === id)!, 'back', 0, []), id, name: id });
+  const wr = buildParts(mk('closet-wardrobe'), s);
+  eq('wardrobe: rod behind a pair of doors, doors above too', `${wr.filter((x) => x.role === 'rod').length} rod, ${wr.filter((x) => x.role === 'door').length} doors`, '1 rod, 4 doors');
+  const wd = buildParts(mk('closet-wardrobe-drawers'), s);
+  eq('wardrobe over drawers', `${wd.filter((x) => x.role === 'rod').length} rod, ${wd.filter((x) => x.role === 'door').length} doors, ${wd.filter((x) => x.role === 'drawerBox').length} drawers`, '1 rod, 2 doors, 2 drawers');
+  const isl = { ...mk('closet-island'), wallInset: 60 };
+  const ends = { left: true, right: true };
+  const ip = buildParts(isl, s, ends);
+  const back = ip.find((x) => x.name === 'Back panel, finished')!;
+  eq('island: finished back panel on the Eagle order', `${!!back} ${back.order?.item}`, 'true endPanel');
+  eq('island: toe kick around the back', ip.some((x) => x.name === 'Toe kick skin, back'), true);
+  const top = ip.find((x) => x.role === 'woodTop')!;
+  eq('island: top overhangs the back', top.boxes[0].min[2] < -s.endPanelThickness, true);
+  const proj = { ...p, cabinets: [isl] };
+  eq('island: stands in the room, no layout issues', findIssues(proj.room, proj.cabinets, s).map((i) => i.message).join('; '), '');
+  // Stain grade raises cabinet hours by the multipliers
+  const plain = { ...p, cabinets: [mk('closet-drawers')] };
+  const stain = { ...plain, settings: { ...plain.settings, finish: 'stain' as const } };
+  const hrs = (x: typeof plain, install: boolean) => estimateHours(x, quoteOf(x)).filter((h) => !!h.install === install && h.group === 'cabinets' && !h.label.startsWith('Drawings')).reduce((t, h) => t + h.hours, 0);
+  eq('stain grade: shop hours × 1.25', +(hrs(stain, false) / hrs(plain, false)).toFixed(3), 1.25);
+  const inst = (x: typeof plain) => estimateHours(x, quoteOf(x)).find((h) => h.label.startsWith('Install cabinets'))!.hours;
+  eq('stain grade: installing cabinets × 1.25', +(inst(stain) / inst(plain)).toFixed(3), 1.25);
+  eq('stain grade: scope says so', scopeLine(stain.cabinets[0], stain).includes('stain grade hard maple exterior'), true);
+}
+
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');
 
 console.log(failed ? `${failed} check(s) failed` : 'All model checks passed');

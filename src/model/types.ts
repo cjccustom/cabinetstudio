@@ -14,6 +14,8 @@ export interface FaceRow {
   shelves: number;
   /** Width of the mid rail above this row, when it isn't the cabinet's standard (e.g. a tall rail for a ladder rail). */
   railAbove?: number;
+  /** Hanging and shoe rows: closed with doors (a wardrobe) instead of open; doors = how many. */
+  covered?: boolean;
   /** Shoe rows: shelves tipped down to the front (the default) or flat. */
   flatShoes?: boolean;
   /** Hanging rows: how far the rod's center sits below the shelf above it, when not the shop's standard. */
@@ -36,6 +38,13 @@ export interface Cabinet {
   elevation: number;
   /** Distance the back of the cabinet stands off its wall (0 = against it). */
   wallInset?: number;
+  /**
+   * Freestanding island (a closet island): stands off the wall by wallInset, back finished with a
+   * panel in the door style, toe kick carried around the back, top overhanging all four sides.
+   */
+  island?: boolean;
+  /** Top overhang past the finished back (islands). */
+  topBack?: number;
   width: number;
   height: number;
   depth: number;
@@ -249,6 +258,8 @@ export interface ShopSettings {
    * edges, a fixed shelf where a mid rail would be and full-overlay fronts. Unset = face frame.
    */
   construction?: 'faceframe' | 'frameless';
+  /** Paint grade (the shop's usual) or stain grade: clear-finished species, so every joint, nail hole and veneer match shows. */
+  finish?: 'paint' | 'stain';
   /** Closet rod: 1 5/16" round, wood or metal, in rod sockets. */
   closetRod?: 'wood' | 'metal';
   /** Rod center below the shelf (or case top) over it. */

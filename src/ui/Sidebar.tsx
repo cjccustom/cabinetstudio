@@ -220,6 +220,12 @@ function ShopPanel() {
               <option value="frameless">Frameless, banded edges</option>
             </select>
           </Field>
+          <Field label="Finish" htmlFor="shop-finish">
+            <select id="shop-finish" value={settings.finish ?? 'paint'} onChange={(e) => set({ finish: e.target.value === 'stain' ? 'stain' : undefined })}>
+              <option value="paint">Paint grade</option>
+              <option value="stain">Stain grade</option>
+            </select>
+          </Field>
           <Field label="Closet rod" htmlFor="shop-rod">
             <select id="shop-rod" value={settings.closetRod ?? 'wood'} onChange={(e) => set({ closetRod: e.target.value as 'wood' | 'metal' })}>
               <option value="wood">1 5/16" round wood</option>
@@ -232,6 +238,7 @@ function ShopPanel() {
           {settings.construction === 'frameless'
             ? 'Frameless: no face frame. Case edges are banded, a fixed shelf stands where each mid rail would be, and fronts overlay the case edges full, leaving the door gap between them. Door mounting below is set for you.'
             : 'Face frame cases, as set below. Switch a whole job to frameless here; a single cabinet can differ under its own construction settings.'}
+          {settings.finish === 'stain' && ' Stain grade: cabinet and moulding hours go up by the stain grade multipliers under Quote → Labor standards, and the scope says stain grade in the face frame species.'}
         </p>
       </Section>
 

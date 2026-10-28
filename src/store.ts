@@ -121,6 +121,11 @@ export const useStore = create<State>((set, get) => ({
         ...(left.corner ? { corner: { ...left.corner, side: 'right' as const } } : {}),
       };
       cab = fits(left) || !fits(right) ? left : right;
+    } else if (preset.top?.island) {
+      // An island goes in the middle of the room, facing the wall it's added to
+      const across = wall === 'back' || wall === 'front' ? project.room.depth : project.room.width;
+      cab = cabinetFromPreset(preset, wall, Math.round((wallLength(project.room, wall) - preset.width) / 2), project.cabinets);
+      cab.wallInset = Math.max(0, Math.round(across / 2 - preset.depth / 2));
     } else {
       const offset = nextFreeOffset(project.room, project.cabinets, wall, preset.width, preset.elevation, preset.elevation + preset.height, preset.depth);
       cab = cabinetFromPreset(preset, wall, offset, project.cabinets);

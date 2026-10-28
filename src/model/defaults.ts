@@ -78,7 +78,7 @@ export interface Preset {
   blind?: Cabinet['blind'];
   corner?: Cabinet['corner'];
   group?: 'corner' | 'mudroom' | 'library' | 'fireplace' | 'closet';
-  top?: Pick<Cabinet, 'topKind' | 'topThickness' | 'topFront' | 'topLeft' | 'topRight' | 'pilaster' | 'floating' | 'noBottom' | 'mantel'>;
+  top?: Pick<Cabinet, 'topKind' | 'topThickness' | 'topFront' | 'topLeft' | 'topRight' | 'topBack' | 'island' | 'pilaster' | 'floating' | 'noBottom' | 'mantel'>;
 }
 
 export const presets: Preset[] = [
@@ -151,6 +151,13 @@ export const presets: Preset[] = [
     rows: () => [row('open', null, 1, 2), row('drawer', 7), row('drawer', 7), row('drawer', 9), row('drawer', 10)] },
   { id: 'closet-dresser', label: 'Drawer bank, 4 drawers', kind: 'base', width: 30, height: 34.5, depth: 20, elevation: 0, countertop: true, group: 'closet',
     top: { topKind: 'wood', topThickness: 1 }, rows: () => [row('drawer', 6), row('drawer', null), row('drawer', null), row('drawer', null)] },
+  { id: 'closet-wardrobe', label: 'Wardrobe, doors over hanging', kind: 'tall', width: 36, height: 84, depth: 24, elevation: 0, group: 'closet',
+    rows: () => [row('doors', 14, 2, 0), { ...row('hang', null, 2), covered: true }] },
+  { id: 'closet-wardrobe-drawers', label: 'Wardrobe, hanging over drawers', kind: 'tall', width: 36, height: 84, depth: 24, elevation: 0, group: 'closet',
+    rows: () => [{ ...row('hang', null, 2), covered: true }, row('drawer', 8), row('drawer', 9)] },
+  { id: 'closet-island', label: 'Closet island, drawers', kind: 'base', width: 48, height: 34.5, depth: 22, elevation: 0, countertop: true, group: 'closet',
+    top: { island: true, topKind: 'wood', topThickness: 1, topFront: 1, topLeft: 1, topRight: 1, topBack: 1 },
+    rows: () => [row('drawer', 6), row('drawer', null), row('drawer', null)] },
   { id: 'tall-open', label: 'Tall, open shelves', kind: 'tall', width: 18, height: 84, depth: 12, elevation: 0,
     rows: () => [row('open', null, 1, 5)] },
 ];

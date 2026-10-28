@@ -27,6 +27,9 @@ export interface LaborStandards {
   frameless?: number;
   /** Cutting a closet rod and setting it in its sockets. */
   closetRod?: number;
+  /** Stain grade multipliers on cabinet and moulding hours: shop work, and install & trim. */
+  stainShop?: number;
+  stainInstall?: number;
   perBox: number;
   tallBox: number;
   faceFrame: number;
@@ -97,6 +100,8 @@ export const defaultStandards: LaborStandards = {
   perDoor: 0.3,
   perDrawer: 0.6,
   insetFactor: 1.6,
+  stainShop: 1.25,
+  stainInstall: 1.25,
   perShelf: 0.2,
   shelfFront: 0.15,
   mantelBuild: 20,
@@ -256,34 +261,39 @@ export function estimateHours(p: Project, q: QuoteSettings): HourLine[] {
       continue;
     }
     const s = eff(c, p.settings);
+    // Stain grade: grain-matched stock, tighter joints, hidden fasteners, more sanding, no caulk on site
+    const stain = s.finish === 'stain';
+    const addC = (label: string, qty: number, each: number, group: Group = 'cabinets', install = false) =>
+      add(stain ? `${label}, stain grade` : label, qty, each * (stain ? (install ? st.stainInstall ?? 1.25 : st.stainShop ?? 1.25) : 1), group, install);
     const parts = buildParts(c, p.settings, resolveEnds(p.room, p.cabinets, c));
     const tall = c.height > 60;
     const inset = s.doorMount === 'inset' ? st.insetFactor : 1;
     const n = (role: string) => parts.filter((x) => x.role === role).length;
-    add('Case', 1, st.perBox);
-    if (tall) add('Tall case (extra)', 1, st.tallBox);
-    if (s.construction !== 'frameless') add('Face frame', 1, st.faceFrame);
-    else add('Edge banding the case (frameless)', 1, st.frameless ?? 0.75);
-    add('Face frame openings', c.rows.length + (c.corner ? 1 : 0), st.perOpening);
-    add(inset > 1 ? 'Doors, inset (fit & hang)' : 'Doors (fit & hang)', n('door'), st.perDoor * inset);
-    add(inset > 1 ? 'Drawers, inset (slides & fronts)' : 'Drawers (slides & fronts)', n('drawerBox') + parts.filter((x) => x.name === 'False front').length * 0.5, st.perDrawer * inset);
-    add('Shelves', n('shelf'), st.perShelf);
+    addC('Case', 1, st.perBox);
+    if (tall) addC('Tall case (extra)', 1, st.tallBox);
+    if (s.construction !== 'frameless') addC('Face frame', 1, st.faceFrame);
+    else addC('Edge banding the case (frameless)', 1, st.frameless ?? 0.75);
+    addC('Face frame openings', c.rows.length + (c.corner ? 1 : 0), st.perOpening);
+    addC(inset > 1 ? 'Doors, inset (fit & hang)' : 'Doors (fit & hang)', n('door'), st.perDoor * inset);
+    addC(inset > 1 ? 'Drawers, inset (slides & fronts)' : 'Drawers (slides & fronts)', n('drawerBox') + parts.filter((x) => x.name === 'False front').length * 0.5, st.perDrawer * inset);
+    addC('Shelves', n('shelf'), st.perShelf);
     const baseTrim = parts.filter((x) => /^(Baseboard|Skirt|End skirt)/.test(x.name));
-    add('Baseboard / skirt pieces (fit & miter)', baseTrim.length, st.basePiece ?? 0.25);
-    add('Arched cuts (layout & cut)', parts.filter((x) => (x.note ?? '').startsWith('Cut ') && /feet|arch/i.test(x.note ?? '')).length, st.archCut ?? 0.5);
-    add('Applied shelf fronts', parts.filter((x) => x.name === 'Shelf front').length, st.shelfFront ?? 0.15);
-    add('Shoe fences', parts.filter((x) => x.name === 'Shoe fence').length, st.shelfFront ?? 0.15);
-    add('Closet rods (cut & set in sockets)', n('rod'), st.closetRod ?? 0.25, 'cabinets', true);
-    installHours += n('rod') * (st.closetRod ?? 0.25);
-    add('End panels', n('endPanel'), st.endPanel);
-    add('Extended stiles', parts.filter((x) => x.name === 'Stile, extended').length, st.extendedStile);
+    addC('Baseboard / skirt pieces (fit & miter)', baseTrim.length, st.basePiece ?? 0.25);
+    addC('Arched cuts (layout & cut)', parts.filter((x) => (x.note ?? '').startsWith('Cut ') && /feet|arch/i.test(x.note ?? '')).length, st.archCut ?? 0.5);
+    addC('Applied shelf fronts', parts.filter((x) => x.name === 'Shelf front').length, st.shelfFront ?? 0.15);
+    addC('Shoe fences', parts.filter((x) => x.name === 'Shoe fence').length, st.shelfFront ?? 0.15);
+    addC('Closet rods (cut & set in sockets)', n('rod'), st.closetRod ?? 0.25, 'cabinets', true);
+    installHours += n('rod') * (st.closetRod ?? 0.25) * (stain ? st.stainInstall ?? 1.25 : 1);
+    addC('End panels', n('endPanel'), st.endPanel);
+    addC('Extended stiles', parts.filter((x) => x.name === 'Stile, extended').length, st.extendedStile);
     for (const t of parts.filter((x) => x.role === 'woodTop')) {
+      // Solid wood tops take the same work either way
       add('Glue-up & finish tops', 1, st.woodTop, 'tops');
       add('Top area (sq ft)', Math.round(sqft(t.length, t.width) * 10) / 10, st.woodTopPerSqFt, 'tops');
       add('Install tops', 1, 0.5, 'tops', true);
     }
-    const box = st.installPerBox + (tall ? st.installTall : 0);
-    add('Install cabinets', 1, box, 'cabinets', true);
+    const box = (st.installPerBox + (tall ? st.installTall : 0)) * (stain ? st.stainInstall ?? 1.25 : 1);
+    add(stain ? 'Install cabinets, stain grade' : 'Install cabinets', 1, box, 'cabinets', true);
     installHours += box;
     if (q.installPulls) add('Install pulls & knobs', n('door') + n('drawerFront'), st.pullInstall, 'cabinets', true);
   }
@@ -295,9 +305,12 @@ export function estimateHours(p: Project, q: QuoteSettings): HourLine[] {
     const ft = Math.round((Math.max(0, m.inches - perCoffer) / 12) * 10) / 10;
     if (ft <= 0) continue;
     const group = moldGroup(m.kinds);
-    add('Mouldings: cut & prep (ft)', ft, st.moldingPerFt, group);
-    add('Mouldings: install (ft)', ft, st.moldingInstallPerFt, group, true);
-    installHours += ft * st.moldingInstallPerFt;
+    // Stain-grade mouldings: matched for color, coped and fitted tight, no caulk to hide a gap
+    const ms = p.settings.finish === 'stain' && group !== 'ceiling';
+    const fs = ms ? st.stainShop ?? 1.25 : 1, fi = ms ? st.stainInstall ?? 1.25 : 1;
+    add(`Mouldings: cut & prep (ft)${ms ? ', stain grade' : ''}`, ft, st.moldingPerFt * fs, group);
+    add(`Mouldings: install (ft)${ms ? ', stain grade' : ''}`, ft, st.moldingInstallPerFt * fi, group, true);
+    installHours += ft * st.moldingInstallPerFt * fi;
   }
   for (const d of doorOrder(p)) {
     const n = d.qty * d.leaves;
@@ -552,7 +565,7 @@ export function scopeLine(c: Cabinet, p: Project): string {
   if (bl) bits.push(bl);
   else if (c.baseMold) bits.push('baseboard');
   if (s.construction === 'frameless') bits.push('frameless construction with banded case edges');
-  bits.push(`${(s.plywood ?? 'Prefinished birch').toLowerCase()} plywood interior with paint grade exterior`);
+  bits.push(`${(s.plywood ?? 'Prefinished birch').toLowerCase()} plywood interior with ${s.finish === 'stain' ? `stain grade ${s.woodSpecies.toLowerCase()}` : 'paint grade'} exterior`);
   return `${c.name}: ${bits.join('; ')}`;
 }
 
