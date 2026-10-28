@@ -21,7 +21,7 @@ import { defaultFaceFrameStock, faceFrameNeeds, faceFramePieces, otherSpecies, r
 import { panelAbove, panelOrder } from "../src/model/panels";
 import { amCatalog } from "../src/model/andersonMcquaid";
 import { cabinetMoldings, moldingOrder, mountShape, profileByNum, setCustomDrawings } from "../src/model/moldings";
-import { estimateHours, estimateMaterials, priceQuote, quoteOf, scopeLine } from "../src/model/quote";
+import { closetRods, estimateHours, estimateMaterials, priceQuote, quoteOf, scopeLine } from "../src/model/quote";
 import { cutStock, defaultCutlist, optimizerParts } from "../src/model/cutlist";
 import { applyBook, choosePlywood, chooseSpecies, priceBook, stalePrices } from "../src/model/pricebook";
 import { normalize } from "../src/store";
@@ -1002,6 +1002,44 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   eq('price book: supplier plywood prices', ['Prefinished maple', 'Red oak', 'Sapele mahogany', 'Walnut'].map(prices).join(' '), '{"3/4\\"":145,"1/2\\"":115} {"3/4\\"":174,"1/2\\"":164} {"3/4\\"":254,"1/2\\"":240} {"3/4\\"":244,"1/2\\"":230}');
   const sap = choosePlywood({ ...p, cutlist: defaultCutlist(p) }, 'plywood', 'Sapele mahogany', book);
   eq('price book: sapele sheets', sap.cutlist!.stock.map((x) => `${x.material} ${x.price}`).join(', '), '3/4" sapele mahogany plywood 254, 1/2" sapele mahogany plywood 240');
+}
+
+// Closets: hanging sections with rods, and frameless cases
+{
+  const mk = (id: string) => ({ ...cabinetFromPreset(presets.find((x) => x.id === id)!, 'back', 0, []), id, name: id });
+  const long = mk('closet-long');
+  const lp = buildParts(long, s);
+  const rod = lp.find((x) => x.role === 'rod')!;
+  const fixed = lp.filter((x) => x.name === 'Fixed shelf');
+  eq('closet: long hang has one rod under a fixed shelf', `${lp.filter((x) => x.role === 'rod').length} rod, ${fixed.length} fixed shelf`, '1 rod, 1 fixed shelf');
+  const sideIn = lp.find((x) => x.name === 'Bottom')!.length - 2 * s.dadoDepth;
+  eq('closet: rod runs between the sides less 1/8', rod.length, sideIn - 0.125);
+  const rodTop = rod.boxes[0].min[1] + rod.boxes[0].size[1];
+  const shelfUnder = fixed[0].boxes[0].min[1];
+  eq('closet: rod center 1 3/4 below the shelf', +(shelfUnder - (rodTop - 1.3125 / 2)).toFixed(4), 1.75);
+  eq('closet: long hang rod height', +(rodTop - 1.3125 / 2).toFixed(3) > 66, true);
+  const dbl = mk('closet-double');
+  const dp = buildParts(dbl, s);
+  const ys = dp.filter((x) => x.role === 'rod').map((x) => Math.round(x.boxes[0].min[1]));
+  eq('closet: double hang has two rods, about 80 and 40 off the floor', ys.length === 2 && ys[0] > 76 && ys[1] > 36 && ys[1] < 46, true);
+  const proj = { ...p, cabinets: [long, { ...dbl, offset: 30 }, { ...mk('closet-medium'), offset: 60 }] };
+  const r = closetRods(proj);
+  eq('closet: rods from 8 ft lengths', `${r.count} rods, ${r.lengths} lengths`, '4 rods, 2 lengths');
+  const ql = estimateMaterials(proj, quoteOf(proj)).find((l) => l.label.startsWith('Closet rods'))!;
+  eq('closet: quote flags missing rod price', !!ql.missing, true);
+  eq('closet: scope says double hang', scopeLine(proj.cabinets[1], proj).includes('double hang'), true);
+
+  // Frameless: same case, no face frame, a fixed shelf for the mid rail, full overlay
+  const fs = { ...s, construction: 'frameless' as const };
+  const base = { ...cabinetFromPreset(presets.find((x) => x.id === 'base-1dr')!, 'back', 0, []), id: 'FB', name: 'FB' };
+  const fp = buildParts(base, fs);
+  eq('frameless: no face frame parts', fp.filter((x) => x.material === 'faceframe' && (x.role === 'stile' || x.role === 'rail')).length, 0);
+  eq('frameless: fixed shelf between drawer and door', fp.filter((x) => x.name === 'Fixed shelf').length, 1);
+  const side = fp.find((x) => x.role === 'side')!;
+  eq('frameless: sides run the full depth, front banded', `${side.width} ${side.banded}`, `${base.depth} true`);
+  const door = fp.find((x) => x.role === 'door')!;
+  eq('frameless: door overlays the case less half the gap each side', door.width, base.width - s.doorGap);
+  eq('frameless: one cabinet can stay face frame', buildParts({ ...base, overrides: { construction: 'faceframe' } }, fs).some((x) => x.role === 'stile'), true);
 }
 
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');

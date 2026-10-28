@@ -77,7 +77,7 @@ export interface Preset {
   countertop?: boolean;
   blind?: Cabinet['blind'];
   corner?: Cabinet['corner'];
-  group?: 'corner' | 'mudroom' | 'library' | 'fireplace';
+  group?: 'corner' | 'mudroom' | 'library' | 'fireplace' | 'closet';
   top?: Pick<Cabinet, 'topKind' | 'topThickness' | 'topFront' | 'topLeft' | 'topRight' | 'pilaster' | 'floating' | 'noBottom' | 'mantel'>;
 }
 
@@ -136,6 +136,13 @@ export const presets: Preset[] = [
     top: { pilaster: { ...defaultPilaster, breaks: [31] } }, rows: () => [] },
   { id: 'float-shelf', label: 'Floating shelf', kind: 'shelf', width: 36, height: 2, depth: 12, elevation: 54, group: 'library',
     top: { floating: { grade: 'paint', face: 0.75 } }, rows: () => [] },
+  // Closet sections: 24" deep for hangers, a rod under a fixed shelf in each hanging opening
+  { id: 'closet-long', label: 'Long hang, shelf above', kind: 'tall', width: 30, height: 84, depth: 24, elevation: 0, group: 'closet',
+    rows: () => [row('open', 11, 1, 0), row('hang', null)] },
+  { id: 'closet-double', label: 'Double hang', kind: 'tall', width: 30, height: 84, depth: 24, elevation: 0, group: 'closet',
+    rows: () => [row('hang', 38), row('hang', null)] },
+  { id: 'closet-medium', label: 'Medium hang, shelves above', kind: 'tall', width: 30, height: 84, depth: 24, elevation: 0, group: 'closet',
+    rows: () => [row('open', null, 1, 2), row('hang', 48)] },
   { id: 'tall-open', label: 'Tall, open shelves', kind: 'tall', width: 18, height: 84, depth: 12, elevation: 0,
     rows: () => [row('open', null, 1, 5)] },
 ];

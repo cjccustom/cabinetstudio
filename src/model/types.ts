@@ -7,13 +7,15 @@ export type CabinetKind = 'base' | 'wall' | 'tall' | 'pilaster' | 'shelf' | 'man
 /** One horizontal band of the face frame, top to bottom, separated by mid rails. */
 export interface FaceRow {
   id: string;
-  type: 'drawer' | 'doors' | 'falseFront' | 'open' | 'appliance';
+  type: 'drawer' | 'doors' | 'falseFront' | 'open' | 'appliance' | 'hang';
   /** Face frame opening height. null = share the leftover height with other auto rows. */
   height: number | null;
   doors: 1 | 2;
   shelves: number;
   /** Width of the mid rail above this row, when it isn't the cabinet's standard (e.g. a tall rail for a ladder rail). */
   railAbove?: number;
+  /** Hanging rows: how far the rod's center sits below the shelf above it, when not the shop's standard. */
+  rodDrop?: number;
   /** What sits in an appliance row: a microwave, wall oven, fireplace insert... */
   appliance?: Appliance;
   /** A solid ledge on the rail above this row, projecting past the face frame: the waist of a one-piece
@@ -238,6 +240,15 @@ export interface ShopSettings {
    * Unset on older jobs: their sheets are just "3/4\" plywood".
    */
   plywood?: string;
+  /**
+   * How the cases are built: face frame (the shop's standard) or frameless, with banded case
+   * edges, a fixed shelf where a mid rail would be and full-overlay fronts. Unset = face frame.
+   */
+  construction?: 'faceframe' | 'frameless';
+  /** Closet rod: 1 5/16" round, wood or metal, in rod sockets. */
+  closetRod?: 'wood' | 'metal';
+  /** Rod center below the shelf (or case top) over it. */
+  rodDrop?: number;
   /** Plywood for exposed case sides and toe kick skins when it differs from the cases; empty = the same. */
   exposedPlywood?: string;
   /** Species for Anderson & McQuaid mouldings, as they list it (Maple, Poplar…). */
@@ -368,11 +379,11 @@ export interface Project {
   ceiling?: Partial<import('./coffer').CofferCeiling>;
 }
 
-export type MaterialKey = 'box' | 'back' | 'toeSkin' | 'faceframe' | 'door' | 'drawerBox' | 'counter' | 'solidWood';
+export type MaterialKey = 'box' | 'back' | 'toeSkin' | 'faceframe' | 'door' | 'drawerBox' | 'counter' | 'solidWood' | 'hardware';
 
 export type PartRole =
   | 'side' | 'bottom' | 'top' | 'stretcher' | 'back' | 'nailer' | 'toekick' | 'shelf'
-  | 'stile' | 'rail' | 'door' | 'drawerFront' | 'drawerBox' | 'endPanel' | 'counter' | 'woodTop' | 'trim';
+  | 'stile' | 'rail' | 'door' | 'drawerFront' | 'drawerBox' | 'endPanel' | 'counter' | 'woodTop' | 'trim' | 'rod';
 
 export interface CabinetNote { id: string; text: string; for: 'both' | 'customer' | 'shop' }
 

@@ -114,6 +114,7 @@ input.len.bad { border-color: var(--warn); background: var(--warn-soft); }
 .g-frame { fill: var(--surface); stroke: var(--muted); stroke-width: 0.8; }
 .g-door { fill: var(--surface); stroke: var(--fg); stroke-width: 0.7; }
 .g-open { fill: var(--sunk); stroke: var(--muted); stroke-width: 0.5; }
+.g-rod { stroke: var(--muted); stroke-width: 1.4; stroke-linecap: round; }
 .g-appl { fill: #4a4d52; stroke: var(--muted); stroke-width: 0.5; }
 .g-kick { fill: var(--muted); }
 

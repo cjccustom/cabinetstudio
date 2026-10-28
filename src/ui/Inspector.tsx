@@ -3,7 +3,7 @@ import { cofferOf, perimOf } from '../model/coffer';
 import { combine, combineAll, stackedPairs, upperOn } from '../model/onePiece';
 import { useStore } from '../store';
 import type { CabinetNote, Cabinet, CrownBuild, EndMode, FaceRow, PanelChoice, PanelMode, ShopSettings, WallId } from '../model/types';
-import { buildParts, crownLayout, layoutRows, noCrownBuild, panelOn } from '../model/parts';
+import { buildParts, closetRod, crownLayout, layoutRows, noCrownBuild, panelOn } from '../model/parts';
 import { defaultPilaster, pilasterOf, pilasterSections } from '../model/pilaster';
 import { bracketCount, bracketGap, bracketLength, bracketProduct, finishedEnds, floatingOf, shelfPly } from '../model/floatingShelf';
 import { evenRun, fillSpan, gapBeside, resolveEnds, runOf, wallLength, wallNames, wallOrder } from '../model/layout';
@@ -27,6 +27,7 @@ const rowTypes: { v: FaceRow['type']; label: string }[] = [
   { v: 'doors', label: 'Doors' },
   { v: 'falseFront', label: 'False front' },
   { v: 'open', label: 'Open' },
+  { v: 'hang', label: 'Hanging (rod)' },
   { v: 'appliance', label: 'Appliance' },
 ];
 
@@ -122,7 +123,9 @@ export function Inspector({ cab, issues }: { cab: Cabinet; issues: string[] }) {
                   <option value={2}>2 doors</option>
                 </select>
               ) : <span />}
-              {r.type === 'doors' || r.type === 'open' ? (
+              {r.type === 'hang' ? (
+                <LengthInput id={`row-rod-${r.id}`} value={r.rodDrop ?? null} allowAuto placeholder={fmt(settings.rodDrop ?? closetRod.drop)} onChange={(v) => setRow(r.id, { rodDrop: v ?? undefined })} />
+              ) : r.type === 'doors' || r.type === 'open' ? (
                 <select id={`row-sh-${r.id}`} aria-label="Shelves" value={r.shelves} onChange={(e) => setRow(r.id, { shelves: Number(e.target.value) })}>
                   {[0, 1, 2, 3, 4, 5, 6].map((n) => <option key={n} value={n}>{n} shelf{n === 1 ? '' : 'ves'}</option>)}
                 </select>
@@ -152,6 +155,9 @@ export function Inspector({ cab, issues }: { cab: Cabinet; issues: string[] }) {
             </li>
           ))}
         </ol>
+        {cab.rows.some((r) => r.type === 'hang') && (
+          <p className="hint">Hanging: the last box is the rod’s center below the shelf over it (blank = Shop standards). Each rod’s height off the floor and clear hang are in its parts note.</p>
+        )}
         <FrameWidths cab={cab} settings={settings} set={set} setRow={setRow} />
         {leftover < -0.01 && <p className="warn">Openings are {fmt(-leftover)} taller than the face frame allows.</p>}
         {leftover > 0.01 && <p className="warn">{fmt(leftover)} of face frame is unused. Make one row auto.</p>}

@@ -149,6 +149,9 @@ export interface QuoteSettings {
   eagleAdjust: number;
   /** Floating shelf brackets: price of a pack (8 to a pack). */
   shelfBracketPack: number;
+  /** Closet rod, per 8' length, and a pair of rod sockets. */
+  closetRod8ft: number;
+  rodSockets: number;
   beadboardSheet: number;
   /** Coffered ceiling stock bought prepped from the millwork supplier, and blocking/fasteners, per ft of beam and perimeter. */
   cofferStockPerFt: number;
@@ -175,6 +178,8 @@ export const defaultQuote: QuoteSettings = {
   workloadAdj: { full: 0.08, normal: 0, light: -0.06 },
   eagleAdjust: 0,
   shelfBracketPack: 16.16,
+  closetRod8ft: 0,
+  rodSockets: 0,
   beadboardSheet: 0,
   cofferStockPerFt: 16,
   cofferSundriesPerFt: 4.4,
@@ -391,6 +396,13 @@ export function estimateMaterials(p: Project, q: QuoteSettings): MaterialLine[] 
   // Bought in packs of 8 for each rod length
   const packs = [...byLen.values()].reduce((t, n) => t + Math.ceil(n / bracketProduct.perPack), 0);
   if (brackets) out.push({ group: 'cabinets', label: 'Floating shelf brackets', cost: packs * q.shelfBracketPack, detail: `${[...byLen].map(([l, n]) => `${n} × ${l}"`).join(', ')}; ${packs} pack${packs > 1 ? 's' : ''} of ${bracketProduct.perPack}`, missing: q.shelfBracketPack ? undefined : 'Enter your bracket pack price' });
+  const rods = closetRods(p);
+  if (rods.count) {
+    const cost = rods.lengths * q.closetRod8ft + rods.count * q.rodSockets;
+    out.push({ group: 'cabinets', label: `Closet rods (1 5/16" ${p.settings.closetRod === 'metal' ? 'metal' : 'wood'}) & sockets`, cost,
+      detail: `${rods.count} rods from ${rods.lengths} × 8' lengths, ${rods.count} pairs of sockets`,
+      missing: q.closetRod8ft && q.rodSockets ? undefined : 'Enter the closet rod and socket prices under Quote → Prices to fill in' });
+  }
   const hw = hardwareOrder(p);
   const hwCost = (g: 'hinges' | 'slides') => hw.lines.filter((l) => l.group === g).reduce((t, l) => t + l.total, 0);
   const hwMissing = (g: 'hinges' | 'slides') => hw.problems.filter((x) => x.group === g).map((x) => x.text).join('; ') || undefined;
@@ -519,6 +531,8 @@ export function scopeLine(c: Cabinet, p: Project): string {
   if (n('drawerBox')) bits.push(`(${n('drawerBox')}) drawer${n('drawerBox') > 1 ? 's' : ''} with dovetail drawer boxes and soft close slides`);
   const adj = parts.filter((x) => x.role === 'shelf' && x.name === 'Adjustable shelf').length;
   if (adj) bits.push(`(${adj}) adjustable shel${adj > 1 ? 'ves' : 'f'}`);
+  const hang = c.rows.filter((r) => r.type === 'hang').length;
+  if (hang) bits.push(hang === 2 ? 'double hang, two closet rods' : hang === 1 ? `${c.rows.some((r) => r.type === 'open') ? 'hanging with shelf storage above, ' : 'hanging, '}closet rod` : `(${hang}) hanging sections with closet rods`);
   for (const r of c.rows) if (r.type === 'appliance' && r.appliance) bits.push(`${r.appliance.mount === 'shelf' ? 'open space' : 'built-in opening'} for owner's ${applianceKinds[r.appliance.kind].short.toLowerCase()}`);
   if (n('endPanel')) bits.push(`(${n('endPanel')}) finished end panel${n('endPanel') > 1 ? 's' : ''}`);
   if (c.countertop && c.topKind === 'wood') bits.push(`${fmtIn(c.topThickness ?? 1.25)} thick solid wood top`);
@@ -527,7 +541,8 @@ export function scopeLine(c: Cabinet, p: Project): string {
   const bl = baseLabel(c);
   if (bl) bits.push(bl);
   else if (c.baseMold) bits.push('baseboard');
-  bits.push('prefinished birch plywood interior with paint grade exterior');
+  if (s.construction === 'frameless') bits.push('frameless construction with banded case edges');
+  bits.push(`${(s.plywood ?? 'Prefinished birch').toLowerCase()} plywood interior with paint grade exterior`);
   return `${c.name}: ${bits.join('; ')}`;
 }
 
@@ -560,4 +575,16 @@ export function cofferScope(p: Project): string | null {
     'paint grade',
   ];
   return `Coffered ceiling: ${bits.join('; ')}`;
+}
+
+/** Every closet rod in the job, and the 8' lengths they're cut from (packed longest first). */
+export function closetRods(p: Project): { cuts: number[]; count: number; lengths: number } {
+  const cuts: number[] = [];
+  for (const c of p.cabinets) for (const part of buildParts(c, p.settings, resolveEnds(p.room, p.cabinets, c))) if (part.role === 'rod') cuts.push(part.length);
+  const bins: number[] = [];
+  for (const l of [...cuts].sort((a, b) => b - a)) {
+    const i = bins.findIndex((used) => used + 0.125 + l <= 96);
+    if (i >= 0) bins[i] += 0.125 + l; else bins.push(l);
+  }
+  return { cuts, count: cuts.length, lengths: bins.length };
 }

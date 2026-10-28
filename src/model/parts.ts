@@ -1,4 +1,4 @@
-import type { CrownBuild, Cabinet, Part, PanelMode, ShopSettings, VisualBox } from './types';
+import type { CrownBuild, Cabinet, FaceRow, Part, PanelMode, ShopSettings, VisualBox } from './types';
 import { mantelParts } from './mantel';
 import { drawerBoxSize, narrowRail, narrowRailBelow, styleById, type DoorProfile, panelByCode } from './eagle';
 import { buildCornerParts } from './corner';
@@ -25,7 +25,26 @@ export interface RowLayout {
 export const kickOf = (c: Cabinet, s: ShopSettings) => (c.kind === 'wall' ? 0 : baseLayout(c, eff(c, s)).kick);
 
 /** The shop standards with this cabinet's own changes applied. */
-export const eff = (c: Cabinet, s: ShopSettings): ShopSettings => (c.overrides ? { ...s, ...c.overrides } : s);
+export const eff = (c: Cabinet, s: ShopSettings): ShopSettings => frameless(c.overrides ? { ...s, ...c.overrides } : s);
+
+/**
+ * Frameless cases, worked as a face frame of nothing: the case edges stand where the stiles and
+ * rails would, a fixed shelf takes each mid rail's place, and the fronts overlay the case edges
+ * full, leaving the door gap between neighbours.
+ */
+function frameless(s: ShopSettings): ShopSettings {
+  if (s.construction !== 'frameless') return s;
+  const ta = s.boxActualThickness;
+  return {
+    ...s, ffThickness: 0, ffOverhang: 0, stileWidth: ta, topRailWidth: ta, bottomRailWidth: ta, midRailWidth: ta,
+    bottomReveal: 0, doorMount: 'overlay', doorOverlay: ta - s.doorGap / 2,
+  };
+}
+export const isFrameless = (c: Cabinet, s: ShopSettings) => eff(c, s).construction === 'frameless';
+
+/** Open to the room: open shelves, or hanging space. */
+export const isOpenRow = (t: FaceRow['type']) => t === 'open' || t === 'hang';
+export const closetRod = { diameter: 1.3125, drop: 1.75 };
 
 /** Width of the mid rail above row i (none above the first row). */
 export const railAbove = (c: Cabinet, s: ShopSettings, i: number) => (i <= 0 || i >= c.rows.length ? 0 : c.rows[i].railAbove ?? eff(c, s).midRailWidth);
@@ -137,6 +156,7 @@ export function buildParts(c: Cabinet, s: ShopSettings, ends: EndInfo = { left: 
   if (c.kind === 'shelf') return floatingShelfParts(c, s, ends);
   if (c.kind === 'mantel') return mantelParts(c, s);
   const parts: Part[] = [];
+  const fl = s.construction === 'frameless';
   const { width: W, height: H, depth: D } = c;
   const tn = s.boxThickness;
   const ta = s.boxActualThickness;
@@ -179,8 +199,9 @@ export function buildParts(c: Cabinet, s: ShopSettings, ends: EndInfo = { left: 
     else if (kick > 0) notes.push(`Toe notch ${fmtShort(kick)} × ${fmtShort(notch)}`);
     const bare = exposed && panel === 'none';
     notes.push(bare ? 'Exposed end: pocket screw from inside' : exposed ? 'Under end panel: glue & staple' : 'Hidden: glue & staple');
+    if (fl) notes.push('Band the front edge');
     parts.push({
-      name: bare ? 'Side, exposed' : 'Side', role: 'side', material: 'box', length: H, width: boxD, thickness: tn, cut: true,
+      name: bare ? 'Side, exposed' : 'Side', role: 'side', material: 'box', length: H, width: boxD, thickness: tn, cut: true, banded: fl || undefined,
       note: notes.join(' · '),
       boxes: sideBoxes(x, arch), shapes: arch ? sideShapes(x) : undefined,
     });
@@ -192,8 +213,8 @@ export function buildParts(c: Cabinet, s: ShopSettings, ends: EndInfo = { left: 
   const noBottom = c.kind !== 'base' && !!c.noBottom;
   const botTop = flush ? ta : railTop - s.bottomReveal;
   if (!noBottom) parts.push({
-    name: 'Bottom', role: 'bottom', material: 'box', length: cutW, width: boxD - rw, thickness: tn, cut: true,
-    note: flush ? `In ${dados} dados, flush with bottom of face frame` : `In ${dados} dados`,
+    name: 'Bottom', role: 'bottom', material: 'box', length: cutW, width: boxD - rw, thickness: tn, cut: true, banded: fl || undefined,
+    note: fl ? `In ${dados} dados, front edge banded` : flush ? `In ${dados} dados, flush with bottom of face frame` : `In ${dados} dados`,
     boxes: [vb(xi0, botTop - ta, rw, innerW, ta, boxD - rw)],
   });
 
@@ -212,8 +233,8 @@ export function buildParts(c: Cabinet, s: ShopSettings, ends: EndInfo = { left: 
   } else {
     topUnder = H - s.topRailWidth + s.bottomReveal;
     parts.push({
-      name: 'Top', role: 'top', material: 'box', length: cutW, width: boxD - rw, thickness: tn, cut: true,
-      note: `In ${dados} dados`,
+      name: 'Top', role: 'top', material: 'box', length: cutW, width: boxD - rw, thickness: tn, cut: true, banded: fl || undefined,
+      note: fl ? `In ${dados} dados, front edge banded` : `In ${dados} dados`,
       boxes: [vb(xi0, topUnder, rw, innerW, ta, boxD - rw)],
     });
   }
@@ -343,7 +364,11 @@ export function buildParts(c: Cabinet, s: ShopSettings, ends: EndInfo = { left: 
 
   const { rows } = layoutRows(c, s);
   rows.forEach((r, i) => {
-    if (i > 0) {
+    if (i > 0 && fl) {
+      // Frameless: a fixed shelf where the mid rail would be, its banded edge between the fronts
+      parts.push({ name: 'Fixed shelf', role: 'shelf', material: 'box', length: innerW + 2 * dd, width: boxD - rw, thickness: tn, cut: true, banded: true,
+        note: 'Dadoed in, front edge banded', boxes: [vb(xi0, r.y1, rw, innerW, ta, boxD - rw)] });
+    } else if (i > 0) {
       const mw = railAbove(c, s, i);
       parts.push({
         name: 'Mid rail', role: 'rail', material: 'faceframe', length: ox1 - ox0, width: mw, thickness: ft, cut: true,
@@ -354,11 +379,13 @@ export function buildParts(c: Cabinet, s: ShopSettings, ends: EndInfo = { left: 
       // (when there is one) sits on the rail and runs across the front
       const lg = ledgeAbove(c, i);
       const openAbove = c.rows[i - 1].type === 'open' && c.rows[i].type !== 'open';
-      if (lg || openAbove) {
+      // Hanging space has a fixed shelf over it to carry the rod, and under it to close it off
+      const hang = c.rows[i].type === 'hang' || c.rows[i - 1].type === 'hang';
+      if (lg || openAbove || hang) {
         const topY = r.y1 + mw + (lg?.thickness ?? 0);
         const lap = lg ? 0.75 : 0;
         parts.push({ name: 'Fixed shelf', role: 'shelf', material: 'box', length: innerW + 2 * dd, width: boxD - rw - lap, thickness: tn, cut: true,
-          note: lg ? 'Dadoed in, top flush with the top of the ledge' : 'Dadoed in, top flush with the top of the rail; divides the doors from the open shelves above',
+          note: lg ? 'Dadoed in, top flush with the top of the ledge' : openAbove ? 'Dadoed in, top flush with the top of the rail; divides the doors from the open shelves above' : 'Dadoed in, top flush with the top of the rail',
           boxes: [vb(xi0, topY - ta, rw, innerW, ta, boxD - rw - lap)] });
         if (lg) {
           const deep = ft + lg.overhang + lap;
@@ -424,8 +451,8 @@ export function buildParts(c: Cabinet, s: ShopSettings, ends: EndInfo = { left: 
     }
     // Front edges: overlay onto the outer frame, share mid rails, or sit inside the opening for inset
     // A rail with a ledge on it, or open shelves on its other side, belongs to this front alone
-    const ownsAbove = i === 0 || !!ledgeAbove(c, i) || c.rows[i - 1].type === 'open';
-    const ownsBelow = i === rows.length - 1 || c.rows[i + 1].type === 'open';
+    const ownsAbove = i === 0 || !!ledgeAbove(c, i) || isOpenRow(c.rows[i - 1].type);
+    const ownsBelow = i === rows.length - 1 || isOpenRow(c.rows[i + 1].type);
     const top = inset ? -rev : ownsAbove ? (i === 0 ? o : Math.min(o, railAbove(c, s, i) - 0.25)) : shareOv(railAbove(c, s, i));
     const bottom = inset ? -rev : ownsBelow ? (i === rows.length - 1 ? o : Math.min(o, railAbove(c, s, i + 1) - 0.25)) : shareOv(railAbove(c, s, i + 1));
     const side = inset ? -rev : o;
@@ -466,6 +493,17 @@ export function buildParts(c: Cabinet, s: ShopSettings, ends: EndInfo = { left: 
       parts.push({ name: 'Fixed shelf', role: 'shelf', material: 'box', length: innerW + 2 * dd, width: boxD - rw, thickness: tn, cut: true,
         note: 'Dadoed in, top flush with the rail below the appliance opening; carries the appliance',
         boxes: [vb(xi0, r.y0 - ta, rw, innerW, ta, boxD - rw)] });
+    }
+    if (row.type === 'hang') {
+      // Round rod in a pair of sockets, hung under the shelf (or case top) over the opening
+      const under = i === 0 ? topUnder : fl ? r.y1 : r.y1 + gapAbove(c, s, i) - ta;
+      const drop = row.rodDrop ?? s.rodDrop ?? closetRod.drop;
+      const d = closetRod.diameter;
+      const len = innerW - 0.125;
+      const zc = rw + (boxD - rw) / 2;
+      parts.push({ name: 'Closet rod', role: 'rod', material: 'hardware', length: len, width: d, thickness: d, cut: false,
+        note: `${fmtShort(d)} round ${s.closetRod === 'metal' ? 'metal' : 'wood'} rod in 2 sockets, center ${fmtShort(drop)} below the shelf (${fmtShort(c.elevation + under - drop)} off the floor) and ${fmtShort(zc - rw)} off the back; ${fmtShort(r.height - drop - d / 2)} clear below`,
+        boxes: [vb(xi0 + 0.0625, under - drop - d / 2, zc - d / 2, len, d, d, 0.35)] });
     }
     if ((row.type === 'doors' || row.type === 'open') && row.shelves > 0) {
       const shelfW = innerW - s.shelfClearance;
@@ -528,7 +566,7 @@ export function buildParts(c: Cabinet, s: ShopSettings, ends: EndInfo = { left: 
 
   if (c.kind === 'base' && c.countertop) parts.push(topPart(c, s, W, D + dt, panelExtents(c, s, ends)));
   if (c.kind !== 'base') parts.push(...crownParts(c, s, ends));
-  return parts;
+  return fl ? parts.filter((x) => !(x.material === 'faceframe' && (x.role === 'stile' || x.role === 'rail'))) : parts;
 }
 
 export const noCrownBuild: CrownBuild = { subCrown: 0, rise: 0, drop: 0, extra: [] };

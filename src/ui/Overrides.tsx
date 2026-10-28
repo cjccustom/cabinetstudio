@@ -27,7 +27,7 @@ export function OverridesSection({ cab, settings, set }: { cab: Cabinet; setting
         const opt = options.find((x) => String(x.v) === e.target.value);
         put({ [k]: opt ? opt.v : undefined } as Partial<ShopSettings>);
       }}>
-        <option value="">Job ({options.find((x) => x.v === settings[k])?.label ?? String(settings[k])})</option>
+        <option value="">Job ({options.find((x) => x.v === (settings[k] ?? options[0].v))?.label ?? String(settings[k])})</option>
         {options.map((x) => <option key={String(x.v)} value={String(x.v)}>{x.label}</option>)}
       </select>
     </Field>
@@ -38,6 +38,7 @@ export function OverridesSection({ cab, settings, set }: { cab: Cabinet; setting
       <summary>Construction for this cabinet{count > 0 && <span className="badge-on">{count} changed</span>}</summary>
       <p className="hint">Blank fields follow the job’s shop standards. Fill one in to change it for this cabinet only.</p>
       <div className="grid2">
+        {choice('construction', 'Case', [{ v: 'faceframe', label: 'Face frame' }, { v: 'frameless', label: 'Frameless' }])}
         {choice('doorStyleId', 'Door style (framing bead)', doorStyles.map((d) => ({ v: d.id, label: d.bead ? `${d.name} (${d.bead})` : d.name })))}
         {style.panelChoice && choice('centerPanel', 'Center panel', centerPanels.map((c) => ({ v: c.code, label: `${c.code} ${c.name}` })))}
         {style.panelChoice && choice('frontPanel', 'Drawer front panel', centerPanels.map((c) => ({ v: c.code, label: `${c.code} ${c.name}` })))}

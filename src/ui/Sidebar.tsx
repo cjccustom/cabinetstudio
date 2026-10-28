@@ -9,7 +9,7 @@ import { RoomDetails } from './RoomDetails';
 import { MaterialsSection } from './Materials';
 import { fmt } from '../units';
 import { centerPanels, doorMaterials, doorStyles, hingeTypes, outsideEdges, panelLabel, sideThicknesses, slides, stileWidths, styleById, type HingeType, type OutsideEdge } from '../model/eagle';
-import { realOverhang } from '../model/parts';
+import { closetRod, realOverhang } from '../model/parts';
 import { Field, LengthInput, Section } from './fields';
 
 type Tab = 'add' | 'room' | 'shop';
@@ -51,6 +51,7 @@ function Library() {
     { kind: 'mudroom', title: 'Mudroom & built-ins', corner: true },
     { kind: 'library', title: 'Library & pilasters', corner: true },
     { kind: 'fireplace', title: 'Fireplaces & mantels', corner: true },
+    { kind: 'closet', title: 'Closets', corner: true },
   ] as const;
   return (
     <div>
@@ -124,6 +125,10 @@ function PresetGlyph({ rows, w, h, kind }: { rows: { type: string; doors: number
         const rh = r.h != null ? r.h * scale : autoH;
         const el = [];
         if (r.type === 'open') el.push(<rect key={i} x="1.5" y={y} width={W - 3} height={rh} className="g-open" />);
+        else if (r.type === 'hang') {
+          el.push(<rect key={i} x="1.5" y={y} width={W - 3} height={rh} className="g-open" />);
+          el.push(<line key={`${i}r`} x1="2.5" x2={W - 2.5} y1={y + 1.6} y2={y + 1.6} className="g-rod" />);
+        }
         else if (r.type === 'appliance') el.push(<rect key={i} x="1.5" y={y} width={W - 3} height={rh} className="g-appl" />);
         else if (r.type === 'doors' && r.doors === 2) {
           el.push(<rect key={`${i}a`} x="1" y={y - 0.5} width={W / 2 - 1.2} height={rh + 1} className="g-door" />);
@@ -202,6 +207,29 @@ function ShopPanel() {
       <p className="hint">How you build. Every cabinet and every part size comes from these numbers, and changes apply to the whole job.</p>
 
       <MaterialsSection />
+
+      <Section title="Case construction">
+        <div className="grid2">
+          <Field label="Cases" htmlFor="shop-construction">
+            <select id="shop-construction" value={settings.construction ?? 'faceframe'} onChange={(e) => set({ construction: e.target.value === 'frameless' ? 'frameless' : undefined })}>
+              <option value="faceframe">Face frame</option>
+              <option value="frameless">Frameless, banded edges</option>
+            </select>
+          </Field>
+          <Field label="Closet rod" htmlFor="shop-rod">
+            <select id="shop-rod" value={settings.closetRod ?? 'wood'} onChange={(e) => set({ closetRod: e.target.value as 'wood' | 'metal' })}>
+              <option value="wood">1 5/16" round wood</option>
+              <option value="metal">1 5/16" round metal</option>
+            </select>
+          </Field>
+          <Field label="Rod center below shelf" htmlFor="shop-roddrop"><LengthInput id="shop-roddrop" value={settings.rodDrop ?? closetRod.drop} min={1} onChange={(v) => set({ rodDrop: v ?? undefined })} /></Field>
+        </div>
+        <p className="hint">
+          {settings.construction === 'frameless'
+            ? 'Frameless: no face frame. Case edges are banded, a fixed shelf stands where each mid rail would be, and fronts overlay the case edges full, leaving the door gap between them. Door mounting below is set for you.'
+            : 'Face frame cases, as set below. Switch a whole job to frameless here; a single cabinet can differ under its own construction settings.'}
+        </p>
+      </Section>
 
       <Section title="Doors & fronts (Eagle Woodworking)">
         <Field label="Style (framing bead)" htmlFor="door-style">

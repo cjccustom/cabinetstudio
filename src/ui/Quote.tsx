@@ -80,6 +80,8 @@ export function QuoteInputs() {
             <Num id="q-cfs" label="Coffer stock, prepped" suffix="$/ft" value={q.cofferStockPerFt} onChange={(v) => set({ cofferStockPerFt: v })} />
             <Num id="q-cfb" label="Coffer blocking & fasteners" suffix="$/ft" value={q.cofferSundriesPerFt} onChange={(v) => set({ cofferSundriesPerFt: v })} />
             <Num id="q-brk" label="Shelf brackets" suffix="$ / 8-pack" value={q.shelfBracketPack} onChange={(v) => set({ shelfBracketPack: v })} />
+            <Num id="q-rod" label="Closet rod, 8' length" suffix="$" value={q.closetRod8ft} onChange={(v) => set({ closetRod8ft: v })} />
+            <Num id="q-sock" label="Rod sockets, pair" suffix="$" value={q.rodSockets} onChange={(v) => set({ rodSockets: v })} />
           </div>
           <p className="hint">Plywood, maple and A&amp;M mouldings come from their own tabs. Blum hinges, slides and clips are priced from Woodworker Express’s price list. Floating shelf brackets are the <a href="https://www.amazon.com/dp/B088PQTYJT" target="_blank" rel="noreferrer">Amazon bracket</a>, 2" shorter than the shelf is deep. Eagle doors, fronts and drawer boxes are priced piece by piece from your 2026 Eagle orders (paint-grade maple, 5-piece). Raise the percentage after a price increase or for a pricier species.</p>
         </Section>
