@@ -35,6 +35,12 @@ Things the app is guessing at until Cody answers. Each one says what the app doe
 
 ## Cabinets
 
+- **Stain grade labor.** Starts at 1.25× on cabinet and moulding hours, shop and install alike
+  (solid wood tops and the install-day overhead stay the same). Adjust under Quote → Labor
+  standards; compare against Weisberg's actual hours on the Job clock once it's built.
+- **Closet labor.** Starting guesses: 0.15 h per shoe fence, 0.25 h per closet rod, 0.75 h to band
+  a frameless case. Rod and socket prices are blank until you enter them on the Quote tab.
+
 - **Appliance sizes.** Named models come from maker and retailer listings; "typical" sizes are
   class averages. Check the installation manual before building the opening.
 - **Manufacturer 3D blocks.** In: import a downloaded model file (glb, gltf, obj, fbx, dae, stl,
