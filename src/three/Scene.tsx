@@ -220,7 +220,9 @@ function CabinetModel(props: {
       if (cab.wall === run) t = snapOffset(room, st.project.cabinets.filter((c) => c.id === cab.id || !d.starts.has(c.id)), cab, d.startOffset + t, st.project.settings) - d.startOffset;
       mx = t * ax; mz = t * az;
     } else if (freeStanding(cab)) {
-      if (Math.abs(dx) >= Math.abs(dz)) mx = dx; else mz = dz;
+      // To the nearest sixteenth, so it lands on a tape-measure number
+      const r16 = (v: number) => Math.round(v * 16) / 16;
+      if (Math.abs(dx) >= Math.abs(dz)) mx = r16(dx); else mz = r16(dz);
     } else {
       const delta = alongWall(room, cab.wall, hit.x, hit.z) - d.startAlong;
       const offset = snapOffset(room, st.project.cabinets.filter((c) => c.id === cab.id || !d.starts.has(c.id)), cab, d.startOffset + delta, st.project.settings);
