@@ -154,7 +154,7 @@ function CabinetModel(props: {
   const hit = useMemo(() => new THREE.Vector3(), []);
 
   const colorFor = (material: string, shade: number) => {
-    const base = material === 'hardware' ? '#c9ccd1' : material === 'box' || material === 'back' ? finishes.box : material === 'counter' ? finishes.counter : material === 'solidWood' ? finishes.wood ?? '#b9875a' : finishes.paint;
+    const base = material === 'hardware' ? '#c9ccd1' : material === 'upholstery' ? '#9aa3ad' : material === 'box' || material === 'back' ? finishes.box : material === 'counter' ? finishes.counter : material === 'solidWood' ? finishes.wood ?? '#b9875a' : finishes.paint;
     return new THREE.Color(base).multiplyScalar(shade);
   };
 

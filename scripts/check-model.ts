@@ -1076,7 +1076,9 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   const ip = buildParts(isl, s, ends);
   const back = ip.find((x) => x.name === 'Back panel, finished')!;
   eq('island: finished back panel on the Eagle order', `${!!back} ${back.order?.item}`, 'true endPanel');
-  eq('island: toe kick around the back', ip.some((x) => x.name === 'Toe kick skin, back'), true);
+  eq('island: baseboard wraps the back by default', `${ip.some((x) => x.name === 'Baseboard, back')} ${ip.some((x) => x.name.startsWith('Toe kick'))}`, 'true false');
+  const ikick = buildParts({ ...isl, base: { ...isl.base!, style: 'kick' } }, s, ends);
+  eq('island: toe kick as an option, around the back', ikick.some((x) => x.name === 'Toe kick skin, back'), true);
   const top = ip.find((x) => x.role === 'woodTop')!;
   eq('island: top overhangs the back', top.boxes[0].min[2] < -s.endPanelThickness, true);
   const proj = { ...p, cabinets: [isl] };
@@ -1089,6 +1091,21 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   const inst = (x: typeof plain) => estimateHours(x, quoteOf(x)).find((h) => h.label.startsWith('Install cabinets'))!.hours;
   eq('stain grade: installing cabinets × 1.25', +(inst(stain) / inst(plain)).toFixed(3), 1.25);
   eq('stain grade: scope says so', scopeLine(stain.cabinets[0], stain).includes('stain grade hard maple exterior'), true);
+}
+
+// Bench seat cushion
+{
+  const bench = { ...cabinetFromPreset(presets.find((x) => x.id === 'closet-bench')!, 'back', 0, []), id: 'BN', name: 'BN' };
+  const bp = buildParts(bench, s, { left: true, right: true });
+  const top = bp.find((x) => x.role === 'woodTop')!, cu = bp.find((x) => x.role === 'cushion')!;
+  eq('cushion: sized to the seat, sitting on it', `${cu.length === top.length} ${cu.width === top.width} ${cu.boxes[0].min[1]}`, `true true ${bench.height + 1}`);
+  const proj = { ...p, cabinets: [bench] };
+  const line = estimateMaterials(proj, quoteOf(proj)).find((l) => l.label.startsWith('Custom seat cushions'))!;
+  eq('cushion: on the quote, flagged for a price', `${line.cost} ${!!line.missing}`, '0 true');
+  eq('cushion: scope wording', scopeLine(bench, proj).includes('custom 3” boxed and welted seat cushion, fabric to be selected by owner'), true);
+  const priced = { ...proj, quote: { ...quoteOf(proj), cushionPerSqFt: 40 } };
+  const placed = buildParts(bench, proj.settings, resolveEnds(proj.room, proj.cabinets, bench)).find((x) => x.role === 'cushion')!;
+  eq('cushion: priced by area', +estimateMaterials(priced, quoteOf(priced)).find((l) => l.label.startsWith('Custom seat cushions'))!.cost.toFixed(2), +((placed.length * placed.width) / 144 * 40).toFixed(2));
 }
 
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');

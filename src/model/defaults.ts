@@ -1,3 +1,4 @@
+import { defaultBase } from './cabinetBase';
 import { defaultPilaster } from './pilaster';
 import type { Cabinet, CabinetKind, FaceRow, Project, ShopSettings, WallId } from './types';
 import { newAppliance, openingFor, type ApplianceKind } from './appliances';
@@ -78,7 +79,7 @@ export interface Preset {
   blind?: Cabinet['blind'];
   corner?: Cabinet['corner'];
   group?: 'corner' | 'mudroom' | 'library' | 'fireplace' | 'closet';
-  top?: Pick<Cabinet, 'topKind' | 'topThickness' | 'topFront' | 'topLeft' | 'topRight' | 'topBack' | 'island' | 'pilaster' | 'floating' | 'noBottom' | 'mantel'>;
+  top?: Pick<Cabinet, 'topKind' | 'topThickness' | 'topFront' | 'topLeft' | 'topRight' | 'topBack' | 'island' | 'base' | 'cushion' | 'pilaster' | 'floating' | 'noBottom' | 'mantel'>;
 }
 
 export const presets: Preset[] = [
@@ -156,8 +157,10 @@ export const presets: Preset[] = [
   { id: 'closet-wardrobe-drawers', label: 'Wardrobe, hanging over drawers', kind: 'tall', width: 36, height: 84, depth: 24, elevation: 0, group: 'closet',
     rows: () => [{ ...row('hang', null, 2), covered: true }, row('drawer', 8), row('drawer', 9)] },
   { id: 'closet-island', label: 'Closet island, drawers', kind: 'base', width: 48, height: 34.5, depth: 22, elevation: 0, countertop: true, group: 'closet',
-    top: { island: true, topKind: 'wood', topThickness: 1, topFront: 1, topLeft: 1, topRight: 1, topBack: 1 },
+    top: { island: true, base: { ...defaultBase, style: 'baseboard' }, topKind: 'wood', topThickness: 1, topFront: 1, topLeft: 1, topRight: 1, topBack: 1 },
     rows: () => [row('drawer', 6), row('drawer', null), row('drawer', null)] },
+  { id: 'closet-bench', label: 'Bench seat, drawer, cushion', kind: 'base', width: 48, height: 14.5, depth: 18, elevation: 0, countertop: true, group: 'closet',
+    top: { topKind: 'wood', topThickness: 1, topFront: 0.75, cushion: { thickness: 3, edge: 'boxed' } }, rows: () => [row('drawer', null)] },
   { id: 'tall-open', label: 'Tall, open shelves', kind: 'tall', width: 18, height: 84, depth: 12, elevation: 0,
     rows: () => [row('open', null, 1, 5)] },
 ];

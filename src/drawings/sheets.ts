@@ -177,6 +177,7 @@ function materialName(p: Project, part: Part): string {
     case 'faceframe': return part.species ?? s.woodSpecies;
     case 'solidWood': return part.species ?? s.woodSpecies;
     case 'counter': return part.name.startsWith('Hearth') ? 'Stone (by others)' : 'Countertop (by others)';
+    case 'upholstery': return 'Upholsterer';
     default: return part.material;
   }
 }

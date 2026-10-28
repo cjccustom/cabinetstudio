@@ -352,10 +352,13 @@ export function buildParts(c: Cabinet, s: ShopSettings, ends: EndInfo = { left: 
     if (capH > 0) {
       parts.push({ name: 'Base cap, front', role: 'trim', material: 'faceframe', length: len, width: capH, thickness: boardT, cut: true, note: 'Custom, milled to match the room’s',
         boxes: [vb(xL, h, D, len, capH, boardT)] });
+      const zC = c.island ? -s.endPanelThickness - boardT : 0;
+      if (c.island) parts.push({ name: 'Base cap, back', role: 'trim', material: 'faceframe', length: len, width: capH, thickness: boardT, cut: true, note: 'Custom, milled to match the room’s',
+        boxes: [vb(xL, h, zC, len, capH, boardT)] });
       for (const side of ['left', 'right'] as const) {
         if (!ends[side]) continue;
-        parts.push({ name: `Base cap, ${side} return`, role: 'trim', material: 'faceframe', length: D, width: capH, thickness: boardT, cut: true,
-          boxes: [vb(side === 'left' ? xL : xR - boardT, h, 0, boardT, capH, D)] });
+        parts.push({ name: `Base cap, ${side} return`, role: 'trim', material: 'faceframe', length: D - zC, width: capH, thickness: boardT, cut: true,
+          boxes: [vb(side === 'left' ? xL : xR - boardT, h, zC, boardT, capH, D - zC)] });
       }
     }
     if (h > 0) {
@@ -363,12 +366,17 @@ export function buildParts(c: Cabinet, s: ShopSettings, ends: EndInfo = { left: 
         name: `${name}, front`, role: 'trim', material: 'faceframe', length: len, width: h, thickness: boardT, cut: true, note,
         ...piece('x', [xL, 0, D], len, BL.b.foot, len - BL.b.foot),
       });
+      // An island's baseboard wraps its finished back, outside the back panel
+      const zB = c.island ? -s.endPanelThickness - boardT : 0;
+      if (c.island) parts.push({ name: `${name}, back`, role: 'trim', material: 'faceframe', length: len, width: h, thickness: boardT, cut: true, note,
+        ...piece('x', [xL, 0, zB], len, BL.b.foot, len - BL.b.foot) });
       for (const side of ['left', 'right'] as const) {
         if (!ends[side]) continue;
         const x = side === 'left' ? xL : xR - boardT;
+        const rl = D - zB - (c.island ? boardT : 0);
         parts.push({
-          name: `${name}, ${side} return`, role: 'trim', material: 'faceframe', length: D, width: h, thickness: boardT, cut: true, note,
-          ...piece('z', [x, 0, 0], D, BL.b.foot, D - Math.max(0.75, BL.b.foot - boardT)),
+          name: `${name}, ${side} return`, role: 'trim', material: 'faceframe', length: rl, width: h, thickness: boardT, cut: true, note,
+          ...piece('z', [x, 0, c.island ? zB + boardT : 0], rl, BL.b.foot, rl - Math.max(0.75, BL.b.foot - boardT)),
         });
       }
     }
@@ -604,15 +612,27 @@ export function buildParts(c: Cabinet, s: ShopSettings, ends: EndInfo = { left: 
     // The back is finished like an end: a panel in the door style across the case and the end panels
     const ext = panelExtents(c, s, ends);
     const len = W + ext.left + ext.right;
-    const [py0, py1] = [doorBottom, doorTop];
+    // Down to the floor behind a baseboard, which then wraps over it; else lined up with the fronts
+    const [py0, py1] = [BL.applied ? 0 : doorBottom, doorTop];
     parts.push({
       name: 'Back panel, finished', role: 'endPanel', material: 'door', length: py1 - py0, width: len, thickness: pt, cut: false,
-      note: `Island back, over the case back; ${fmtShort(py0)} off cabinet bottom, lined up with the fronts`,
+      note: `Island back, over the case back; ${BL.applied ? 'down to the floor, the baseboard over it' : `${fmtShort(py0)} off cabinet bottom, lined up with the fronts`}`,
       order: { item: 'endPanel', w: len, h: py1 - py0, spec: `${doorSpec}, end panel`, ...(style.profile === 'slab' ? {} : { rail: doorStile, stile: doorStile }) },
       boxes: frontBoxes(-ext.left, py0, -pt, len, py1 - py0, pt, style.profile, doorStile, raised),
     });
   }
-  if (c.kind === 'base' && c.countertop) parts.push(topPart(c, s, W, D + dt, panelExtents(c, s, ends)));
+  if (c.kind === 'base' && c.countertop) {
+    const top = topPart(c, s, W, D + dt, panelExtents(c, s, ends));
+    parts.push(top);
+    // A seat cushion covers the top
+    const cu = c.cushion;
+    if (cu) {
+      const b = top.boxes[0];
+      parts.push({ name: 'Seat cushion', role: 'cushion', material: 'upholstery', length: top.length, width: top.width, thickness: cu.thickness, cut: false,
+        note: `Custom, by the upholsterer: ${fmtShort(cu.thickness)} foam, ${cu.edge === 'boxed' ? 'boxed edge with welt' : 'knife edge'}; ${cu.fabric?.trim() || 'fabric to be selected'}. Upholsterer to confirm size on site.${cu.notes?.trim() ? ` ${cu.notes.trim()}` : ''}`,
+        boxes: [vb(b.min[0], b.min[1] + b.size[1], b.min[2], b.size[0], cu.thickness, b.size[2], 0.9)] });
+    }
+  }
   if (c.kind !== 'base') parts.push(...crownParts(c, s, ends));
   return fl ? parts.filter((x) => !(x.material === 'faceframe' && (x.role === 'stile' || x.role === 'rail'))) : parts;
 }

@@ -161,6 +161,8 @@ export interface QuoteSettings {
   /** Closet rod, per 8' length, and a pair of rod sockets. */
   closetRod8ft: number;
   rodSockets: number;
+  /** Custom seat cushions from the upholsterer, per sq ft of seat (foam, fabric and labor). */
+  cushionPerSqFt: number;
   beadboardSheet: number;
   /** Coffered ceiling stock bought prepped from the millwork supplier, and blocking/fasteners, per ft of beam and perimeter. */
   cofferStockPerFt: number;
@@ -189,6 +191,7 @@ export const defaultQuote: QuoteSettings = {
   shelfBracketPack: 16.16,
   closetRod8ft: 0,
   rodSockets: 0,
+  cushionPerSqFt: 0,
   beadboardSheet: 0,
   cofferStockPerFt: 16,
   cofferSundriesPerFt: 4.4,
@@ -424,6 +427,13 @@ export function estimateMaterials(p: Project, q: QuoteSettings): MaterialLine[] 
       detail: `${rods.count} rods from ${rods.lengths} × 8' lengths, ${rods.count} pairs of sockets`,
       missing: q.closetRod8ft && q.rodSockets ? undefined : 'Enter the closet rod and socket prices under Quote → Prices to fill in' });
   }
+  const cushions = p.cabinets.flatMap((c) => buildParts(c, p.settings, resolveEnds(p.room, p.cabinets, c)).filter((x) => x.role === 'cushion'));
+  if (cushions.length) {
+    const area = cushions.reduce((t, x) => t + sqft(x.length, x.width), 0);
+    out.push({ group: 'cabinets', label: 'Custom seat cushions (upholsterer)', cost: area * q.cushionPerSqFt,
+      detail: `${cushions.length} cushion${cushions.length > 1 ? 's' : ''}, ${area.toFixed(1)} sq ft`,
+      missing: q.cushionPerSqFt ? undefined : 'Get the upholsterer’s price and enter it under Quote → Prices to fill in' });
+  }
   const hw = hardwareOrder(p);
   const hwCost = (g: 'hinges' | 'slides') => hw.lines.filter((l) => l.group === g).reduce((t, l) => t + l.total, 0);
   const hwMissing = (g: 'hinges' | 'slides') => hw.problems.filter((x) => x.group === g).map((x) => x.text).join('; ') || undefined;
@@ -559,6 +569,7 @@ export function scopeLine(c: Cabinet, p: Project): string {
   for (const r of c.rows) if (r.type === 'appliance' && r.appliance) bits.push(`${r.appliance.mount === 'shelf' ? 'open space' : 'built-in opening'} for owner's ${applianceKinds[r.appliance.kind].short.toLowerCase()}`);
   if (n('endPanel')) bits.push(`(${n('endPanel')}) finished end panel${n('endPanel') > 1 ? 's' : ''}`);
   if (c.countertop && c.topKind === 'wood') bits.push(`${fmtIn(c.topThickness ?? 1.25)} thick solid wood top`);
+  if (c.countertop && c.cushion) bits.push(`custom ${fmtIn(c.cushion.thickness)} ${c.cushion.edge === 'boxed' ? 'boxed and welted' : 'knife edge'} seat cushion, ${c.cushion.fabric?.trim() ? c.cushion.fabric.trim() : "fabric to be selected by owner"}`);
   if (c.crown) bits.push('crown molding');
   if (c.lightRail) bits.push('light rail');
   const bl = baseLabel(c);

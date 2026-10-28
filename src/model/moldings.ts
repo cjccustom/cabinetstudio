@@ -153,8 +153,8 @@ export interface MoldPiece {
   num: string;
   /** Cabinet-local (or panel-local) start of the run and its direction. */
   along: 'x' | 'z';
-  /** Which way the profile faces: out from the front (+z), or out from a left (-x) or right (+x) end. */
-  facing: 'front' | 'left' | 'right';
+  /** Which way the profile faces: out from the front (+z), a left (-x) or right (+x) end, or an island's back (-z, run right to left from x). */
+  facing: 'front' | 'left' | 'right' | 'back';
   x: number;
   y: number;
   z: number;
@@ -207,10 +207,13 @@ export function cabinetMoldings(c: Cabinet, s: ShopSettings, ends: EndInfo): Mol
     const x0 = xl - (ends.left ? m.depth : 0);
     const x1 = xr + (ends.right ? m.depth : 0);
     out.push({ kind: r.kind, num: p.num, along: 'x', facing: 'front', x: x0, y, z: r.z, length: x1 - x0, hang: r.hang });
+    // An island's base wraps its finished back too
+    const zb = c.island && r.kind === 'baseMold' ? -s.endPanelThickness - o - m.depth : null;
+    if (zb != null) out.push({ kind: r.kind, num: p.num, along: 'x', facing: 'back', x: x1, y, z: zb + m.depth, length: x1 - x0 });
     // Returns back to the wall on exposed ends, or back to the neighbour's face beside a pilaster
     for (const side of ['left', 'right'] as const) {
       if (!ends[side]) continue;
-      const z0 = ends.faceAt ? ends.faceAt(side, y + m.height / 2) : 0;
+      const z0 = zb ?? (ends.faceAt ? ends.faceAt(side, y + m.height / 2) : 0);
       const len = r.z + m.depth - z0;
       if (len > 0.01) out.push({ kind: r.kind, num: p.num, along: 'z', facing: side, x: side === 'left' ? xl : xr, y, z: z0, length: len, hang: r.hang });
     }

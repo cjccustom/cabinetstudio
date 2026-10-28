@@ -18,7 +18,7 @@ import { ModelField } from './ModelField';
 import { friezeHeight, shelfFor, fuelLabel, hearthRequired, legWidth, mantelClearances, mantelCodeBasis, mantelOf, needsManualChart, usesListing, usesMasonryRules, widthFor, type Fuel, type MantelSpec } from '../model/mantel';
 import { applianceKinds, appliancePresets, newAppliance, openingFor, placedAppliances, type Appliance, type ApplianceKind } from '../model/appliances';
 import { cabinetCallouts } from '../drawings/notes';
-import { archBuilds, archShapes, baseLayout, baseOf, baseStyles, cutOutline, floorStanding } from '../model/cabinetBase';
+import { archBuilds, archShapes, baseLayout, baseOf, baseStyles, cutOutline, defaultBase, floorStanding } from '../model/cabinetBase';
 import { profileLabel, profileByNum } from '../model/moldings';
 
 const kindLabel = { base: 'Base cabinet', wall: 'Wall cabinet', tall: 'Tall cabinet', pilaster: 'Pilaster', shelf: 'Floating shelf', mantel: 'Fireplace mantel' };
@@ -93,14 +93,14 @@ export function Inspector({ cab, issues }: { cab: Cabinet; issues: string[] }) {
             {cab.kind === 'base' && (
               <label className="check-inline" style={{ gridColumn: 'span 2', alignSelf: 'end' }}>
                 <input type="checkbox" checked={!!cab.island} onChange={(e) => set(e.target.checked
-                  ? { island: true, topBack: cab.topBack ?? cab.topFront ?? 1, wallInset: cab.wallInset || Math.max(0, Math.round(((cab.wall === 'back' || cab.wall === 'front' ? room.depth : room.width) - cab.depth) / 2)) }
+                  ? { island: true, base: cab.base ?? { ...defaultBase, style: 'baseboard' }, topBack: cab.topBack ?? cab.topFront ?? 1, wallInset: cab.wallInset || Math.max(0, Math.round(((cab.wall === 'back' || cab.wall === 'front' ? room.depth : room.width) - cab.depth) / 2)) }
                   : { island: undefined, topBack: undefined })} /> Freestanding island, back finished
               </label>
             )}
           </div>
         )}
         <p className="hint">{cab.island
-          ? `Island: back ${fmt(cab.wallInset ?? 0)} off the ${wallNames[cab.wall].toLowerCase()}, facing away from it. The back gets a panel in the door style, the toe kick runs around it, and the top overhangs all four sides.`
+          ? `Island: back ${fmt(cab.wallInset ?? 0)} off the ${wallNames[cab.wall].toLowerCase()}, facing away from it. The back gets a panel in the door style, the base (baseboard, or a toe kick under Base below) wraps all four sides, and the top overhangs all four sides.`
           : 'Drag the cabinet in the 3D, Plan or Elevation view to slide it along the wall. It snaps to neighbors and wall ends.'}</p>
       </Section>
 
@@ -271,6 +271,31 @@ export function Inspector({ cab, issues }: { cab: Cabinet; issues: string[] }) {
             )}
           </div>
           {cab.topKind === 'wood' && cab.countertop && <p className="hint">Solid wood tops and bench seats go on the Solid wood list with board feet to buy.</p>}
+          {cab.countertop && (
+            <div style={{ marginTop: 8 }}>
+              <label className="check-inline"><input id="cab-cushion" type="checkbox" checked={!!cab.cushion} onChange={(e) => set({ cushion: e.target.checked ? { thickness: 3, edge: 'boxed' } : undefined })} /> Custom seat cushion on top</label>
+              {cab.cushion && (
+                <>
+                  <div className="grid3">
+                    <Field label="Foam" htmlFor="cab-cu-t">
+                      <select id="cab-cu-t" value={cab.cushion.thickness} onChange={(e) => set({ cushion: { ...cab.cushion!, thickness: Number(e.target.value) } })}>
+                        {[1.5, 2, 3, 4].map((t) => <option key={t} value={t}>{fmt(t)}</option>)}
+                      </select>
+                    </Field>
+                    <Field label="Edge" htmlFor="cab-cu-e">
+                      <select id="cab-cu-e" value={cab.cushion.edge} onChange={(e) => set({ cushion: { ...cab.cushion!, edge: e.target.value as 'knife' | 'boxed' } })}>
+                        <option value="boxed">Boxed, welted</option>
+                        <option value="knife">Knife edge</option>
+                      </select>
+                    </Field>
+                    <Field label="Fabric" htmlFor="cab-cu-f"><input id="cab-cu-f" value={cab.cushion.fabric ?? ''} placeholder="To be selected" onChange={(e) => set({ cushion: { ...cab.cushion!, fabric: e.target.value || undefined } })} /></Field>
+                  </div>
+                  <Field label="Notes for the upholsterer" htmlFor="cab-cu-n"><input id="cab-cu-n" value={cab.cushion.notes ?? ''} placeholder="Ties, zipper cover, back cushions…" onChange={(e) => set({ cushion: { ...cab.cushion!, notes: e.target.value || undefined } })} /></Field>
+                  <p className="hint">Sized to the seat; seat height with the cushion {fmt(cab.elevation + cab.height + (cab.topThickness ?? 1.25) + cab.cushion.thickness)}. Priced per sq ft under Quote → Prices to fill in.</p>
+                </>
+              )}
+            </div>
+          )}
         </Section>
       )}
 
@@ -679,7 +704,7 @@ function BaseSection({ cab, set }: { cab: Cabinet; set: (patch: Partial<Cabinet>
         {b.style === 'kick'
           ? `Recessed ${fmt(s.toeKickHeight)} toe kick.`
           : `Cabinet height stays ${fmt(cab.height)}: the base takes ${fmt(L.top)}${cap ? ` (with the ${profileLabel(cap)} cap)` : ''}, a ${fmt(s.bottomRailWidth)} rail shows above it, and the openings shorten to suit.`}
-        {b.style === 'baseboard' && ' The board wraps exposed ends back to the wall; pick a cap under Mouldings → Base.'}
+        {b.style === 'baseboard' && (cab.island ? ' The board wraps all four sides of the island; pick a cap under Mouldings → Base.' : ' The board wraps exposed ends back to the wall; pick a cap under Mouldings → Base.')}
         {b.style === 'arch' && (b.build === 'applied'
           ? ' The skirt is applied to the face frame and wraps exposed ends; a recessed toe kick sits behind the cutout.'
           : ' The stiles run to the floor as feet and the cutout comes out of a wide bottom rail. Exposed ends get a matching cut.')}

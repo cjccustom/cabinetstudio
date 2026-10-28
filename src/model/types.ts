@@ -45,6 +45,8 @@ export interface Cabinet {
   island?: boolean;
   /** Top overhang past the finished back (islands). */
   topBack?: number;
+  /** A custom cushion on a bench seat, made by an upholsterer. */
+  cushion?: Cushion;
   width: number;
   height: number;
   depth: number;
@@ -100,6 +102,16 @@ export interface Cabinet {
   mantel?: Partial<MantelSpec>;
   /** Floating shelf details (kind 'shelf'). Height is the shelf thickness. */
   floating?: FloatingShelfSpec;
+}
+
+export interface Cushion {
+  /** Foam thickness. */
+  thickness: number;
+  /** Knife edge (two panels sewn at the edge) or boxed (a band around the sides, usually welted). */
+  edge: 'knife' | 'boxed';
+  /** Fabric, once picked; blank = owner's selection, to come. */
+  fabric?: string;
+  notes?: string;
 }
 
 /** Full-height pilaster between built-in sections: plywood sides, Eagle panels on the face, solid plinth and capital. */
@@ -394,11 +406,11 @@ export interface Project {
   ceiling?: Partial<import('./coffer').CofferCeiling>;
 }
 
-export type MaterialKey = 'box' | 'back' | 'toeSkin' | 'faceframe' | 'door' | 'drawerBox' | 'counter' | 'solidWood' | 'hardware';
+export type MaterialKey = 'box' | 'back' | 'toeSkin' | 'faceframe' | 'door' | 'drawerBox' | 'counter' | 'solidWood' | 'hardware' | 'upholstery';
 
 export type PartRole =
   | 'side' | 'bottom' | 'top' | 'stretcher' | 'back' | 'nailer' | 'toekick' | 'shelf'
-  | 'stile' | 'rail' | 'door' | 'drawerFront' | 'drawerBox' | 'endPanel' | 'counter' | 'woodTop' | 'trim' | 'rod';
+  | 'stile' | 'rail' | 'door' | 'drawerFront' | 'drawerBox' | 'endPanel' | 'counter' | 'woodTop' | 'trim' | 'rod' | 'cushion';
 
 export interface CabinetNote { id: string; text: string; for: 'both' | 'customer' | 'shop' }
 

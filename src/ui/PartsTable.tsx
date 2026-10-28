@@ -13,11 +13,12 @@ const materialLabel: Record<MaterialKey, string> = {
   drawerBox: 'Drawer boxes',
   faceframe: 'Face frame stock',
   hardware: 'Closet rods & hardware',
+  upholstery: 'Cushions (upholsterer)',
   door: 'Doors & drawer fronts',
   counter: 'Countertop',
   solidWood: 'Solid wood (tops & seats)',
 };
-const order: MaterialKey[] = ['box', 'back', 'toeSkin', 'faceframe', 'solidWood', 'door', 'hardware'];
+const order: MaterialKey[] = ['box', 'back', 'toeSkin', 'faceframe', 'solidWood', 'door', 'hardware', 'upholstery'];
 const SHEET = 48 * 96;
 
 interface Row { key: string; name: string; material: MaterialKey; length: number; width: number; thickness: number; qty: number; cabs: string[]; note?: string }

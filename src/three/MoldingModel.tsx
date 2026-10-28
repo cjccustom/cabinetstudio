@@ -19,6 +19,7 @@ function buildGeometry(pieces: MoldPiece[]) {
     if (pc.vertical === 'left') mat.set(0, -1, 0, pc.x, 0, 0, 1, pc.y, 1, 0, 0, pc.z, 0, 0, 0, 1);
     else if (pc.vertical === 'right') mat.set(0, 1, 0, pc.x, 0, 0, 1, pc.y, 1, 0, 0, pc.z, 0, 0, 0, 1);
     else if (pc.facing === 'front') mat.set(0, 0, 1, pc.x, 0, 1, 0, pc.y, 1, 0, 0, pc.z, 0, 0, 0, 1);
+    else if (pc.facing === 'back') mat.set(0, 0, -1, pc.x, 0, 1, 0, pc.y, -1, 0, 0, pc.z, 0, 0, 0, 1);
     else if (pc.facing === 'left') mat.set(-1, 0, 0, pc.x, 0, 1, 0, pc.y, 0, 0, 1, pc.z, 0, 0, 0, 1);
     else mat.set(1, 0, 0, pc.x, 0, 1, 0, pc.y, 0, 0, 1, pc.z, 0, 0, 0, 1);
     g.applyMatrix4(mat);
