@@ -154,6 +154,7 @@ export function panelExtents(c: Cabinet, s: ShopSettings, ends: EndInfo) {
  * which is where the slim face frame overhang comes from.
  */
 export function buildParts(c: Cabinet, s: ShopSettings, ends: EndInfo = { left: false, right: false }): Part[] {
+  if (c.island && c.islandSides === 2) return twoSidedIsland(c, s, ends);
   s = eff(c, s);
   if (c.corner) return buildCornerParts(c, s);
   if (c.kind === 'pilaster') return [...pilasterParts(c, s, ends), ...crownParts(c, s, ends)];
@@ -637,6 +638,38 @@ export function buildParts(c: Cabinet, s: ShopSettings, ends: EndInfo = { left: 
   return fl ? parts.filter((x) => !(x.material === 'faceframe' && (x.role === 'stile' || x.role === 'rail'))) : parts;
 }
 
+/**
+ * An island with fronts both ways: this case, and a second one back to back with it turned to face
+ * the other side, sharing a top that runs over both. The base wraps the pair.
+ */
+function twoSidedIsland(c: Cabinet, s0: ShopSettings, ends: EndInfo): Part[] {
+  const half: Cabinet = { ...c, island: undefined, islandSides: undefined, countertop: false, cushion: undefined, topBack: undefined };
+  const front = buildParts(half, s0, ends);
+  const back = buildParts({ ...half, rows: c.backRows ?? c.rows }, s0, ends).map((p) => mirrorPart(p, c.width));
+  const s = eff(c, s0);
+  const out = [...front, ...back];
+  if (c.countertop) {
+    const reach = c.depth + (s.doorMount === 'inset' ? 0 : s.doorThickness);
+    const top = topPart(c, s, c.width, reach, panelExtents(c, s, ends), reach + (c.topBack ?? c.topFront ?? s.counterOverhang));
+    out.push(top);
+  }
+  return out;
+}
+
+/** A part turned to face the other way: spun half a turn about the back of the case (x = w/2, z = 0). */
+function mirrorPart(p: Part, w: number): Part {
+  const boxes = p.boxes.map((b) => ({ ...b, min: [w - b.min[0] - b.size[0], b.min[1], -b.min[2] - b.size[2]] as [number, number, number] }));
+  const shapes = p.shapes?.map((sh) => {
+    const len = Math.max(...sh.outline.map(([u]) => u));
+    const outline = sh.outline.map(([u, v]) => [len - u, v] as [number, number]).reverse();
+    const min: [number, number, number] = sh.along === 'x'
+      ? [w - sh.min[0] - len, sh.min[1], -sh.min[2] - sh.thickness]
+      : [w - sh.min[0] - sh.thickness, sh.min[1], -sh.min[2] - len];
+    return { ...sh, min, outline };
+  });
+  return { ...p, name: `${p.name}, far side`, boxes, ...(shapes ? { shapes } : {}) };
+}
+
 export const noCrownBuild: CrownBuild = { subCrown: 0, rise: 0, drop: 0, extra: [] };
 
 /** Where the crown build sits on a cabinet: its top, the face the mouldings go on, and the sub-crown. */
@@ -654,6 +687,28 @@ export function crownLayout(c: Cabinet, s: ShopSettings) {
   const back = c.kind === 'pilaster' ? c.depth + pilasterOf(c).proud - subT : c.depth;
   const face = c.kind === 'pilaster' && !subT ? c.depth + pilasterOf(c).proud : back + subT;
   return { build: b, top, subT, back, subBottom: top - b.subCrown, face, crownTop: top - b.drop, rise, seat };
+}
+
+/**
+ * The crown against the ceiling: where the top of the build lands off the floor, the crown's own
+ * drop, and how far it runs past the ceiling (0 when it fits).
+ */
+export function crownFit(c: Cabinet, s: ShopSettings, ceiling: number) {
+  const p = profileByNum(c.crown);
+  if (!p || c.kind === 'base' || c.kind === 'mantel' || c.kind === 'shelf') return null;
+  const L = crownLayout(c, s);
+  const top = c.elevation + Math.max(L.top, L.crownTop);
+  const drop = mountShape(p).height;
+  return { top, drop, caseTop: c.elevation + c.height, over: Math.max(0, top - ceiling) };
+}
+
+/** The tallest crown that fits between this cabinet and the ceiling as it's built (none: it hangs from a sub-crown). */
+export function crownRoom(c: Cabinet, s: ShopSettings, ceiling: number): number | undefined {
+  const b = { ...noCrownBuild, ...c.crownBuild };
+  if (b.subCrown > 0 || c.kind === 'pilaster') return undefined;
+  const under = b.extra.reduce((t, num) => { const p = profileByNum(num); return t + (p ? mountShape(p).height : 0); }, 0);
+  void s;
+  return Math.max(0, ceiling - c.elevation - c.height - b.rise - under);
 }
 
 /** How far the face frame actually sticks out past each case side once real plywood thickness is counted. */
@@ -699,7 +754,7 @@ function crownParts(c: Cabinet, s: ShopSettings, ends: EndInfo): Part[] {
  * The top of a base cabinet: stone by others, or a solid wood top / bench seat glued up in the shop.
  * Overhangs are measured past the door face and past each end (end panels included).
  */
-export function topPart(c: Cabinet, s: ShopSettings, W: number, frontFace: number, ext: { left: number; right: number }): Part {
+export function topPart(c: Cabinet, s: ShopSettings, W: number, frontFace: number, ext: { left: number; right: number }, backReach?: number): Part {
   const wood = c.topKind === 'wood';
   const t = c.topThickness ?? (wood ? 1.25 : s.counterThickness);
   const front = c.topFront ?? s.counterOverhang;
@@ -707,12 +762,12 @@ export function topPart(c: Cabinet, s: ShopSettings, W: number, frontFace: numbe
   const right = ext.right + (c.topRight ?? 0);
   const len = W + left + right;
   // An island's top also covers its finished back and overhangs it
-  const back = c.island ? s.endPanelThickness + (c.topBack ?? front) : 0;
+  const back = backReach ?? (c.island ? s.endPanelThickness + (c.topBack ?? front) : 0);
   const depth = frontFace + front + back;
   return wood
     ? {
         name: 'Wood top', role: 'woodTop', material: 'solidWood', length: len, width: depth, thickness: t, cut: true,
-        note: `${s.woodSpecies}, glued up; ${fmt(front)} front overhang${c.island ? `, ${fmt(back - s.endPanelThickness)} past the back panel` : ''}`,
+        note: `${s.woodSpecies}, glued up; ${fmt(front)} front overhang${backReach != null ? `, ${fmt(c.topBack ?? front)} past the far side's fronts` : c.island ? `, ${fmt(back - s.endPanelThickness)} past the back panel` : ''}`,
         boxes: [vb(-left, c.height, -back, len, t, depth)],
       }
     : {

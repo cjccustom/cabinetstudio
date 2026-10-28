@@ -119,7 +119,7 @@ function OpeningModel({ o, trim }: { o: Opening; trim: string }) {
       {design && <DoorLeaves o={o} design={design} leaves={d.leaves} color={trim} />}
       {o.kind === 'door' && d.leaves === 1 && <Box b={vb(d.hinge === 'left' ? x0 + w - j - 3.5 : x0 + j + 2.25, 36, -T + 2.375, 1.25, 1.25, 1.5)} color="#b49a5a" edges={false} />}
       {o.kind === 'window' && <Box b={vb(x0 + j, y0 + j, -T + 2, w - 2 * j, h - 2 * j, 0.1)} color="#cfe1ea" edges={false} opacity={0.55} />}
-      {o.kind !== 'window' && <Box b={vb(x0, 0, -T - 0.2, w, h, 0.1)} color={o.kind === 'door' ? '#8c8f94' : '#565a60'} edges={false} />}
+      {o.kind !== 'window' && <Box b={vb(x0, 0, -T - 0.2, w, h, 0.1)} color={o.kind === 'door' ? '#8c8f94' : o.kind === 'open' ? '#d8d4cc' : '#565a60'} edges={false} />}
       {t.boxes.map((b, i) => <Box key={`c${i}`} b={b} color={trim} />)}
       <MoldingModel pieces={t.pieces} color={trim} edgeColor={EDGE} />
     </group>

@@ -6,7 +6,8 @@ import { useNav } from './three/navigation';
 import { DesignRenderButton } from './ui/DesignRender';
 import { RenderInputs, RenderSide, RenderStage } from './ui/Rendering';
 import { useEffect, useMemo, useState } from 'react';
-import { useStore, type ViewMode } from './store';
+import { picked, useStore, type ViewMode } from './store';
+import { GroupPanel } from './ui/GroupPanel';
 import { Scene } from './three/Scene';
 import { Sidebar } from './ui/Sidebar';
 import { Inspector } from './ui/Inspector';
@@ -53,6 +54,7 @@ export default function App() {
   const summary = issues.filter((i) => !i.echo).map((i) => i.message);
   const selectedPanel = (project.panels ?? []).find((w) => w.id === selectedId) ?? null;
   const selected = project.cabinets.find((c) => c.id === selectedId) ?? null;
+  const groupCount = picked({ selectedId, group: useStore((s) => s.group) }).length;
 
   useEffect(() => { if (selectedId) setPanel('cabinet'); }, [selectedId]);
   useKeyboard();
@@ -158,7 +160,8 @@ export default function App() {
         </nav>
         <div className="panel-body">
           {panel === 'cabinet' && selectedPanel && <PanelInspector key={selectedPanel.id} panel={selectedPanel} />}
-          {panel === 'cabinet' && !selectedPanel && (selected ? (
+          {panel === 'cabinet' && !selectedPanel && groupCount > 1 && <GroupPanel />}
+          {panel === 'cabinet' && !selectedPanel && groupCount <= 1 && (selected ? (
             <Inspector key={selected.id} cab={selected} issues={issues.filter((i) => i.cabinetId === selected.id).map((i) => i.message)} />
           ) : (
             <div className="empty">
@@ -221,6 +224,14 @@ function useKeyboard() {
       if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); e.shiftKey ? st.redo() : st.undo(); return; }
       const id = st.selectedId;
       if (!id || st.mode !== 'design') return;
+      const many = picked(st);
+      if (many.length > 1) {
+        // A picked group moves together; Escape lets go of it
+        if (e.key === 'Escape') st.select(null);
+        else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') { e.preventDefault(); st.moveGroup((e.key === 'ArrowLeft' ? -1 : 1) * (e.shiftKey ? 1 : 1 / 16)); }
+        else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') { e.preventDefault(); st.moveGroup(0, (e.key === 'ArrowDown' ? -1 : 1) * (e.shiftKey ? 1 : 1 / 16)); }
+        return;
+      }
       if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); st.removeCabinet(id); }
       else if (mod && e.key.toLowerCase() === 'd') { e.preventDefault(); st.duplicateCabinet(id); }
       else if (e.key === 'Escape') st.select(null);

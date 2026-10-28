@@ -47,6 +47,12 @@ export function normalize(p: Project): Project {
 interface State {
   project: Project;
   selectedId: string | null;
+  /** More than one cabinet picked (shift- or ⌘-click, or a whole wall): moved together. Holds selectedId too. */
+  group: string[];
+  /** Pick every cabinet on a wall. */
+  selectWall: (wall: WallId) => void;
+  /** Slide everything picked along its wall by `along`, and up or down by `up`. */
+  moveGroup: (along: number, up?: number) => void;
   view: ViewMode;
   mode: 'design' | 'cutlist' | 'faceframe' | 'quote' | 'job' | 'render' | 'clients' | 'drawings';
   setMode: (m: 'design' | 'cutlist' | 'faceframe' | 'quote' | 'job' | 'render' | 'clients' | 'drawings') => void;
@@ -61,7 +67,7 @@ interface State {
   checkpoint: () => void;
   undo: () => void;
   redo: () => void;
-  select: (id: string | null) => void;
+  select: (id: string | null, add?: boolean) => void;
   setView: (v: ViewMode) => void;
   setDragging: (d: boolean) => void;
   addFromPreset: (presetId: string, wall: WallId) => void;
@@ -78,6 +84,7 @@ const HISTORY = 100;
 export const useStore = create<State>((set, get) => ({
   project: loadSaved() ?? normalize(sampleProject()),
   selectedId: null,
+  group: [],
   view: '3d',
   mode: (() => { try { const m = localStorage.getItem('cabinet-studio.mode'); return m === 'job' || m === 'render' || m === 'clients' || m === 'drawings' || m === 'quote' || m === 'cutlist' || m === 'faceframe' ? m : 'design'; } catch { return 'design'; } })(),
   setMode: (mode) => { try { localStorage.setItem('cabinet-studio.mode', mode); } catch { /* storage blocked */ } set({ mode }); },
@@ -103,7 +110,23 @@ export const useStore = create<State>((set, get) => ({
     if (!future.length) return;
     set({ project: future[0], past: [...past, project], future: future.slice(1) });
   },
-  select: (id) => set({ selectedId: id }),
+  select: (id, add) => {
+    if (!add || !id) { set({ selectedId: id, group: [] }); return; }
+    // Shift- or ⌘-click adds a cabinet to what's picked, or takes it back out
+    const { group, selectedId } = get();
+    const now = group.length ? group : selectedId ? [selectedId] : [];
+    const next = now.includes(id) ? now.filter((x) => x !== id) : [...now, id];
+    set({ group: next.length > 1 ? next : [], selectedId: next.includes(id) ? id : next[0] ?? null });
+  },
+  selectWall: (wall) => {
+    // Islands stand out in the room; shift-click one to bring it along
+    const ids = get().project.cabinets.filter((c) => c.wall === wall && !c.island).map((c) => c.id);
+    set({ group: ids.length > 1 ? ids : [], selectedId: ids[0] ?? null });
+  },
+  moveGroup: (along, up = 0) => {
+    const ids = picked(get());
+    get().commit((p) => ({ ...p, cabinets: p.cabinets.map((c) => (ids.includes(c.id) ? { ...c, offset: c.offset + along, elevation: Math.max(0, c.elevation + up) } : c)) }));
+  },
   setView: (view) => set({ view }),
   setDragging: (dragging) => set({ dragging }),
   addFromPreset: (presetId, wall) => {
@@ -177,3 +200,8 @@ useStore.subscribe((s, prev) => {
     // Storage can be unavailable (private windows); the session still works.
   }
 });
+
+/** What's picked: the group when there is one, else the one selected cabinet. */
+export function picked(st: { selectedId: string | null; group: string[] }): string[] {
+  return st.group.length > 1 && st.selectedId && st.group.includes(st.selectedId) ? st.group : st.selectedId ? [st.selectedId] : [];
+}

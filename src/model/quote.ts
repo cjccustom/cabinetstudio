@@ -272,11 +272,13 @@ export function estimateHours(p: Project, q: QuoteSettings): HourLine[] {
     const tall = c.height > 60;
     const inset = s.doorMount === 'inset' ? st.insetFactor : 1;
     const n = (role: string) => parts.filter((x) => x.role === role).length;
-    addC('Case', 1, st.perBox);
-    if (tall) addC('Tall case (extra)', 1, st.tallBox);
-    if (s.construction !== 'frameless') addC('Face frame', 1, st.faceFrame);
-    else addC('Edge banding the case (frameless)', 1, st.frameless ?? 0.75);
-    addC('Face frame openings', c.rows.length + (c.corner ? 1 : 0), st.perOpening);
+    // A two-sided island is two cases back to back
+    const sides = c.island && c.islandSides === 2 ? 2 : 1;
+    addC('Case', sides, st.perBox);
+    if (tall) addC('Tall case (extra)', sides, st.tallBox);
+    if (s.construction !== 'frameless') addC('Face frame', sides, st.faceFrame);
+    else addC('Edge banding the case (frameless)', sides, st.frameless ?? 0.75);
+    addC('Face frame openings', c.rows.length + (sides === 2 ? (c.backRows ?? c.rows).length : 0) + (c.corner ? 1 : 0), st.perOpening);
     addC(inset > 1 ? 'Doors, inset (fit & hang)' : 'Doors (fit & hang)', n('door'), st.perDoor * inset);
     addC(inset > 1 ? 'Drawers, inset (slides & fronts)' : 'Drawers (slides & fronts)', n('drawerBox') + parts.filter((x) => x.name === 'False front').length * 0.5, st.perDrawer * inset);
     addC('Shelves', n('shelf'), st.perShelf);
@@ -560,6 +562,7 @@ export function scopeLine(c: Cabinet, p: Project): string {
   bits.push(`Approx: ${W}W x ${fmtIn(c.height)}H x ${fmtIn(c.depth)}D`);
   if (n('door')) bits.push(`(${n('door')}) ${inset}door${n('door') > 1 ? 's' : ''}`);
   if (n('drawerBox')) bits.push(`(${n('drawerBox')}) drawer${n('drawerBox') > 1 ? 's' : ''} with dovetail drawer boxes and soft close slides`);
+  if (c.island) bits.push(c.islandSides === 2 ? 'freestanding island with fronts on both sides' : 'freestanding island, back finished with a panel');
   const adj = parts.filter((x) => x.role === 'shelf' && x.name === 'Adjustable shelf').length;
   if (adj) bits.push(`(${adj}) adjustable shel${adj > 1 ? 'ves' : 'f'}`);
   const hang = c.rows.filter((r) => r.type === 'hang').length;

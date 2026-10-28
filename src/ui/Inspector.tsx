@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { cofferOf, perimOf } from '../model/coffer';
 import { combine, combineAll, stackedPairs, upperOn } from '../model/onePiece';
 import { useStore } from '../store';
 import type { CabinetNote, Cabinet, CrownBuild, EndMode, FaceRow, PanelChoice, PanelMode, ShopSettings, WallId } from '../model/types';
-import { buildParts, closetRod, crownLayout, layoutRows, noCrownBuild, panelOn } from '../model/parts';
+import { buildParts, closetRod, crownFit, crownLayout, crownRoom, layoutRows, noCrownBuild, panelOn } from '../model/parts';
 import { defaultPilaster, pilasterOf, pilasterSections } from '../model/pilaster';
 import { bracketCount, bracketGap, bracketLength, bracketProduct, finishedEnds, floatingOf, shelfPly } from '../model/floatingShelf';
 import { evenRun, fillSpan, gapBeside, resolveEnds, runOf, wallLength, wallNames, wallOrder } from '../model/layout';
@@ -49,6 +49,8 @@ export function Inspector({ cab, issues }: { cab: Cabinet; issues: string[] }) {
   const set = (patch: Partial<Cabinet>) => update(cab.id, patch);
   const setRow = (id: string, patch: Partial<FaceRow>) => set({ rows: cab.rows.map((r) => (r.id === id ? { ...r, ...patch } : r)) });
   const { rows: layout, leftover } = layoutRows(cab, settings);
+  const [shrunk, setShrunk] = useState(0);
+  useEffect(() => setShrunk(0), [cab.id]);
 
   return (
     <div className="inspector">
@@ -99,9 +101,19 @@ export function Inspector({ cab, issues }: { cab: Cabinet; issues: string[] }) {
             )}
           </div>
         )}
+        {cab.island && (
+          <label className="check-inline">
+            <input type="checkbox" checked={cab.islandSides === 2} onChange={(e) => set(e.target.checked
+              ? { islandSides: 2, wallInset: (cab.wallInset ?? 0) + cab.depth }
+              : { islandSides: undefined, backRows: undefined, wallInset: Math.max(0, (cab.wallInset ?? 0) - cab.depth) })} /> Drawers on both sides (a second case back to back, same openings)
+          </label>
+        )}
+        <div className="order-actions"><button className="mini" onClick={() => useStore.getState().selectWall(cab.wall)}>Pick everything on the {wallNames[cab.wall].toLowerCase()} to move it together</button></div>
         <p className="hint">{cab.island
-          ? `Island: back ${fmt(cab.wallInset ?? 0)} off the ${wallNames[cab.wall].toLowerCase()}, facing away from it. The back gets a panel in the door style, the base (baseboard, or a toe kick under Base below) wraps all four sides, and the top overhangs all four sides.`
-          : 'Drag the cabinet in the 3D, Plan or Elevation view to slide it along the wall. It snaps to neighbors and wall ends.'}</p>
+          ? cab.islandSides === 2
+            ? `Island, fronts both ways: ${fmt(2 * cab.depth)} deep over the two cases, the seam between them ${fmt(cab.wallInset ?? 0)} off the ${wallNames[cab.wall].toLowerCase()}. The far side mirrors these openings; the base wraps all four sides and the top runs over both.`
+            : `Island: back ${fmt(cab.wallInset ?? 0)} off the ${wallNames[cab.wall].toLowerCase()}, facing away from it. The back gets a panel in the door style, the base (baseboard, or a toe kick under Base below) wraps all four sides, and the top overhangs all four sides.`
+          : 'Drag the cabinet in the 3D, Plan or Elevation view to slide it along the wall. It snaps to neighbors and wall ends. Shift- or ⌘-click others to pick several and move them together.'}</p>
       </Section>
 
       {(cab.blind || cab.corner) && <CornerSection cab={cab} set={set} />}
@@ -312,14 +324,29 @@ export function Inspector({ cab, issues }: { cab: Cabinet; issues: string[] }) {
               label={cab.kind === 'mantel' ? (k === 'crown' ? 'Bed moulding under the shelf' : 'Base around the plinths') : undefined}
               num={cab[k]}
               species={settings.moldSpecies}
-              onChange={(n) => set({ [k]: n })}
+              maxHeight={k === 'crown' && cab.kind !== 'mantel' ? crownRoom(cab, settings, room.height) : undefined}
+              onChange={(n) => {
+                if (k !== 'crown' || cab.kind === 'mantel') return set({ [k]: n });
+                // A crown too tall for the space shortens the cabinet so its top meets the ceiling
+                const fit = crownFit({ ...cab, crown: n }, settings, room.height);
+                const cut = fit && fit.over > 1e-3 ? Math.ceil(fit.over * 16) / 16 : 0;
+                set(cut ? { crown: n, height: cab.height - cut } : { crown: n });
+                setShrunk(cut);
+              }}
               extra={cab[k] && (
                 <button className="mini" title={`Use on every ${cab.kind} cabinet on this wall`} onClick={() =>
-                  useStore.getState().commit((p) => ({ ...p, cabinets: p.cabinets.map((c) => (c.wall === cab.wall && c.kind === cab.kind ? { ...c, [k]: cab[k], ...(k === 'crown' ? { crownBuild: cab.crownBuild } : {}) } : c)) }))
+                  useStore.getState().commit((p) => ({ ...p, cabinets: p.cabinets.map((c) => {
+                    if (c.wall !== cab.wall || c.kind !== cab.kind) return c;
+                    const next = { ...c, [k]: cab[k], ...(k === 'crown' ? { crownBuild: cab.crownBuild } : {}) };
+                    // Same rule as picking it: shorten any cabinet the crown would push past the ceiling
+                    const f = k === 'crown' ? crownFit(next, p.settings, p.room.height) : null;
+                    return f && f.over > 1e-3 ? { ...next, height: next.height - Math.ceil(f.over * 16) / 16 } : next;
+                  }) }))
                 }>Whole wall</button>
               )}
             />
           ))}
+        {shrunk > 0 && <p className="hint">Shortened {cab.name} {fmt(shrunk)} to {fmt(cab.height)} so the crown meets the ceiling. Undo puts it back.</p>}
         {cab.kind !== 'base' && cab.kind !== 'mantel' && <CrownBuildEditor cab={cab} set={set} species={settings.moldSpecies} />}
         <p className="hint">Runs across the face and returns to the wall on exposed ends. Lineal footage and cost are on the Orders tab.</p>
       </Section>
@@ -472,6 +499,11 @@ function CrownBuildEditor({ cab, set, species }: { cab: Cabinet; set: (patch: Pa
   // Fronts' top edge, so a sub-crown that laps down over the doors gets flagged
   const frontTop = Math.max(0, ...buildParts(cab, settings).filter((p) => p.role === 'door' || p.role === 'drawerFront').flatMap((p) => p.boxes.map((x) => x.min[1] + x.size[1])));
   const overlap = b.subCrown > 0 ? frontTop - L.subBottom : 0;
+  const ceiling = useStore((s) => s.project.room.height);
+  const all = useStore((s) => s.project.cabinets);
+  const commit = useStore((s) => s.commit);
+  const fit = crownFit(cab, settings, ceiling);
+  const others = all.filter((c) => c.id !== cab.id && c.wall === cab.wall && (crownFit(c, settings, ceiling)?.over ?? 0) > 1e-3);
   return (
     <div className="crown-build">
       <h4>Crown build</h4>
@@ -504,6 +536,15 @@ function CrownBuildEditor({ cab, set, species }: { cab: Cabinet; set: (patch: Pa
         )}
       </div>
       {overlap > 1e-3 && <p className="warn">The sub-crown laps {fmt(overlap)} down over the doors. Make it shorter or raise it.</p>}
+      {fit && fit.over > 1e-3 && (
+        <div className="warn">
+          The crown is {fmt(fit.over)} too tall: case top {fmt(fit.caseTop)} + crown drop {fmt(fit.drop)}{b.rise ? ` + ${fmt(b.rise)} raise` : ''} = {fmt(fit.top)}, ceiling {fmt(ceiling)}.
+          <div className="order-actions">
+            <button className="mini" onClick={() => set({ height: cab.height - fit.over })}>Shorten {cab.name} to {fmt(cab.height - fit.over)}</button>
+            {others.length > 0 && <button className="mini" onClick={() => commit((p) => ({ ...p, cabinets: p.cabinets.map((c) => { const f = c.wall === cab.wall ? crownFit(c, p.settings, p.room.height) : null; return f && f.over > 1e-3 ? { ...c, height: c.height - f.over } : c; }) }))}>Shorten all {others.length + 1} on this wall so the crown meets the ceiling</button>}
+          </div>
+        </div>
+      )}
       <p className="hint">
         {L.seat > 0
           ? <>With no sub-crown the crown sits on the case: its bottom at the top of the case, on a 3/4" plywood nailer {fmt(L.seat)} tall (the crown’s height). Raise it to lift it further. Add a sub-crown to set the crown on its face instead.</>

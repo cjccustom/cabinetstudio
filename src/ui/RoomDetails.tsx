@@ -112,13 +112,18 @@ function OpeningEditor({ o, species, put, remove }: { o: Opening; species: strin
         <Field label="Width" htmlFor={`op-w-${o.id}`}><LengthInput id={`op-w-${o.id}`} value={o.width} min={6} onChange={(v) => put({ width: v ?? o.width })} /></Field>
         <Field label="Height" htmlFor={`op-h-${o.id}`}><LengthInput id={`op-h-${o.id}`} value={o.height} min={6} onChange={(v) => put({ height: v ?? o.height })} /></Field>
         {o.kind === 'window' && <Field label="Sill off floor" htmlFor={`op-s-${o.id}`}><LengthInput id={`op-s-${o.id}`} value={o.sill} onChange={(v) => put({ sill: v ?? o.sill })} /></Field>}
-        {!t.casing && <Field label="Flat casing" htmlFor={`op-fc-${o.id}`}><LengthInput id={`op-fc-${o.id}`} value={t.flat || null} allowAuto placeholder="none" onChange={(v) => setTrim({ flat: v ?? 0 })} /></Field>}
+        {!t.casing && o.kind !== 'open' && <Field label="Flat casing" htmlFor={`op-fc-${o.id}`}><LengthInput id={`op-fc-${o.id}`} value={t.flat || null} allowAuto placeholder="none" onChange={(v) => setTrim({ flat: v ?? 0 })} /></Field>}
       </div>
-      <p className="hint">Sizes are the finished opening, jamb to jamb; casing goes around it.</p>
+      <div className="order-actions">
+        <button className="mini" onClick={() => put({ offset: 0 })}>To the left end</button>
+        <button className="mini" onClick={() => put({ offset: Math.max(0, len - o.width) })}>To the right end</button>
+        {o.kind === 'open' && Math.abs(o.height - room.height) > 0.01 && <button className="mini" onClick={() => put({ height: room.height })}>Floor to ceiling</button>}
+      </div>
+      <p className="hint">{o.kind === 'open' ? 'A gap in the wall where the room carries on: no casing, no door. Baseboard and crown stop at it.' : 'Sizes are the finished opening, jamb to jamb; casing goes around it.'}</p>
       {o.kind === 'door' && <DoorChoice o={o} put={put} />}
-      <MoldSlot kind="casing" label="Profiled casing" num={t.casing} species={species} onChange={(n) => setTrim({ casing: n })} extra={t.casing && <button className="mini" onClick={() => setTrim({ casing: undefined })}>Use flat stock</button>} />
-      {!t.casing && <MoldSlot kind="backBand" num={t.backBand} species={species} onChange={(n) => setTrim({ backBand: n })} extra={t.backBand && <button className="mini" onClick={() => setTrim({ backBand: undefined })}>Remove</button>} />}
-      <MoldSlot kind="headCap" num={t.headCap} species={species} onChange={(n) => setTrim({ headCap: n })} extra={t.headCap && <button className="mini" onClick={() => setTrim({ headCap: undefined })}>Remove</button>} />
+      {o.kind !== 'open' && <MoldSlot kind="casing" label="Profiled casing" num={t.casing} species={species} onChange={(n) => setTrim({ casing: n })} extra={t.casing && <button className="mini" onClick={() => setTrim({ casing: undefined })}>Use flat stock</button>} />}
+      {!t.casing && o.kind !== 'open' && <MoldSlot kind="backBand" num={t.backBand} species={species} onChange={(n) => setTrim({ backBand: n })} extra={t.backBand && <button className="mini" onClick={() => setTrim({ backBand: undefined })}>Remove</button>} />}
+      {o.kind !== 'open' && <MoldSlot kind="headCap" num={t.headCap} species={species} onChange={(n) => setTrim({ headCap: n })} extra={t.headCap && <button className="mini" onClick={() => setTrim({ headCap: undefined })}>Remove</button>} />}
       {o.kind === 'window' && (
         <>
           <MoldSlot kind="stool" num={t.stool} species={species} onChange={(n) => setTrim({ stool: n })} extra={t.stool && <button className="mini" onClick={() => setTrim({ stool: undefined })}>Remove</button>} />

@@ -63,7 +63,7 @@ export function ProfilePicker({ kind, current, species, onPick, onClose, maxHeig
             </optgroup>
           </select>
           <input id="pp-q" placeholder="Number, WM number or name" value={q} onChange={(e) => setQ(e.target.value)} />
-          {maxHeight != null && <span className="muted">Fits: up to {fmt(maxHeight)} tall installed; taller ones are listed last.</span>}
+          {maxHeight != null && <span className="muted">Room for up to {fmt(maxHeight)} {kind === 'crown' ? 'of drop between the case and the ceiling' : 'tall installed'}; bigger ones are listed last.</span>}
           <span className="muted">A&amp;M prices per lineal foot in {species.toLowerCase()}; Brosco is priced per job on the Orders tab.</span>
         </div>
         <div className="pp-custom">
@@ -84,9 +84,10 @@ export function ProfilePicker({ kind, current, species, onPick, onClose, maxHeig
               <button key={p.num} className={`pp-item${p.num === current ? ' on' : ''}${tooTall(p) ? ' too-tall' : ''}`} onClick={() => { onPick(p.num); onClose(); }}>
                 <ProfileThumb p={p} />
                 <span className="pp-num">{profileLabel(p)}</span>
-                <span className="muted mono">{fmt(p.t)} × {fmt(p.w)}</span>
+                <span className="mono">{installedSize(p)}</span>
+                <span className="muted mono">stock {fmt(p.t)} × {fmt(p.w)}</span>
                 {(p.name || p.wm) && <span className="muted">{[p.name, p.wm].filter(Boolean).join(' · ')}</span>}
-                {tooTall(p) && <span className="warn-text">{fmt(mountShape(p).height)} tall: too big</span>}
+                {tooTall(p) && <span className="warn-text">{fmt(mountShape(p).height - maxHeight!)} too tall for the space</span>}
                 {pr && <span className="mono">${pr.price.toFixed(2)}/ft{pr.species !== species ? ` ${pr.species.toLowerCase()}` : ''}</span>}
               </button>
             );
@@ -102,6 +103,12 @@ export function ProfilePicker({ kind, current, species, onPick, onClose, maxHeig
   );
 }
 
+/** The sizes that matter once it's up: drop and projection for crown, height and projection for the rest. */
+export function installedSize(p: Profile): string {
+  const m = mountShape(p);
+  return p.category === 'Crown' || p.angled ? `${fmt(m.height)} drop × ${fmt(m.depth)} proj` : `${fmt(m.height)} tall × ${fmt(m.depth)} proj`;
+}
+
 /** One moulding slot in an inspector: the chosen profile with buttons to change or clear it. */
 export function MoldSlot({ kind, num, species, onChange, extra, label, maxHeight }: { kind: MoldKind; num?: string; species: string; onChange: (n: string | undefined) => void; extra?: React.ReactNode; label?: string; maxHeight?: number }) {
   const [open, setOpen] = useState(false);
@@ -112,7 +119,7 @@ export function MoldSlot({ kind, num, species, onChange, extra, label, maxHeight
       {p ? (
         <button className="mold-pick" onClick={() => setOpen(true)}>
           <ProfileThumb p={p} size={36} />
-          <span><strong>{profileLabel(p)}</strong><span className="muted mono"> {fmt(p.t)} × {fmt(p.w)}</span></span>
+          <span><strong>{profileLabel(p)}</strong><span className="muted mono"> {installedSize(p)}</span></span>
         </button>
       ) : (
         <button className="mini" onClick={() => setOpen(true)}>Choose profile…</button>

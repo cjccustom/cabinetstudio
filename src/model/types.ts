@@ -43,6 +43,10 @@ export interface Cabinet {
    * panel in the door style, toe kick carried around the back, top overhanging all four sides.
    */
   island?: boolean;
+  /** An island with fronts on both sides: a second case back to back with this one, mirrored, under one top. */
+  islandSides?: 1 | 2;
+  /** The far side's openings, when they differ from the front's (same as the front when unset). */
+  backRows?: FaceRow[];
   /** Top overhang past the finished back (islands). */
   topBack?: number;
   /** A custom cushion on a bench seat, made by an upholsterer. */
@@ -305,7 +309,8 @@ export interface Finishes {
 export interface Opening {
   id: string;
   name: string;
-  kind: 'door' | 'window' | 'cased';
+  /** open = a gap in the wall with no trim: the room carries on past it (a hall, another room). */
+  kind: 'door' | 'window' | 'cased' | 'open';
   wall: WallId;
   offset: number;
   width: number;

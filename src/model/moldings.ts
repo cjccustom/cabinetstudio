@@ -208,7 +208,7 @@ export function cabinetMoldings(c: Cabinet, s: ShopSettings, ends: EndInfo): Mol
     const x1 = xr + (ends.right ? m.depth : 0);
     out.push({ kind: r.kind, num: p.num, along: 'x', facing: 'front', x: x0, y, z: r.z, length: x1 - x0, hang: r.hang });
     // An island's base wraps its finished back too
-    const zb = c.island && r.kind === 'baseMold' ? -s.endPanelThickness - o - m.depth : null;
+    const zb = !c.island || r.kind !== 'baseMold' ? null : c.islandSides === 2 ? -r.z - m.depth : -s.endPanelThickness - o - m.depth;
     if (zb != null) out.push({ kind: r.kind, num: p.num, along: 'x', facing: 'back', x: x1, y, z: zb + m.depth, length: x1 - x0 });
     // Returns back to the wall on exposed ends, or back to the neighbour's face beside a pilaster
     for (const side of ['left', 'right'] as const) {

@@ -1,6 +1,7 @@
 import type { EndInfo } from './parts';
 import type { Cabinet, Room, ShopSettings, WallId } from './types';
-import { panelExtents } from './parts';
+import { crownFit, panelExtents } from './parts';
+import { fmt } from '../units';
 
 export const wallNames: Record<WallId, string> = { back: 'Back wall', left: 'Left wall', right: 'Right wall', front: 'Front wall' };
 export const wallOrder: WallId[] = ['back', 'left', 'right', 'front'];
@@ -43,7 +44,9 @@ export function footprint(room: Room, c: Cabinet, ext = { left: 0, right: 0 }): 
   const l = -ext.left;
   const r = c.width + ext.right;
   const d = c.corner ? Math.max(c.depth, c.corner.width2) : c.depth;
-  const pts: [number, number][] = [[l, 0], [r, 0], [l, d], [r, d]].map(([lx, lz]) => [
+  // A two-sided island's far case sits behind this one, toward the wall
+  const z0 = c.island && c.islandSides === 2 ? -c.depth : 0;
+  const pts: [number, number][] = [[l, z0], [r, z0], [l, d], [r, d]].map(([lx, lz]) => [
     pos[0] + lx * cos + lz * sin,
     pos[2] - lx * sin + lz * cos,
   ]);
@@ -74,7 +77,11 @@ export function findIssues(room: Room, cabinets: Cabinet[], s: ShopSettings): Is
       const f = fps[i];
       if (f.x0 < -EPS || f.z0 < -EPS || f.x1 > room.width + EPS || f.z1 > room.depth + EPS) issues.push({ cabinetId: c.id, message: `${c.name} runs past the corner wall` });
     }
-    if (c.elevation + c.height > room.height + EPS) issues.push({ cabinetId: c.id, message: `${c.name} is taller than the ceiling` });
+    if (c.elevation + c.height > room.height + EPS) issues.push({ cabinetId: c.id, message: `${c.name} is taller than the ceiling (top ${fmt(c.elevation + c.height)}, ceiling ${fmt(room.height)})` });
+    else {
+      const cf = crownFit(c, s, room.height);
+      if (cf && cf.over > EPS) issues.push({ cabinetId: c.id, message: `${c.name}'s crown is ${fmt(cf.over)} too tall: case top at ${fmt(cf.caseTop)}, crown drop ${fmt(cf.drop)} puts its top at ${fmt(cf.top)}, ceiling ${fmt(room.height)}. Shorten the cabinet ${fmt(cf.over)} or pick a crown with a drop under ${fmt(Math.max(0, cf.drop - cf.over))}.` });
+    }
     for (let j = i + 1; j < cabinets.length; j++) {
       if (overlaps(fps[i], fps[j])) issues.push({ cabinetId: c.id, message: `${c.name} overlaps ${cabinets[j].name}` }, { cabinetId: cabinets[j].id, message: `${cabinets[j].name} overlaps ${c.name}`, echo: true });
     }

@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { newOpening } from "../src/model/room";
 import { cancelDeadline, holidays } from "../portal/src/cancel";
 import { expiring } from "../src/portal";
 import { newTable, seats, tableEstimate, tableScope } from "../src/model/furniture";
@@ -7,7 +8,7 @@ import { mantelOf, shelfFor } from "../src/model/mantel";
 import { defaultPilaster } from "../src/model/pilaster";
 import { combineAll } from "../src/model/onePiece";
 // Sanity checks on the cabinet model: run with `npm test`.
-import { buildParts, crownLayout, layoutRows, panelExtents, realOverhang } from "../src/model/parts";
+import { buildParts, crownFit, crownLayout, crownRoom, layoutRows, panelExtents, realOverhang } from "../src/model/parts";
 import { placedAppliances } from "../src/model/appliances";
 import { legWidth, mantelClearances } from "../src/model/mantel";
 import { defaultBack, planToProject, readPlan } from "../src/model/planImport";
@@ -1106,6 +1107,35 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   const priced = { ...proj, quote: { ...quoteOf(proj), cushionPerSqFt: 40 } };
   const placed = buildParts(bench, proj.settings, resolveEnds(proj.room, proj.cabinets, bench)).find((x) => x.role === 'cushion')!;
   eq('cushion: priced by area', +estimateMaterials(priced, quoteOf(priced)).find((l) => l.label.startsWith('Custom seat cushions'))!.cost.toFixed(2), +((placed.length * placed.width) / 144 * 40).toFixed(2));
+}
+
+// Crown against the ceiling, two-sided islands, wall openings
+{
+  const mk = (id: string) => ({ ...cabinetFromPreset(presets.find((x) => x.id === id)!, 'back', 0, []), id, name: id });
+  const upper = { ...mk('wall-2'), elevation: 54, height: 41.5, crown: '5715' };
+  const room = { ...p.room, height: 96 };
+  const drop = mountShape(profileByNum('5715')!).height;
+  const fit = crownFit(upper, s, room.height)!;
+  eq('crown fit: over by the drop less the 1/2" gap', +fit.over.toFixed(4), +(drop - 0.5).toFixed(4));
+  const msg = findIssues(room, [upper], s).map((i) => i.message).join(' ');
+  eq('crown fit: message gives case top, drop and ceiling', /case top at 95 1\/2".*crown drop.*ceiling 96"/.test(msg.replace(/\u00a0/g, ' ')), true);
+  eq('crown fit: room for a crown', crownRoom({ ...upper, crown: undefined }, s, room.height), 0.5);
+  const shortened = { ...upper, height: upper.height - fit.over };
+  eq('crown fit: shortened, it meets the ceiling', crownFit(shortened, s, room.height)!.over, 0);
+
+  const isl = { ...mk('closet-island'), islandSides: 2 as const, wallInset: 80 };
+  const ip = buildParts(isl, s, { left: true, right: true });
+  eq('two-sided island: drawers both sides', ip.filter((x) => x.role === 'drawerBox').length, 6);
+  eq('two-sided island: no finished back panel', ip.some((x) => x.name.startsWith('Back panel, finished')), false);
+  const tops = ip.filter((x) => x.role === 'woodTop');
+  const far = ip.filter((x) => x.name.endsWith('far side') && x.role === 'drawerFront');
+  eq('two-sided island: one top over both, far fronts face the other way', tops.length === 1 && far.length === 3 && far.every((x) => x.boxes[0].min[2] < 0), true);
+  const tb = tops[0].boxes[0];
+  eq('two-sided island: top covers both sides', tb.min[2] < -isl.depth && tb.min[2] + tb.size[2] > isl.depth, true);
+  const proj = { ...p, cabinets: [isl] };
+  eq('two-sided island: no layout issues mid-room', findIssues(proj.room, proj.cabinets, proj.settings).map((i) => i.message).join('; '), '');
+  eq('two-sided island: labor counts two cases', estimateHours(proj, quoteOf(proj)).find((h) => h.label === 'Case')!.qty, 2);
+  eq('wall opening: no trim, floor to ceiling', JSON.stringify((() => { const o = newOpening('open', 'left', p); return [o.trim.flat, o.height === p.room.height, o.name]; })()), JSON.stringify([0, true, 'Wall opening 1']));
 }
 
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');

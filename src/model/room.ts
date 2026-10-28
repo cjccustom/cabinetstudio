@@ -15,13 +15,14 @@ export const floorOf = (p: Project): Floor => ({ ...defaultFloor, ...p.floor });
 /** Whether this job supplies and installs its doors or room trim, rather than only showing them in the design. */
 export const inScope = (p: Project, what: 'doors' | 'roomTrim') => !!p.scope?.[what];
 
-export const openingKinds = { door: 'Door', window: 'Window', cased: 'Cased opening' } as const;
+export const openingKinds = { door: 'Door', window: 'Window', cased: 'Cased opening', open: 'Wall opening, no trim' } as const;
 
 export function newOpening(kind: Opening['kind'], wall: WallId, p: Project): Opening {
   const n = (p.openings ?? []).filter((o) => o.kind === kind).length + 1;
-  const size = kind === 'door' ? { width: 32, height: 80, sill: 0 } : kind === 'window' ? { width: 36, height: 54, sill: 32 } : { width: 48, height: 84, sill: 0 };
+  const size = kind === 'door' ? { width: 32, height: 80, sill: 0 } : kind === 'window' ? { width: 36, height: 54, sill: 32 } : kind === 'open' ? { width: 36, height: p.room.height, sill: 0 } : { width: 48, height: 84, sill: 0 };
   const len = wallLength(p.room, wall);
-  return { id: uid('open'), name: `${openingKinds[kind]} ${n}`, kind, wall, offset: Math.max(0, Math.round((len - size.width) / 2)), ...size, trim: { flat: 3.5 } };
+  const name = kind === 'open' ? `Wall opening ${n}` : `${openingKinds[kind]} ${n}`;
+  return { id: uid('open'), name, kind, wall, offset: Math.max(0, Math.round((len - size.width) / 2)), ...size, trim: { flat: kind === 'open' ? 0 : 3.5 } };
 }
 
 const thicknessOf = (num?: string) => { const p = profileByNum(num); return p ? mountShape(p) : null; };

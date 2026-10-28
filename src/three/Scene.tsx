@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { Canvas, ThreeEvent, useThree } from '@react-three/fiber';
 import { Html, Line, OrbitControls, OrthographicCamera, PerspectiveCamera } from '@react-three/drei';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
-import { useStore, type ViewMode } from '../store';
+import { picked, useStore, type ViewMode } from '../store';
 import type { Cabinet, Finishes, Room, ShopSettings, WallId, WallPanel } from '../model/types';
 import { spacingOf } from '../model/panels';
 import { cabinetMoldings, panelMoldings } from '../model/moldings';
@@ -26,6 +26,8 @@ export function Scene({ issueIds }: { issueIds: Set<string> }) {
   const project = useStore((s) => s.project);
   const view = useStore((s) => s.view);
   const selectedId = useStore((s) => s.selectedId);
+  const group = useStore((s) => s.group);
+  const pickedIds = picked({ selectedId, group });
   const select = useStore((s) => s.select);
   const { room, settings, finishes } = project;
   const showCeiling = useNav((n) => n.ceiling);
@@ -54,7 +56,7 @@ export function Scene({ issueIds }: { issueIds: Set<string> }) {
           settings={settings}
           finishes={finishes}
           view={view}
-          selected={c.id === selectedId}
+          selected={pickedIds.includes(c.id)}
           issue={issueIds.has(c.id)}
         />
       ))}
@@ -127,6 +129,8 @@ function Cameras({ view, room }: { view: ViewMode; room: Room }) {
 /** Walls only face inward, so the ones between you and the cabinets disappear on their own. */
 interface DragState {
   pointerId: number;
+  /** Everyone moving with this one (a picked group) and where each started. */
+  starts: Map<string, number>;
   plane: THREE.Plane;
   startAlong: number;
   startOffset: number;
@@ -164,7 +168,12 @@ function CabinetModel(props: {
     if (view === '3d' && useNav.getState().mode === 'pan') { useStore.getState().select(cab.id); return; }
     e.stopPropagation();
     const st = useStore.getState();
-    st.select(cab.id);
+    // Shift- or ⌘-click adds to (or takes out of) what's picked, without dragging
+    if (e.shiftKey || e.metaKey || e.ctrlKey) { st.select(cab.id, true); return; }
+    // Pressing a cabinet already in the group keeps the group, so a drag moves them all
+    const inGroup = st.group.length > 1 && st.group.includes(cab.id);
+    if (inGroup) useStore.setState({ selectedId: cab.id }); else st.select(cab.id);
+    const movers = inGroup ? st.project.cabinets.filter((c) => st.group.includes(c.id)) : [cab];
     let plane: THREE.Plane;
     if (view.startsWith('elev-')) {
       const normals: Record<WallId, [THREE.Vector3, number]> = {
@@ -179,7 +188,7 @@ function CabinetModel(props: {
       plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -e.point.y);
     }
     if (!e.ray.intersectPlane(plane, hit)) return;
-    drag.current = { pointerId: e.pointerId, plane, startAlong: alongWall(room, cab.wall, hit.x, hit.z), startOffset: cab.offset, moved: false };
+    drag.current = { pointerId: e.pointerId, plane, starts: new Map(movers.map((c) => [c.id, c.offset])), startAlong: alongWall(room, cab.wall, hit.x, hit.z), startOffset: cab.offset, moved: false };
     (e.target as unknown as Element).setPointerCapture?.(e.pointerId);
     if (controls) controls.enabled = false;
   };
@@ -196,9 +205,11 @@ function CabinetModel(props: {
       st.checkpoint();
       st.setDragging(true);
     }
-    const others = st.project.cabinets;
+    // The one under the pointer snaps (to the cabinets not moving with it); the rest keep their spacing
+    const others = st.project.cabinets.filter((c) => c.id === cab.id || !d.starts.has(c.id));
     const offset = snapOffset(room, others, cab, d.startOffset + delta, st.project.settings);
-    st.transient((p) => ({ ...p, cabinets: p.cabinets.map((c) => (c.id === cab.id ? { ...c, offset } : c)) }));
+    const moved = offset - d.startOffset;
+    st.transient((p) => ({ ...p, cabinets: p.cabinets.map((c) => (d.starts.has(c.id) ? { ...c, offset: d.starts.get(c.id)! + moved } : c)) }));
   };
 
   const onUp = (e: ThreeEvent<PointerEvent>) => {
