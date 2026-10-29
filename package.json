@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "build:preview": "tsc --noEmit && vite build --mode singlefile && node scripts/strip-shell.mjs",
-    "test": "esbuild scripts/check-model.ts --bundle --platform=node --format=esm --log-level=warning --outfile=node_modules/.cache/check-model.mjs && node node_modules/.cache/check-model.mjs"
+    "test": "esbuild scripts/check-model.ts --bundle --platform=node --format=esm --log-level=warning --outfile=node_modules/.cache/check-model.mjs && node node_modules/.cache/check-model.mjs",
+    "rehearsal": "esbuild scripts/rehearsal.ts --bundle --platform=node --format=esm --external:playwright --log-level=warning --outfile=node_modules/.cache/rehearsal.mjs && NODE_PATH=${NODE_PATH:-/opt/node22/lib/node_modules} node node_modules/.cache/rehearsal.mjs"
   },
   "dependencies": {
     "@react-three/drei": "9.114.0",

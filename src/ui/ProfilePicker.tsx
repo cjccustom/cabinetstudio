@@ -63,7 +63,8 @@ export function ProfilePicker({ kind, current, species, onPick, onClose, maxHeig
             </optgroup>
           </select>
           <input id="pp-q" placeholder="Number, WM number or name" value={q} onChange={(e) => setQ(e.target.value)} />
-          {maxHeight != null && <span className="muted">Room for up to {fmt(maxHeight)} {kind === 'crown' ? 'of drop between the case and the ceiling' : 'tall installed'}; bigger ones are listed last.</span>}
+          {maxHeight != null && <span className="muted">Room for up to {fmt(maxHeight)} {kind === 'crown' ? 'of drop between the case and the ceiling' : 'tall installed'}; bigger ones are listed last{kind === 'crown' ? ', and picking one shortens the cabinet to fit' : ''}.</span>}
+          {kind === 'crown' && <button className="mini" onClick={() => { setCat('Scotia'); setQ(''); }}>Small cove (just off the ceiling)</button>}
           <span className="muted">A&amp;M prices per lineal foot in {species.toLowerCase()}; Brosco is priced per job on the Orders tab.</span>
         </div>
         <div className="pp-custom">

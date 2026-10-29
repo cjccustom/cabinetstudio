@@ -23,7 +23,7 @@ export const moldLabel: Record<MoldKind, string> = {
 
 /** Catalog categories that make sense for each spot, listed first in the picker. */
 export const moldCategories: Record<MoldKind, string[]> = {
-  crown: ['Crown', 'Header Cap', 'Band'],
+  crown: ['Crown', 'Scotia', 'Header Cap', 'Band'],
   lightRail: ['Base Board and Base Cap', 'Panel', 'Scotia', 'Crown', 'Band'],
   baseMold: ['Base Board and Base Cap', 'Shoe Moulding'],
   cap: ['Chair Rail', 'Panel', 'Base Board and Base Cap', 'Header Cap'],

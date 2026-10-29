@@ -62,6 +62,15 @@ Things the app is guessing at until Cody answers. Each one says what the app doe
   upper: the app needs a single full-height cabinet with doors below and open shelves above.
   The tops are painted, not wood (Cody will change it). The coffers aren't yet centered on the
   windows; Cody is checking his notes for whether the windows are truly symmetrical first.
+- **Portal update to deploy.** The customer page no longer shows the cancel box or mentions the
+  Notice of Cancellation before signing (the two Notices stay at the back of the signed copy).
+  In Cloudflare: the cjc-portal Worker → Edit code, replace it with all of `portal/portal-worker.js`,
+  Deploy.
+- **Live dress rehearsal before the first real quote.** Make a client named "TEST Rehearsal" with
+  your own email and phone, design two cabinets, then from the Clients tab: publish the proposal,
+  open the link on your phone, check the price and scope read right, sign with your finger, open
+  the signed copy, and (once QuickBooks is on the sandbox) send yourself the deposit invoice. Then
+  try it on a second phone or a laptop. `npm run rehearsal` repeats the automated part any time.
 - **Next Day Moulding catalog.** Their in-stock mouldings (linked to the matching Brosco
   profiles) and sheet goods prices, from nextdaymoulding.com. Their site holds automated
   visitors in a queue, so this has to be read through a real browser: open a Claude Code session
