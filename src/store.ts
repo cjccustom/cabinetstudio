@@ -4,6 +4,7 @@ import { cabinetFromPreset, defaultSettings, presets, sampleProject, uid } from 
 import { findIssues, footprint, nextFreeOffset, shiftInRoom, wallAxes, wallLength } from './model/layout';
 import { defaultCutlist, sheetPrice } from './model/cutlist';
 import { setCustomDrawings } from './model/moldings';
+import { crownFit } from './model/parts';
 
 export type ViewMode = '3d' | 'plan' | `elev-${WallId}`;
 
@@ -51,6 +52,10 @@ interface State {
   group: string[];
   /** Pick every cabinet on a wall. */
   selectWall: (wall: WallId) => void;
+  /** Pick everything that runs up to the ceiling (within a few inches): what takes ceiling crown. */
+  selectCeiling: () => void;
+  /** Put a crown on everything picked, shortening each so its crown meets the ceiling. Returns how many were shortened. */
+  crownGroup: (num: string | undefined) => number;
   /** Slide everything picked along its wall by `along`, and up or down by `up`. */
   moveGroup: (along: number, up?: number) => void;
   view: ViewMode;
@@ -129,6 +134,23 @@ export const useStore = create<State>((set, get) => ({
     };
     const ids = cabinets.filter((c) => !c.island && (c.wall === wall || ((c.wallInset ?? 0) > 0 && touches(c)))).map((c) => c.id);
     set({ group: ids.length > 1 ? ids : [], selectedId: ids[0] ?? null });
+  },
+  selectCeiling: () => {
+    const { room, cabinets } = get().project;
+    const ids = cabinets.filter((c) => reachesCeiling(c, room.height)).map((c) => c.id);
+    set({ group: ids.length > 1 ? ids : [], selectedId: ids[0] ?? null });
+  },
+  crownGroup: (num) => {
+    const ids = picked(get());
+    let cut = 0;
+    get().commit((p) => ({ ...p, cabinets: p.cabinets.map((c) => {
+      if (!ids.includes(c.id) || !takesCrown(c)) return c;
+      const next = { ...c, crown: num };
+      const f = num ? crownFit(next, p.settings, p.room.height) : null;
+      if (f && f.over > 1e-3) { cut++; return { ...next, height: next.height - Math.ceil(f.over * 16) / 16 }; }
+      return next;
+    }) }));
+    return cut;
   },
   moveGroup: (along, up = 0) => {
     const st = get();
@@ -235,3 +257,9 @@ export function runWall(cabs: Cabinet[], selectedId: string | null): WallId | nu
 
 /** A cabinet standing off its wall (an island, or one turned to face another room) can move either way in the plan. */
 export const freeStanding = (c: Cabinet) => !!c.island || (c.wallInset ?? 0) > 0;
+
+/** Cabinets that carry a crown: uppers, talls and pilasters (not bases, shelves or mantels). */
+export const takesCrown = (c: Cabinet) => c.kind === 'wall' || c.kind === 'tall' || c.kind === 'pilaster';
+
+/** Runs up to the ceiling, or near enough that a crown would close the gap. */
+export const reachesCeiling = (c: Cabinet, ceiling: number) => takesCrown(c) && !c.island && ceiling - (c.elevation + c.height) <= 4 + 1e-6;

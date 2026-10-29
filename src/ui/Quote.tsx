@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useStore } from '../store';
-import { cofferScope, defaultStandards, groupLabel, newExtra, priceQuote, quoteOf, scopeLine, type LaborStandards, type QuoteSettings, type Workload } from '../model/quote';
+import { cofferScope, defaultStandards, groupLabel, lineKey, newExtra, paintEstimate, paintRates, type Group, priceQuote, quoteOf, scopeLine, type LaborStandards, type QuoteSettings, type Workload } from '../model/quote';
 import { Field, Section } from './fields';
 import { QuoteRendering } from './Rendering';
 import { FurnitureSection } from './Furniture';
@@ -27,10 +27,26 @@ function Num({ id, label, value, onChange, step = '1', suffix }: { id: string; l
   );
 }
 
+/** A number shown as text; click to type your own. Enter or leaving the box saves it. */
+function EditNum({ value, onSave, digits, prefix = '', label }: { value: number; onSave: (v: number) => void; digits: number; prefix?: string; label: string }) {
+  const [editing, setEditing] = useState(false);
+  if (!editing) {
+    return <button className="cell-edit" title="Click to set your own" aria-label={label} onClick={() => setEditing(true)}>{prefix}{digits ? value.toFixed(digits) : Math.round(value).toLocaleString('en-US')}</button>;
+  }
+  const done = (t: string) => {
+    setEditing(false);
+    const v = parseFloat(t.replace(/[$,]/g, ''));
+    if (Number.isFinite(v) && v >= 0 && Math.abs(v - value) > 1e-6) onSave(v);
+  };
+  return <input className="cell-input" autoFocus aria-label={label} inputMode="decimal" defaultValue={digits ? value.toFixed(digits) : Math.round(value)}
+    onBlur={(e) => done(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') done((e.target as HTMLInputElement).value); if (e.key === 'Escape') setEditing(false); }} />;
+}
+
 /* ---------- Left: how the job is priced ---------- */
 
 export function QuoteInputs() {
-  const { q, set } = useQuote();
+  const { project, q, set } = useQuote();
+  const pe = useMemo(() => paintEstimate(project, q), [project]); // eslint-disable-line react-hooks/exhaustive-deps
   const setStd = (patch: Partial<LaborStandards>) => set({ standards: { ...q.standards, ...patch } });
   const stdFields: [keyof LaborStandards, string][] = [
     ['jobSetup', 'Drawings, ordering, setup (per job)'], ['perBox', 'Case (per cabinet)'], ['tallBox', 'Tall case extra'], ['faceFrame', 'Face frame (per cabinet)'],
@@ -89,12 +105,38 @@ export function QuoteInputs() {
 
         <SuppliesEditor />
 
-        <Section title="Painter">
-          <div className="grid2">
-            <Num id="q-paint" label="Painter’s price" suffix="$" value={q.painter} onChange={(v) => set({ painter: v })} />
-            <Num id="q-pmup" label="Markup" suffix="%" value={q.painterMarkup * 100} onChange={(v) => set({ painterMarkup: v / 100 })} />
+        <Section title="Painting (prefinishing)">
+          <div className="seg" role="group" aria-label="How painting is priced">
+            {([['quote', 'Painter’s quote'], ['estimate', 'Estimate'], ['allowance', 'Allowance']] as const).map(([k, label]) => (
+              <button key={k} className={(q.paintMode ?? 'quote') === k ? 'on' : ''} aria-pressed={(q.paintMode ?? 'quote') === k} onClick={() => set({ paintMode: k === 'quote' ? undefined : k })}>{label}</button>
+            ))}
           </div>
-          <p className="hint">Leave at $0 when the customer deals with the painter directly.</p>
+          {(q.paintMode ?? 'quote') === 'quote' && (
+            <>
+              <div className="grid2" style={{ marginTop: 8 }}>
+                <Num id="q-paint" label="Painter’s price" suffix="$" value={q.painter} onChange={(v) => set({ painter: v })} />
+                <Num id="q-pmup" label="Markup" suffix="%" value={q.painterMarkup * 100} onChange={(v) => set({ painterMarkup: v / 100 })} />
+              </div>
+              <p className="hint">Leave at $0 when the customer deals with the painter directly. Without a quote yet, the estimate for this job is {money(pe.amount)}.</p>
+            </>
+          )}
+          {q.paintMode === 'estimate' && (
+            <>
+              <div className="grid2" style={{ marginTop: 8 }}>
+                <Num id="q-ppf" label="Per door, drawer front or end panel" suffix="$" value={q.paintPerFront ?? paintRates.perFront} onChange={(v) => set({ paintPerFront: v })} />
+                <Num id="q-pps" label="Per sq ft of cabinet face" suffix="$" value={q.paintPerSqFt ?? paintRates.perSqFt} onChange={(v) => set({ paintPerSqFt: v })} />
+              </div>
+              <p className="hint">{pe.fronts} fronts and panels, {Math.round(pe.sqft)} sq ft of cabinet face: <strong>{money(pe.amount)}</strong> to the customer. Starting rates fit your past prefinishing prices; Massachusetts cabinet painters run about $90 to $175 a door.</p>
+            </>
+          )}
+          {q.paintMode === 'allowance' && (
+            <>
+              <div className="grid2" style={{ marginTop: 8 }}>
+                <Num id="q-pal" label="Painting allowance" suffix="$" value={q.paintAllowance ?? 0} onChange={(v) => set({ paintAllowance: v })} />
+              </div>
+              <p className="hint">A flat amount on the agreement as an allowance. The estimate for this job is {money(pe.amount)}.</p>
+            </>
+          )}
         </Section>
 
         <details className="overrides">
@@ -115,7 +157,12 @@ export function QuoteInputs() {
 /* ---------- Center: the math ---------- */
 
 export function QuoteBreakdown() {
-  const { q, result: r } = useQuote();
+  const { q, set, result: r } = useQuote();
+  const setOverride = (k: 'hourOverrides' | 'costOverrides', line: { group: Group; label: string }, v: number | undefined) => {
+    const next = { ...q[k] };
+    if (v == null) delete next[lineKey(line)]; else next[lineKey(line)] = v;
+    set({ [k]: Object.keys(next).length ? next : undefined });
+  };
   const missing = r.materials.filter((m) => m.missing);
   return (
     <main className="stage cut-stage">
@@ -129,6 +176,7 @@ export function QuoteBreakdown() {
         <p className="warn">Missing prices, counted as $0: {missing.map((m) => m.label).join(', ')}. Fill them in on the left so the quote isn’t short.</p>
       )}
 
+      <p className="hint">Click any hours or cost to set your own number; it’s used in place of the estimate until you go back to it.</p>
       <section className="mat-block">
         <header><h2>Labor</h2><span className="muted">{r.shopHours.toFixed(1)} shop hrs · {r.installHours.toFixed(1)} install hrs</span></header>
         <div className="table-wrap">
@@ -136,7 +184,11 @@ export function QuoteBreakdown() {
             <thead><tr><th>Item</th><th>For</th><th className="num">Qty</th><th className="num">Hrs each</th><th className="num">Hours</th></tr></thead>
             <tbody>
               {r.hours.map((h, i) => (
-                <tr key={i}><td>{h.label}{h.install && <span className="tag-install">install</span>}</td><td className="muted">{groupLabel[h.group]}</td><td className="num">{+h.qty.toFixed(1)}</td><td className="num">{h.each}</td><td className="num">{h.hours.toFixed(1)}</td></tr>
+                <tr key={i} className={h.estimated != null ? 'overridden' : ''}>
+                  <td>{h.label}{h.install && <span className="tag-install">install</span>}{h.estimated != null && <span className="note">estimate {h.estimated.toFixed(1)} h · <button className="link-btn" onClick={() => setOverride('hourOverrides', h, undefined)}>use it</button></span>}</td>
+                  <td className="muted">{groupLabel[h.group]}</td><td className="num">{+h.qty.toFixed(1)}</td><td className="num">{h.each}</td>
+                  <td className="num"><EditNum value={h.hours} digits={1} label={`Hours for ${h.label}`} onSave={(v) => setOverride('hourOverrides', h, v)} /></td>
+                </tr>
               ))}
             </tbody>
           </table>
@@ -150,7 +202,11 @@ export function QuoteBreakdown() {
             <thead><tr><th>Item</th><th>For</th><th>Quantity</th><th className="num">Cost</th></tr></thead>
             <tbody>
               {r.materials.map((m, i) => (
-                <tr key={i} className={m.missing ? 'missing' : ''}><td>{m.label}{m.missing && <span className="note">{m.missing}</span>}</td><td className="muted">{groupLabel[m.group]}</td><td className="muted">{m.detail}</td><td className="num">{money(m.cost)}</td></tr>
+                <tr key={i} className={m.missing ? 'missing' : m.estimated != null ? 'overridden' : ''}>
+                  <td>{m.label}{m.missing && <span className="note">{m.missing}</span>}{m.estimated != null && <span className="note">estimate {money(m.estimated)} · <button className="link-btn" onClick={() => setOverride('costOverrides', m, undefined)}>use it</button></span>}</td>
+                  <td className="muted">{groupLabel[m.group]}</td><td className="muted">{m.detail}</td>
+                  <td className="num"><EditNum value={m.cost} digits={0} prefix="$" label={`Cost of ${m.label}`} onSave={(v) => setOverride('costOverrides', m, v)} /></td>
+                </tr>
               ))}
             </tbody>
           </table>
@@ -168,7 +224,7 @@ export function QuoteSummary() {
   const lines = [
     ...r.groups.map((g) => ({ label: groupLabel[g.group], price: g.price * (1 + q.workloadAdj[q.workload]) })),
     ...r.extras.map((e) => ({ label: e.label, price: e.price * (1 + q.workloadAdj[q.workload]) })),
-    ...(r.painter ? [{ label: 'Cabinet prefinishing', price: r.painter }] : []),
+    ...(r.painter ? [{ label: q.paintMode === 'allowance' ? 'Cabinet prefinishing (allowance)' : 'Cabinet prefinishing', price: r.painter }] : []),
   ];
   // Spread the adjustment and rounding over the lines so they add up to the total
   const sum = lines.reduce((t, l) => t + l.price, 0) || 1;

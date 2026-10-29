@@ -1,7 +1,9 @@
 // Several cabinets picked at once (shift- or ⌘-click, or a whole wall): slide them together along
 // their wall, move them to a new start point, or raise and lower them, keeping their spacing.
 import { useState } from 'react';
-import { picked, useStore } from '../store';
+import { picked, takesCrown, useStore } from '../store';
+import type { Cabinet } from '../model/types';
+import { MoldSlot } from './ProfilePicker';
 import { wallNames, wallLength } from '../model/layout';
 import { fmt } from '../units';
 import { Field, LengthInput, Section } from './fields';
@@ -48,13 +50,35 @@ export function GroupPanel() {
           <button className="mini" style={{ alignSelf: 'end' }} disabled={!up} onClick={() => moveGroup(0, -up)}>Lower {fmt(Math.abs(up))}</button>
         </div>
       </Section>
+      <GroupCrown cabs={cabs} />
       <Section title="Pick">
         <div className="order-actions">
+          <button className="mini" onClick={() => useStore.getState().selectCeiling()}>Everything that reaches the ceiling</button>
           {(['back', 'left', 'right', 'front'] as const).filter((w) => project.cabinets.some((c) => c.wall === w)).map((w) => (
             <button key={w} className="mini" onClick={() => selectWall(w)}>Everything on the {wallNames[w].toLowerCase()}</button>
           ))}
         </div>
       </Section>
     </div>
+  );
+}
+
+/** One crown for everything picked; each cabinet gets shorter where the crown would hit the ceiling. */
+function GroupCrown({ cabs }: { cabs: Cabinet[] }) {
+  const settings = useStore((s) => s.project.settings);
+  const crownGroup = useStore((s) => s.crownGroup);
+  const [cut, setCut] = useState<number | null>(null);
+  const takers = cabs.filter(takesCrown);
+  if (!takers.length) return null;
+  const nums = [...new Set(takers.map((c) => c.crown ?? ''))];
+  const current = nums.length === 1 && nums[0] ? nums[0] : undefined;
+  return (
+    <Section title="Crown on all of them">
+      <MoldSlot kind="crown" label={nums.length > 1 ? 'Crown (mixed now)' : 'Crown'} num={current} species={settings.moldSpecies} onChange={(n) => setCut(crownGroup(n))} />
+      <p className="hint">
+        {takers.length} cabinet{takers.length > 1 ? 's' : ''} take crown{cabs.length > takers.length ? ` (${cabs.length - takers.length} base or other left alone)` : ''}. Any that would push the crown into the ceiling get shorter so it meets the ceiling; Undo puts them back.
+        {cut != null && ` ${cut ? `Shortened ${cut}.` : 'All fit as they were.'}`}
+      </p>
+    </Section>
   );
 }

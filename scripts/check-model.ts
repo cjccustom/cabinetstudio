@@ -22,10 +22,10 @@ import { defaultFaceFrameStock, faceFrameNeeds, faceFramePieces, otherSpecies, r
 import { panelAbove, panelOrder } from "../src/model/panels";
 import { amCatalog } from "../src/model/andersonMcquaid";
 import { cabinetMoldings, moldingOrder, mountShape, profileByNum, setCustomDrawings } from "../src/model/moldings";
-import { closetRods, estimateHours, estimateMaterials, priceQuote, quoteOf, scopeLine } from "../src/model/quote";
+import { closetRods, estimateHours, estimateMaterials, paintEstimate, priceQuote, quoteOf, scopeLine } from "../src/model/quote";
 import { cutStock, defaultCutlist, optimizerParts } from "../src/model/cutlist";
 import { applyBook, choosePlywood, chooseSpecies, priceBook, stalePrices } from "../src/model/pricebook";
-import { normalize } from "../src/store";
+import { normalize, reachesCeiling } from "../src/store";
 import { fieldChecks, releaseStatus } from "../src/model/release";
 import { eagleFraction, eagleRequests, requestText } from "../src/model/eagleRequest";
 import { hardwareOrder, tierPrice } from "../src/model/hardware";
@@ -981,6 +981,9 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   const need = faceFrameNeeds(faceFramePieces(oak), { ...defaultFaceFrameStock, ...oak.faceFrame });
   eq('A&M: quote prices face frames by length', `${ffLine.cost.toFixed(2)} ${ffLine.detail}`, `${(need.buyLF * 3.45).toFixed(2)} ${need.boards.length} boards, ${Math.ceil(need.buyLF)} lf at $3.45`);
   const own = priceBook({ 'lum-red-oak': { id: 'lum-red-oak', kind: 'lumber', name: 'Red oak', perLF: { '3/4 x 5-1/2': 3.75 }, updatedAt: 3 } });
+  const unpriced = { ...p, faceFrame: undefined };
+  const listLine = estimateMaterials(unpriced, quoteOf(unpriced)).find((l) => l.label.startsWith('Face frame stock'))!;
+  eq('A&M: no price entered, hard maple 1x6 from the list', `${listLine.detail.includes('$6.20 (A&M list price)')} ${!listLine.missing}`, 'true true');
   eq('A&M: the shop’s own price beats the list', applyBook(oak, own).faceFrame!.pricePerLF, 3.75);
   const mats = new Set(optimizerParts(oak, oak.cutlist!).map((x) => x.material));
   eq('price book: every part cut from red oak', [...mats].every((m) => m.includes('red oak')), true);
@@ -1173,6 +1176,43 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   eq('fridge surround: exposed side is finished', buildParts(placed, { ...s, endPanel: 'none' }, ends).find((x) => x.name === 'Side, exposed')?.look, 'paint');
   eq('pantry beside the deeper surround stays hidden on that side', resolveEnds(room, [beside, placed], beside).right, false);
   eq('fridge surround: opening clears a 36" fridge', fs.width - 2 * s.stileWidth >= 35.75 + 2 * 0.375, true);
+}
+
+// Your own hours and costs on quote lines
+{
+  const base = priceQuote(p);
+  const line = base.hours.find((h) => h.label === 'Case')!;
+  const mat = base.materials[0];
+  const q0 = quoteOf(p);
+  const adj = { ...p, quote: { ...q0, hourOverrides: { [`${line.group}|${line.label}`]: line.hours + 5 }, costOverrides: { [`${mat.group}|${mat.label}`]: 123 } } };
+  const r = priceQuote(adj);
+  const h = r.hours.find((x) => x.label === 'Case')!;
+  eq('quote override: hours used, estimate kept', `${h.hours} ${h.estimated}`, `${line.hours + 5} ${line.hours}`);
+  eq('quote override: cost used', r.materials[0].cost, 123);
+  eq('quote override: total moves', r.total !== base.total, true);
+}
+
+// Painting: the painter's quote, an estimate from the job's size, or an allowance
+{
+  const q0 = quoteOf(p);
+  const pe = paintEstimate(p, q0);
+  eq('paint estimate: $150 a front + $40 a sq ft of face', Math.round(pe.amount), Math.round(pe.fronts * 150 + pe.sqft * 40));
+  const est = priceQuote({ ...p, quote: { ...q0, paintMode: 'estimate' } });
+  eq('paint estimate: on the agreement', Math.round(est.painter), Math.round(pe.amount));
+  const al = priceQuote({ ...p, quote: { ...q0, paintMode: 'allowance', paintAllowance: 3000 } });
+  eq('paint allowance: flat', al.painter, 3000);
+  eq('paint: painter quote by default', priceQuote({ ...p, quote: { ...q0, painter: 2000, painterMarkup: 0.1 } }).painter, 2200);
+}
+
+// Crown on everything at the ceiling, shortened to fit
+{
+  const room = { width: 156, depth: 120, height: 96 };
+  const mk = (id: string, name: string, offset: number, patch = {}) => ({ ...cabinetFromPreset(presets.find((x) => x.id === id)!, 'back', offset, []), id: name, name, ...patch });
+  const cabs = [mk('tall-pantry', 'T1', 0, { height: 95.5 }), mk('wall-2', 'W1', 24, { elevation: 54, height: 41.5 }), mk('base-1dr', 'B1', 24), mk('wall-2', 'W2', 54, { elevation: 54, height: 30 })];
+  const at = cabs.filter((c) => reachesCeiling(c, room.height)).map((c) => c.name).join(',');
+  eq('ceiling pick: talls and uppers within 4" of the ceiling, not bases or short uppers', at, 'T1,W1');
+  const after = cabs.map((c) => (reachesCeiling(c, room.height) ? (() => { const n = { ...c, crown: '5715' }; const f = crownFit(n, s, room.height)!; return { ...n, height: n.height - Math.ceil(f.over * 16) / 16 }; })() : c));
+  eq('ceiling crown: every crowned cabinet meets the ceiling', after.filter((c) => c.crown).every((c) => crownFit(c, s, room.height)!.over < 1e-6 && room.height - crownFit(c, s, room.height)!.top < 1 / 16 + 1e-6), true);
 }
 
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');

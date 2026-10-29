@@ -637,3 +637,9 @@ ol.steps li { margin: 8px 0; }
 .add-item { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; margin: 8px 0; }
 .eagle-quote { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
 .eagle-quote input { width: 8em; text-align: right; }
+
+/* Quote lines you can set yourself */
+.cell-edit { background: none; border: 1px dashed transparent; border-radius: 4px; padding: 1px 4px; font: inherit; color: inherit; cursor: text; }
+.cell-edit:hover { border-color: var(--line); background: var(--sunk); }
+.cell-input { width: 6em; text-align: right; padding: 2px 4px; font: inherit; }
+tr.overridden td:last-child .cell-edit { font-weight: 600; color: var(--accent); }

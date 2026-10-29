@@ -170,6 +170,7 @@ export default function App() {
               <p><strong>Click a cabinet</strong> to edit its size, openings and placement.</p>
               <p>Add cabinets from the list on the left. Set how you build them under <em>Shop standards</em>.</p>
               <p className="muted">{project.cabinets.length} cabinets in this job.</p>
+              {project.cabinets.length > 1 && <p><button className="mini" onClick={() => useStore.getState().selectCeiling()}>Pick everything that reaches the ceiling (to crown it)</button></p>}
             </div>
           ))}
           {panel === 'cutlist' && (

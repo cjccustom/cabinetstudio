@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useStore } from '../store';
-import { defaultFaceFrameStock, faceFrameNeeds, faceFramePieces, otherSpecies, stockFor, woodNeeds, woodPieces, type FaceFrameResult, type FaceFrameStock } from '../model/faceframe';
+import { defaultFaceFrameStock, faceFrameNeeds, ffStockOf, faceFramePieces, otherSpecies, stockFor, woodNeeds, woodPieces, type FaceFrameResult, type FaceFrameStock } from '../model/faceframe';
 import { fmt, fmtFeet } from '../units';
 import { amLumberPulled, amSizes, boardSize } from '../model/amLumber';
 import { Field, LengthInput, Section } from './fields';
@@ -8,7 +8,7 @@ import { Field, LengthInput, Section } from './fields';
 function useFF() {
   const project = useStore((s) => s.project);
   const commit = useStore((s) => s.commit);
-  const stock = { ...defaultFaceFrameStock, ...project.faceFrame };
+  const stock = ffStockOf(project);
   const set = (patch: Partial<FaceFrameStock>) => commit((p) => ({ ...p, faceFrame: { ...defaultFaceFrameStock, ...p.faceFrame, ...patch } }));
   const result = useMemo(() => faceFrameNeeds(faceFramePieces(project), stock), [project]); // eslint-disable-line react-hooks/exhaustive-deps
   const wood = useMemo(() => woodNeeds(woodPieces(project), stock), [project]); // eslint-disable-line react-hooks/exhaustive-deps

@@ -2,7 +2,7 @@
 // to buy when ripping and jointing strips out of wider stock.
 import { cofferParts } from './coffer';
 import type { Project } from './types';
-import { amSizes } from './amLumber';
+import { amSizes, boardSize, defaultBoard } from './amLumber';
 import { buildParts } from './parts';
 import { resolveEnds } from './layout';
 import { inScope, roomFlatStock } from './room';
@@ -183,6 +183,19 @@ export function woodNeeds(pieces: WoodPiece[], s: FaceFrameStock): WoodGroup[] {
     const roughBF = mine.reduce((t, p) => t + ((p.length + 2) * (p.width + 1) * (q / 4)) / 144, 0);
     return { quarters: q, pieces: mine, roughBF, buyBF: roughBF * (1 + s.waste) };
   });
+}
+
+/**
+ * The job's face frame stock, priced: when no price has been entered, A&M's list price for the
+ * species in a 1x6 (3/4 x 5-1/2), by the lineal foot. `listed` says the price came from the list.
+ */
+export function ffStockOf(p: Project): FaceFrameStock & { listed?: boolean } {
+  const ff = { ...defaultFaceFrameStock, ...p.faceFrame };
+  if (ff.pricePerLF || ff.pricePerBF) return ff;
+  const board = ff.board ?? defaultBoard;
+  const lf = amSizes(ff.species.replace(/,.*$/, ''))?.[board];
+  const size = boardSize(board);
+  return lf ? { ...ff, board, pricePerLF: lf, ...(size && !ff.board ? { boardWidth: size.w } : {}), listed: true } : ff;
 }
 
 /** Other species called out on parts (poplar pilasters on a maple job), each with its own stock settings. */

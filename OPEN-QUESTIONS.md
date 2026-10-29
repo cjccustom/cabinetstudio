@@ -40,6 +40,10 @@ Things the app is guessing at until Cody answers. Each one says what the app doe
   standards; compare against Weisberg's actual hours on the Job clock once it's built.
 - **Closet labor.** Starting guesses: 0.15 h per shoe fence, 0.25 h per closet rod, 0.75 h to band
   a frameless case. Rod and socket prices are blank until you enter them on the Quote tab.
+- **Painting estimate.** $150 per door, drawer front or end panel plus $40 per sq ft of cabinet
+  face, as charged to the customer: fits three of your past built-in prefinishing prices.
+  Massachusetts cabinet painters run about $90 to $175 a door. Check against your painter's next
+  quotes and adjust under Quote → Painting.
 - **Seat cushions.** Priced per sq ft of seat once you have the upholsterer's number (Quote →
   Prices to fill in). Fabric shows "to be selected by owner" on the scope until you type one in.
 

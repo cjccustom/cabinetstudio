@@ -6,7 +6,7 @@ import { buildParts, eff } from './parts';
 import { resolveEnds, wallNames } from './layout';
 import { cutStock, defaultCutlist, optimizerParts } from './cutlist';
 import { optimize } from './optimizer';
-import { defaultFaceFrameStock, faceFrameNeeds, faceFramePieces, otherSpecies, stockFor, woodNeeds, woodPieces } from './faceframe';
+import { faceFrameNeeds, ffStockOf, faceFramePieces, otherSpecies, stockFor, woodNeeds, woodPieces } from './faceframe';
 import { ceilingKinds, moldLabel, moldingOrder, profileByNum, profileLabel, roomKinds, type MoldKind } from './moldings';
 import { chimneysOn, cofferFeet, cofferLayout, cofferMoldings, cofferOf, cofferParts, perimOf } from './coffer';
 import { panelOrder } from './panels';
@@ -172,7 +172,20 @@ export interface QuoteSettings {
   installPulls: boolean;
   painter: number;
   painterMarkup: number;
+  /**
+   * How the prefinishing line is priced: the painter's own quote (with your markup), an estimate
+   * from the job's size, or a flat allowance. Unset = the painter's quote.
+   */
+  paintMode?: 'quote' | 'estimate' | 'allowance';
+  /** Estimate rates, as charged to the customer: each door, drawer front or end panel, and each sq ft of cabinet face. */
+  paintPerFront?: number;
+  paintPerSqFt?: number;
+  paintAllowance?: number;
   extras: QuoteExtra[];
+  /** Hours you set yourself for a labor line, by lineKey: used in place of the estimate. */
+  hourOverrides?: Record<string, number>;
+  /** Cost you set yourself for a material line, by lineKey. */
+  costOverrides?: Record<string, number>;
   /** Your final call, added to the calculated price. */
   adjustment: number;
   roundTo: number;
@@ -214,8 +227,31 @@ export type Group = 'cabinets' | 'tops' | 'paneling' | 'room' | 'ceiling' | 'fur
 export const groupLabel: Record<Group, string> = { cabinets: 'Cabinets', tops: 'Solid wood tops & seats', paneling: 'Wall paneling', room: 'Room trim', ceiling: 'Coffered ceiling', furniture: 'Furniture' };
 const moldGroup = (kinds: MoldKind[]): Group => (kinds.includes('cap') ? 'paneling' : kinds.every((k) => ceilingKinds.includes(k)) ? 'ceiling' : kinds.every((k) => roomKinds.includes(k)) ? 'room' : 'cabinets');
 
-export interface HourLine { group: Group; label: string; qty: number; each: number; hours: number; install?: boolean }
-export interface MaterialLine { group: Group; label: string; cost: number; detail: string; missing?: string }
+export interface HourLine { group: Group; label: string; qty: number; each: number; hours: number; install?: boolean; /** The estimate, when you've set the hours yourself. */ estimated?: number }
+export interface MaterialLine { group: Group; label: string; cost: number; detail: string; missing?: string; /** The estimate, when you've set the cost yourself. */ estimated?: number }
+
+/**
+ * Three of your past built-in quotes put prefinishing at about $150 a door or drawer front plus
+ * $40 a sq ft of cabinet face, primed and sprayed both sides by the painter: the high end of what
+ * Massachusetts cabinet painters charge ($90 to $175 a door).
+ */
+export const paintRates = { perFront: 150, perSqFt: 40 };
+
+/** The painting estimate from the job's size: fronts (doors, drawer fronts, end panels) and cabinet face. */
+export function paintEstimate(p: Project, q: QuoteSettings) {
+  let fronts = 0, sqft = 0;
+  for (const c of p.cabinets) {
+    if (c.kind === 'shelf') continue;
+    const parts = buildParts(c, p.settings, resolveEnds(p.room, p.cabinets, c));
+    fronts += parts.filter((x) => x.role === 'door' || x.role === 'drawerFront' || x.role === 'endPanel').length;
+    sqft += (c.width * c.height) / 144 * (c.island && c.islandSides === 2 ? 2 : 1);
+  }
+  const perFront = q.paintPerFront ?? paintRates.perFront, perSqFt = q.paintPerSqFt ?? paintRates.perSqFt;
+  return { fronts, sqft, amount: fronts * perFront + sqft * perSqFt };
+}
+
+/** What a quote line is known by when you adjust it: its group and label. */
+export const lineKey = (l: { group: Group; label: string }) => `${l.group}|${l.label}`;
 
 const sqft = (w: number, h: number) => (w * h) / 144;
 
@@ -359,11 +395,11 @@ export function estimateMaterials(p: Project, q: QuoteSettings): MaterialLine[] 
     const cost = m.sheets.reduce((t, sh) => t + sh.stock.price, 0);
     out.push({ group: 'cabinets', label: `${m.material} sheets`, cost, detail: `${m.sheets.length} sheets`, missing: cost ? undefined : 'Enter a price per sheet on the Sheet cutlist tab' });
   }
-  const ffStock = { ...defaultFaceFrameStock, ...p.faceFrame };
+  const ffStock = ffStockOf(p);
   const ff = faceFrameNeeds(faceFramePieces(p), ffStock);
   if (ff.groups.length) {
     out.push(ffStock.pricePerLF
-      ? { group: 'cabinets', label: `Face frame stock (${ffStock.species.replace(/,.*$/, '')} ${ffStock.board ?? ''})`, cost: ff.cost, detail: `${ff.boards.length} boards, ${Math.ceil(ff.buyLF)} lf at $${ffStock.pricePerLF.toFixed(2)}` }
+      ? { group: 'cabinets', label: `Face frame stock (${ffStock.species.replace(/,.*$/, '')} ${ffStock.board ?? ''})`, cost: ff.cost, detail: `${ff.boards.length} boards, ${Math.ceil(ff.buyLF)} lf at $${ffStock.pricePerLF.toFixed(2)}${ffStock.listed ? ' (A&M list price)' : ''}` }
       : { group: 'cabinets', label: `Face frame stock (${ffStock.species})`, cost: ff.cost, detail: `${Math.ceil(ff.buyBF)} BF`, missing: ffStock.pricePerBF ? undefined : 'Pick the species under Materials (Shop standards) or enter a price on the Solid wood tab' });
   }
   for (const sp of otherSpecies(p)) {
@@ -495,6 +531,15 @@ export function priceQuote(p: Project): QuoteResult {
     hours.push(...e.hours.map((h) => ({ group: 'furniture' as Group, label: `${t.name}: ${h.label}`, qty: 1, each: h.hours, hours: h.hours, install: h.label.startsWith('Delivery') })));
     materials.push(...e.materials.map((m) => ({ group: 'furniture' as Group, label: `${t.name}: ${m.label}`, cost: m.cost, detail: m.detail, ...(m.detail.includes('enter a $/BF') ? { missing: `${t.species} $/BF` } : {}) })));
   }
+  // Your own numbers on any line replace the estimate (kept alongside to show and reset)
+  for (const [i, h] of hours.entries()) {
+    const o = q.hourOverrides?.[lineKey(h)];
+    if (o != null) hours[i] = { ...h, hours: o, estimated: h.hours };
+  }
+  for (const [i, m] of materials.entries()) {
+    const o = q.costOverrides?.[lineKey(m)];
+    if (o != null) materials[i] = { ...m, cost: o, estimated: m.cost, missing: undefined };
+  }
   const price = (h: number, m: number) => {
     const mt = m * (1 + tax);
     const a = (mt + h * q.laborCost) * q.multiplier;
@@ -510,7 +555,7 @@ export function priceQuote(p: Project): QuoteResult {
     })
     .filter((g) => g.hours || g.materials);
   const extras = q.extras.map((e) => ({ label: e.label, price: price(e.hours, 0).chosen + e.amount }));
-  const painter = q.painter * (1 + q.painterMarkup);
+  const painter = q.paintMode === 'estimate' ? paintEstimate(p, q).amount : q.paintMode === 'allowance' ? q.paintAllowance ?? 0 : q.painter * (1 + q.painterMarkup);
   const work = groups.reduce((t, g) => t + g.price, 0) + extras.reduce((t, e) => t + e.price, 0);
   const workloadAmount = work * q.workloadAdj[q.workload];
   const calculated = work + painter;
@@ -523,7 +568,8 @@ export function priceQuote(p: Project): QuoteResult {
     shopHours: hours.filter((h) => !h.install).reduce((t, h) => t + h.hours, 0),
     installHours: hours.filter((h) => h.install).reduce((t, h) => t + h.hours, 0),
     materialCost,
-    cost: materialCost + allHours * q.laborCost + q.painter + q.extras.reduce((t, e) => t + e.amount, 0),
+    // The painter's cost to you: their quote, or the estimate or allowance less your usual markup
+    cost: materialCost + allHours * q.laborCost + (q.paintMode && q.paintMode !== 'quote' ? painter / (1 + q.painterMarkup) : q.painter) + q.extras.reduce((t, e) => t + e.amount, 0),
   };
 }
 

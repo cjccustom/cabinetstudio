@@ -383,6 +383,9 @@ export function Inspector({ cab, issues }: { cab: Cabinet; issues: string[] }) {
               )}
             />
           ))}
+        {(cab.kind === 'wall' || cab.kind === 'tall' || cab.kind === 'pilaster') && (
+          <div className="order-actions"><button className="mini" title="Pick every cabinet and pilaster within 4&quot; of the ceiling, then choose one crown for all" onClick={() => useStore.getState().selectCeiling()}>Crown everything that reaches the ceiling…</button></div>
+        )}
         {shrunk > 0 && <p className="hint">Shortened {cab.name} {fmt(shrunk)} to {fmt(cab.height)} so the crown meets the ceiling. Undo puts it back.</p>}
         {cab.kind !== 'base' && cab.kind !== 'mantel' && <CrownBuildEditor cab={cab} set={set} species={settings.moldSpecies} />}
         <p className="hint">Runs across the face and returns to the wall on exposed ends. Lineal footage and cost are on the Orders tab.</p>
