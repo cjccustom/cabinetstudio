@@ -218,8 +218,10 @@ export function resolveEnds(room: Room, cabinets: Cabinet[], c: Cabinet): EndInf
     if (c.corner.side === 'left') leftPt = legEnd;
     else rightPt = legEnd;
   }
-  const autoLeft = !covered(toRoom(room, c, ...leftPt));
-  const autoRight = !covered(toRoom(room, c, ...rightPt));
+  // Also check near the front: a deep cabinet beside a shallower one shows the front of its side
+  const front = (pt: [number, number]): [number, number] => [pt[0], c.corner ? pt[1] : Math.max(D / 2, D - 1)];
+  const autoLeft = !covered(toRoom(room, c, ...leftPt)) || (!c.corner && !covered(toRoom(room, c, ...front(leftPt))));
+  const autoRight = !covered(toRoom(room, c, ...rightPt)) || (!c.corner && !covered(toRoom(room, c, ...front(rightPt))));
   const pick = (mode: Cabinet['leftEnd'], auto: boolean) => (mode === 'exposed' ? true : mode === 'hidden' ? false : auto);
   return { left: pick(c.leftEnd, autoLeft), right: pick(c.rightEnd, autoRight) };
 }

@@ -70,7 +70,7 @@ function WallFace({ len, H, openings, color }: { len: number; H: number; opening
   }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => geo.dispose(), [geo]);
   return (
-    <mesh geometry={geo}>
+    <mesh geometry={geo} receiveShadow>
       <meshStandardMaterial color={color} roughness={0.95} />
     </mesh>
   );
@@ -167,7 +167,7 @@ function FloorModel({ floor, W, D }: { floor: Floor; W: number; D: number }) {
   useEffect(() => () => tex.dispose(), [tex]);
   tex.repeat.set(W / 96, D / 96);
   return (
-    <mesh rotation-x={-Math.PI / 2} position={[W / 2, 0, D / 2]}>
+    <mesh rotation-x={-Math.PI / 2} position={[W / 2, 0, D / 2]} receiveShadow>
       <planeGeometry args={[W, D]} />
       <meshStandardMaterial map={tex} roughness={floor.kind === 'tile' ? 0.45 : 0.85} />
     </mesh>

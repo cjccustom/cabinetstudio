@@ -1165,6 +1165,13 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   eq('fridge surround: cabinet above closed by a fixed shelf, back only above it', Math.abs(back.boxes[0].min[1] - shelf.boxes[0].min[1]) < 1e-6, true);
   const L = layoutRows(fs, s).rows;
   eq('fridge surround: fridge opening from the floor', `${L[1].y0} ${L[1].height}`, '0 71');
+  const beside = { ...cabinetFromPreset(presets.find((x) => x.id === 'tall-pantry')!, 'back', 0, []), id: 'TP', name: 'TP', depth: 21, width: 30 };
+  const placed = { ...fs, offset: 30 };
+  const room = { width: 156, depth: 120, height: 84 };
+  const ends = resolveEnds(room, [beside, placed], placed);
+  eq('fridge surround: side past a shallower neighbour is exposed', ends.left, true);
+  eq('fridge surround: exposed side is finished', buildParts(placed, { ...s, endPanel: 'none' }, ends).find((x) => x.name === 'Side, exposed')?.look, 'paint');
+  eq('pantry beside the deeper surround stays hidden on that side', resolveEnds(room, [beside, placed], beside).right, false);
   eq('fridge surround: opening clears a 36" fridge', fs.width - 2 * s.stileWidth >= 35.75 + 2 * 0.375, true);
 }
 

@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { Canvas, ThreeEvent, useThree } from '@react-three/fiber';
 import { Html, Line, OrbitControls, OrthographicCamera, PerspectiveCamera } from '@react-three/drei';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
+import { finishColors } from '../model/woodColors';
 import { freeStanding, picked, runWall, useStore, type ViewMode } from '../store';
 import type { Cabinet, Finishes, Room, ShopSettings, WallId, WallPanel } from '../model/types';
 import { spacingOf } from '../model/panels';
@@ -36,15 +37,19 @@ export function Scene({ issueIds }: { issueIds: Set<string> }) {
 
   return (
     <Canvas
+      shadows="soft"
       dpr={[1, 2]}
       gl={{ antialias: true, preserveDrawingBuffer: true }}
       onPointerMissed={(e) => e.button === 0 && select(null)}
     >
       <Cameras view={view} room={room} />
       <NavBridge />
-      <ambientLight intensity={0.85} />
-      <hemisphereLight args={['#ffffff', '#b9b2a6', 0.6]} />
-      <directionalLight position={[room.width * 0.8, room.height * 2.2, room.depth * 2.5]} intensity={1.5} />
+      {/* In 3D a low sun casts soft shadows for depth; the flat views stay evenly lit */}
+      <ambientLight intensity={view === '3d' ? 0.55 : 0.85} />
+      <hemisphereLight args={['#ffffff', '#b9b2a6', view === '3d' ? 0.55 : 0.6]} />
+      {view === '3d'
+        ? <SunLight room={room} />
+        : <directionalLight position={[room.width * 0.8, room.height * 2.2, room.depth * 2.5]} intensity={1.5} />}
       <directionalLight position={[-room.width, room.height, room.depth]} intensity={0.35} />
       <RoomModel project={project} view={view} />
       {showCeiling && <CofferModel project={project} view={view} />}
@@ -126,6 +131,26 @@ function Cameras({ view, room }: { view: ViewMode; room: Room }) {
   );
 }
 
+/** The key light in 3D: high and in front, aimed at the middle of the room, casting soft shadows. */
+function SunLight({ room }: { room: Room }) {
+  const ref = useRef<THREE.DirectionalLight>(null!);
+  const scene = useThree((s) => s.scene);
+  const { width: W, depth: D, height: H } = room;
+  useEffect(() => {
+    const l = ref.current;
+    l.target.position.set(W / 2, 0, D / 2);
+    scene.add(l.target);
+    l.target.updateMatrixWorld();
+    return () => { scene.remove(l.target); };
+  }, [scene, W, D]);
+  const r = Math.max(W, D, H) * 0.9;
+  return (
+    <directionalLight ref={ref} castShadow intensity={1.6} position={[W * 1.15, H * 1.9, D * 1.25]}
+      shadow-mapSize={[2048, 2048]} shadow-bias={-0.0004} shadow-normalBias={0.6} shadow-radius={4}
+      shadow-camera-left={-r} shadow-camera-right={r} shadow-camera-top={r} shadow-camera-bottom={-r} shadow-camera-near={1} shadow-camera-far={r * 8} />
+  );
+}
+
 /** Walls only face inward, so the ones between you and the cabinets disappear on their own. */
 interface DragState {
   pointerId: number;
@@ -159,8 +184,10 @@ function CabinetModel(props: {
   const drag = useRef<DragState | null>(null);
   const hit = useMemo(() => new THREE.Vector3(), []);
 
+  // Stain grade shows the species; the case interior shows the plywood
+  const fc = finishColors(eff(cab, settings), finishes);
   const colorFor = (material: string, shade: number) => {
-    const base = material === 'hardware' ? '#c9ccd1' : material === 'upholstery' ? '#9aa3ad' : material === 'box' || material === 'back' ? finishes.box : material === 'counter' ? finishes.counter : material === 'solidWood' ? finishes.wood ?? '#b9875a' : finishes.paint;
+    const base = material === 'hardware' ? '#c9ccd1' : material === 'upholstery' ? '#9aa3ad' : material === 'box' || material === 'back' ? fc.box : material === 'counter' ? finishes.counter : material === 'solidWood' ? finishes.wood ?? '#b9875a' : fc.paint;
     return new THREE.Color(base).multiplyScalar(shade);
   };
 
@@ -257,7 +284,7 @@ function CabinetModel(props: {
       onPointerOut={() => { document.body.style.cursor = ''; }}
     >
       {geo.meshes.map((m) => (
-        <mesh key={m.key} geometry={m.geometry}>
+        <mesh key={m.key} geometry={m.geometry} castShadow receiveShadow>
           <meshStandardMaterial
             color={colorFor(m.material, m.shade)}
             roughness={m.material === 'counter' ? 0.35 : 0.75}
@@ -273,7 +300,7 @@ function CabinetModel(props: {
         <lineBasicMaterial color={edgeColor} transparent opacity={selected || issue ? 0.95 : 0.55} />
       </lineSegments>
       {(cab.crown || cab.lightRail || cab.baseMold) && (
-        <MoldingModel pieces={cabinetMoldings(cab, eff(cab, settings), ends)} color={finishes.paint} edgeColor={edgeColor} />
+        <MoldingModel pieces={cabinetMoldings(cab, eff(cab, settings), ends)} color={fc.paint} edgeColor={edgeColor} />
       )}
       <ApplianceModel cab={cab} settings={settings} />
     </group>

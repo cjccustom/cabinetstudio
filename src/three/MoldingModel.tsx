@@ -38,7 +38,7 @@ export function MoldingModel({ pieces, color, edgeColor }: { pieces: MoldPiece[]
   if (!geo) return null;
   return (
     <>
-      <mesh geometry={geo.mesh}>
+      <mesh geometry={geo.mesh} castShadow receiveShadow>
         <meshStandardMaterial color={color} roughness={0.7} side={THREE.DoubleSide} polygonOffset polygonOffsetFactor={1} polygonOffsetUnits={1} />
       </mesh>
       <lineSegments geometry={geo.edges}>

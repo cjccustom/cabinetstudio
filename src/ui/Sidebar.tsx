@@ -7,6 +7,7 @@ import { wallNames, wallOrder } from '../model/layout';
 import type { PanelMode, ShopSettings, WallId } from '../model/types';
 import { RoomDetails } from './RoomDetails';
 import { MaterialsSection } from './Materials';
+import { finishColors } from '../model/woodColors';
 import { fmt } from '../units';
 import { centerPanels, doorMaterials, doorStyles, hingeTypes, outsideEdges, panelLabel, sideThicknesses, slides, stileWidths, styleById, type HingeType, type OutsideEdge } from '../model/eagle';
 import { closetRod, realOverhang } from '../model/parts';
@@ -149,6 +150,9 @@ function PresetGlyph({ rows, w, h, kind }: { rows: { type: string; doors: number
 function RoomPanel() {
   const room = useStore((s) => s.project.room);
   const finishes = useStore((s) => s.project.finishes);
+  const settings = useStore((s) => s.project.settings);
+  const stain = settings.finish === 'stain';
+  const colors = finishColors(settings, finishes);
   const name = useStore((s) => s.project.name);
   const commit = useStore((s) => s.commit);
   return (
@@ -168,13 +172,19 @@ function RoomPanel() {
       </Section>
       <Section title="Finishes">
         <div className="swatches">
-          {([['paint', 'Paint / stain'], ['box', 'Case interior'], ['counter', 'Stone top'], ['wood', 'Solid wood'], ['wall', 'Walls'], ['trim', 'Room trim']] as const).map(([k, label]) => (
+          {([['paint', 'Paint'], ...(stain ? [['stain', 'Stain']] as const : []), ['box', 'Case interior'], ['counter', 'Stone top'], ['wood', 'Solid wood'], ['wall', 'Walls'], ['trim', 'Room trim']] as const).map(([k, label]) => (
             <label key={k} className="swatch" htmlFor={`fin-${k}`}>
-              <input id={`fin-${k}`} type="color" value={finishes[k] ?? (k === 'wall' ? '#f1efea' : k === 'trim' ? '#f7f5ef' : '#b9875a')} onChange={(e) => commit((p) => ({ ...p, finishes: { ...p.finishes, [k]: e.target.value } }))} />
+              <input id={`fin-${k}`} type="color" value={finishes[k] ?? (k === 'stain' ? colors.paint : k === 'box' ? colors.box : k === 'wall' ? '#f1efea' : k === 'trim' ? '#f7f5ef' : '#b9875a')} onChange={(e) => commit((p) => ({ ...p, finishes: { ...p.finishes, [k]: e.target.value } }))} />
               <span>{label}</span>
             </label>
           ))}
         </div>
+        {stain && (
+          <p className="hint">
+            Stain grade: cabinets show {settings.woodSpecies.toLowerCase()}{finishes.stain ? ' in the stain color picked' : ' in its natural tone'}{settings.plywood && colors.box !== finishes.box ? `, interiors in ${settings.plywood.toLowerCase()}` : ''}.{' '}
+            {finishes.stain && <button className="link-btn" onClick={() => commit((p) => { const f = { ...p.finishes }; delete f.stain; return { ...p, finishes: f }; })}>Back to the natural tone</button>}
+          </p>
+        )}
       </Section>
       <RoomDetails />
     </div>

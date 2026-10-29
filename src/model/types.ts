@@ -296,6 +296,8 @@ export interface ShopSettings {
 
 export interface Finishes {
   paint: string;
+  /** Stain color on stain-grade work; unset = the species' natural tone. */
+  stain?: string;
   box: string;
   counter: string;
   wood: string;

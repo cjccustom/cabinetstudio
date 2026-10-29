@@ -207,9 +207,12 @@ export function buildParts(c: Cabinet, s: ShopSettings, ends: EndInfo = { left: 
     const bare = exposed && panel === 'none';
     notes.push(bare ? 'Exposed end: pocket screw from inside' : exposed ? 'Under end panel: glue & staple' : 'Hidden: glue & staple');
     if (fridge) notes.push('Runs to the floor as the fridge panel');
+    if (bare) notes.push('Finished outside: paint (or stain) with the face frame');
     if (fl) notes.push('Band the front edge');
     parts.push({
       name: bare ? 'Side, exposed' : 'Side', role: 'side', material: 'box', length: H, width: boxD, thickness: tn, cut: true, banded: fl || undefined,
+      // A bare exposed side gets the finish (painted, or stained to match), not left as case plywood
+      ...(bare ? { look: 'paint' as const } : {}),
       note: notes.join(' · '),
       boxes: sideBoxes(x, arch), shapes: arch ? sideShapes(x) : undefined,
     });
