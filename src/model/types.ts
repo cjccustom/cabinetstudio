@@ -27,6 +27,18 @@ export interface FaceRow {
   ledge?: { thickness: number; overhang: number };
 }
 
+/**
+ * How a case is assembled. top: a base cabinet's front and back stretchers, or a solid top panel
+ * for a clean interior (open or glass-front cabinets, a top that shows from inside). joinery: how
+ * the case is fastened (standard = glue and staples, pocket screws from inside on bare exposed ends).
+ * shelves: adjustable on pins, or fixed in dados.
+ */
+export interface CaseBuild {
+  top?: 'stretchers' | 'solid';
+  joinery?: 'standard' | 'pocket' | 'staples' | 'confirmat';
+  shelves?: 'adjustable' | 'fixed';
+}
+
 export interface Cabinet {
   id: string;
   name: string;
@@ -91,6 +103,8 @@ export interface Cabinet {
   corner?: { side: 'left' | 'right'; width2: number; lazySusan: boolean };
   /** Any shop standard changed for just this cabinet. */
   overrides?: Partial<ShopSettings>;
+  /** How this case goes together, where it differs from the usual way. */
+  build?: CaseBuild;
   /** What sits on top of a base cabinet: stone (by others) or a solid wood top/bench seat built in the shop. */
   topKind?: 'stone' | 'wood';
   topThickness?: number;
@@ -309,6 +323,8 @@ export interface Finishes {
   wall?: string;
   /** Room trim: casing, baseboard, crown. */
   trim?: string;
+  /** The ceiling. */
+  ceiling?: string;
 }
 
 /** A door, window or cased opening cut into a wall. Offset and sill are to the rough opening's edge, like a cabinet. */
@@ -382,6 +398,8 @@ export interface Project {
   shopJobId?: string;
   openings?: Opening[];
   roomTrim?: RoomTrim;
+  /** How the room is lit in 3D. */
+  lights?: Partial<import('./lighting').RoomLights>;
   /** Price per board foot for solid stock in species other than the face frame stock, by species. */
   speciesPrices?: Record<string, number>;
   /** Doors and room trim are drawn for the design; these put them in the quote and orders on jobs that include them. */

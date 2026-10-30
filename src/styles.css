@@ -643,3 +643,13 @@ ol.steps li { margin: 8px 0; }
 .cell-edit:hover { border-color: var(--line); background: var(--sunk); }
 .cell-input { width: 6em; text-align: right; padding: 2px 4px; font: inherit; }
 tr.overridden td:last-child .cell-edit { font-weight: 600; color: var(--accent); }
+
+/* The full editor: floats over the design so changes show as they're made */
+.editor-win { position: fixed; z-index: 40; top: 64px; left: 50%; transform: translateX(-50%); width: min(780px, calc(100vw - 32px)); max-height: calc(100vh - 88px); display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 18px 48px rgb(0 0 0 / 0.28); }
+.editor-bar { cursor: move; user-select: none; touch-action: none; display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-bottom: 1px solid var(--line); }
+.editor-bar strong { font: 600 17px/1.2 var(--font-display); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.editor-step { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
+.editor-tabs { overflow-x: auto; flex-shrink: 0; }
+.editor-tabs button { white-space: nowrap; }
+.editor-body { overflow: auto; padding: 4px 16px 16px; }
+.editor-body .insp-head { display: none; }

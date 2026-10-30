@@ -13,6 +13,7 @@ import { GroupPanel } from './ui/GroupPanel';
 import { Scene } from './three/Scene';
 import { Sidebar } from './ui/Sidebar';
 import { Inspector } from './ui/Inspector';
+import { Editor } from './ui/Editor';
 import { OrderList, PartsTable } from './ui/PartsTable';
 import { ReleasePanel } from './ui/Release';
 import { EagleRequests } from './ui/EagleRequests';
@@ -49,6 +50,9 @@ export default function App() {
   const canUndo = useStore((s) => s.past.length > 0);
   const canRedo = useStore((s) => s.future.length > 0);
   const [panel, setPanel] = useState<'cabinet' | 'cutlist' | 'order'>('cabinet');
+  // The sidebar shows the everyday settings; everything else is a double-click away, unless asked for here
+  const [sidebarAll, setSidebarAllState] = useState(() => { try { return localStorage.getItem('cabinet-studio.sidebarAll') === '1'; } catch { return false; } });
+  const setSidebarAll = (v: boolean) => { setSidebarAllState(v); try { localStorage.setItem('cabinet-studio.sidebarAll', v ? '1' : '0'); } catch { /* storage blocked */ } };
   const [dialog, setDialog] = useState<null | 'file' | 'new' | 'drawer'>(null);
 
   const issues = useMemo(() => [...findIssues(project.room, project.cabinets, project.settings), ...openingIssues(project)], [project]);
@@ -164,7 +168,10 @@ export default function App() {
           {panel === 'cabinet' && selectedPanel && <PanelInspector key={selectedPanel.id} panel={selectedPanel} />}
           {panel === 'cabinet' && !selectedPanel && groupCount > 1 && <GroupPanel />}
           {panel === 'cabinet' && !selectedPanel && groupCount <= 1 && (selected ? (
-            <Inspector key={selected.id} cab={selected} issues={issues.filter((i) => i.cabinetId === selected.id).map((i) => i.message)} />
+            <>
+              <Inspector key={selected.id} cab={selected} issues={issues.filter((i) => i.cabinetId === selected.id).map((i) => i.message)} tab={sidebarAll ? 'all' : undefined} />
+              <label className="check-inline hint"><input type="checkbox" checked={sidebarAll} onChange={(e) => setSidebarAll(e.target.checked)} /> Show every setting in this sidebar</label>
+            </>
           ) : (
             <div className="empty">
               <p><strong>Click a cabinet</strong> to edit its size, openings and placement.</p>
@@ -197,6 +204,7 @@ export default function App() {
       </>
       )}
 
+      <Editor issuesFor={(id) => issues.filter((i) => i.cabinetId === id).map((i) => i.message)} />
       {dialog === 'file' && <ProjectDialog onClose={() => setDialog(null)} />}
       {dialog === 'drawer' && <DrawerCalculator onClose={() => setDialog(null)} />}
       {dialog === 'new' && (
@@ -226,7 +234,7 @@ function useKeyboard() {
       const mod = e.metaKey || e.ctrlKey;
       if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); e.shiftKey ? st.redo() : st.undo(); return; }
       const id = st.selectedId;
-      if (!id || st.mode !== 'design') return;
+      if (!id || st.mode !== 'design' || st.editing) return;
       const many = picked(st);
       if (many.length > 1) {
         // A picked group moves together; Escape lets go of it

@@ -12,6 +12,8 @@ import { defaultFloor, floorOf, inScope, newOpening, openingKinds, roomTrimOf } 
 import { fmt } from '../units';
 import { Field, LengthInput, Section } from './fields';
 import { MoldSlot } from './ProfilePicker';
+import { canSpots, lightsOf, type RoomLights } from '../model/lighting';
+import { cofferOf } from '../model/coffer';
 
 const floorKinds: Record<Floor['kind'], { label: string; size?: string; color: string; sizeDefault: number }> = {
   hardwood: { label: 'Hardwood', size: 'Plank width', color: '#b98b5e', sizeDefault: 3.25 },
@@ -87,7 +89,39 @@ export function RoomDetails() {
         </div>
         <label className="swatch" htmlFor="fl-color"><input id="fl-color" type="color" value={floor.color} onChange={(e) => putFloor({ color: e.target.value })} /><span>Floor color</span></label>
       </Section>
+
+      <LightingSection />
     </>
+  );
+}
+
+/** How the 3D view is lit: recessed cans the way the room will be, or plain daylight. */
+export function LightingSection() {
+  const project = useStore((s) => s.project);
+  const commit = useStore((s) => s.commit);
+  const L = lightsOf(project);
+  const put = (patch: Partial<RoomLights>) => commit((p) => ({ ...p, lights: { ...p.lights, ...patch } }));
+  const coffered = cofferOf(project).on;
+  const n = canSpots(project).length;
+  return (
+    <Section title="Lighting (3D)">
+      <div className="grid2">
+        <Field label="Light from" htmlFor="lt-kind">
+          <select id="lt-kind" value={L.kind} onChange={(e) => put({ kind: e.target.value as RoomLights['kind'] })}>
+            <option value="recessed">Recessed cans</option>
+            <option value="daylight">Daylight (even)</option>
+          </select>
+        </Field>
+        <Field label="Brightness" htmlFor="lt-bright">
+          <input id="lt-bright" type="range" min={0.4} max={2} step={0.1} value={L.brightness} onChange={(e) => put({ brightness: Number(e.target.value) })} />
+        </Field>
+        {L.kind === 'recessed' && !coffered && (
+          <Field label="Can spacing" htmlFor="lt-space"><LengthInput id="lt-space" value={L.spacing} onChange={(v) => put({ spacing: Math.max(24, v ?? L.spacing) })} /></Field>
+        )}
+      </div>
+      {L.kind === 'recessed' && <p className="hint">{n} can{n === 1 ? '' : 's'}{coffered ? ', one centered in each coffer' : ', spread evenly across the ceiling'}. Shadows from the cans show depth the way the finished room will look.</p>}
+      <label className="swatch" htmlFor="lt-ceil"><input id="lt-ceil" type="color" value={project.finishes.ceiling ?? '#f7f6f2'} onChange={(e) => commit((p) => ({ ...p, finishes: { ...p.finishes, ceiling: e.target.value } }))} /><span>Ceiling color</span></label>
+    </Section>
   );
 }
 

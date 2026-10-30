@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from 'react';
 import * as THREE from 'three';
 import type { Project } from '../model/types';
-import type { ViewMode } from '../store';
+import { useStore, type ViewMode } from '../store';
 import { beadCorner, cofferOf, cofferParts, coffers } from '../model/coffer';
 import { mountShape, profileByNum, type MoldPiece } from '../model/moldings';
 import { buildCabinetGeometry } from './cabinetGeometry';
@@ -39,9 +39,9 @@ export function CofferModel({ project, view }: { project: Project; view: ViewMod
   if (!c.on || view === 'plan') return null;
   const paint = project.finishes.trim ?? project.finishes.paint;
   return (
-    <group>
+    <group onDoubleClick={(e) => { e.stopPropagation(); useStore.getState().edit({ kind: 'ceiling' }); }}>
       {geo.meshes.map((m) => (
-        <mesh key={m.key} geometry={m.geometry}>
+        <mesh key={m.key} geometry={m.geometry} castShadow receiveShadow>
           <meshStandardMaterial color={new THREE.Color(paint).multiplyScalar(m.shade)} roughness={0.75} side={THREE.DoubleSide} polygonOffset polygonOffsetFactor={1} polygonOffsetUnits={1} />
         </mesh>
       ))}

@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { canSpots } from "../src/model/lighting";
 import { newOpening } from "../src/model/room";
 import { cancelDeadline, holidays } from "../portal/src/cancel";
 import { expiring } from "../src/portal";
@@ -86,6 +87,20 @@ eq('1/2" sides width', drawerBoxSize({ openingW: 18, openingH: 6, depth: 24, sid
 eq('toe notch 3 1/2 deep overall', p21.find((x) => x.role === 'side')!.note!.startsWith('Toe notch 4" × 2 3/4"'), true);
 eq('toe skin is 1/2"', one('Toe kick skin').thickness, 0.5);
 eq('doors are ordered, not cut', p21.filter((x) => x.order && x.cut).length, 0);
+
+// How it's built: a solid top in place of stretchers; fixed shelves in dados; joinery in the notes
+const solid = buildParts({ ...b21, build: { top: 'solid' } }, s);
+eq('solid top replaces the stretchers', solid.filter((x) => x.role === 'stretcher').length, 0);
+eq('solid top runs the full width and depth', `${solid.find((x) => x.name === 'Top')?.length} x ${solid.find((x) => x.name === 'Top')?.width}`, `20 x ${23.25 - 0.625}`);
+const shelved = p.cabinets.find((c) => c.rows.some((r) => r.type === 'doors' && r.shelves > 0))!;
+const fixed = buildParts({ ...shelved, build: { shelves: 'fixed' } }, s).filter((x) => x.role === 'shelf');
+eq('fixed shelves are dadoed, full width', fixed.length > 0 && fixed.every((x) => x.name === 'Fixed shelf' && x.note?.startsWith('In 1/4" dados')), true);
+eq('confirmat joinery in the side notes', buildParts({ ...b21, build: { joinery: 'confirmat' } }, s).find((x) => x.role === 'side')!.note!.includes('Confirmat'), true);
+
+// Recessed cans: one per coffer, or a grid about every 5'
+eq('one can per coffer', canSpots({ ...p, ceiling: { on: true, across: 3, deep: 3 } }).length, 9);
+eq('cans on a grid, 3 across by 2 deep', canSpots({ ...p, room: { width: 156, depth: 144, height: 96 } }).length, 6);
+eq('daylight has no cans', canSpots({ ...p, lights: { kind: 'daylight' } }).length, 0);
 
 const b = p.cabinets.find((c) => c.name === 'B2')!; // 30" drawer over 2 doors
 const parts = buildParts(b, s);

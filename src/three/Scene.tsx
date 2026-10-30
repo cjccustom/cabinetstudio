@@ -5,7 +5,8 @@ import { Html, Line, OrbitControls, OrthographicCamera, PerspectiveCamera } from
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import { finishColors } from '../model/woodColors';
 import { freeStanding, picked, runWall, useStore, type ViewMode } from '../store';
-import type { Cabinet, Finishes, Room, ShopSettings, WallId, WallPanel } from '../model/types';
+import type { Cabinet, Finishes, Project, Room, ShopSettings, WallId, WallPanel } from '../model/types';
+import { canSpots, lightsOf } from '../model/lighting';
 import { spacingOf } from '../model/panels';
 import { cabinetMoldings, panelMoldings } from '../model/moldings';
 import { eff } from '../model/parts';
@@ -33,6 +34,7 @@ export function Scene({ issueIds }: { issueIds: Set<string> }) {
   const { room, settings, finishes } = project;
   const showCeiling = useNav((n) => n.ceiling);
   const elevWall = view.startsWith('elev-') ? (view.slice(5) as WallId) : null;
+  const cans = lightsOf(project).kind === 'recessed';
   const visible = elevWall ? project.cabinets.filter((c) => c.wall === elevWall) : project.cabinets;
 
   return (
@@ -44,15 +46,27 @@ export function Scene({ issueIds }: { issueIds: Set<string> }) {
     >
       <Cameras view={view} room={room} />
       <NavBridge />
-      {/* In 3D a low sun casts soft shadows for depth; the flat views stay evenly lit */}
-      <ambientLight intensity={view === '3d' ? 0.55 : 0.85} />
-      <hemisphereLight args={['#ffffff', '#b9b2a6', view === '3d' ? 0.55 : 0.6]} />
-      {view === '3d'
-        ? <SunLight room={room} />
-        : <directionalLight position={[room.width * 0.8, room.height * 2.2, room.depth * 2.5]} intensity={1.5} />}
-      <directionalLight position={[-room.width, room.height, room.depth]} intensity={0.35} />
+      {/* In 3D the room is lit the way it will be: recessed cans casting shadows (or a high sun for
+          daylight); the flat views stay evenly lit */}
+      {view === '3d' && cans
+        ? <CanLights project={project} showTrims={showCeiling} />
+        : <>
+          <ambientLight intensity={view === '3d' ? 0.55 : 0.85} />
+          <hemisphereLight args={['#ffffff', '#b9b2a6', view === '3d' ? 0.55 : 0.6]} />
+          {view === '3d'
+            ? <SunLight room={room} />
+            : <directionalLight position={[room.width * 0.8, room.height * 2.2, room.depth * 2.5]} intensity={1.5} />}
+          <directionalLight position={[-room.width, room.height, room.depth]} intensity={0.35} />
+        </>}
       <RoomModel project={project} view={view} />
       {showCeiling && <CofferModel project={project} view={view} />}
+      {/* The ceiling, seen only from below, so the coffers and cans have something over them */}
+      {showCeiling && view === '3d' && (
+        <mesh position={[room.width / 2, room.height, room.depth / 2]} rotation-x={Math.PI / 2}>
+          <planeGeometry args={[room.width, room.depth]} />
+          <meshStandardMaterial color={project.finishes.ceiling ?? '#f7f6f2'} emissive="#ffffff" emissiveIntensity={0.18} roughness={0.95} />
+        </mesh>
+      )}
       {visible.map((c) => (
         <CabinetModel
           key={c.id}
@@ -128,6 +142,53 @@ function Cameras({ view, room }: { view: ViewMode; room: Room }) {
       <OrthographicCamera key={`elev-${wall}-${k}`} makeDefault position={cam[wall].pos} zoom={zoom} near={1} far={5000} />
       <OrbitControls key={`orbit-${wall}-${k}`} makeDefault target={cam[wall].target} enableRotate={false} screenSpacePanning zoomToCursor mouseButtons={buttons(true)} />
     </>
+  );
+}
+
+/** Most cans that cast shadows; past this each shadow costs more than it shows. */
+const SHADOW_CANS = 9;
+
+/**
+ * Recessed cans: a spot just under the ceiling at each can, aimed straight down with a wide soft
+ * cone, so coffer beams, uppers and crown throw the shadows they will in the finished room. A dim
+ * fill stands in for light bouncing off the walls and floor.
+ */
+function CanLights({ project, showTrims }: { project: Project; showTrims: boolean }) {
+  const { room } = project;
+  const L = lightsOf(project);
+  const spots = canSpots(project);
+  const H = room.height;
+  // Spread the room's light over its cans, so more cans doesn't mean a brighter room
+  const area = (room.width * room.depth) / Math.max(1, spots.length);
+  const each = L.brightness * 2.6 * Math.max(H * H, area * 0.9);
+  return (
+    <>
+      <ambientLight intensity={0.32} />
+      <hemisphereLight args={['#fff8ee', '#d8cfc0', 0.75]} />
+      {spots.map((s, i) => <Can key={`${i}-${s.x}-${s.z}`} x={s.x} z={s.z} y={H - 0.75} intensity={each} shadow={i < SHADOW_CANS} reach={H * 2.5} />)}
+      {showTrims && spots.map((s, i) => (
+        <group key={`t${i}`} position={[s.x, H - 0.05, s.z]} rotation-x={Math.PI / 2}>
+          <mesh><ringGeometry args={[2.1, 2.75, 32]} /><meshBasicMaterial color="#f4f4f2" /></mesh>
+          <mesh position-z={0.02}><circleGeometry args={[2.1, 32]} /><meshBasicMaterial color="#fffbe8" /></mesh>
+        </group>
+      ))}
+    </>
+  );
+}
+
+function Can({ x, y, z, intensity, shadow, reach }: { x: number; y: number; z: number; intensity: number; shadow: boolean; reach: number }) {
+  const ref = useRef<THREE.SpotLight>(null!);
+  const scene = useThree((s) => s.scene);
+  useEffect(() => {
+    const l = ref.current;
+    l.target.position.set(x, 0, z);
+    scene.add(l.target);
+    l.target.updateMatrixWorld();
+    return () => { scene.remove(l.target); };
+  }, [scene, x, z]);
+  return (
+    <spotLight ref={ref} position={[x, y, z]} color="#fff1dc" intensity={intensity} angle={1.05} penumbra={0.9} decay={2} distance={reach}
+      castShadow={shadow} shadow-mapSize={[1024, 1024]} shadow-bias={-0.0005} shadow-normalBias={0.5} shadow-camera-near={1} shadow-camera-far={reach} />
   );
 }
 
@@ -280,6 +341,7 @@ function CabinetModel(props: {
       onPointerDown={onDown}
       onPointerMove={onMove}
       onPointerUp={onUp}
+      onDoubleClick={(e) => { e.stopPropagation(); useStore.getState().edit({ kind: 'cabinet', id: cab.id }); }}
       onPointerOver={(e) => { e.stopPropagation(); document.body.style.cursor = 'grab'; }}
       onPointerOut={() => { document.body.style.cursor = ''; }}
     >
@@ -382,7 +444,7 @@ function WallPanelModel({ panel: w, room, finishes, selected }: { panel: WallPan
     useStore.getState().select(w.id);
   };
   return (
-    <group position={[pos[0], 0, pos[2]]} rotation-y={rotY} onPointerDown={select}>
+    <group position={[pos[0], 0, pos[2]]} rotation-y={rotY} onPointerDown={select} onDoubleClick={(e) => { e.stopPropagation(); useStore.getState().edit({ kind: 'panel', id: w.id }); }}>
       <mesh position={[w.width / 2, w.bottom + w.height / 2, t / 2]}>
         <boxGeometry args={[w.width, w.height, t]} />
         <meshStandardMaterial color={finishes.paint} roughness={0.8} emissive={selected ? ACCENT : '#000000'} emissiveIntensity={selected ? 0.08 : 0} />

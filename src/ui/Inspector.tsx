@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { cofferOf, perimOf } from '../model/coffer';
 import { combine, combineAll, stackedPairs, upperOn } from '../model/onePiece';
 import { freeStanding, useStore } from '../store';
-import type { CabinetNote, Cabinet, CrownBuild, EndMode, FaceRow, PanelChoice, PanelMode, ShopSettings, WallId } from '../model/types';
+import type { CabinetNote, Cabinet, CaseBuild, CrownBuild, EndMode, FaceRow, PanelChoice, PanelMode, ShopSettings, WallId } from '../model/types';
 import { buildParts, closetRod, crownFit, crownLayout, crownRoom, layoutRows, noCrownBuild, panelOn } from '../model/parts';
 import { defaultPilaster, pilasterOf, pilasterSections } from '../model/pilaster';
 import { bracketCount, bracketGap, bracketLength, bracketProduct, finishedEnds, floatingOf, shelfPly } from '../model/floatingShelf';
@@ -32,7 +32,27 @@ const rowTypes: { v: FaceRow['type']; label: string }[] = [
   { v: 'appliance', label: 'Appliance' },
 ];
 
-export function Inspector({ cab, issues }: { cab: Cabinet; issues: string[] }) {
+/** The editor's tabs for a cabinet, by what kind it is. */
+export type InspectorTab = 'size' | 'fronts' | 'build' | 'top' | 'proposal' | 'parts';
+export function inspectorTabs(cab: Cabinet): { id: InspectorTab; label: string }[] {
+  const cased = cab.kind === 'base' || cab.kind === 'wall' || cab.kind === 'tall';
+  return [
+    { id: 'size', label: 'Size & placement' },
+    { id: 'fronts', label: cab.kind === 'pilaster' ? 'Pilaster' : cab.kind === 'shelf' ? 'Shelf' : cab.kind === 'mantel' ? 'Mantel' : cab.corner ? 'Corner' : 'Openings' },
+    ...(cased || cab.kind === 'pilaster' ? [{ id: 'build' as const, label: 'How it’s built' }] : []),
+    ...(cab.kind !== 'shelf' ? [{ id: 'top' as const, label: cab.kind === 'base' ? 'Top, base & mouldings' : floorStanding(cab) ? 'Base & mouldings' : 'Mouldings' }] : []),
+    { id: 'proposal', label: 'Proposal & notes' },
+    { id: 'parts', label: 'Cut parts' },
+  ];
+}
+
+/**
+ * A cabinet's settings. In the sidebar (no tab) just the everyday ones: size, placement and the
+ * openings. The full editor (double-click) shows one tab at a time; 'all' shows everything.
+ */
+export function Inspector({ cab, issues, tab }: { cab: Cabinet; issues: string[]; tab?: InspectorTab | 'all' }) {
+  const full = tab !== undefined;
+  const show = (t: InspectorTab, quick = false) => tab === 'all' || tab === t || (!full && quick);
   // Parts detail stays tucked away until asked for; remembered for this browser
   const [showParts, setShowParts] = useState(() => { try { return localStorage.getItem('cabinet-studio.showParts') === '1'; } catch { return false; } });
   const toggleParts = (v: boolean) => { setShowParts(v); try { localStorage.setItem('cabinet-studio.showParts', v ? '1' : '0'); } catch { /* storage blocked */ } };
@@ -43,14 +63,12 @@ export function Inspector({ cab, issues }: { cab: Cabinet; issues: string[] }) {
   const room = useStore((s) => s.project.room);
   const all = useStore((s) => s.project.cabinets);
   const ends = resolveEnds(room, all, cab);
-  const sideInfo = (['left', 'right'] as const).map((side) => ({ side, panel: panelOn(cab, settings, side, ends[side]) }));
-  const bareSides = sideInfo.filter((x) => ends[x.side] && x.panel === 'none').map((x) => x.side);
-  const panels = sideInfo.filter((x) => x.panel !== 'none').map((x) => `${x.side} ${panelLabel[x.panel].toLowerCase()}`);
   const set = (patch: Partial<Cabinet>) => update(cab.id, patch);
   const setRow = (id: string, patch: Partial<FaceRow>) => set({ rows: cab.rows.map((r) => (r.id === id ? { ...r, ...patch } : r)) });
   const { rows: layout, leftover } = layoutRows(cab, settings);
   const [shrunk, setShrunk] = useState(0);
   const free = freeStanding(cab) && !cab.corner;
+  const cased = cab.kind === 'base' || cab.kind === 'wall' || cab.kind === 'tall';
   useEffect(() => setShrunk(0), [cab.id]);
 
   return (
@@ -71,16 +89,16 @@ export function Inspector({ cab, issues }: { cab: Cabinet; issues: string[] }) {
         </ul>
       )}
 
-      <Section title="Size">
+      {show('size', true) && <Section title="Size">
         <div className="grid3">
           <Field label="Width" htmlFor="cab-w"><LengthInput id="cab-w" value={cab.width} min={6} onChange={(v) => set({ width: v! })} /></Field>
           <Field label="Height" htmlFor="cab-h"><LengthInput id="cab-h" value={cab.height} min={6} onChange={(v) => set({ height: v! })} /></Field>
           <Field label="Depth" htmlFor="cab-d"><LengthInput id="cab-d" value={cab.depth} min={4} onChange={(v) => set({ depth: v! })} /></Field>
         </div>
         <FitButtons cab={cab} />
-      </Section>
+      </Section>}
 
-      <Section title="On the proposal">
+      {show('proposal') && <Section title="On the proposal">
         <div className="grid2">
           <Field label="Area" htmlFor="cab-area">
             <input id="cab-area" list="area-names" value={cab.area ?? ''} placeholder={cab.island ? 'Island' : wallNames[cab.wall]} onChange={(e) => set({ area: e.target.value || undefined })} />
@@ -97,9 +115,9 @@ export function Inspector({ cab, issues }: { cab: Cabinet; issues: string[] }) {
           </div>
         )}
         <p className="hint">{cab.option ? `Part of “${cab.option}”: priced on its own and added only if the customer ticks it when signing. Give other cabinets the same name to offer them together.` : 'The customer’s proposal groups the work by area, in plain words. Name an option (like “Additional cabinets”) to offer this cabinet as an add-on.'}</p>
-      </Section>
+      </Section>}
 
-      <Section title="Placement">
+      {show('size', true) && <Section title="Placement">
         {free ? (() => {
           // Standing out in the room: placed by where it is in the plan, the way you'd tape it
           const f = footprint(room, cab);
@@ -170,14 +188,15 @@ export function Inspector({ cab, issues }: { cab: Cabinet; issues: string[] }) {
             ? `Island, fronts both ways: ${fmt(2 * cab.depth)} deep over the two cases, the seam between them ${fmt(cab.wallInset ?? 0)} off the ${wallNames[cab.wall].toLowerCase()}. The far side mirrors these openings; the base wraps all four sides and the top runs over both.`
             : `Island: back ${fmt(cab.wallInset ?? 0)} off the ${wallNames[cab.wall].toLowerCase()}, facing away from it. The back gets a panel in the door style, the base (baseboard, or a toe kick under Base below) wraps all four sides, and the top overhangs all four sides.`
           : 'Drag the cabinet in the 3D, Plan or Elevation view to slide it along the wall. It snaps to neighbors and wall ends. Shift- or ⌘-click others to pick several and move them together.'}</p>
-      </Section>
+      </Section>}
 
-      {(cab.blind || cab.corner) && <CornerSection cab={cab} set={set} />}
-      {cab.kind === 'pilaster' && <PilasterSection cab={cab} set={set} />}
-      {cab.kind === 'shelf' && <FloatingShelfSection cab={cab} set={set} />}
-      {cab.kind === 'mantel' && <MantelSection cab={cab} set={set} />}
-      <OnePiece cab={cab} />
-      {!cab.corner && cab.kind !== 'pilaster' && cab.kind !== 'shelf' && cab.kind !== 'mantel' && (
+      {show('fronts') && (cab.blind || cab.corner) && <CornerSection cab={cab} set={set} />}
+      {show('fronts') && cab.kind === 'pilaster' && <PilasterSection cab={cab} set={set} />}
+      {show('fronts') && cab.kind === 'shelf' && <FloatingShelfSection cab={cab} set={set} />}
+      {show('fronts') && cab.kind === 'mantel' && <MantelSection cab={cab} set={set} />}
+      {show('build') && <OnePiece cab={cab} />}
+      {show('build') && cased && <AssemblySection cab={cab} set={set} />}
+      {show('fronts', true) && !cab.corner && cab.kind !== 'pilaster' && cab.kind !== 'shelf' && cab.kind !== 'mantel' && (
       <>
       <Section
         title="Face frame openings"
@@ -267,23 +286,13 @@ export function Inspector({ cab, issues }: { cab: Cabinet; issues: string[] }) {
         {cab.rows.some((r) => r.type === 'hang') && (
           <p className="hint">Hanging: the last box is the rod’s center below the shelf over it (blank = Shop standards). Each rod’s height off the floor and clear hang are in its parts note.</p>
         )}
-        <FrameWidths cab={cab} settings={settings} set={set} setRow={setRow} />
+        {full && <FrameWidths cab={cab} settings={settings} set={set} setRow={setRow} />}
         {leftover < -0.01 && <p className="warn">Openings are {fmt(-leftover)} taller than the face frame allows.</p>}
         {leftover > 0.01 && <p className="warn">{fmt(leftover)} of face frame is unused. Make one row auto.</p>}
-        <div className="checks">
+        {full && <div className="checks">
           <label><input id="cab-cstile" type="checkbox" checked={cab.centerStile} onChange={(e) => set({ centerStile: e.target.checked })} /> Center stile between pairs of doors</label>
-          {cab.kind !== 'base' && (
-            <label><input id="cab-bottom" type="checkbox" checked={!cab.noBottom} onChange={(e) => set({ noBottom: !e.target.checked })} /> Case bottom (off for a bookcase whose sides stand on the countertop)</label>
-          )}
-          {cab.kind !== 'base' && cab.noBottom && (
-            <label><input id="cab-brail" type="checkbox" checked={!!cab.bottomRail} onChange={(e) => set({ bottomRail: e.target.checked })} /> Face frame bottom rail</label>
-          )}
-          {cab.kind === 'wall' && !cab.noBottom && (
-            <label><input id="cab-flush" type="checkbox" checked={!!cab.bottomFlush} onChange={(e) => set({ bottomFlush: e.target.checked })} /> Box bottom flush with bottom of face frame (for cabinets hung high)</label>
-          )}
-
-        </div>
-        {cab.rows.some((r) => (r.type === 'open' || r.type === 'doors') && r.shelves > 0) && (
+        </div>}
+        {full && cab.rows.some((r) => (r.type === 'open' || r.type === 'doors') && r.shelves > 0) && (
           <div className="checks">
             <label><input id="cab-sfront" type="checkbox" checked={!!cab.shelfFront} onChange={(e) => set({ shelfFront: e.target.checked ? { height: 1.5, thickness: 0.75 } : undefined })} /> Applied solid shelf fronts (wider than the plywood)</label>
             {cab.shelfFront && (
@@ -295,11 +304,11 @@ export function Inspector({ cab, issues }: { cab: Cabinet; issues: string[] }) {
           </div>
         )}
       </Section>
-      {floorStanding(cab) && <BaseSection cab={cab} set={set} />}
+      {show('top') && floorStanding(cab) && <BaseSection cab={cab} set={set} />}
 
       </>
       )}
-      {cab.kind === 'base' && !cab.corner && (
+      {show('top') && cab.kind === 'base' && !cab.corner && (
         <Section title="Top">
           <div className="grid3">
             <Field label="Top" htmlFor="cab-topkind">
@@ -369,7 +378,7 @@ export function Inspector({ cab, issues }: { cab: Cabinet; issues: string[] }) {
 
       {cab.kind !== 'shelf' && (
       <>
-      <Section title="Mouldings (Anderson & McQuaid)">
+      {show('top') && <Section title="Mouldings (Anderson & McQuaid)">
         {(['crown', 'lightRail', 'baseMold'] as const)
           .filter((k) => (k === 'crown' ? cab.kind !== 'base' : k === 'lightRail' ? cab.kind === 'wall' : cab.kind !== 'wall'))
           .filter((k) => cab.kind !== 'pilaster' || k !== 'lightRail')
@@ -408,13 +417,13 @@ export function Inspector({ cab, issues }: { cab: Cabinet; issues: string[] }) {
         {shrunk > 0 && <p className="hint">Shortened {cab.name} {fmt(shrunk)} to {fmt(cab.height)} so the crown meets the ceiling. Undo puts it back.</p>}
         {cab.kind !== 'base' && cab.kind !== 'mantel' && <CrownBuildEditor cab={cab} set={set} species={settings.moldSpecies} />}
         <p className="hint">Runs across the face and returns to the wall on exposed ends. Lineal footage and cost are on the Orders tab.</p>
-      </Section>
+      </Section>}
 
-      {cab.kind !== 'mantel' && <OverridesSection cab={cab} settings={settings} set={set} />}
+      {show('build') && cab.kind !== 'mantel' && <OverridesSection cab={cab} settings={settings} set={set} />}
       </>
       )}
 
-      {cab.kind !== 'pilaster' && cab.kind !== 'shelf' && cab.kind !== 'mantel' && (
+      {show('build') && cab.kind !== 'pilaster' && cab.kind !== 'shelf' && cab.kind !== 'mantel' && (
       <>
       <Section title="Ends, panels & scribes">
         <div className="ends">
@@ -460,21 +469,15 @@ export function Inspector({ cab, issues }: { cab: Cabinet; issues: string[] }) {
           })}
         </div>
         <p className="hint">Extending a stile widens the face frame to fill a gap. The case keeps its size, and the cut list adds {fmt(settings.scribeAllowance)} to scribe on site.</p>
-        <ul className="assembly">
-          <li>Face frame: glue and pocket screws.</li>
-          <li>Case: glue, then {bareSides.length ? `pocket screws on the exposed ${bareSides.join(' and ')} side${bareSides.length > 1 ? 's' : ''}${bareSides.length < 2 ? ', staples elsewhere' : ''}` : 'staples'}.</li>
-          {panels.length > 0 && <li>End panel{panels.length > 1 ? 's' : ''}: {panels.join('; ')}.</li>}
-        </ul>
       </Section>
       </>
       )}
 
-      <NotesSection cab={cab} set={set} />
+      {show('proposal') && <NotesSection cab={cab} set={set} />}
 
-      <button id="toggle-parts" className="mini parts-toggle" aria-expanded={showParts} onClick={() => toggleParts(!showParts)}>
-        {showParts ? 'Hide' : 'Show'} cut parts & Eagle order
-      </button>
-      {showParts && (
+      {!full && <button className="mini parts-toggle" onClick={() => useStore.getState().edit({ kind: 'cabinet', id: cab.id })}>All details, how it’s built, mouldings…</button>}
+      {!full && <p className="hint">Or double-click it in the 3D, plan or elevation view.</p>}
+      {(tab === 'all' && showParts) || tab === 'parts' ? (
         <>
           <Section title="Cut parts">
             <PartsTable cabinets={[cab]} compact />
@@ -484,13 +487,108 @@ export function Inspector({ cab, issues }: { cab: Cabinet; issues: string[] }) {
             <OrderList cabinets={[cab]} compact />
           </Section>
         </>
-      )}
+      ) : null}
+      {tab === 'all' && <button id="toggle-parts" className="mini parts-toggle" aria-expanded={showParts} onClick={() => toggleParts(!showParts)}>{showParts ? 'Hide' : 'Show'} cut parts & Eagle order</button>}
 
       <div className="insp-actions">
         <button onClick={() => duplicate(cab.id)}>Duplicate</button>
         <button className="danger" onClick={() => remove(cab.id)}>Delete</button>
       </div>
     </div>
+  );
+}
+
+/** How the case goes together: top, bottom, back, shelves and fasteners, for this cabinet. */
+function AssemblySection({ cab, set }: { cab: Cabinet; set: (p: Partial<Cabinet>) => void }) {
+  const settings = useStore((s) => s.project.settings);
+  const room = useStore((s) => s.project.room);
+  const all = useStore((s) => s.project.cabinets);
+  const s = { ...settings, ...cab.overrides };
+  const b = cab.build ?? {};
+  const putBuild = (patch: Partial<CaseBuild>) => {
+    const next = { ...b, ...patch };
+    (Object.keys(next) as (keyof CaseBuild)[]).forEach((k) => next[k] === undefined && delete next[k]);
+    set({ build: Object.keys(next).length ? next : undefined });
+  };
+  const putOverride = <K extends keyof ShopSettings>(k: K, v: ShopSettings[K] | undefined) => {
+    const next = { ...cab.overrides };
+    if (v === undefined || v === settings[k]) delete next[k]; else next[k] = v;
+    set({ overrides: Object.keys(next).length ? next : undefined });
+  };
+  const ends = resolveEnds(room, all, cab);
+  const sides = (['left', 'right'] as const).map((side) => ({ side, panel: panelOn(cab, settings, side, ends[side]) }));
+  const bare = sides.filter((x) => ends[x.side] && x.panel === 'none').map((x) => x.side);
+  const panels = sides.filter((x) => x.panel !== 'none').map((x) => `${x.side} ${panelLabel[x.panel].toLowerCase()}`);
+  const hasShelves = cab.rows.some((r) => (r.type === 'doors' || r.type === 'open') && r.shelves > 0);
+  const solidTop = cab.kind === 'base' && b.top === 'solid';
+  const joinery = b.joinery ?? 'standard';
+  const backs = [0.25, 0.5, 0.75];
+  return (
+    <Section title="How it’s built">
+      <div className="grid2">
+        {cab.kind === 'base' && (
+          <Field label="Case top" htmlFor="as-top">
+            <select id="as-top" value={b.top ?? 'stretchers'} onChange={(e) => putBuild({ top: e.target.value === 'solid' ? 'solid' : undefined })}>
+              <option value="stretchers">Front & back stretchers</option>
+              <option value="solid">Solid top (clean interior)</option>
+            </select>
+          </Field>
+        )}
+        {cab.kind !== 'base' && (
+          <Field label="Case bottom" htmlFor="as-bottom">
+            <select id="as-bottom" value={cab.noBottom ? (cab.bottomRail ? 'rail' : 'none') : cab.kind === 'wall' && cab.bottomFlush ? 'flush' : 'dado'} onChange={(e) => {
+              const v = e.target.value;
+              set(v === 'dado' ? { noBottom: false, bottomFlush: false } : v === 'flush' ? { noBottom: false, bottomFlush: true } : { noBottom: true, bottomRail: v === 'rail' });
+            }}>
+              <option value="dado">In dados, behind the bottom rail</option>
+              {cab.kind === 'wall' && <option value="flush">Flush with the bottom of the face frame (hung high)</option>}
+              <option value="none">None: sides stand on the counter (bookcase)</option>
+              <option value="rail">None, but keep a face frame bottom rail</option>
+            </select>
+          </Field>
+        )}
+        <Field label="Back" htmlFor="as-back">
+          <select id="as-back" value={s.backThickness} onChange={(e) => putOverride('backThickness', Number(e.target.value))}>
+            {[...new Set([...backs, settings.backThickness])].sort((x, y) => x - y).map((t) => <option key={t} value={t}>{fmt(t)} in a rabbet{t === settings.backThickness ? ' (job standard)' : ''}</option>)}
+          </select>
+        </Field>
+        {cab.kind !== 'base' && (
+          <Field label="Hanging rail" htmlFor="as-rail">
+            <select id="as-rail" value={s.hangingRails ? 'yes' : 'no'} onChange={(e) => putOverride('hangingRails', e.target.value === 'yes')}>
+              <option value="yes">Yes, under the top{settings.hangingRails ? ' (job standard)' : ''}</option>
+              <option value="no">No{!settings.hangingRails ? ' (job standard)' : ''}</option>
+            </select>
+          </Field>
+        )}
+        {hasShelves && (
+          <Field label="Shelves" htmlFor="as-shelves">
+            <select id="as-shelves" value={b.shelves ?? 'adjustable'} onChange={(e) => putBuild({ shelves: e.target.value === 'fixed' ? 'fixed' : undefined })}>
+              <option value="adjustable">Adjustable, on pins</option>
+              <option value="fixed">Fixed, in dados</option>
+            </select>
+          </Field>
+        )}
+        <Field label="Case joinery" htmlFor="as-join">
+          <select id="as-join" value={joinery} onChange={(e) => putBuild({ joinery: e.target.value === 'standard' ? undefined : e.target.value as CaseBuild['joinery'] })}>
+            <option value="standard">Glue & staples; pocket screws on bare ends</option>
+            <option value="pocket">Pocket screws throughout</option>
+            <option value="staples">Glue & staples throughout</option>
+            <option value="confirmat">Confirmat screws</option>
+          </select>
+        </Field>
+      </div>
+      <ul className="assembly">
+        <li>Face frame: glue and pocket screws.</li>
+        <li>Case: {joinery === 'standard'
+          ? `glue, then ${bare.length ? `pocket screws on the exposed ${bare.join(' and ')} side${bare.length > 1 ? 's' : ''}${bare.length < 2 ? ', staples elsewhere' : ''}` : 'staples'}`
+          : joinery === 'pocket' ? 'glue and pocket screws from inside' : joinery === 'staples' ? 'glue and staples' : 'confirmat screws'}; bottom{cab.kind === 'base' ? '' : ' and top'} in {fmt(s.dadoDepth)} dados.</li>
+        {cab.kind === 'base' && <li>{solidTop ? 'Solid plywood top in rabbets, so the inside reads finished.' : `Front and back stretchers, ${fmt(s.stretcherWidth)} wide, in rabbets.`}</li>}
+        <li>Back: {fmt(s.backThickness)} in a {fmt(Math.max(s.backRabbetWidth, s.backThickness))} rabbet.</li>
+        {hasShelves && <li>Shelves: {b.shelves === 'fixed' ? 'fixed, in dados' : 'adjustable, on pins'}.</li>}
+        {panels.length > 0 && <li>End panel{panels.length > 1 ? 's' : ''}: {panels.join('; ')}.</li>}
+      </ul>
+      <p className="hint">These change the cut list and the parts notes for this cabinet only. Shop standards set the usual way for every job.</p>
+    </Section>
   );
 }
 

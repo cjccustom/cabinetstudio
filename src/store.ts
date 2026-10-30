@@ -45,6 +45,8 @@ export function normalize(p: Project): Project {
   return out;
 }
 
+export type Editing = { kind: 'cabinet' | 'panel'; id: string; tab?: string } | { kind: 'ceiling'; tab?: string };
+
 interface State {
   project: Project;
   selectedId: string | null;
@@ -73,6 +75,9 @@ interface State {
   undo: () => void;
   redo: () => void;
   select: (id: string | null, add?: boolean) => void;
+  /** The full editor open over the design (double-click an object): a cabinet or panel by id, or the ceiling. */
+  editing: Editing | null;
+  edit: (what: Editing | null) => void;
   setView: (v: ViewMode) => void;
   setDragging: (d: boolean) => void;
   addFromPreset: (presetId: string, wall: WallId) => void;
@@ -89,6 +94,8 @@ const HISTORY = 100;
 export const useStore = create<State>((set, get) => ({
   project: loadSaved() ?? normalize(sampleProject()),
   selectedId: null,
+  editing: null,
+  edit: (editing) => set(editing && editing.kind !== 'ceiling' ? { editing, selectedId: editing.id, group: [] } : { editing }),
   group: [],
   view: '3d',
   mode: (() => { try { const m = localStorage.getItem('cabinet-studio.mode'); return m === 'job' || m === 'render' || m === 'clients' || m === 'drawings' || m === 'quote' || m === 'cutlist' || m === 'faceframe' ? m : 'design'; } catch { return 'design'; } })(),
@@ -197,6 +204,8 @@ export const useStore = create<State>((set, get) => ({
   removeCabinet: (id) => {
     get().commit((p) => ({ ...p, cabinets: p.cabinets.filter((c) => c.id !== id), panels: (p.panels ?? []).filter((w) => w.id !== id) }));
     if (get().selectedId === id) set({ selectedId: null });
+    const ed = get().editing;
+    if (ed && ed.kind !== 'ceiling' && ed.id === id) set({ editing: null });
   },
   duplicateCabinet: (id) => {
     const { project } = get();

@@ -42,6 +42,16 @@ function frameless(s: ShopSettings): ShopSettings {
 }
 export const isFrameless = (c: Cabinet, s: ShopSettings) => eff(c, s).construction === 'frameless';
 
+/** How a case side is fastened, from the cabinet's joinery. */
+export function sideFastening(c: Cabinet, bare: boolean, exposed: boolean): string {
+  switch (c.build?.joinery ?? 'standard') {
+    case 'pocket': return bare ? 'Pocket screw from inside' : 'Glue & pocket screw from inside';
+    case 'staples': return bare ? 'Glue & staple (fill and finish the exposed end)' : 'Glue & staple';
+    case 'confirmat': return bare ? 'Confirmat screws, plugged or capped on the exposed end' : 'Confirmat screws';
+    default: return bare ? 'Exposed end: pocket screw from inside' : exposed ? 'Under end panel: glue & staple' : 'Hidden: glue & staple';
+  }
+}
+
 /** Open to the room: open shelves, or hanging space. */
 export const isOpenRow = (t: FaceRow['type'], covered?: boolean) => t === 'open' || ((t === 'hang' || t === 'shoes') && !covered);
 /** Rows behind doors: door rows, and hanging or shoe space closed in for a wardrobe. */
@@ -205,7 +215,7 @@ export function buildParts(c: Cabinet, s: ShopSettings, ends: EndInfo = { left: 
     if (arch) notes.push(`Cut ${archShapes[BL.b.shape].toLowerCase()} to match the face frame, ${fmtShort(BL.rise)} high`);
     else if (kick > 0) notes.push(`Toe notch ${fmtShort(kick)} × ${fmtShort(notch)}${c.island ? ', front and back' : ''}`);
     const bare = exposed && panel === 'none';
-    notes.push(bare ? 'Exposed end: pocket screw from inside' : exposed ? 'Under end panel: glue & staple' : 'Hidden: glue & staple');
+    notes.push(sideFastening(c, bare, exposed));
     if (fridge) notes.push('Runs to the floor as the fridge panel');
     if (bare) notes.push('Finished outside: paint (or stain) with the face frame');
     if (fl) notes.push('Band the front edge');
@@ -231,7 +241,15 @@ export function buildParts(c: Cabinet, s: ShopSettings, ends: EndInfo = { left: 
 
   // Top: stretchers in rabbets on base cabinets, a full panel in dados on wall and tall
   let topUnder = H;
-  if (c.kind === 'base') {
+  if (c.kind === 'base' && c.build?.top === 'solid') {
+    // A solid top in place of the stretchers, so the inside looks finished from below the counter
+    parts.push({
+      name: 'Top', role: 'top', material: 'box', length: cutW, width: boxD - rw, thickness: tn, cut: true, banded: fl || undefined,
+      note: `Solid top in ${dados} rabbets, in place of stretchers${fl ? ', front edge banded' : ''}`,
+      boxes: [vb(xi0, H - ta, rw, innerW, ta, boxD - rw)],
+    });
+    topUnder = H - ta;
+  } else if (c.kind === 'base') {
     const sw = s.stretcherWidth;
     for (const [name, z] of [['Front stretcher', boxD - sw], ['Back stretcher', rw]] as const) {
       parts.push({
@@ -568,9 +586,10 @@ export function buildParts(c: Cabinet, s: ShopSettings, ends: EndInfo = { left: 
       const hi = Math.min(r.y1, topUnder);
       for (let k = 1; k <= row.shelves; k++) {
         const y = lo + ((hi - lo) * k) / (row.shelves + 1) - ta / 2;
-        parts.push({ name: 'Adjustable shelf', role: 'shelf', material: 'box', length: shelfW, width: shelfD, thickness: tn, cut: true,
-          note: sf ? 'Solid front applied, no banding' : undefined, banded: !sf,
-          boxes: [vb(xi0 + s.shelfClearance / 2, y, rw, shelfW, ta, shelfD)] });
+        const fixed = c.build?.shelves === 'fixed';
+        parts.push({ name: fixed ? 'Fixed shelf' : 'Adjustable shelf', role: 'shelf', material: 'box', length: fixed ? cutW : shelfW, width: shelfD, thickness: tn, cut: true,
+          note: [fixed ? `In ${dados} dados` : '', sf ? 'Solid front applied, no banding' : ''].filter(Boolean).join(' · ') || undefined, banded: !sf,
+          boxes: [fixed ? vb(xi0, y, rw, innerW, ta, shelfD) : vb(xi0 + s.shelfClearance / 2, y, rw, shelfW, ta, shelfD)] });
         if (sf) parts.push({ name: 'Shelf front', role: 'trim', material: 'faceframe', length: shelfW, width: sf.height, thickness: sf.thickness, cut: true,
           note: 'Glued and nailed to the shelf edge, top flush',
           boxes: [vb(xi0 + s.shelfClearance / 2, y + ta - sf.height, rw + shelfD, shelfW, sf.height, sf.thickness)] });

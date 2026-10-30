@@ -263,6 +263,10 @@ const TOOLS = [
     },
   },
   { name: 'job_status', description: 'Where a client’s page stands: link, views, signature (who, when), cancellation and its deadline.', inputSchema: { type: 'object', properties: { job_id: { type: 'string' } }, required: ['job_id'] } },
+  {
+    name: 'delete_job', description: 'Take a job off the portal for good: its page, link and renderings. Send confirm equal to the job_id. A signed or invoiced job is refused unless even_signed is true, since the signature is the record of the contract.',
+    inputSchema: { type: 'object', properties: { job_id: { type: 'string' }, confirm: { type: 'string' }, even_signed: { type: 'boolean' } }, required: ['job_id', 'confirm'] },
+  },
   { name: 'list_jobs', description: 'Every job on the portal with its status.', inputSchema: { type: 'object', properties: {} } },
   { name: 'list_appointments', description: 'Appointments on the portal calendar, soonest first. By default from yesterday on; pass from (ISO date) for older.', inputSchema: { type: 'object', properties: { from: { type: 'string' }, job_id: { type: 'string' } } } },
   {
@@ -471,6 +475,16 @@ async function tool(name: string, a: Record<string, unknown>, env: Env, url: URL
       await recordPayment(env, j, inv, (str('method') as 'check' | 'cash' | 'other') || 'check', Number(a.amount), str('ref'));
       await putJob(env, j);
       return status(j, url);
+    }
+    case 'delete_job': {
+      const j = await getJob(env, String(a.job_id || ''));
+      if (!j) throw new Error('No portal page for that job.');
+      if (a.confirm !== j.jobId) throw new Error('confirm must be the job_id.');
+      if ((j.signature || j.history?.length || j.invoices?.length) && a.even_signed !== true) throw new Error('This job has a signature or invoices on record. Send even_signed: true to delete it anyway.');
+      for (const r of j.renderings) await env.PORTAL.delete(`img:${j.jobId}:${r.id}`);
+      await env.PORTAL.delete(`tok:${j.token}`);
+      await env.PORTAL.delete(`job:${j.jobId}`);
+      return { ok: true, deleted: j.jobId };
     }
     case 'list_jobs': {
       const out: unknown[] = [];

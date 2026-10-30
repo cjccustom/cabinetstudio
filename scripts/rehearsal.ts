@@ -85,6 +85,12 @@ async function portal() {
   try { await mcp('publish_proposal', { job_id: 'rehearsal', project: 'x', agreement_html: 'x', total: 1, deposit: 1 }); } catch { refused = true; }
   check('a signed proposal can’t be replaced by accident', refused);
   check('wrong link shows nothing', (await call('/p/AAAAAAAAAAAAAAAAAAAAAAAA')).status === 404);
+  // Clearing out a test job: a signed one needs it said twice
+  let kept = false;
+  try { await mcp('delete_job', { job_id: 'rehearsal', confirm: 'rehearsal' }); } catch { kept = true; }
+  check('a signed job isn’t deleted without even_signed', kept);
+  await mcp('delete_job', { job_id: 'rehearsal', confirm: 'rehearsal', even_signed: true });
+  check('deleted job: link gone, not listed', (await call('/p/' + token)).status === 404 && ((await mcp('list_jobs', {})) as { jobs: unknown[] }).jobs.length === 0);
 }
 
 /* ---------- Part 2: the app in a browser ---------- */
