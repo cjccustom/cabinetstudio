@@ -66,7 +66,7 @@ export function CofferSection() {
                     return (
                       <tr key={w}>
                         <th><label htmlFor={`cf-wall-${w}`}>{wallNames[w]}</label></th>
-                        <td><LengthInput id={`cf-wall-${w}`} value={perimOf(c, w)} min={c.fascia + 0.5} onChange={(v) => setWall(v ?? undefined)} /></td>
+                        <td><LengthInput id={`cf-wall-${w}`} value={perimOf(c, w)} min={c.fascia} onChange={(v) => setWall(v ?? undefined)} /></td>
                         <td>
                           {line != null && Math.abs(line - perimOf(c, w)) > 0.01 && <button className="mini" title="Fascia proud of the full-height cabinets' face frames by its thickness, backed by their top rail" onClick={() => setWall(line)}>To cabinets {fmt(line)}</button>}
                           {Math.abs(opp - perimOf(c, w)) > 0.01 && <button className="mini" title={`Same as the ${wallNames[opposite[w]].toLowerCase()}`} onClick={() => setWall(opp)}>Match {opposite[w]} {fmt(opp)}</button>}

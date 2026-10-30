@@ -286,7 +286,7 @@ export function cofferParts(p: Project, c = cofferOf(p)): Part[] {
       const wallId = r.name.split(', ')[1] as WallId;
       const backed = cabinetLine(p, wallId, c) != null && Math.abs(cabinetLine(p, wallId, c)! - r.P) < 0.01;
       const sized = (r.P !== c.perimeterWidth ? ` (${fmt(r.P)} wall to fascia face)` : '') + (backed ? `; over the cabinets, proud of the face frame by ${fmt(t)} and fastened to their extended top rail` : '');
-      out.push({ name: `${r.name} fascia`, role: 'trim', material: 'faceframe', species: sp, length: len, width: fh, thickness: t, cut: true, note: dadoNote + sized, boxes: [box(r.at, t, fy, fh)] });
+      out.push({ name: `${r.name} fascia`, role: 'trim', material: 'faceframe', species: sp, length: len, width: fh, thickness: t, cut: true, note: r.P > t + 0.01 ? dadoNote + sized : 'Fastened directly to the wall; no soffit' + (backed ? '; over the cabinets' : ''), boxes: [box(r.at, t, fy, fh)] });
       // Over full-height cabinets the cabinet top closes it off: no soffit, nailer or blocking there
       const span = (k: Project['cabinets'][number], pad = 0) => { const f = footprint(p.room, k); return (r.along === 'x' ? [f.x0 - pad, f.x1 + pad] : [f.z0 - pad, f.z1 + pad]) as [number, number]; };
       // A full-height faux chimney runs up to the soffit and closes it off too (its sides are 3/4" MDF outside the mantel)
@@ -298,7 +298,8 @@ export function cofferParts(p: Project, c = cofferOf(p)): Part[] {
       if (r.s1 > at + 0.5) segs.push([at, r.s1]);
       const beside = chimneys.length && !backed ? 'the chimney' : chimneys.length ? 'the cabinets and chimney' : 'the cabinets';
       const part = segs.length > 1 || covered.length ? (k: number) => ` (${k + 1} of ${segs.length}, beside ${beside})` : () => '';
-      segs.forEach(([a, b], k) => {
+      // A fascia set right against the wall has no soffit behind it
+      (r.P > t + 0.01 ? segs : []).forEach(([a, b], k) => {
         const slen = b - a;
         out.push({ name: `${r.name} nailer (2x)`, role: 'nailer', material: 'faceframe', species: '2x framing', length: slen, width: nailW, thickness: c.nailer, cut: true, note: 'Ripped from 2x stock; against the wall' + part(k), boxes: [box(wall0, nailW, H - c.nailer, c.nailer, a, slen)] });
         const edge = bead ? `hangs ${fmt(g)} below the fascia on the blocking, ${beadName} bead in the corner` : `${fmt(c.tongue)} tongue on the bottom face at the fascia edge`;
