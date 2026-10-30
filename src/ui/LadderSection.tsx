@@ -1,5 +1,5 @@
 import { useStore } from '../store';
-import { defaultLadder, ladderIssues, ladderOf, putnamRails, type RollingLadder } from '../model/ladder';
+import { defaultLadder, ladderIssues, ladderOf, putnamRails, roomAboveRail, type RollingLadder } from '../model/ladder';
 import { wallNames, wallOrder } from '../model/layout';
 import type { WallId } from '../model/types';
 import { fmt } from '../units';
@@ -61,13 +61,15 @@ export function LadderSection() {
               <Field label="Lean (degrees)" htmlFor="ld-lean"><input id="ld-lean" inputMode="decimal" value={L.leanDeg} onChange={(e) => put({ leanDeg: Math.min(25, Math.max(5, Number(e.target.value) || 12)) })} /></Field>
               {len('railDia', 'Rail diameter')}
               {len('standoff', 'Rail off the cabinet face')}
-              {len('clearAbove', 'Clear above the rail')}
+              {len('topAbove', 'Ladder top above the rail')}
+              {len('clearAbove', 'Recommended clear above')}
             </div>
           </details>
           <p className="hint">
             Ladder about {fmt(Math.round(L.length))} long, foot {fmt(Math.round((L.railZ + L.footOut) * 4) / 4)} out from the wall; rail {fmt(L.to - L.from)} long on {Math.max(2, Math.ceil((L.to - L.from - 6) / 36) + 1)} brackets (36" apart at most), its center {fmt(L.railZ)} off the wall.
-            Putnam: keep 7" from the rail's center to the ceiling or crown, 3" to any upper cabinet doors, and fasten the brackets to solid wood. Double-click the ladder in 3D to come back here.
+            Putnam recommends {fmt(L.clearAbove)} from the rail’s center to the ceiling or crown and 3" to any upper cabinet doors, and brackets fastened to solid wood. Double-click the ladder in 3D to come back here.
           </p>
+          {(() => { const a = roomAboveRail(project); return a.room >= L.topAbove && a.room < L.clearAbove ? <p className="hint">{fmt(Math.round(a.room * 16) / 16)} above the rail to the {a.under}: less than Putnam’s recommended {fmt(L.clearAbove)}, but the ladder’s top ({fmt(L.topAbove)} above the rail) fits.</p> : null; })()}
           {issues.length > 0 && <ul className="issues">{issues.map((i) => <li key={i.message}>{i.message}</li>)}</ul>}
         </>
       )}

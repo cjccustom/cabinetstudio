@@ -390,7 +390,8 @@ function PortalSettings({ onClose }: { onClose: () => void }) {
               Terms and conditions <span className="hint">(blank line between sections)</span>
               <textarea className="plain" rows={10} value={terms} onChange={(e) => setTerms(e.target.value)} />
             </label>
-            {!terms.trim() && <button onClick={() => setTerms(CJC_TERMS)}>Start from my terms doc</button>}
+            {terms.trim() !== CJC_TERMS && <button onClick={() => setTerms(CJC_TERMS)}>{terms.trim() ? 'Replace with my revised terms doc (Oct 30)' : 'Start from my terms doc'}</button>}
+            <p className="hint">The Notice of Cancellation is the last part of the terms. Its [DATE OF TRANSACTION] and [CANCELLATION DEADLINE] are filled in on the client’s signed copy; nothing else adds a notice.</p>
             <div className="modal-actions"><button className="primary" disabled={!!busy} onClick={save}>Save profile</button></div>
 
             <h3>Licenses, insurance and documents</h3>

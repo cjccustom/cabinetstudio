@@ -16,6 +16,7 @@ import { proposalLines, quoteDoc, quoteTotals } from '../src/model/client';
 import { proposalSummary, withOptions } from '../src/model/proposal';
 import { cabinetFromPreset, presets } from '../src/model/defaults';
 import { priceQuote } from '../src/model/quote';
+import { CJC_TERMS } from '../src/model/terms';
 
 let failed = 0;
 const check = (what: string, ok: boolean, detail = '') => {
@@ -45,7 +46,7 @@ async function portal() {
     if (j.result?.isError) throw new Error(j.result.content[0].text);
     return j.result.structuredContent;
   };
-  await mcp('update_shop', { company: ['CJC Custom Carpentry LLC', '50 Beaman Rd, Suite 1A, Sterling, MA 01564'], terms: '1. Parties: "You" refers to the buyer.' });
+  await mcp('update_shop', { company: ['CJC Custom Carpentry LLC', '50 Beaman Rd, Suite 1A, Sterling, MA 01564'], terms: CJC_TERMS });
 
   // The proposal exactly as the app builds it for a made-up client
   const p = { ...sampleProject(), name: 'Rehearsal kitchen', client: { first: 'Test', last: 'Customer', partner: '', location: 'Sterling', address: '1 Test Rd', phone: '', phone2: '', email: 'test@example.com', source: '', scope: '', notes: '', measurements: [], todos: [] } };
@@ -67,7 +68,7 @@ async function portal() {
   const token = pub.url.split('/p/')[1];
   const page = await (await call('/p/' + token)).text();
   check('customer page: opens', page.includes('Rehearsal kitchen') && page.includes('Sign the agreement'));
-  check('customer page: no cancellation box before signing', !/Changed your mind|Notice of Cancellation/i.test(page));
+  check('customer page: no cancellation box before signing (the notice is only in the terms)', !/Changed your mind|\/cancel"/i.test(page) && (page.match(/<h3>NOTICE OF CANCELLATION/g) ?? []).length === 1);
   check('customer page: what we’ll build, materials, options to tick', page.includes('What we’ll build') && page.includes('Materials &amp; finishes') && (page.match(/name="opt_/g) ?? []).length === 2);
   const signed = await call(`/p/${token}/sign`, { method: 'POST', body: new URLSearchParams({ consent: 'on', agree: 'on', name: 'Test Customer', image: 'data:image/png;base64,iVBORw0KGgo=', [`opt_${sm.options[0].id}`]: 'on' }), headers: { 'cf-connecting-ip': '203.0.113.7' }, redirect: 'manual' });
   check('customer signs', signed.status === 303);
@@ -75,7 +76,8 @@ async function portal() {
   check('the carried data is taken out of the stored agreement', !after.includes('CJC-PROPOSAL'));
   check('customer page after signing: no cancel box', !/Changed your mind|Cancel the agreement/i.test(after) && after.includes('Signed by'));
   const agreement = await (await call(`/p/${token}/agreement`)).text();
-  check('signed copy: signature and two Notices of Cancellation', agreement.includes('Electronic signature') && (agreement.match(/NOTICE OF CANCELLATION/gi) ?? []).length >= 2);
+  check('signed copy: signature, and the Notice of Cancellation once, in the terms, dates filled in', agreement.includes('Electronic signature') && (agreement.match(/<h3>NOTICE OF CANCELLATION/g) ?? []).length === 1 && !/\[(DATE OF TRANSACTION|CANCELLATION DEADLINE)\]/.test(agreement) && /MIDNIGHT OF [A-Z]+DAY, [A-Z]+ \d+, \d{4}/.test(agreement));
+  check('before signing, the terms say when the dates will be', page.includes('(the date you sign)'));
   const st = await mcp('job_status', { job_id: 'rehearsal' }) as { signed?: { name: string; options?: string[]; total?: number; deposit?: number }; cancelDeadline?: string };
   check('your status: signed, with the cancel deadline', st.signed?.name === 'Test Customer' && !!st.cancelDeadline, st.cancelDeadline);
   const want = total + sm.options[0].price;

@@ -1,9 +1,9 @@
 // The pages a client sees from their private link: a phone-first project page (renderings,
 // proposal, terms, licenses and insurance, about the shop, and signing), and the signed agreement
-// as one printable document with the Notice of Cancellation attached twice (one to keep, one to send).
+// as one printable document, the Notice of Cancellation inside the terms with its dates filled in.
 import type { Job, Shop } from './store';
 import { apptLabel, whenEastern, type Appointment } from './calendar';
-import { easternYmd, longDate, noticeOfCancellation } from './cancel';
+import { cancelDeadline, easternYmd, longDate } from './cancel';
 import { LOGO } from '../../src/drawings/logo';
 
 export const esc = (s: unknown) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -11,6 +11,22 @@ const money = (v: number) => `$${Math.round(v).toLocaleString('en-US')}`;
 const paras = (text: string) => text.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean).map((p) => `<p>${esc(p).replace(/\n/g, '<br>')}</p>`).join('');
 /** The terms that go with this version of the proposal. */
 const termsOf = (j: Job, shop: Shop) => j.proposal.terms ?? shop.terms;
+
+/**
+ * The terms as the client reads them. The Notice of Cancellation lives in the terms, with its two
+ * blanks: once signed they carry the date signed and the cancellation deadline; before, what they'll be.
+ * From the notice's heading on, it's set apart in a box so it prints as its own form.
+ */
+export function termsHtml(text: string, signedAt?: number): string {
+  const ymd = signedAt ? easternYmd(signedAt) : '';
+  const filled = text
+    .replace(/\[DATE OF TRANSACTION\]/gi, ymd ? longDate(ymd) : '(the date you sign)')
+    .replace(/\[CANCELLATION DEADLINE\]/gi, ymd ? longDate(cancelDeadline(ymd)).toUpperCase() : '(THE THIRD BUSINESS DAY AFTER YOU SIGN)');
+  const at = filled.search(/^\s*NOTICE OF CANCELLATION\s*$/m);
+  if (at < 0) return paras(filled);
+  const notice = filled.slice(at).replace(/^\s*NOTICE OF CANCELLATION\s*/, '');
+  return `${paras(filled.slice(0, at))}<section class="notice"><h3>NOTICE OF CANCELLATION</h3>${paras(notice)}</section>`;
+}
 export const clientName = (j: Job) => [j.client.first, j.client.last].filter(Boolean).join(' ') || 'there';
 
 const noticeCss = `.notice{border:1px solid #999;padding:14px;margin:18px 0;font-size:13px;break-inside:avoid}.notice h3{text-align:center;margin:0 0 8px}.sigline{margin-top:28px}.muted{color:#646b73}`;
@@ -131,33 +147,31 @@ f.addEventListener('submit',()=>{document.getElementById('image').value=c.toData
 ${visits.length ? `<section class="card"><h2>Coming up</h2>${visits.map((v) => `<p><b>${esc(apptLabel[v.kind])}</b> · ${esc(whenEastern(v.start))}${v.location ? `<br><span class="muted">${esc(v.location)}</span>` : ''}${v.clientNote ? `<br>${esc(v.clientNote)}` : ''}</p><p><a class="btn ghost" href="${base}/visit/${esc(v.id)}.ics">Add to my calendar</a></p>`).join('')}</section>` : ''}
 ${shots}
 ${build}${mats}${price}
-<section class="card"><h2>Terms and conditions</h2>${termsOf(j, shop) ? `<details><summary>Read the terms</summary>${paras(termsOf(j, shop))}</details>` : '<p class="muted">Terms are attached to the agreement.</p>'}${termsDoc ? `<p><a href="${base}/doc/${esc(termsDoc.id)}" target="_blank" rel="noopener">${esc(termsDoc.title)} (PDF)</a></p>` : ''}</section>
+<section class="card"><h2>Terms and conditions</h2>${termsOf(j, shop) ? `<details><summary>Read the terms</summary>${termsHtml(termsOf(j, shop), j.signature?.at)}</details>` : '<p class="muted">Terms are attached to the agreement.</p>'}${termsDoc ? `<p><a href="${base}/doc/${esc(termsDoc.id)}" target="_blank" rel="noopener">${esc(termsDoc.title)} (PDF)</a></p>` : ''}</section>
 ${docs.length ? `<section class="card"><h2>Licenses and insurance</h2><ul class="docs">${docs.map((d) => `<li><a href="${base}/doc/${esc(d.id)}" target="_blank" rel="noopener">${esc(d.title)}</a>${d.expires ? `<span class="muted">valid through ${esc(new Date(`${d.expires}T12:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' }))}</span>` : ''}</li>`).join('')}</ul></section>` : ''}
 ${shop.about ? `<section class="card"><h2>About CJC Custom Carpentry</h2>${paras(shop.about)}</section>` : ''}
 <section class="card" id="signing"><h2>${s ? 'Signed' : 'Sign the agreement'}</h2>${signBlock}</section>`;
   return shell(`${j.project} · CJC Custom Carpentry`, body, shop, esc(clientName(j)));
 }
 
-/** The agreement as one printable document; once signed, with the signature and two Notices of Cancellation. */
+/** The agreement as one printable document: scope and price, the terms (with the Notice of Cancellation in them), and once signed the signature. */
 export function agreementPage(j: Job, shop: Shop): string {
   const html = j.proposal.agreementHtml;
   const style = (html.match(/<style[^>]*>([\s\S]*?)<\/style>/i)?.[1] ?? '').replace(/body\s*\{[^}]*\}/, '');
   const inner = html.match(/<body[^>]*>([\s\S]*)<\/body>/i)?.[1] ?? html;
   const s = j.signature;
-  const seller = shop.company[0] || 'CJC Custom Carpentry LLC';
-  const address = shop.company[1] || '';
   const signed = s
     ? `<section style="page-break-before:always"><h2>Electronic signature</h2>
 <p>Signed by <b>${esc(s.name)}</b> on ${esc(new Date(s.at).toLocaleString('en-US', { timeZone: 'America/New_York', dateStyle: 'long', timeStyle: 'short' }))} (Eastern), from ${esc(s.ip)}.</p>
 ${s.total != null ? `<p><b>Options chosen:</b> ${(j.proposal.options ?? []).filter((o) => s.options?.includes(o.id)).map((o) => `${esc(o.label)} (+${money(o.price)})`).join('; ') || 'none'}.<br><b>Total project investment: ${money(s.total)}</b>; deposit ${money(s.deposit ?? 0)}, balance ${money(s.total - (s.deposit ?? 0))} on completion.</p>` : ''}
 <p><img src="${esc(s.image)}" alt="Signature of ${esc(s.name)}" style="max-width:360px;border-bottom:1px solid #111"></p>
 <p class="muted" style="font-size:12px">The signer agreed to sign electronically and confirmed reading the Project Scope of Work, Purchase Agreement and Terms and Conditions. Document fingerprint (SHA-256) ${esc(s.hash.slice(0, 32))}, version ${s.version}.</p>
-${noticeOfCancellation(easternYmd(s.at), seller, address)}${noticeOfCancellation(easternYmd(s.at), seller, address)}</section>`
+</section>`
     : '<p class="muted">Not signed yet.</p>';
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow">
 <title>${esc(j.project)} agreement</title><style>body{font:11pt/1.45 Georgia,serif;max-width:7.5in;margin:.5in auto;padding:0 16px;color:#111}${style}${noticeCss}
 .terms p{font-size:10pt}</style></head><body>${inner}
-${termsOf(j, shop) ? `<section class="terms" style="page-break-before:always"><h2>Terms and Conditions</h2>${paras(termsOf(j, shop))}</section>` : ''}
+${termsOf(j, shop) ? `<section class="terms" style="page-break-before:always"><h2>Terms and Conditions</h2>${termsHtml(termsOf(j, shop), s?.at)}</section>` : ''}
 ${signed}</body></html>`;
 }
 

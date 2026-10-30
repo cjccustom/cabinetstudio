@@ -115,7 +115,8 @@ eq('ladder rail center 2 1/2" off the 12" cases', lad.railZ, 14.5);
 eq('ladder has 7 steps', lad.stepAt.length, 7);
 eq('ladder foot about 19" out from the rail', Math.round(lad.footOut), 19);
 eq('ladder clears a 104 1/4" ceiling', ladderIssues(lib).length, 0);
-eq('9\' ladder too tall for the room', ladderIssues({ ...lib, ladder: { on: true, railHeight: 103.75 } }).some((i) => i.message.includes('7" clear')), true);
+eq('9\' ladder too tall for the room', ladderIssues({ ...lib, ladder: { on: true, railHeight: 103.75 } }).some((i) => i.message.includes('top rises')), true);
+eq('rail at 98": less than the recommended 7" but the top fits', ladderIssues({ ...lib, ladder: { on: true, railHeight: 98 } }).length, 0);
 
 // Details: a wall section and a cabinet section go on Details sheets, marked on the elevation
 const withDetails = { ...p, details: [newDetail({ kind: 'wall', wall: 'back', at: 40 }), newDetail({ kind: 'cabinet', cabinetId: p.cabinets[0].id })] };

@@ -37,15 +37,17 @@ export interface RollingLadder {
   /** Finish: wood species of the ladder, and the rail and hardware. */
   wood: string;
   hardware: 'black' | 'brass' | 'nickel' | 'bronze';
-  /** Clearance the hook needs above the rail. */
+  /** Putnam's recommended clearance from the rail's center to the ceiling or crown (7"); a recommendation, not a limit. */
   clearAbove: number;
+  /** How far the ladder's top actually rises above the rail's center: what has to fit. */
+  topAbove: number;
   model: string;
 }
 
 export const defaultLadder: RollingLadder = {
   on: false, wall: 'back', railHeight: 89, railDia: 1, standoff: 2.5,
   width: 16, stileDepth: 3.25, stileThick: 1.0625, stepDepth: 4.25,
-  leanDeg: 12, at: 0, wood: 'Red oak', hardware: 'black', clearAbove: 7, model: 'Putnam Classic No. 1',
+  leanDeg: 12, at: 0, wood: 'Red oak', hardware: 'black', clearAbove: 7, topAbove: 3, model: 'Putnam Classic No. 1',
 };
 
 /** Putnam's rail heights (floor to the rail) by ladder, from the No. 1 instruction manual. */
@@ -85,6 +87,14 @@ export function ladderOf(p: Project): RollingLadder & { from: number; to: number
   return { ...L, from, to, at, railZ, face, length, lean, footOut, stepAt };
 }
 
+/** Room above the rail's center, up to the ceiling or a soffit over the rail line. */
+export function roomAboveRail(p: Project): { room: number; under: 'ceiling' | 'soffit' } {
+  const L = ladderOf(p);
+  const c = cofferOf(p);
+  const soffit = c.on && c.perimeter && perimOf(c, L.wall) > L.railZ - 3;
+  return { room: (soffit ? p.room.height - fasciaHeight(c) : p.room.height) - L.railHeight, under: soffit ? 'soffit' : 'ceiling' };
+}
+
 /** What would stop it working: the hook hitting the ceiling or a soffit, the foot leaving the room, too short a rail. */
 export function ladderIssues(p: Project): Issue[] {
   if (!p.ladder?.on) return [];
@@ -95,7 +105,8 @@ export function ladderIssues(p: Project): Issue[] {
   // A coffered ceiling's perimeter soffit over the rail line is what the hook has to clear
   const c = cofferOf(p);
   if (c.on && c.perimeter && perimOf(c, L.wall) > L.railZ - 3) over = p.room.height - fasciaHeight(c);
-  if (L.railHeight + L.clearAbove > over + 1e-3) say(`needs ${L.clearAbove}" clear above the rail; there's ${Math.round((over - L.railHeight) * 16) / 16}" up to the ${over < p.room.height ? 'soffit' : 'ceiling'}. Lower the rail or use a shorter ladder.`);
+  // The ladder's top has to fit; Putnam's 7" is shown as a recommendation in the ladder's settings
+  if (L.railHeight + L.topAbove > over + 1e-3) say(`its top rises ${L.topAbove}" above the rail; there's only ${Math.round((over - L.railHeight) * 16) / 16}" up to the ${over < p.room.height ? 'soffit' : 'ceiling'}. Lower the rail or use a shorter ladder.`);
   const deep = L.wall === 'back' || L.wall === 'front' ? p.room.depth : p.room.width;
   if (L.railZ + L.footOut > deep - 24) say(`the foot rolls out ${Math.round(L.railZ + L.footOut)}" from the wall, leaving under 24" to the opposite wall.`);
   if (L.to - L.from < L.width + 12) say('the rail is barely longer than the ladder is wide.');
