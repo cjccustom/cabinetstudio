@@ -9,7 +9,7 @@ import type { Part, Project, VisualBox, WallId } from './types';
 import { fmt } from '../units';
 import { mountShape, profileByNum } from './moldings';
 import { footprint, wallLength } from './layout';
-import { defaultPilaster, pilasterOf } from './pilaster';
+import { defaultPilaster } from './pilaster';
 import { mantelOf, upperTop } from './mantel';
 
 export interface CofferCeiling {
@@ -190,8 +190,11 @@ export function underFascia(p: Project, k: Project['cabinets'][number], c = coff
  * there are no full-height cabinets on that wall.
  */
 export function cabinetLine(p: Project, wall: WallId, c = cofferOf(p)): number | null {
-  // A pilaster's face stands proud of its box
-  const d = fullHeight(p, wall, c).map((k) => k.depth + (k.kind === 'pilaster' ? pilasterOf(k).proud : 0));
+  // The fascia goes tight against the bookcases' extended top rail; pilasters stop below the fascia
+  // (under the picture moulding), so their faces don't push it out. Pilasters alone set it only with no bookcases.
+  const full = fullHeight(p, wall, c);
+  const cases = full.filter((k) => k.kind !== 'pilaster');
+  const d = (cases.length ? cases : full).map((k) => (k.wallInset ?? 0) + k.depth);
   return d.length ? Math.max(...d) + c.fascia : null;
 }
 

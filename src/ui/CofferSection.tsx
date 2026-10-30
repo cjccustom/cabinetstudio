@@ -28,9 +28,9 @@ export function FasciaSection() {
         <Field label="Beam width" htmlFor="fa-bw"><LengthInput id="fa-bw" value={c.beamWidth} onChange={(v) => put({ beamWidth: v ?? defaultCoffer.beamWidth })} /></Field>
       </div>
       {c.perimeter && <MoldSlot kind="picture" label="Picture moulding under the perimeter fascia" num={c.picture} species={project.settings.moldSpecies} onChange={(n) => put({ picture: n })} extra={c.picture && <button className="mini" onClick={() => put({ picture: undefined })}>Remove</button>} />}
-      {fit != null && Math.abs(fit - c.drop) > 1 / 32 && (
+      {fit != null && (Math.abs(fit - c.drop) > 1 / 32 || (['back', 'right', 'front', 'left'] as WallId[]).some((w) => { const l = cabinetLine(project, w, c); return l != null && Math.abs(l - perimOf(c, w)) > 1 / 32; })) && (
         <div className="order-actions">
-          <button className="mini primary" onClick={() => put({ drop: fit })}>Fit to the bookcases: {fmt(fit)} drop</button>
+          <button className="mini primary" onClick={() => put({ drop: fit, walls: { ...c.walls, ...Object.fromEntries((['back', 'right', 'front', 'left'] as WallId[]).flatMap((w) => { const line = cabinetLine(project, w, c); return line != null ? [[w, line]] : []; })) } })}>Fit to the bookcases: {fmt(fit)} drop, fascia tight to their faces</button>
         </div>
       )}
       {(['back', 'right', 'front', 'left'] as WallId[]).map((w) => {
@@ -40,7 +40,7 @@ export function FasciaSection() {
         if (line == null || Math.abs(line - P) < 1 / 32) return null;
         return (
           <p key={w} className="warn">
-            {wallNames[w]}: the fascia over the bookcases is {fmt(P)} off the wall; to sit on their faces, proud of the pilasters, it goes at {fmt(line)}.{' '}
+            {wallNames[w]}: the fascia over the bookcases is {fmt(P)} off the wall; tight against their faces it goes at {fmt(line)}.{' '}
             <button className="mini" onClick={() => put({ walls: { ...c.walls, [w]: line } })}>Use {fmt(line)}</button>
           </p>
         );

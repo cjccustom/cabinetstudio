@@ -137,12 +137,15 @@ export function wallSection(p: Project, wall: WallId, at: number, frame: Frame, 
     // 3/4" fascia is applied to it (the picture moulding, if any, below the fascia on the same face)
     const backers = cabs.filter((k) => k.elevation + k.height >= perimeterBottom(p, c) - 0.5 && (k.wallInset ?? 0) + k.depth <= P + 0.01);
     const over = backers.length > 0;
-    v.rect(P - c.fascia, H - fh, c.fascia, fh, 'cut');
+    // Over bookcases the fascia sits tight against their extended top rail
+    const fz = over ? Math.max(...backers.filter((k) => k.kind !== 'pilaster').map((k) => (k.wallInset ?? 0) + k.depth), ...(backers.every((k) => k.kind === 'pilaster') ? backers.map((k) => (k.wallInset ?? 0) + k.depth) : [])) : P - c.fascia;
+    v.rect(fz, H - fh, c.fascia, fh, 'cut');
     if (over) {
       // The fascia's top fastens to a 2x nailer on the ceiling
-      v.rect(P - c.fascia - OVER_NAILER, H - c.nailer, OVER_NAILER, c.nailer, 'ghost');
-      notes.push({ x: P - c.fascia - OVER_NAILER / 2, y: H - c.nailer / 2, text: '2x nailer on the ceiling' });
+      v.rect(fz - OVER_NAILER, H - c.nailer, OVER_NAILER, c.nailer, 'ghost');
+      notes.push({ x: fz - OVER_NAILER / 2, y: H - c.nailer / 2, text: '2x nailer on the ceiling' });
       for (const k of backers) {
+        if (k.kind === 'pilaster') continue;
         const s = eff(k, p.settings);
         const face = (k.wallInset ?? 0) + k.depth;
         const top = k.elevation + k.height;
@@ -153,30 +156,22 @@ export function wallSection(p: Project, wall: WallId, at: number, frame: Frame, 
           notes.push({ x: face - s.ffThickness / 2, y: (top + railTop) / 2, text: `${k.name} top rail extended ${dimText(railTop - top)}` });
           ys.push(railTop);
         }
-        // Anything between the rail and the fascia's back is furring, shown so the gap isn't a mystery
-        const gap = P - c.fascia - face;
-        if (gap > 0.05) {
-          // Down behind the fascia and the picture moulding to the bookcase top
-          const fb = Math.max(top, perimeterBottom(p, c));
-          v.rect(face, fb, gap, H - c.nailer - fb, 'ghost');
-          notes.push({ x: face + gap / 2, y: H - fh * 0.75, text: `${dimText(gap)} furring behind the fascia${pic ? ' and picture moulding' : ''}` });
-        }
       }
     } else {
       v.rect(0, H - c.drop + c.reveal, P - c.fascia, c.soffit, 'cut');
       v.rect(0, H - c.nailer, P - c.fascia, c.nailer, 'ghost');
     }
     const crown = profileByNum(c.crown);
-    if (crown) { const sh = mountShape(crown); v.poly(sh.pts.map(([u, q]) => [P + u, H - sh.height + q]), 'o'); }
+    if (crown) { const sh = mountShape(crown); v.poly(sh.pts.map(([u, q]) => [fz + c.fascia + u, H - sh.height + q]), 'o'); }
     if (pic) {
       const sh = mountShape(pic);
       // Tucked under the fascia, its back on the fascia's back plane
-      v.poly(sh.pts.map(([u, q]) => [P - c.fascia + u, H - fh - sh.height + q]), 'o');
-      notes.push({ x: P - c.fascia + sh.depth / 2, y: H - fh - sh.height / 2, text: `Picture moulding, ${profileLabel(pic)}` });
+      v.poly(sh.pts.map(([u, q]) => [fz + u, H - fh - sh.height + q]), 'o');
+      notes.push({ x: fz + sh.depth / 2, y: H - fh - sh.height / 2, text: `Picture moulding, ${profileLabel(pic)}` });
       ys.push(H - fh - picH);
     }
-    notes.push({ x: P - c.fascia / 2, y: H - fh / 2, text: over ? `${dimText(c.fascia)} fascia: top to the nailer, bottom lapping the top rail` : 'Coffer perimeter: fascia, soffit, 2x nailer' });
-    zs.push(P);
+    notes.push({ x: fz + c.fascia / 2, y: H - fh / 2, text: over ? `${dimText(c.fascia)} fascia: top to the nailer, bottom lapping the top rail` : 'Coffer perimeter: fascia, soffit, 2x nailer' });
+    zs.push(fz + c.fascia);
     ys.push(H - fh);
   }
   // A rolling ladder's rail on its bracket, and the ladder leaning to it
