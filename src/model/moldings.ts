@@ -8,7 +8,7 @@ import { crownLayout, panelExtents, type EndInfo } from './parts';
 import { pilasterOf, pilasterOpenings } from './pilaster';
 import { inScope, roomMoldingPieces } from './room';
 import { resolveEnds } from './layout';
-import { cofferMoldings, cofferOf } from './coffer';
+import { cofferMoldings, cofferOf, underFascia } from './coffer';
 import { baseLayout } from './cabinetBase';
 
 export type MoldKind = 'crown' | 'lightRail' | 'baseMold' | 'cap' | 'panel' | 'roomCrown' | 'roomBase' | 'chairRail' | 'casing' | 'backBand' | 'headCap' | 'stool' | 'apron' | 'cofferCrown' | 'cofferBead' | 'picture';
@@ -173,7 +173,8 @@ export interface MoldPiece {
 }
 
 /** Moulding pieces for one cabinet, in its own coordinates. */
-export function cabinetMoldings(c: Cabinet, s: ShopSettings, ends: EndInfo): MoldPiece[] {
+/** A cabinet's mouldings. noCrown: it runs up under a coffer's perimeter fascia, which carries the crown instead. */
+export function cabinetMoldings(c: Cabinet, s: ShopSettings, ends: EndInfo, opts: { noCrown?: boolean } = {}): MoldPiece[] {
   const out: MoldPiece[] = [];
   if (c.kind === 'mantel') return mantelMoldings(c, ends);
   const ext = panelExtents(c, s, ends);
@@ -213,7 +214,7 @@ export function cabinetMoldings(c: Cabinet, s: ShopSettings, ends: EndInfo): Mol
     // A cap on top of the baseboard or skirt, wrapping its returns
     runs.push({ kind: 'baseMold', num: c.baseMold, y: () => bl.flat, z: c.depth + bl.out, out: bl.out });
   }
-  if (c.kind !== 'base') {
+  if (c.kind !== 'base' && !opts.noCrown) {
     // Crown and any extra mouldings stack down from the top of the build, on the sub-crown's face
     const L = crownLayout(c, s);
     let cursor = L.crownTop;
@@ -235,8 +236,12 @@ export function cabinetMoldings(c: Cabinet, s: ShopSettings, ends: EndInfo): Mol
     const xr = c.width + ext.right + (ends.right ? o : 0);
     const x0 = xl - (ends.left ? m.depth : 0);
     const x1 = xr + (ends.right ? m.depth : 0);
-    const corner = (side: 'left' | 'right'): MiterCut => (ends[side] ? 'out' : 'square');
-    out.push({ kind: r.kind, num: p.num, along: 'x', facing: 'front', x: x0, y, z: r.z, length: x1 - x0, hang: r.hang, cut: [corner('left'), corner('right')] });
+    // Beside a proud pilaster with a wrapped base, the base cap stops at the wrap's return, inside-mitered
+    const wrapL = r.kind === 'baseMold' && !ends.left ? ends.wrapBeside?.('left') ?? null : null;
+    const wrapR = r.kind === 'baseMold' && !ends.right ? ends.wrapBeside?.('right') ?? null : null;
+    const corner = (side: 'left' | 'right'): MiterCut => (ends[side] ? 'out' : (side === 'left' ? wrapL : wrapR) != null ? 'in' : 'square');
+    const sx0 = x0 + (wrapL ?? 0), sx1 = x1 - (wrapR ?? 0);
+    out.push({ kind: r.kind, num: p.num, along: 'x', facing: 'front', x: sx0, y, z: r.z, length: sx1 - sx0, hang: r.hang, cut: [corner('left'), corner('right')] });
     // An island's base wraps its finished back too
     const zb = !c.island || r.kind !== 'baseMold' ? null : c.islandSides === 2 ? -r.z - m.depth : -s.endPanelThickness - o - m.depth;
     if (zb != null) out.push({ kind: r.kind, num: p.num, along: 'x', facing: 'back', x: x1, y, z: zb + m.depth, length: x1 - x0, cut: [corner('right'), corner('left')] });
@@ -297,7 +302,7 @@ export function moldingOrder(p: Project): MoldOrderLine[] {
   };
   for (const c of p.cabinets) {
     if (!c.crown && !c.lightRail && !c.baseMold && !c.crownBuild?.extra.length) continue;
-    cabinetMoldings(c, s, resolveEnds(p.room, p.cabinets, c)).forEach(add);
+    cabinetMoldings(c, s, resolveEnds(p.room, p.cabinets, c), { noCrown: underFascia(p, c) }).forEach(add);
   }
   for (const w of p.panels ?? []) panelMoldings(w).forEach(add);
   // Room trim and casing are design-only unless the job includes them

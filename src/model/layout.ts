@@ -203,6 +203,14 @@ export function resolveEnds(room: Room, cabinets: Cabinet[], c: Cabinet): EndInf
     };
   }
   const tol = 0.125;
+  // A proud pilaster with a wrapped base beside this cabinet: the cap meets its return at an inside corner
+  const wrapBeside = (side: 'left' | 'right') => {
+    const edge = side === 'left' ? c.offset : c.offset + c.width;
+    const pl = cabinets.find((o) => o.kind === 'pilaster' && o.wall === c.wall && (side === 'left' ? Math.abs(o.offset + o.width - edge) <= 0.25 : Math.abs(o.offset - edge) <= 0.25));
+    const w = pl?.pilaster?.wrap;
+    if (!pl || !w || w.h <= 0) return null;
+    return (pl.wallInset ?? 0) + pl.depth > (c.wallInset ?? 0) + c.depth + 0.01 ? w.t : null;
+  };
   const others = cabinets
     .filter((o) => o.id !== c.id && o.elevation < c.elevation + c.height && c.elevation < o.elevation + o.height)
     .map((o) => footprint(room, o));
@@ -223,7 +231,7 @@ export function resolveEnds(room: Room, cabinets: Cabinet[], c: Cabinet): EndInf
   const autoLeft = !covered(toRoom(room, c, ...leftPt)) || (!c.corner && !covered(toRoom(room, c, ...front(leftPt))));
   const autoRight = !covered(toRoom(room, c, ...rightPt)) || (!c.corner && !covered(toRoom(room, c, ...front(rightPt))));
   const pick = (mode: Cabinet['leftEnd'], auto: boolean) => (mode === 'exposed' ? true : mode === 'hidden' ? false : auto);
-  return { left: pick(c.leftEnd, autoLeft), right: pick(c.rightEnd, autoRight) };
+  return { left: pick(c.leftEnd, autoLeft), right: pick(c.rightEnd, autoRight), wrapBeside };
 }
 
 /** Front of whatever butts against a cabinet's side at a height: face frame plus an overlay door, or 0. */

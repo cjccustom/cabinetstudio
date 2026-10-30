@@ -7,7 +7,7 @@ import type { Cabinet, Project, WallId } from '../model/types';
 import { resolveEnds, wallLength, wallNames } from '../model/layout';
 import { cabinetMoldings, mountShape, profileByNum, profileLabel } from '../model/moldings';
 import { eff } from '../model/parts';
-import { cofferOf, fasciaHeight, perimOf } from '../model/coffer';
+import { cofferOf, fasciaHeight, perimOf, underFascia } from '../model/coffer';
 import { ladderOf } from '../model/ladder';
 import { View, dimText, fitScale, type Frame } from './draw';
 import { beamSection, cabinetsOn, partsOf, sideSection } from './views';
@@ -107,7 +107,7 @@ export function wallSection(p: Project, wall: WallId, at: number, frame: Frame, 
     const cut = parts.flatMap((part) => part.boxes.map((b) => ({ part, b }))).filter(({ b }) => b.min[0] <= lx && lx <= b.min[0] + b.size[0]);
     for (const { part, b } of cut) v.rect(z0 + b.min[2], k.elevation + b.min[1], b.size[2], b.size[1], part.role === 'door' || part.role === 'drawerFront' || part.role === 'counter' ? 'o' : 'cut');
     // Mouldings the cut crosses, in profile
-    for (const m of cabinetMoldings(k, s, resolveEnds(p.room, p.cabinets, k))) {
+    for (const m of cabinetMoldings(k, s, resolveEnds(p.room, p.cabinets, k), { noCrown: underFascia(p, k) })) {
       if (m.along !== 'x' || m.facing !== 'front' || lx < m.x || lx > m.x + m.length) continue;
       const prof = profileByNum(m.num);
       if (!prof) continue;

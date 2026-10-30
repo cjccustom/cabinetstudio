@@ -8,7 +8,7 @@ import { casingReach, openingTrim, roomMoldings } from '../model/room';
 import { View, dimText, fitScale, type Frame } from './draw';
 import { applianceName, placedAppliances, type PlacedAppliance } from '../model/appliances';
 import { mantelLayout, mantelOf } from '../model/mantel';
-import { beadCorner, cofferLayout, cofferOf, coffers, fasciaHeight, perimOf } from '../model/coffer';
+import { beadCorner, cofferLayout, cofferOf, coffers, fasciaHeight, perimOf, underFascia } from '../model/coffer';
 
 export const partsOf = (p: Project, c: Cabinet) => buildParts(c, p.settings, resolveEnds(p.room, p.cabinets, c));
 export const cabinetsOn = (p: Project, wall: WallId) => p.cabinets.filter((c) => c.wall === wall).sort((a, b) => a.offset - b.offset);
@@ -83,7 +83,7 @@ function elevationItems(p: Project, wall: WallId): Item[] {
       }
     }
     for (const ap of placedAppliances(c, p.settings)) items.push(...applianceItems(ap, c.offset, c.elevation, 10 + ap.min[2] + ap.size[2]));
-    for (const pc of cabinetMoldings(c, eff(c, p.settings), resolveEnds(p.room, p.cabinets, c))) {
+    for (const pc of cabinetMoldings(c, eff(c, p.settings), resolveEnds(p.room, p.cabinets, c), { noCrown: underFascia(p, c) })) {
       if (pc.along !== 'x') continue;
       const prof = profileByNum(pc.num);
       if (!prof) continue;

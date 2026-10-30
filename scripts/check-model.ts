@@ -1,6 +1,8 @@
 import { readFileSync } from "node:fs";
 import { canSpots } from "../src/model/lighting";
 import { cutCabinets, newDetail } from "../src/drawings/details";
+import { underFascia } from "../src/model/coffer";
+import { cabinetMoldings } from "../src/model/moldings";
 import { ladderIssues, ladderOf } from "../src/model/ladder";
 import { newOpening } from "../src/model/room";
 import { cancelDeadline, holidays } from "../portal/src/cancel";
@@ -125,6 +127,20 @@ eq('details sheet in the customer set', cset.filter((x) => x.title === 'Details'
 eq('wall section marked on its elevation', cset.some((x) => x.svg.includes('cutline') && x.title.includes('elevation')), true);
 eq('shop set gets the details too', shopSet(withDetails, drawingsOf(withDetails)).filter((x) => x.title === 'Details').length, 1);
 eq('a section drawn through the base and wall cabinets', cutCabinets(withDetails, 'back', 40).length >= 2, true);
+
+// Under a coffer's perimeter fascia a tall takes no crown (the fascia carries it); a proud pilaster's
+// wrapped base cap returns, and the cabinet's cap stops at its return with an inside miter
+{
+  const tall = { ...shelved, id: 'tl', kind: 'tall' as const, wall: 'back' as const, offset: 6, width: 30, height: 98.75, depth: 12, elevation: 0, crown: '49', baseMold: '1527', base: { style: 'baseboard' as const, height: 6, cap: 1.5 } };
+  const pil = { ...tall, id: 'pl', kind: 'pilaster' as const, name: 'P1', offset: 0, width: 6, depth: 12.75, rows: [], baseMold: undefined, pilaster: { ...defaultPilaster, plinth: 0, wrap: { h: 6, cap: 1.5, t: 0.75 } } };
+  const job = { ...p, room: { width: 157.25, depth: 180.5, height: 104.25 }, cabinets: [pil, tall], ceiling: { on: true, across: 3, deep: 3, drop: 5.5, perimeter: true, walls: { back: 13.5 } } };
+  eq('a tall under the perimeter fascia takes no crown', underFascia(job, tall), true);
+  eq('a pilaster keeps its capital crown', underFascia(job, pil), false);
+  const pm = cabinetMoldings(pil, s, resolveEnds(job.room, job.cabinets, pil));
+  eq('proud pilaster: base cap wraps its face with a return', pm.filter((m) => m.kind === 'baseMold').length, 2);
+  const tm = cabinetMoldings(tall, s, resolveEnds(job.room, job.cabinets, tall)).find((m) => m.kind === 'baseMold')!;
+  eq('the cabinet\'s cap stops at the pilaster\'s return, inside-mitered', `${tm.x} ${tm.cut?.[0]}`, '0.75 in');
+}
 
 // Recessed cans: one per coffer, or a grid about every 5'
 eq('one can per coffer', canSpots({ ...p, ceiling: { on: true, across: 3, deep: 3 } }).length, 9);

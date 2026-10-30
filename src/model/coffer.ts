@@ -147,6 +147,17 @@ export function pictureRuns(p: Project, c = cofferOf(p)): { wall: WallId; a: num
 }
 
 /**
+ * A cabinet that runs up under the coffer's perimeter fascia: the fascia laps its top rail and the
+ * ceiling crown goes on the fascia, so the cabinet takes no crown of its own.
+ */
+export function underFascia(p: Project, k: Project['cabinets'][number], c = cofferOf(p)): boolean {
+  // A pilaster keeps its capital's crown: that's part of its design, not the run's ceiling crown
+  if (!c.on || !c.perimeter || k.island || k.kind === 'base' || k.kind === 'shelf' || k.kind === 'mantel' || k.kind === 'pilaster') return false;
+  const P = perimOf(c, k.wall);
+  return P > 0 && k.elevation + k.height >= p.room.height - c.drop - 0.5 && (k.wallInset ?? 0) + k.depth <= P + 0.01;
+}
+
+/**
  * Where the perimeter fascia goes over full-height cabinets on a wall: proud of the deepest face
  * frame by the fascia's own thickness, so its back laps the cabinets' extended top rail. Null if
  * there are no full-height cabinets on that wall.

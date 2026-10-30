@@ -134,6 +134,8 @@ export interface EndInfo {
   faceAt?: (side: 'left' | 'right', y: number) => number;
   /** Pilasters: a side tight to a room wall. */
   wall?: { left: boolean; right: boolean };
+  /** Casework: a pilaster beside it standing proud with its base wrapped: the thickness of that wrap, so this cabinet's base cap stops against it at an inside miter. */
+  wrapBeside?: (side: 'left' | 'right') => number | null;
   /** Pilasters: the base moulding on the casework beside it (its profile, and how far out its back sits), so the pilaster's carries on from it. */
   baseBeside?: (side: 'left' | 'right') => { num?: string; z: number } | null;
 }

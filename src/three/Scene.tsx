@@ -16,7 +16,7 @@ import { live, onWheel, useNav } from './navigation';
 import { RoomModel } from './RoomModel';
 import { CofferModel } from './CofferModel';
 import { LadderModel } from './LadderModel';
-import { opposite } from '../model/coffer';
+import { opposite, underFascia } from '../model/coffer';
 import { buildParts } from '../model/parts';
 import { alongWall, footprint, resolveEnds, shiftInRoom, snapOffset, wallAxes, wallLength, wallTransform } from '../model/layout';
 import { buildCabinetGeometry } from './cabinetGeometry';
@@ -239,6 +239,8 @@ function CabinetModel(props: {
 }) {
   const { cab, room, settings, finishes, view, selected, issue } = props;
   const allCabs = useStore((st) => st.project.cabinets);
+  // Under a coffer's perimeter fascia the fascia carries the crown, not the cabinet
+  const noCrown = useStore((st) => underFascia(st.project, cab));
   const ends = resolveEnds(room, allCabs, cab);
   const geo = useMemo(
     () => buildCabinetGeometry(buildParts(cab, settings, ends)),
@@ -378,7 +380,7 @@ function CabinetModel(props: {
         <lineBasicMaterial color={edgeColor} transparent opacity={selected || issue ? 0.95 : 0.55} />
       </lineSegments>
       {(cab.crown || cab.lightRail || cab.baseMold) && (
-        <MoldingModel pieces={cabinetMoldings(cab, eff(cab, settings), ends)} color={fc.paint} edgeColor={edgeColor} />
+        <MoldingModel pieces={cabinetMoldings(cab, eff(cab, settings), ends, { noCrown })} color={fc.paint} edgeColor={edgeColor} />
       )}
       <ApplianceModel cab={cab} settings={settings} />
     </group>
