@@ -20,6 +20,7 @@ import { EagleRequests } from './ui/EagleRequests';
 import { HardwareOrder } from './ui/HardwareOrder';
 import { JobClock, JobMain, JobSide } from './ui/Job';
 import { openingIssues } from './model/room';
+import { ladderIssues } from './model/ladder';
 import { ProjectDialog } from './ui/ProjectDialog';
 import { DrawerCalculator } from './ui/DrawerCalculator';
 import { PanelInspector } from './ui/PanelInspector';
@@ -55,7 +56,7 @@ export default function App() {
   const setSidebarAll = (v: boolean) => { setSidebarAllState(v); try { localStorage.setItem('cabinet-studio.sidebarAll', v ? '1' : '0'); } catch { /* storage blocked */ } };
   const [dialog, setDialog] = useState<null | 'file' | 'new' | 'drawer'>(null);
 
-  const issues = useMemo(() => [...findIssues(project.room, project.cabinets, project.settings), ...openingIssues(project)], [project]);
+  const issues = useMemo(() => [...findIssues(project.room, project.cabinets, project.settings), ...openingIssues(project), ...ladderIssues(project)], [project]);
   const issueIds = useMemo(() => new Set(issues.map((i) => i.cabinetId)), [issues]);
   const summary = issues.filter((i) => !i.echo).map((i) => i.message);
   const selectedPanel = (project.panels ?? []).find((w) => w.id === selectedId) ?? null;

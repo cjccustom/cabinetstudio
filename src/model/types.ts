@@ -437,6 +437,8 @@ export interface Project {
   furniture?: Partial<import('./furniture').DiningTable>[];
   /** A coffered ceiling over the room. */
   ceiling?: Partial<import('./coffer').CofferCeiling>;
+  /** A rolling library ladder on a rail across the bookcases. */
+  ladder?: Partial<import('./ladder').RollingLadder>;
 }
 
 export type MaterialKey = 'box' | 'back' | 'toeSkin' | 'faceframe' | 'door' | 'drawerBox' | 'counter' | 'solidWood' | 'hardware' | 'upholstery';

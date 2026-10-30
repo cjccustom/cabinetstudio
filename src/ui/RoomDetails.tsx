@@ -1,6 +1,7 @@
 import { PhotoRoomButton, ScanImportButton } from './PhotoRoom';
 import { PlanImportButton } from './PlanImport';
 import { CofferSection } from './CofferSection';
+import { LadderSection } from './LadderSection';
 import { useState } from 'react';
 import { useStore } from '../store';
 import { doorOf } from '../model/doorOrder';
@@ -44,6 +45,7 @@ export function RoomDetails() {
         <p className="hint">Room scan: from the CJC Room Scan app on your iPhone Pro (LiDAR), saved to Dropbox or AirDropped here. Chief plan: File → Export → Export DWG/DXF from the floor plan view.</p>
       </Section>
       <CofferSection />
+      <LadderSection />
       <Section title="Doors & windows">
         <div className="order-actions">
           {(Object.keys(openingKinds) as Opening['kind'][]).map((k) => <button key={k} className="mini" onClick={() => add(k)}>Add {openingKinds[k].toLowerCase()}</button>)}

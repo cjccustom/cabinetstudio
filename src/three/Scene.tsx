@@ -15,6 +15,8 @@ import { ApplianceModel } from './ApplianceModel';
 import { live, onWheel, useNav } from './navigation';
 import { RoomModel } from './RoomModel';
 import { CofferModel } from './CofferModel';
+import { LadderModel } from './LadderModel';
+import { opposite } from '../model/coffer';
 import { buildParts } from '../model/parts';
 import { alongWall, footprint, resolveEnds, shiftInRoom, snapOffset, wallAxes, wallLength, wallTransform } from '../model/layout';
 import { buildCabinetGeometry } from './cabinetGeometry';
@@ -60,6 +62,8 @@ export function Scene({ issueIds }: { issueIds: Set<string> }) {
         </>}
       <RoomModel project={project} view={view} />
       {showCeiling && <CofferModel project={project} view={view} />}
+      {/* Not in the elevation of the wall across from it, where it would stand in front of the view */}
+      {(!elevWall || elevWall !== opposite[project.ladder?.wall ?? 'back']) && <LadderModel project={project} />}
       {/* The ceiling, seen only from below, so the coffers and cans have something over them */}
       {showCeiling && view === '3d' && (
         <mesh position={[room.width / 2, room.height, room.depth / 2]} rotation-x={Math.PI / 2}>

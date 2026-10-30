@@ -45,7 +45,7 @@ export function normalize(p: Project): Project {
   return out;
 }
 
-export type Editing = { kind: 'cabinet' | 'panel'; id: string; tab?: string } | { kind: 'ceiling'; tab?: string };
+export type Editing = { kind: 'cabinet' | 'panel'; id: string; tab?: string } | { kind: 'ceiling' | 'ladder'; tab?: string };
 
 interface State {
   project: Project;
@@ -95,7 +95,7 @@ export const useStore = create<State>((set, get) => ({
   project: loadSaved() ?? normalize(sampleProject()),
   selectedId: null,
   editing: null,
-  edit: (editing) => set(editing && editing.kind !== 'ceiling' ? { editing, selectedId: editing.id, group: [] } : { editing }),
+  edit: (editing) => set(editing && (editing.kind === 'cabinet' || editing.kind === 'panel') ? { editing, selectedId: editing.id, group: [] } : { editing }),
   group: [],
   view: '3d',
   mode: (() => { try { const m = localStorage.getItem('cabinet-studio.mode'); return m === 'job' || m === 'render' || m === 'clients' || m === 'drawings' || m === 'quote' || m === 'cutlist' || m === 'faceframe' ? m : 'design'; } catch { return 'design'; } })(),
@@ -205,7 +205,7 @@ export const useStore = create<State>((set, get) => ({
     get().commit((p) => ({ ...p, cabinets: p.cabinets.filter((c) => c.id !== id), panels: (p.panels ?? []).filter((w) => w.id !== id) }));
     if (get().selectedId === id) set({ selectedId: null });
     const ed = get().editing;
-    if (ed && ed.kind !== 'ceiling' && ed.id === id) set({ editing: null });
+    if (ed && (ed.kind === 'cabinet' || ed.kind === 'panel') && ed.id === id) set({ editing: null });
   },
   duplicateCabinet: (id) => {
     const { project } = get();

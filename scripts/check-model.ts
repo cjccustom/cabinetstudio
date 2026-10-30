@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { canSpots } from "../src/model/lighting";
+import { ladderIssues, ladderOf } from "../src/model/ladder";
 import { newOpening } from "../src/model/room";
 import { cancelDeadline, holidays } from "../portal/src/cancel";
 import { expiring } from "../src/portal";
@@ -104,6 +105,16 @@ eq('open section parts painted', painted.filter((x) => x.look === 'paint' && x.n
 eq('closed shelves stay prefinished', painted.some((x) => x.role === 'shelf' && !x.look), true);
 const pe0 = paintEstimate({ ...p, cabinets: [bookcase] }, quoteOf(p)), pe1 = paintEstimate({ ...p, cabinets: [{ ...bookcase, build: { interior: 'paint' } }] }, quoteOf(p));
 eq('painted interior adds to the painting estimate', pe1.interior > 0 && pe1.amount > pe0.amount && pe0.interior === 0, true);
+
+// Rolling ladder: Putnam's 92" ladder on Pope-like bookcases, leaning 12 degrees, 7 steps
+const lib = { ...p, room: { width: 157.25, depth: 180.5, height: 104.25 }, cabinets: [{ ...shelved, wall: 'back' as const, offset: 10, width: 120, height: 98.75, depth: 12, elevation: 0 }], ladder: { on: true } };
+const lad = ladderOf(lib);
+eq('ladder rail across the bookcases', `${lad.from}-${lad.to}`, '10-130');
+eq('ladder rail center 2 1/2" off the 12" cases', lad.railZ, 14.5);
+eq('ladder has 7 steps', lad.stepAt.length, 7);
+eq('ladder foot about 19" out from the rail', Math.round(lad.footOut), 19);
+eq('ladder clears a 104 1/4" ceiling', ladderIssues(lib).length, 0);
+eq('9\' ladder too tall for the room', ladderIssues({ ...lib, ladder: { on: true, railHeight: 103.75 } }).some((i) => i.message.includes('7" clear')), true);
 
 // Recessed cans: one per coffer, or a grid about every 5'
 eq('one can per coffer', canSpots({ ...p, ceiling: { on: true, across: 3, deep: 3 } }).length, 9);

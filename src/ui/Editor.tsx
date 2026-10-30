@@ -7,6 +7,7 @@ import { Inspector, inspectorTabs, type InspectorTab } from './Inspector';
 import { PanelInspector } from './PanelInspector';
 import { CofferSection } from './CofferSection';
 import { LightingSection } from './RoomDetails';
+import { LadderSection } from './LadderSection';
 
 export function Editor({ issuesFor }: { issuesFor: (id: string) => string[] }) {
   const editing = useStore((s) => s.editing);
@@ -17,7 +18,7 @@ export function Editor({ issuesFor }: { issuesFor: (id: string) => string[] }) {
   // Dragged by its title bar out of the way of what's being changed; stays put for the session
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
   const grab = useRef<{ dx: number; dy: number } | null>(null);
-  const id = editing && editing.kind !== 'ceiling' ? editing.id : null;
+  const id = editing && (editing.kind === 'cabinet' || editing.kind === 'panel') ? editing.id : null;
   useEffect(() => { if (editing?.tab) setTab(editing.tab); }, [editing]);
   useEffect(() => {
     if (!editing) return;
@@ -29,7 +30,7 @@ export function Editor({ issuesFor }: { issuesFor: (id: string) => string[] }) {
 
   const cab = editing.kind === 'cabinet' ? cabinets.find((c) => c.id === id) : undefined;
   const panel = editing.kind === 'panel' ? (panels ?? []).find((w) => w.id === id) : undefined;
-  if (editing.kind !== 'ceiling' && !cab && !panel) return null;
+  if ((editing.kind === 'cabinet' || editing.kind === 'panel') && !cab && !panel) return null;
   const tabs = cab ? inspectorTabs(cab) : [];
   const on = cab && !tabs.some((t) => t.id === tab) ? 'size' : tab;
   // Step through the job's cabinets without closing
@@ -50,7 +51,7 @@ export function Editor({ issuesFor }: { issuesFor: (id: string) => string[] }) {
           setPos({ x: Math.max(0, Math.min(window.innerWidth - 120, e.clientX - grab.current.dx)), y: Math.max(0, Math.min(window.innerHeight - 48, e.clientY - grab.current.dy)) });
         }}
         onPointerUp={() => { grab.current = null; }}>
-        <strong>{cab ? cab.name : panel ? panel.name : 'Ceiling & lighting'}</strong>
+        <strong>{cab ? cab.name : panel ? panel.name : editing.kind === 'ladder' ? 'Rolling ladder' : 'Ceiling & lighting'}</strong>
         {cab && cabinets.length > 1 && (
           <span className="editor-step">
             <button className="mini" title="Previous cabinet" onClick={() => step(-1)}>‹</button>
@@ -69,6 +70,7 @@ export function Editor({ issuesFor }: { issuesFor: (id: string) => string[] }) {
         {cab && <Inspector key={cab.id} cab={cab} issues={issuesFor(cab.id)} tab={on as InspectorTab} />}
         {panel && <PanelInspector key={panel.id} panel={panel} />}
         {editing.kind === 'ceiling' && <><CofferSection /><LightingSection /></>}
+        {editing.kind === 'ladder' && <LadderSection />}
       </div>
     </div>
   );
