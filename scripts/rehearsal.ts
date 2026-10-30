@@ -61,7 +61,9 @@ async function portal() {
   check('proposal: base total is the quote without the options', total > 0 && Math.abs(total - priceQuote(withOptions(job)).total) < 1, `$${total}`);
   check('proposal: 30% deposit', Math.abs(deposit - total * 0.3) <= 1, `$${deposit}`);
   check('proposal: no NaN or undefined in the agreement', !/NaN|undefined/.test(html));
-  const pub = await mcp('publish_proposal', { job_id: 'rehearsal', project: 'Rehearsal kitchen', client: { first: 'Test', last: 'Customer', address: '1 Test Rd' }, agreement_html: html, total, deposit, summary: { areas: sm.areas, materials: sm.materials }, sections: proposalLines(job), options: sm.options }) as { url: string };
+  // Sent the way the app sends it: the page's data rides inside the agreement, so an old connector can't drop it
+  const carried = Buffer.from(JSON.stringify({ summary: { areas: sm.areas, materials: sm.materials }, sections: proposalLines(job), options: sm.options })).toString('base64');
+  const pub = await mcp('publish_proposal', { job_id: 'rehearsal', project: 'Rehearsal kitchen', client: { first: 'Test', last: 'Customer', address: '1 Test Rd' }, agreement_html: html.replace('</body>', `<!--CJC-PROPOSAL ${carried} --></body>`), total, deposit }) as { url: string };
   const token = pub.url.split('/p/')[1];
   const page = await (await call('/p/' + token)).text();
   check('customer page: opens', page.includes('Rehearsal kitchen') && page.includes('Sign the agreement'));
@@ -70,6 +72,7 @@ async function portal() {
   const signed = await call(`/p/${token}/sign`, { method: 'POST', body: new URLSearchParams({ consent: 'on', agree: 'on', name: 'Test Customer', image: 'data:image/png;base64,iVBORw0KGgo=', [`opt_${sm.options[0].id}`]: 'on' }), headers: { 'cf-connecting-ip': '203.0.113.7' }, redirect: 'manual' });
   check('customer signs', signed.status === 303);
   const after = await (await call('/p/' + token)).text();
+  check('the carried data is taken out of the stored agreement', !after.includes('CJC-PROPOSAL'));
   check('customer page after signing: no cancel box', !/Changed your mind|Cancel the agreement/i.test(after) && after.includes('Signed by'));
   const agreement = await (await call(`/p/${token}/agreement`)).text();
   check('signed copy: signature and two Notices of Cancellation', agreement.includes('Electronic signature') && (agreement.match(/NOTICE OF CANCELLATION/gi) ?? []).length >= 2);

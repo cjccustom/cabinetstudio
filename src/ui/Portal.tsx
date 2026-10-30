@@ -43,6 +43,17 @@ async function renderingsFor(p: Project) {
   return out;
 }
 
+/**
+ * The proposal page's data tucked into the agreement as a comment. The portal takes it back out;
+ * it gets through even a connector that still has the old list of fields.
+ */
+function withCarried(html: string, data: unknown): string {
+  const bytes = new TextEncoder().encode(JSON.stringify(data));
+  let bin = '';
+  for (const b of bytes) bin += String.fromCharCode(b);
+  return html.replace('</body>', `<!--CJC-PROPOSAL ${btoa(bin)} --></body>`);
+}
+
 /** A quiet line in the corner saying whose design it is, so a rendering passed to another builder says so. */
 async function watermark(blob: Blob, text: string): Promise<Blob> {
   try {
@@ -101,8 +112,7 @@ export function ClientPortal() {
     const status = await publishProposal({
       job_id: jobId, project: project.name || 'Your project',
       client: { first: c.first, last: c.last, email: c.email, phone: c.phone, address: c.address },
-      agreement_html: quoteDoc(project, { online: true }), total, deposit,
-      summary: { areas: summary.areas, materials: summary.materials }, sections: proposalLines(project), options: summary.options,
+      agreement_html: withCarried(quoteDoc(project, { online: true }), { summary: { areas: summary.areas, materials: summary.materials }, sections: proposalLines(project), options: summary.options }), total, deposit,
       renderings: await renderingsFor(project), replace_signed: replaceSigned,
     });
     keep(status, jobId);

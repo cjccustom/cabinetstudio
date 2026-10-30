@@ -371,7 +371,11 @@ async function tool(name: string, a: Record<string, unknown>, env: Env, url: URL
       const old = await getJob(env, jobId);
       if (old?.signature && !old.cancelled && !a.replace_signed) throw new Error('This proposal is already signed. Publish with replace_signed to put up a new version for signing.');
       const shop = await getShop(env);
-      const agreementHtml = String(a.agreement_html || '');
+      // The plain-language page can ride inside the agreement (a connector that still has the old list
+      // of fields drops new ones); it's taken back out before the agreement is stored and fingerprinted
+      const carried = readCarried(String(a.agreement_html || ''));
+      if (carried.data) for (const k of ['summary', 'sections', 'options'] as const) if (a[k] == null && carried.data[k] != null) a[k] = carried.data[k];
+      const agreementHtml = carried.html;
       const version = (old?.proposal.version ?? 0) + 1;
       const hash = await sha256(`${agreementHtml}\n--terms--\n${shop.terms}`);
       let renderings = old?.renderings ?? [];
@@ -496,4 +500,14 @@ function cleanSummary(a: Record<string, unknown>): Pick<Job['proposal'], 'summar
   if (Array.isArray(a.sections)) out.sections = arr(a.sections).slice(0, 20).map((x) => ({ label: str(x.label, 80), price: num(x.price) }));
   if (Array.isArray(a.options)) out.options = arr(a.options).slice(0, 12).map((x) => ({ id: str(x.id, 40).replace(/[^a-z0-9-]/g, '') || 'option', label: str(x.label, 80), price: num(x.price), items: arr(x.items).slice(0, 30).map((i) => str(i)) }));
   return out;
+}
+
+/** Pull the proposal page's data out of the agreement, where the app tucks it in a comment. */
+function readCarried(html: string): { html: string; data: Record<string, unknown> | null } {
+  const m = html.match(/<!--CJC-PROPOSAL ([A-Za-z0-9+/=]+) -->/);
+  if (!m) return { html, data: null };
+  try {
+    const bytes = Uint8Array.from(atob(m[1]), (c) => c.charCodeAt(0));
+    return { html: html.replace(m[0], ''), data: JSON.parse(new TextDecoder().decode(bytes)) as Record<string, unknown> };
+  } catch { return { html: html.replace(m[0], ''), data: null }; }
 }
