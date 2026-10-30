@@ -164,6 +164,32 @@ export function panelExtents(c: Cabinet, s: ShopSettings, ends: EndInfo) {
  * which is where the slim face frame overhang comes from.
  */
 export function buildParts(c: Cabinet, s: ShopSettings, ends: EndInfo = { left: false, right: false }): Part[] {
+  const parts = caseParts(c, s, ends);
+  return c.build?.interior === 'paint' ? paintOpenInterior(c, eff(c, s), parts) : parts;
+}
+
+/** Where the open sections are, top to bottom, in the cabinet's own coordinates. */
+export function openSpans(c: Cabinet, s: ShopSettings): { y0: number; y1: number }[] {
+  const { rows } = layoutRows(c, s);
+  return rows.filter((_, i) => c.rows[i] && isOpenRow(c.rows[i].type, c.rows[i].covered)).map((r) => ({ y0: r.y0, y1: r.y1 }));
+}
+
+/**
+ * Open sections painted with the millwork: the case stays prefinished plywood, and whatever shows
+ * in an open section (sides, back, top, bottom, shelves) is scuffed, primed with a bonding primer
+ * and painted to match.
+ */
+function paintOpenInterior(c: Cabinet, s: ShopSettings, parts: Part[]): Part[] {
+  const spans = openSpans(c, s);
+  if (!spans.length) return parts;
+  const roles = new Set(['side', 'back', 'top', 'bottom', 'shelf', 'stretcher', 'nailer']);
+  const shows = (p: Part) => (p.material === 'box' || p.material === 'back') && roles.has(p.role)
+    && p.boxes.some((b) => spans.some((o) => b.min[1] < o.y1 + 1 && b.min[1] + b.size[1] > o.y0 - 1));
+  const note = 'Open section: scuff, bonding primer, paint to match the millwork';
+  return parts.map((p) => (shows(p) ? { ...p, look: 'paint' as const, note: p.note ? `${p.note} · ${note}` : note } : p));
+}
+
+function caseParts(c: Cabinet, s: ShopSettings, ends: EndInfo): Part[] {
   if (c.island && c.islandSides === 2) return twoSidedIsland(c, s, ends);
   s = eff(c, s);
   if (c.corner) return buildCornerParts(c, s);

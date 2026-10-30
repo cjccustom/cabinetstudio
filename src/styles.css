@@ -653,3 +653,20 @@ tr.overridden td:last-child .cell-edit { font-weight: 600; color: var(--accent);
 .editor-tabs button { white-space: nowrap; }
 .editor-body { overflow: auto; padding: 4px 16px 16px; }
 .editor-body .insp-head { display: none; }
+
+/* Phones: every tab but Design scrolls as one page (no boxes scrolling inside the page), forms
+   go to two columns, wide tables scroll sideways on their own, and the editor fills the screen. */
+@media (max-width: 860px) {
+  .app:not(.mode-design) { grid-template-rows: auto auto auto auto; }
+  .app:not(.mode-design) > * { overflow: visible !important; max-height: none !important; height: auto !important; min-height: 0; }
+  .app.mode-clients, .app.mode-drawings { grid-template-areas: "top" "side" "stage" "panel"; }
+  .topbar .tabs, .topbar .seg { max-width: 100%; }
+  .app main table, .app aside table { display: block; overflow-x: auto; max-width: 100%; }
+  .app.mode-drawings > main { overflow-x: auto !important; }
+  .editor-win { inset: 0 !important; top: 0 !important; left: 0 !important; transform: none !important; width: 100%; max-height: none; height: 100%; border-radius: 0; border: 0; }
+  .editor-bar { cursor: default; }
+  input, select, textarea { font-size: 16px; } /* keeps iPhone from zooming in on every field */
+}
+@media (max-width: 560px) {
+  .grid3 { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+}

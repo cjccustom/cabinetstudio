@@ -2,7 +2,7 @@
 // pricing methods side by side. Every number traces back to the design or a setting.
 import { furnitureOf, tableEstimate } from './furniture';
 import type { Cabinet, Project, WallId } from './types';
-import { buildParts, eff } from './parts';
+import { buildParts, eff, isOpenRow, openSpans } from './parts';
 import { resolveEnds, wallNames } from './layout';
 import { cutStock, defaultCutlist, optimizerParts } from './cutlist';
 import { optimize } from './optimizer';
@@ -180,6 +180,8 @@ export interface QuoteSettings {
   /** Estimate rates, as charged to the customer: each door, drawer front or end panel, and each sq ft of cabinet face. */
   paintPerFront?: number;
   paintPerSqFt?: number;
+  /** Painting the inside of open sections (prefinished ply scuffed, primed and painted), per sq ft of opening. */
+  paintPerInteriorSqFt?: number;
   paintAllowance?: number;
   extras: QuoteExtra[];
   /** Hours you set yourself for a labor line, by lineKey: used in place of the estimate. */
@@ -235,19 +237,21 @@ export interface MaterialLine { group: Group; label: string; cost: number; detai
  * $40 a sq ft of cabinet face, primed and sprayed both sides by the painter: the high end of what
  * Massachusetts cabinet painters charge ($90 to $175 a door).
  */
-export const paintRates = { perFront: 150, perSqFt: 40 };
+export const paintRates = { perFront: 150, perSqFt: 40, perInteriorSqFt: 30 };
 
 /** The painting estimate from the job's size: fronts (doors, drawer fronts, end panels) and cabinet face. */
 export function paintEstimate(p: Project, q: QuoteSettings) {
-  let fronts = 0, sqft = 0;
+  let fronts = 0, sqft = 0, interior = 0;
   for (const c of p.cabinets) {
     if (c.kind === 'shelf') continue;
     const parts = buildParts(c, p.settings, resolveEnds(p.room, p.cabinets, c));
     fronts += parts.filter((x) => x.role === 'door' || x.role === 'drawerFront' || x.role === 'endPanel').length;
     sqft += (c.width * c.height) / 144 * (c.island && c.islandSides === 2 ? 2 : 1);
+    // Painted open sections: priced by the opening's face area (sides, back and shelves inside it)
+    if (c.build?.interior === 'paint') interior += openSpans(c, eff(c, p.settings)).reduce((t, o) => t + (c.width * (o.y1 - o.y0)) / 144, 0);
   }
-  const perFront = q.paintPerFront ?? paintRates.perFront, perSqFt = q.paintPerSqFt ?? paintRates.perSqFt;
-  return { fronts, sqft, amount: fronts * perFront + sqft * perSqFt };
+  const perFront = q.paintPerFront ?? paintRates.perFront, perSqFt = q.paintPerSqFt ?? paintRates.perSqFt, perInterior = q.paintPerInteriorSqFt ?? paintRates.perInteriorSqFt;
+  return { fronts, sqft, interior, amount: fronts * perFront + sqft * perSqFt + interior * perInterior };
 }
 
 /** What a quote line is known by when you adjust it: its group and label. */
@@ -626,6 +630,7 @@ export function scopeLine(c: Cabinet, p: Project): string {
   else if (c.baseMold) bits.push('baseboard');
   if (s.construction === 'frameless') bits.push('frameless construction with banded case edges');
   bits.push(`${(s.plywood ?? 'Prefinished birch').toLowerCase()} plywood interior with ${s.finish === 'stain' ? `stain grade ${s.woodSpecies.toLowerCase()}` : 'paint grade'} exterior`);
+  if (c.build?.interior === 'paint' && c.rows.some((r) => isOpenRow(r.type, r.covered))) bits.push('open shelving painted inside to match');
   return `${c.name}: ${bits.join('; ')}`;
 }
 

@@ -145,8 +145,13 @@ function Cameras({ view, room }: { view: ViewMode; room: Room }) {
   );
 }
 
-/** Most cans that cast shadows; past this each shadow costs more than it shows. */
-const SHADOW_CANS = 9;
+/** The last cabinet tapped on a touch screen, for double-tap. */
+const lastTap = { id: '', at: 0 };
+
+/** Most cans that cast shadows; past this each shadow costs more than it shows. A phone or tablet gets fewer, lighter ones. */
+const touch = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
+const SHADOW_CANS = touch ? 4 : 9;
+const SHADOW_SIZE = touch ? 512 : 1024;
 
 /**
  * Recessed cans: a spot just under the ceiling at each can, aimed straight down with a wide soft
@@ -188,7 +193,7 @@ function Can({ x, y, z, intensity, shadow, reach }: { x: number; y: number; z: n
   }, [scene, x, z]);
   return (
     <spotLight ref={ref} position={[x, y, z]} color="#fff1dc" intensity={intensity} angle={1.05} penumbra={0.9} decay={2} distance={reach}
-      castShadow={shadow} shadow-mapSize={[1024, 1024]} shadow-bias={-0.0005} shadow-normalBias={0.5} shadow-camera-near={1} shadow-camera-far={reach} />
+      castShadow={shadow} shadow-mapSize={[SHADOW_SIZE, SHADOW_SIZE]} shadow-bias={-0.0005} shadow-normalBias={0.5} shadow-camera-near={1} shadow-camera-far={reach} />
   );
 }
 
@@ -254,6 +259,13 @@ function CabinetModel(props: {
 
   const onDown = (e: ThreeEvent<PointerEvent>) => {
     if (e.button !== 0) return;
+    // Phones and tablets don't send double-clicks: two quick taps on the same cabinet open the editor
+    if (e.nativeEvent.pointerType === 'touch') {
+      // The time the finger came down, not when the busy page got to it
+      const now = e.nativeEvent.timeStamp;
+      if (lastTap.id === cab.id && now - lastTap.at < 400) { e.stopPropagation(); lastTap.id = ''; useStore.getState().edit({ kind: 'cabinet', id: cab.id }); return; }
+      lastTap.id = cab.id; lastTap.at = now;
+    }
     // In Pan mode a drag slides the view, even over a cabinet; pressing still selects it
     if (view === '3d' && useNav.getState().mode === 'pan') { useStore.getState().select(cab.id); return; }
     e.stopPropagation();

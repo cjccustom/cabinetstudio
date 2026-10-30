@@ -127,8 +127,9 @@ export function QuoteInputs() {
               <div className="grid2" style={{ marginTop: 8 }}>
                 <Num id="q-ppf" label="Per door, drawer front or end panel" suffix="$" value={q.paintPerFront ?? paintRates.perFront} onChange={(v) => set({ paintPerFront: v })} />
                 <Num id="q-pps" label="Per sq ft of cabinet face" suffix="$" value={q.paintPerSqFt ?? paintRates.perSqFt} onChange={(v) => set({ paintPerSqFt: v })} />
+                {pe.interior > 0 && <Num id="q-ppi" label="Per sq ft of painted open interior" suffix="$" value={q.paintPerInteriorSqFt ?? paintRates.perInteriorSqFt} onChange={(v) => set({ paintPerInteriorSqFt: v })} />}
               </div>
-              <p className="hint">{pe.fronts} fronts and panels, {Math.round(pe.sqft)} sq ft of cabinet face: <strong>{money(pe.amount)}</strong> to the customer. Starting rates fit your past prefinishing prices; Massachusetts cabinet painters run about $90 to $175 a door.</p>
+              <p className="hint">{pe.fronts} fronts and panels, {Math.round(pe.sqft)} sq ft of cabinet face{pe.interior > 0 ? `, ${Math.round(pe.interior)} sq ft of open sections painted inside (scuff, bonding primer, paint)` : ''}: <strong>{money(pe.amount)}</strong> to the customer. Starting rates fit your past prefinishing prices; Massachusetts cabinet painters run about $90 to $175 a door.</p>
             </>
           )}
           {q.paintMode === 'allowance' && (

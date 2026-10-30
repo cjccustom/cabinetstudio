@@ -37,6 +37,8 @@ export interface CaseBuild {
   top?: 'stretchers' | 'solid';
   joinery?: 'standard' | 'pocket' | 'staples' | 'confirmat';
   shelves?: 'adjustable' | 'fixed';
+  /** The inside of the open sections: left prefinished, or scuffed, primed and painted with the millwork. */
+  interior?: 'prefinished' | 'paint';
 }
 
 export interface Cabinet {

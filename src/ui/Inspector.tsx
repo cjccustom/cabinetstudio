@@ -3,7 +3,7 @@ import { cofferOf, perimOf } from '../model/coffer';
 import { combine, combineAll, stackedPairs, upperOn } from '../model/onePiece';
 import { freeStanding, useStore } from '../store';
 import type { CabinetNote, Cabinet, CaseBuild, CrownBuild, EndMode, FaceRow, PanelChoice, PanelMode, ShopSettings, WallId } from '../model/types';
-import { buildParts, closetRod, crownFit, crownLayout, crownRoom, layoutRows, noCrownBuild, panelOn } from '../model/parts';
+import { buildParts, closetRod, isOpenRow, crownFit, crownLayout, crownRoom, layoutRows, noCrownBuild, panelOn } from '../model/parts';
 import { defaultPilaster, pilasterOf, pilasterSections } from '../model/pilaster';
 import { bracketCount, bracketGap, bracketLength, bracketProduct, finishedEnds, floatingOf, shelfPly } from '../model/floatingShelf';
 import { evenRun, facesFrom, fillSpan, footprint, gapBeside, placeOn, resolveEnds, runOf, shiftInRoom, wallLength, wallNames, wallOrder } from '../model/layout';
@@ -520,6 +520,7 @@ function AssemblySection({ cab, set }: { cab: Cabinet; set: (p: Partial<Cabinet>
   const bare = sides.filter((x) => ends[x.side] && x.panel === 'none').map((x) => x.side);
   const panels = sides.filter((x) => x.panel !== 'none').map((x) => `${x.side} ${panelLabel[x.panel].toLowerCase()}`);
   const hasShelves = cab.rows.some((r) => (r.type === 'doors' || r.type === 'open') && r.shelves > 0);
+  const hasOpen = cab.rows.some((r) => isOpenRow(r.type, r.covered));
   const solidTop = cab.kind === 'base' && b.top === 'solid';
   const joinery = b.joinery ?? 'standard';
   const backs = [0.25, 0.5, 0.75];
@@ -568,6 +569,14 @@ function AssemblySection({ cab, set }: { cab: Cabinet; set: (p: Partial<Cabinet>
             </select>
           </Field>
         )}
+        {hasOpen && (
+          <Field label="Inside the open sections" htmlFor="as-int">
+            <select id="as-int" value={b.interior ?? 'prefinished'} onChange={(e) => putBuild({ interior: e.target.value === 'paint' ? 'paint' : undefined })}>
+              <option value="prefinished">Prefinished plywood, as is</option>
+              <option value="paint">Painted with the millwork (scuff & prime)</option>
+            </select>
+          </Field>
+        )}
         <Field label="Case joinery" htmlFor="as-join">
           <select id="as-join" value={joinery} onChange={(e) => putBuild({ joinery: e.target.value === 'standard' ? undefined : e.target.value as CaseBuild['joinery'] })}>
             <option value="standard">Glue & staples; pocket screws on bare ends</option>
@@ -585,9 +594,17 @@ function AssemblySection({ cab, set }: { cab: Cabinet; set: (p: Partial<Cabinet>
         {cab.kind === 'base' && <li>{solidTop ? 'Solid plywood top in rabbets, so the inside reads finished.' : `Front and back stretchers, ${fmt(s.stretcherWidth)} wide, in rabbets.`}</li>}
         <li>Back: {fmt(s.backThickness)} in a {fmt(Math.max(s.backRabbetWidth, s.backThickness))} rabbet.</li>
         {hasShelves && <li>Shelves: {b.shelves === 'fixed' ? 'fixed, in dados' : 'adjustable, on pins'}.</li>}
+        {hasOpen && b.interior === 'paint' && <li>Open sections: prefinished plywood scuffed, primed with a bonding primer and painted with the millwork; on the painting estimate.</li>}
         {panels.length > 0 && <li>End panel{panels.length > 1 ? 's' : ''}: {panels.join('; ')}.</li>}
       </ul>
       <p className="hint">These change the cut list and the parts notes for this cabinet only. Shop standards set the usual way for every job.</p>
+      {hasOpen && (
+        <div className="order-actions">
+          <button className="mini" onClick={() => useStore.getState().commit((p) => ({ ...p, cabinets: p.cabinets.map((c) => (c.rows.some((r) => isOpenRow(r.type, r.covered)) ? { ...c, build: { ...c.build, interior: b.interior } } : c)) }))}>
+            Same for every cabinet with open sections
+          </button>
+        </div>
+      )}
     </Section>
   );
 }

@@ -97,6 +97,14 @@ const fixed = buildParts({ ...shelved, build: { shelves: 'fixed' } }, s).filter(
 eq('fixed shelves are dadoed, full width', fixed.length > 0 && fixed.every((x) => x.name === 'Fixed shelf' && x.note?.startsWith('In 1/4" dados')), true);
 eq('confirmat joinery in the side notes', buildParts({ ...b21, build: { joinery: 'confirmat' } }, s).find((x) => x.role === 'side')!.note!.includes('Confirmat'), true);
 
+// Open sections painted inside: what shows there gets the paint look and the note, and the estimate picks it up
+const bookcase = { ...shelved, rows: [{ id: 'o', type: 'open' as const, height: null, doors: 1 as const, shelves: 2 }, ...shelved.rows] };
+const painted = buildParts({ ...bookcase, build: { interior: 'paint' } }, s);
+eq('open section parts painted', painted.filter((x) => x.look === 'paint' && x.note?.includes('bonding primer')).some((x) => x.role === 'back'), true);
+eq('closed shelves stay prefinished', painted.some((x) => x.role === 'shelf' && !x.look), true);
+const pe0 = paintEstimate({ ...p, cabinets: [bookcase] }, quoteOf(p)), pe1 = paintEstimate({ ...p, cabinets: [{ ...bookcase, build: { interior: 'paint' } }] }, quoteOf(p));
+eq('painted interior adds to the painting estimate', pe1.interior > 0 && pe1.amount > pe0.amount && pe0.interior === 0, true);
+
 // Recessed cans: one per coffer, or a grid about every 5'
 eq('one can per coffer', canSpots({ ...p, ceiling: { on: true, across: 3, deep: 3 } }).length, 9);
 eq('cans on a grid, 3 across by 2 deep', canSpots({ ...p, room: { width: 156, depth: 144, height: 96 } }).length, 6);
