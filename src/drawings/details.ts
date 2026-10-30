@@ -7,7 +7,7 @@ import type { Cabinet, Project, WallId } from '../model/types';
 import { resolveEnds, wallLength, wallNames } from '../model/layout';
 import { cabinetMoldings, mountShape, profileByNum, profileLabel } from '../model/moldings';
 import { eff } from '../model/parts';
-import { cofferOf, fasciaHeight, perimOf, underFascia } from '../model/coffer';
+import { OVER_NAILER, RAIL_LAP, cofferOf, fasciaHeight, perimeterBottom, perimOf, underFascia } from '../model/coffer';
 import { ladderOf } from '../model/ladder';
 import { View, dimText, fitScale, type Frame } from './draw';
 import { beamSection, cabinetsOn, partsOf, sideSection } from './views';
@@ -131,17 +131,51 @@ export function wallSection(p: Project, wall: WallId, at: number, frame: Frame, 
   // The coffer's perimeter soffit along this wall: fascia, soffit and nailer, crown on the fascia
   if (P > c.fascia) {
     const fh = fasciaHeight(c);
-    const over = cabs.some((k) => k.elevation + k.height >= H - c.drop - 0.5);
+    const pic = profileByNum(c.picture);
+    const picH = pic ? mountShape(pic).height : 0;
+    // Over full-height bookcases there's no soffit: their top rail runs up to the ceiling and the
+    // 3/4" fascia is applied to it (the picture moulding, if any, below the fascia on the same face)
+    const backers = cabs.filter((k) => k.elevation + k.height >= perimeterBottom(p, c) - 0.5 && (k.wallInset ?? 0) + k.depth <= P + 0.01);
+    const over = backers.length > 0;
     v.rect(P - c.fascia, H - fh, c.fascia, fh, 'cut');
-    if (!over) {
+    if (over) {
+      // The fascia's top fastens to a 2x nailer on the ceiling
+      v.rect(P - c.fascia - OVER_NAILER, H - c.nailer, OVER_NAILER, c.nailer, 'ghost');
+      notes.push({ x: P - c.fascia - OVER_NAILER / 2, y: H - c.nailer / 2, text: '2x nailer on the ceiling' });
+      for (const k of backers) {
+        const s = eff(k, p.settings);
+        const face = (k.wallInset ?? 0) + k.depth;
+        const top = k.elevation + k.height;
+        // The top rail runs up past the fascia's bottom edge, enough for the fascia to lap and fasten to
+        const railTop = Math.max(top, H - fh + RAIL_LAP);
+        if (railTop > top + 0.01) {
+          v.rect(face - s.ffThickness, top, s.ffThickness, railTop - top, 'cut');
+          notes.push({ x: face - s.ffThickness / 2, y: (top + railTop) / 2, text: `${k.name} top rail extended ${dimText(railTop - top)}` });
+          ys.push(railTop);
+        }
+        // Anything between the rail and the fascia's back is furring, shown so the gap isn't a mystery
+        const gap = P - c.fascia - face;
+        if (gap > 0.05) {
+          // Down behind the fascia and the picture moulding to the bookcase top
+          const fb = Math.max(top, perimeterBottom(p, c));
+          v.rect(face, fb, gap, H - c.nailer - fb, 'ghost');
+          notes.push({ x: face + gap / 2, y: H - fh * 0.75, text: `${dimText(gap)} furring behind the fascia${pic ? ' and picture moulding' : ''}` });
+        }
+      }
+    } else {
       v.rect(0, H - c.drop + c.reveal, P - c.fascia, c.soffit, 'cut');
       v.rect(0, H - c.nailer, P - c.fascia, c.nailer, 'ghost');
     }
     const crown = profileByNum(c.crown);
     if (crown) { const sh = mountShape(crown); v.poly(sh.pts.map(([u, q]) => [P + u, H - sh.height + q]), 'o'); }
-    const pic = profileByNum(c.picture);
-    if (pic && !over) { const sh = mountShape(pic); v.poly(sh.pts.map(([u, q]) => [P + u, H - fh - sh.height + q]), 'o'); notes.push({ x: P + sh.depth / 2, y: H - fh - sh.height / 2, text: `Picture moulding, ${profileLabel(pic)}` }); }
-    notes.push({ x: P - c.fascia / 2, y: H - fh / 2, text: over ? 'Perimeter fascia over the cabinets' : 'Coffer perimeter: fascia, soffit, 2x nailer' });
+    if (pic) {
+      const sh = mountShape(pic);
+      // Tucked under the fascia, its back on the fascia's back plane
+      v.poly(sh.pts.map(([u, q]) => [P - c.fascia + u, H - fh - sh.height + q]), 'o');
+      notes.push({ x: P - c.fascia + sh.depth / 2, y: H - fh - sh.height / 2, text: `Picture moulding, ${profileLabel(pic)}` });
+      ys.push(H - fh - picH);
+    }
+    notes.push({ x: P - c.fascia / 2, y: H - fh / 2, text: over ? `${dimText(c.fascia)} fascia: top to the nailer, bottom lapping the top rail` : 'Coffer perimeter: fascia, soffit, 2x nailer' });
     zs.push(P);
     ys.push(H - fh);
   }

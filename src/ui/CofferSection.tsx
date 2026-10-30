@@ -33,6 +33,18 @@ export function FasciaSection() {
           <button className="mini primary" onClick={() => put({ drop: fit })}>Fit to the bookcases: {fmt(fit)} drop</button>
         </div>
       )}
+      {(['back', 'right', 'front', 'left'] as WallId[]).map((w) => {
+        // Over bookcases the fascia belongs just proud of their deepest face (pilaster capitals included)
+        const line = cabinetLine(project, w, c);
+        const P = perimOf(c, w);
+        if (line == null || Math.abs(line - P) < 1 / 32) return null;
+        return (
+          <p key={w} className="warn">
+            {wallNames[w]}: the fascia over the bookcases is {fmt(P)} off the wall; to sit on their faces, proud of the pilasters, it goes at {fmt(line)}.{' '}
+            <button className="mini" onClick={() => put({ walls: { ...c.walls, [w]: line } })}>Use {fmt(line)}</button>
+          </p>
+        );
+      })}
       <p className="hint">
         Fascia {fmt(fasciaHeight(c))}{pic ? ` plus ${fmt(pic)} of picture moulding` : ''}: the perimeter’s underside is {fmt(under)} off the floor.
         {fit != null ? (Math.abs(fit - c.drop) > 1 / 32 ? ` The fit brings it down onto the tops of the bookcases and pilasters, so the picture moulding runs across their fronts sitting right on them; every beam takes the same drop.` : ' It sits right on the tops of the bookcases and pilasters, the picture moulding running across their fronts.') : ''}

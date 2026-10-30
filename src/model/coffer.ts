@@ -140,6 +140,10 @@ export function fittedDrop(p: Project, c = cofferOf(p)): number | null {
   return drop > 0.5 ? Math.round(drop * 16) / 16 : null;
 }
 
+/** Over bookcases: the 2x nailer the fascia's top is fastened to (a 2x4 on the flat), and how far the top rail runs up past the fascia's bottom edge. */
+export const OVER_NAILER = 3.5;
+export const RAIL_LAP = 1;
+
 const leftOf: Record<WallId, WallId> = { back: 'left', left: 'front', front: 'right', right: 'back' };
 const rightOf: Record<WallId, WallId> = { back: 'right', right: 'front', front: 'left', left: 'back' };
 
@@ -344,7 +348,8 @@ export function cofferParts(p: Project, c = cofferOf(p)): Part[] {
       const nailW = r.P - t;
       const ps = nailW + tongueW;
       const wallId = r.name.split(', ')[1] as WallId;
-      const backed = cabinetLine(p, wallId, c) != null && Math.abs(cabinetLine(p, wallId, c)! - r.P) < 0.01;
+      // Over the bookcases when the fascia sits on their line, give or take an inch (it's applied to their extended top rail)
+      const backed = cabinetLine(p, wallId, c) != null && Math.abs(cabinetLine(p, wallId, c)! - r.P) <= 1;
       const sized = (r.P !== c.perimeterWidth ? ` (${fmt(r.P)} wall to fascia face)` : '') + (backed ? `; over the cabinets, proud of the face frame by ${fmt(t)} and fastened to their extended top rail` : '');
       out.push({ name: `${r.name} fascia`, role: 'trim', material: 'faceframe', species: sp, length: len, width: fh, thickness: t, cut: true, note: r.P > t + 0.01 ? dadoNote + sized : 'Fastened directly to the wall; no soffit' + (backed ? '; over the cabinets' : ''), boxes: [box(r.at, t, fy, fh)] });
       // Over full-height cabinets the cabinet top closes it off: no soffit, nailer or blocking there
@@ -356,6 +361,15 @@ export function cofferParts(p: Project, c = cofferOf(p)): Part[] {
       let at = r.s0;
       for (const [a, b] of covered) { if (a > at + 0.5) segs.push([at, Math.min(a, r.s1)]); at = Math.max(at, b); }
       if (r.s1 > at + 0.5) segs.push([at, r.s1]);
+      // Over the bookcases: no soffit, but the fascia's top still needs a 2x nailer on the ceiling behind it
+      // (its bottom laps the bookcases' top rail, run up about 1" past the fascia's bottom edge)
+      if (backed) for (const k of fullHeight(p, wallId, c)) {
+        const [a, b] = span(k);
+        const lo = Math.max(a, r.s0), hi = Math.min(b, r.s1);
+        if (hi - lo < 0.5) continue;
+        out.push({ name: `${r.name} nailer over the cabinets (2x)`, role: 'nailer', material: 'faceframe', species: '2x framing', length: hi - lo, width: OVER_NAILER, thickness: c.nailer, cut: true,
+          note: `On the ceiling behind the fascia, over ${k.name}; the fascia's bottom laps the top rail`, boxes: [box(r.wallSide < 0 ? r.at - OVER_NAILER : r.at + t, OVER_NAILER, H - c.nailer, c.nailer, lo, hi - lo)] });
+      }
       const beside = chimneys.length && !backed ? 'the chimney' : chimneys.length ? 'the cabinets and chimney' : 'the cabinets';
       const part = segs.length > 1 || covered.length ? (k: number) => ` (${k + 1} of ${segs.length}, beside ${beside})` : () => '';
       // A fascia set right against the wall has no soffit behind it
