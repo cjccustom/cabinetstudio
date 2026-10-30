@@ -11,7 +11,7 @@ import { Field, LengthInput, Section } from './fields';
 /** Add a detail to the job (once: the same one twice just stays). */
 export function addDetail(d: Omit<Detail, 'id'>) {
   useStore.getState().commit((p) => {
-    const same = detailsOf(p).some((x) => x.kind === d.kind && x.cabinetId === d.cabinetId && x.wall === d.wall && (d.kind !== 'wall' || x.at === d.at));
+    const same = detailsOf(p).some((x) => x.kind === d.kind && x.cabinetId === d.cabinetId && x.wall === d.wall && (d.kind !== 'wall' || (x.at === d.at && (x.zoom ?? 'full') === (d.zoom ?? 'full'))));
     return same ? p : { ...p, details: [...detailsOf(p), newDetail(d)] };
   });
 }
@@ -28,13 +28,15 @@ export function DetailButtons({ cab, ceiling }: { cab?: Cabinet; ceiling?: boole
   if (!cab) return null;
   const sectionable = cab.kind === 'base' || cab.kind === 'wall' || cab.kind === 'tall';
   const at = Math.round((cab.offset + cab.width * 0.35) * 4) / 4;
-  const wallOn = has(project, (d) => d.kind === 'wall' && d.wall === cab.wall && d.at != null && d.at >= cab.offset && d.at <= cab.offset + cab.width);
+  const wallOn = has(project, (d) => d.kind === 'wall' && (d.zoom ?? 'full') === 'full' && d.wall === cab.wall && d.at != null && d.at >= cab.offset && d.at <= cab.offset + cab.width);
   const cabOn = has(project, (d) => d.kind === 'cabinet' && d.cabinetId === cab.id);
   return (
     <Section title="On the drawings">
       <div className="order-actions">
         {!cab.island && <button className="mini" disabled={wallOn} onClick={() => addDetail({ kind: 'wall', wall: cab.wall, at })}>{wallOn ? 'Wall section here is on the drawings' : `Wall section through ${cab.name}`}</button>}
         {sectionable && <button className="mini" disabled={cabOn} onClick={() => addDetail({ kind: 'cabinet', cabinetId: cab.id })}>{cabOn ? `${cab.name} section is on the drawings` : `Section of ${cab.name}`}</button>}
+        {!cab.island && <button className="mini" onClick={() => addDetail({ kind: 'wall', wall: cab.wall, at, zoom: 'top' })}>Enlarged: crown at the ceiling</button>}
+        {!cab.island && <button className="mini" onClick={() => addDetail({ kind: 'wall', wall: cab.wall, at, zoom: 'base' })}>Enlarged: base</button>}
       </div>
       <p className="hint">A wall section cuts through everything on the {wallNames[cab.wall].toLowerCase()} here: depths, cases, tops, crown, the soffit above. Details go on their own sheets in the Drawings tab, where you can title and note them.</p>
     </Section>
@@ -80,6 +82,13 @@ export function DetailsSection() {
                   </select>
                 </Field>
                 <Field label="Cut at (from the left)" htmlFor={`dt-a-${d.id}`}><LengthInput id={`dt-a-${d.id}`} value={d.at ?? 0} onChange={(v) => put(d.id, { at: v ?? 0 })} /></Field>
+                <Field label="Show" htmlFor={`dt-z-${d.id}`}>
+                  <select id={`dt-z-${d.id}`} value={d.zoom ?? 'full'} onChange={(e) => put(d.id, { zoom: e.target.value === 'full' ? undefined : e.target.value as Detail['zoom'] })}>
+                    <option value="full">The whole wall, floor to ceiling</option>
+                    <option value="top">Enlarged: crown at the ceiling</option>
+                    <option value="base">Enlarged: base at the floor</option>
+                  </select>
+                </Field>
               </>
             )}
           </div>

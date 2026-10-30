@@ -45,7 +45,7 @@ export function normalize(p: Project): Project {
   return out;
 }
 
-export type Editing = { kind: 'cabinet' | 'panel'; id: string; tab?: string } | { kind: 'ceiling' | 'ladder'; tab?: string };
+export type Editing = { kind: 'cabinet' | 'panel'; id: string; tab?: string } | { kind: 'opening'; id: string; tab?: string } | { kind: 'ceiling' | 'ladder' | 'lights' | 'details'; tab?: string };
 
 interface State {
   project: Project;

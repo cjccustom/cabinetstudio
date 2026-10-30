@@ -2,8 +2,9 @@ import { useEffect, useMemo } from 'react';
 import * as THREE from 'three';
 import type { Project } from '../model/types';
 import { useStore, type ViewMode } from '../store';
-import { beadCorner, cofferOf, cofferParts, coffers } from '../model/coffer';
-import { mountShape, profileByNum, type MoldPiece } from '../model/moldings';
+import { beadCorner, cofferOf, cofferParts, coffers, fasciaHeight, perimOf, pictureRuns } from '../model/coffer';
+import { wallTransform } from '../model/layout';
+import { mountShape, profileByNum, type MiterCut, type MoldPiece } from '../model/moldings';
 import { buildCabinetGeometry } from './cabinetGeometry';
 import { MoldingModel } from './MoldingModel';
 
@@ -27,7 +28,8 @@ export function CofferModel({ project, view }: { project: Project; view: ViewMod
     const y = project.room.height - h;
     return coffers(project, c).flatMap((k) => {
       const w = k.x1 - k.x0, d = k.z1 - k.z0;
-      const run = (length: number): MoldPiece[] => [{ kind: 'cofferCrown', num: prof.num, along: 'x', facing: 'front', x: 0, y, z: 0, length }];
+      // Inside corners all the way around each coffer
+      const run = (length: number): MoldPiece[] => [{ kind: 'cofferCrown', num: prof.num, along: 'x', facing: 'front', x: 0, y, z: 0, length, cut: ['in', 'in'] }];
       return [
         { pos: [k.x0, 0, k.z0] as const, rot: 0, pieces: run(w) },
         { pos: [k.x1, 0, k.z1] as const, rot: Math.PI, pieces: run(w) },
@@ -36,6 +38,17 @@ export function CofferModel({ project, view }: { project: Project; view: ViewMod
       ];
     });
   }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Picture moulding on the perimeter fascia, its top at the fascia's bottom edge: mitered into the
+  // room's corners, stopping square where full-height cabinets come up under the fascia
+  const picture = useMemo(() => {
+    const prof = profileByNum(c.picture);
+    if (!prof) return [];
+    const y = project.room.height - fasciaHeight(c) - mountShape(prof).height;
+    return pictureRuns(project, c).map((r) => {
+      const { pos, rotY } = wallTransform(project.room, r.wall, 0);
+      return { pos: pos as unknown as readonly [number, number, number], rot: rotY, pieces: [{ kind: 'picture' as const, num: prof.num, along: 'x' as const, facing: 'front' as const, x: r.a, y, z: perimOf(c, r.wall), length: r.b - r.a, cut: r.corner.map((k) => (k ? 'in' : 'square')) as [MiterCut, MiterCut] }] };
+    });
+  }, [key, JSON.stringify(project.cabinets.map((k) => [k.wall, k.offset, k.width, k.elevation, k.height]))]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!c.on || view === 'plan') return null;
   const paint = project.finishes.trim ?? project.finishes.paint;
   return (
@@ -48,7 +61,7 @@ export function CofferModel({ project, view }: { project: Project; view: ViewMod
       <lineSegments geometry={geo.edges}>
         <lineBasicMaterial color="#3b3f45" transparent opacity={0.45} />
       </lineSegments>
-      {crowns.map((g, i) => (
+      {[...crowns, ...picture].map((g, i) => (
         <group key={i} position={g.pos as unknown as [number, number, number]} rotation-y={g.rot}>
           <MoldingModel pieces={g.pieces} color={paint} edgeColor="#3b3f45" />
         </group>

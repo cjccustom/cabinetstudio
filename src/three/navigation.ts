@@ -95,3 +95,14 @@ export function onWheel(e: WheelEvent) {
   }
   c.zoomSpeed = Math.min(1.5, Math.max(0.2, Math.abs(e.deltaY) / 60));
 }
+
+/** For testing views: with #debug in the address, aim the camera from code (look(from, at), room inches). */
+if (typeof window !== 'undefined' && window.location.hash.includes('debug')) {
+  (window as unknown as { look: (from: number[], at: number[]) => void }).look = (from, at) => {
+    const c = live.controls;
+    if (!c) return;
+    c.object.position.set(from[0], from[1], from[2]);
+    c.target.set(at[0], at[1], at[2]);
+    c.update();
+  };
+}

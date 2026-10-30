@@ -8,7 +8,7 @@
 import type { Part, Project, VisualBox, WallId } from './types';
 import { fmt } from '../units';
 import { mountShape, profileByNum } from './moldings';
-import { footprint } from './layout';
+import { footprint, wallLength } from './layout';
 import { defaultPilaster, pilasterOf } from './pilaster';
 import { mantelOf, upperTop } from './mantel';
 
@@ -119,6 +119,32 @@ function soffitPanelParts(run: string, pan: SoffitPanels, len: number, width: nu
 }
 
 const fullHeight = (p: Project, wall: WallId, c: CofferCeiling) => p.cabinets.filter((k) => k.wall === wall && k.kind !== 'shelf' && k.elevation + k.height >= p.room.height - c.drop - 12);
+
+const leftOf: Record<WallId, WallId> = { back: 'left', left: 'front', front: 'right', right: 'back' };
+const rightOf: Record<WallId, WallId> = { back: 'right', right: 'front', front: 'left', left: 'back' };
+
+/**
+ * Where picture moulding runs under the perimeter fascia, along each wall (from its left end):
+ * corner to corner, except where full-height cabinets come up under the fascia and their own crown
+ * takes over. Each run says whether its ends meet a room corner (an inside miter) or a cabinet.
+ */
+export function pictureRuns(p: Project, c = cofferOf(p)): { wall: WallId; a: number; b: number; corner: [boolean, boolean] }[] {
+  if (!c.on || !c.perimeter || !c.picture) return [];
+  const out: { wall: WallId; a: number; b: number; corner: [boolean, boolean] }[] = [];
+  for (const wall of ['back', 'right', 'front', 'left'] as WallId[]) {
+    const len = wallLength(p.room, wall);
+    const a0 = perimOf(c, leftOf[wall]), b0 = len - perimOf(c, rightOf[wall]);
+    const covered = fullHeight(p, wall, c).map((k) => [k.offset, k.offset + k.width] as [number, number]).sort((x, y) => x[0] - y[0]);
+    let at = a0, fromCorner = true;
+    for (const [a, b] of covered) {
+      if (b <= at || a >= b0) continue;
+      if (a > at + 0.5) out.push({ wall, a: at, b: a, corner: [fromCorner, false] });
+      at = Math.max(at, b); fromCorner = false;
+    }
+    if (b0 > at + 0.5) out.push({ wall, a: at, b: b0, corner: [fromCorner, true] });
+  }
+  return out;
+}
 
 /**
  * Where the perimeter fascia goes over full-height cabinets on a wall: proud of the deepest face

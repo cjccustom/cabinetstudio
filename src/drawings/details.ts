@@ -5,7 +5,7 @@
 // job gets; they go on Details sheets in the customer set, the shop set, or both.
 import type { Cabinet, Project, WallId } from '../model/types';
 import { resolveEnds, wallLength, wallNames } from '../model/layout';
-import { cabinetMoldings, mountShape, profileByNum } from '../model/moldings';
+import { cabinetMoldings, mountShape, profileByNum, profileLabel } from '../model/moldings';
 import { eff } from '../model/parts';
 import { cofferOf, fasciaHeight, perimOf } from '../model/coffer';
 import { ladderOf } from '../model/ladder';
@@ -20,6 +20,8 @@ export interface Detail {
   /** A wall section: which wall, and where along it (from its left end) the cut is. */
   wall?: WallId;
   at?: number;
+  /** A wall section drawn whole, or enlarged: the top (crown at the ceiling) or the base (base moulding at the floor). */
+  zoom?: 'full' | 'top' | 'base';
   /** A cabinet section: which cabinet. */
   cabinetId?: string;
   /** Your title and a note under it; unset = a title from what it shows. */
@@ -39,6 +41,8 @@ export function detailTitle(p: Project, d: Detail): string {
   if (d.kind === 'beam') return 'Coffer beam section';
   if (d.kind === 'cabinet') { const c = p.cabinets.find((x) => x.id === d.cabinetId); return c ? `${c.name} section` : 'Cabinet section'; }
   const c = d.wall ? cutCabinets(p, d.wall, d.at ?? 0)[0] : undefined;
+  if (d.zoom === 'top') return `Enlarged detail: crown at the ceiling${c ? `, ${c.name}` : ''}`;
+  if (d.zoom === 'base') return `Enlarged detail: base${c ? `, ${c.name}` : ''}`;
   return `${d.wall ? wallNames[d.wall] : 'Wall'} section${c ? ` at ${c.name}` : ''}`;
 }
 
@@ -70,7 +74,7 @@ const label = (v: View, x: number, y: number, tx: number, ty: number, text: stri
 };
 
 /** A section straight through a wall at `at`: what's against it, cut, seen from the left end. */
-export function wallSection(p: Project, wall: WallId, at: number, frame: Frame): { svg: string; scale: number } {
+export function wallSection(p: Project, wall: WallId, at: number, frame: Frame, zoom: Detail['zoom'] = 'full'): { svg: string; scale: number } {
   const H = p.room.height;
   const T = 4.5;
   const cabs = cutCabinets(p, wall, at);
@@ -78,8 +82,13 @@ export function wallSection(p: Project, wall: WallId, at: number, frame: Frame):
   const L = p.ladder?.on && ladderOf(p).wall === wall ? ladderOf(p) : null;
   const P = c.on && c.perimeter ? perimOf(c, wall) : 0;
   const deep = Math.max(24, ...cabs.map((k) => (k.wallInset ?? 0) + k.depth + 6), P + 6, L ? L.railZ + L.footOut + 6 : 0);
-  const perFoot = fitScale(deep + T + 22, H + 2, frame.w - 1, frame.h - 1);
-  const v = new View(frame, { x0: -T, y0: 0, x1: deep + 22, y1: H }, perFoot);
+  // Enlarged: just the top or bottom 16" of the cut, at a large scale, clipped to its frame
+  const win = zoom === 'top' ? { y0: H - 16, y1: H + 1 } : zoom === 'base' ? { y0: -1, y1: 16 } : { y0: 0, y1: H };
+  // Enlarged: the cut's own depth (no room for the floor beyond), so it comes out at 3" = 1'-0" when it can
+  const near = Math.max(...cabs.map((k) => (k.wallInset ?? 0) + k.depth + 3), P + 4, 8);
+  const wide = zoom === 'full' ? deep + T + 22 : near + T + 5;
+  const perFoot = fitScale(wide, win.y1 - win.y0 + 2, frame.w - 1, frame.h - 1);
+  const v = new View(frame, { x0: -T, y0: win.y0, x1: wide - T, y1: win.y1 }, perFoot);
   // Wall, floor and ceiling
   v.rect(-T, 0, T, H, 'wall');
   v.line(-T - 2, 0, deep, 0, 'heavy');
@@ -104,7 +113,8 @@ export function wallSection(p: Project, wall: WallId, at: number, frame: Frame):
       if (!prof) continue;
       const sh = mountShape(prof);
       v.poly(sh.pts.map(([u, q]) => [z0 + m.z + u, k.elevation + m.y + (m.hang ? sh.height - q : q)]), 'o');
-      if (m.kind === 'crown') notes.push({ x: z0 + m.z + sh.depth * 0.6, y: k.elevation + m.y + sh.height * 0.5, text: `Crown, A&M #${prof.num}` });
+      const what = m.kind === 'crown' ? 'Crown' : m.kind === 'baseMold' ? 'Base cap' : m.kind === 'lightRail' ? 'Light rail' : '';
+      if (what) notes.push({ x: z0 + m.z + sh.depth * 0.6, y: k.elevation + m.y + sh.height * 0.5, text: `${what}, ${profileLabel(prof)}` });
     }
     const top = k.elevation + k.height;
     zs.push(z0 + k.depth);
@@ -115,6 +125,8 @@ export function wallSection(p: Project, wall: WallId, at: number, frame: Frame):
     const kind = k.kind === 'base' ? 'base cabinet' : k.kind === 'wall' ? 'wall cabinet' : k.kind === 'tall' ? 'tall cabinet' : k.kind;
     notes.push({ x: z0 + k.depth * 0.5, y: k.elevation + k.height * 0.55, text: `${k.name}: ${kind}, ${dimText(k.depth)} deep` });
     if (counter) notes.push({ x: z0 + k.depth * 0.7, y: k.elevation + counter.b.min[1] + counter.b.size[1] * 0.5, text: counter.part.name });
+    // In an enlarged base, name the base pieces the cut passes through
+    for (const { part, b } of cut) if (/base|kick|skirt/i.test(part.name) && b.min[1] < 12) notes.push({ x: z0 + b.min[2] + b.size[2] / 2, y: k.elevation + b.min[1] + b.size[1] / 2, text: `${part.name}, ${dimText(b.size[2])} × ${dimText(b.size[1])}` });
   }
   // The coffer's perimeter soffit along this wall: fascia, soffit and nailer, crown on the fascia
   if (P > c.fascia) {
@@ -127,6 +139,8 @@ export function wallSection(p: Project, wall: WallId, at: number, frame: Frame):
     }
     const crown = profileByNum(c.crown);
     if (crown) { const sh = mountShape(crown); v.poly(sh.pts.map(([u, q]) => [P + u, H - sh.height + q]), 'o'); }
+    const pic = profileByNum(c.picture);
+    if (pic && !over) { const sh = mountShape(pic); v.poly(sh.pts.map(([u, q]) => [P + u, H - fh - sh.height + q]), 'o'); notes.push({ x: P + sh.depth / 2, y: H - fh - sh.height / 2, text: `Picture moulding, ${profileLabel(pic)}` }); }
     notes.push({ x: P - c.fascia / 2, y: H - fh / 2, text: over ? 'Perimeter fascia over the cabinets' : 'Coffer perimeter: fascia, soffit, 2x nailer' });
     zs.push(P);
     ys.push(H - fh);
@@ -143,20 +157,37 @@ export function wallSection(p: Project, wall: WallId, at: number, frame: Frame):
   }
   // Depths along the floor, heights up the right, the room's height on the left
   const zMax = Math.max(...zs);
-  v.chainH(zs, 0, -0.35);
-  v.chainV(ys, zMax + 2, 0.3);
-  v.dimV(0, H, -T, -0.35, undefined, true);
+  if (zoom === 'full') {
+    v.chainH(zs, 0, -0.35);
+    v.chainV(ys, zMax + 2, 0.3);
+    v.dimV(0, H, -T, -0.35, undefined, true);
+  } else {
+    // Only what's inside the enlarged window: depths along its edge, heights within it
+    const inWin = ys.filter((y) => y >= win.y0 - 0.01 && y <= win.y1 + 0.01);
+    v.chainH(zs, zoom === 'base' ? 0 : H, zoom === 'base' ? -0.35 : 0.35);
+    if (inWin.length > 1) v.chainV(inWin, zMax + 2, 0.3);
+  }
   // Labels stacked in a column to the right, in order of height
-  const lx = zMax + 2 + v.p(0.75);
+  const lx = zMax + 2 + v.p(zoom === 'full' ? 0.75 : 0.45);
   const sorted = notes.sort((a, b) => b.y - a.y);
   const gap = v.p(0.2);
   let last = Infinity;
   for (const n of sorted) {
+    if (n.y < win.y0 || n.y > win.y1) continue;
     const ty = Math.min(n.y, last - gap);
     label(v, n.x, n.y, lx, ty, n.text);
     last = ty;
   }
-  return { svg: v.svg(), scale: perFoot };
+  if (zoom === 'full') return { svg: v.svg(), scale: perFoot };
+  // Cut off at the window with a break line, like a hand-drawn enlarged detail
+  const id = `clip${Math.round(frame.x * 1000)}${Math.round(frame.y * 1000)}${zoom}`;
+  const top = v.Y(win.y1), bot = v.Y(win.y0);
+  const brk = zoom === 'top' ? bot : top;
+  return {
+    svg: `<defs><clipPath id="${id}"><rect x="${frame.x}" y="${top}" width="${frame.w + 0.6}" height="${bot - top}"/></clipPath></defs><g clip-path="url(#${id})">${v.svg()}</g>`
+      + `<line class="thin" x1="${v.X(-T - 2)}" y1="${brk}" x2="${v.X(Math.min(zMax + 2, near))}" y2="${brk}" stroke-dasharray=".08 .04"/>`,
+    scale: perFoot,
+  };
 }
 
 /** One detail drawn into a frame. */
@@ -164,5 +195,5 @@ export function drawDetail(p: Project, d: Detail, frame: Frame): { svg: string; 
   if (!detailOk(p, d)) return null;
   if (d.kind === 'beam') return beamSection(p, frame);
   if (d.kind === 'cabinet') return sideSection(p, p.cabinets.find((x) => x.id === d.cabinetId)!, frame);
-  return wallSection(p, d.wall!, d.at ?? suggestedCut(p, d.wall!), frame);
+  return wallSection(p, d.wall!, d.at ?? suggestedCut(p, d.wall!), frame, d.zoom);
 }

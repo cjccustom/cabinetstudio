@@ -198,7 +198,7 @@ export function resolveEnds(room: Room, cabinets: Cabinet[], c: Cabinet): EndInf
     // A side tight to a wall (the probe lands outside the room): the room's base dies into the wall there
     const past = ([x, z]: [number, number]) => x < 0 || z < 0 || x > room.width || z > room.depth;
     return {
-      left: true, right: true, faceAt: (side, y) => neighbourFace(cabinets, c, side, y),
+      left: true, right: true, faceAt: (side, y) => neighbourFace(cabinets, c, side, y), baseBeside: (side) => baseBeside(cabinets, c, side),
       wall: { left: past(toRoom(room, c, -probe, c.depth / 2)), right: past(toRoom(room, c, c.width + probe, c.depth / 2)) },
     };
   }
@@ -227,6 +227,16 @@ export function resolveEnds(room: Room, cabinets: Cabinet[], c: Cabinet): EndInf
 }
 
 /** Front of whatever butts against a cabinet's side at a height: face frame plus an overlay door, or 0. */
+/** The base moulding on the floor-standing casework touching a pilaster's side: its profile and the face it sits on. */
+export function baseBeside(cabinets: Cabinet[], c: Cabinet, side: 'left' | 'right', tol = 0.25): { num?: string; z: number } | null {
+  const edge = side === 'left' ? c.offset : c.offset + c.width;
+  const o = cabinets.find((k) => k.id !== c.id && k.wall === c.wall && k.kind !== 'pilaster' && k.elevation < 1 && !k.island
+    && (side === 'left' ? Math.abs(k.offset + k.width - edge) <= tol : Math.abs(k.offset - edge) <= tol));
+  if (!o) return null;
+  // On a baseboard or skirt the cap sits on the board's face (3/4" stock); on a toe kick, on 3/4" door faces
+  return { num: o.baseMold, z: (o.wallInset ?? 0) + o.depth + 0.75 };
+}
+
 export function neighbourFace(cabinets: Cabinet[], c: Cabinet, side: 'left' | 'right', y: number, tol = 0.25): number {
   const edge = side === 'left' ? c.offset : c.offset + c.width;
   let face = 0;

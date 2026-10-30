@@ -139,12 +139,14 @@ export function pilasterParts(c: Cabinet, settings: ShopSettings, ends?: EndInfo
       const endNote = (side: 'left' | 'right') => (miter[side] ? 'mitered' : wall[side] ? 'square to the wall' : 'butts the base beside it');
       const ends2 = endNote('left') === endNote('right') ? `${endNote('left')} both ends` : `${endNote('left')} on the left, ${endNote('right')} on the right`;
       const what = nm === 'Base cap' ? 'Custom, milled to match the room’s; ' : '';
+      // A cap milled to the casework's base moulding is drawn as that moulding (see cabinetMoldings), not a flat strip
+      const asMoulding = nm === 'Base cap' && !!profileByNum(c.baseMold ?? ends?.baseBeside?.('left')?.num ?? ends?.baseBeside?.('right')?.num);
       parts.push({ name: `${nm} on plinth`, role: 'trim', material: 'faceframe', length: len, width: hh, thickness: t, cut: true, note: what + ends2.charAt(0)[what ? 'toLowerCase' : 'toUpperCase']() + ends2.slice(1),
-        boxes: [vb(x0, y, face, len, hh, t)] });
+        boxes: asMoulding ? [] : [vb(x0, y, face, len, hh, t)] });
       for (const side of ['left', 'right'] as const) {
         if (!miter[side]) continue;
         parts.push({ name: `${nm} return on plinth`, role: 'trim', material: 'faceframe', length: ret[side], width: hh, thickness: t, cut: true, note: `${side}; mitered at the front, back to the casework beside it`,
-          boxes: [vb(side === 'left' ? -t : W, y, face + t - ret[side], t, hh, ret[side])] });
+          boxes: asMoulding ? [] : [vb(side === 'left' ? -t : W, y, face + t - ret[side], t, hh, ret[side])] });
       }
     }
   }

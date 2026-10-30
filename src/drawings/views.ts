@@ -3,7 +3,7 @@
 import type { Cabinet, Part, Project, WallId } from '../model/types';
 import { buildParts, eff } from '../model/parts';
 import { footprint, resolveEnds, wallLength, wallNames, wallTransform } from '../model/layout';
-import { cabinetMoldings, mountShape, profileByNum } from '../model/moldings';
+import { cabinetMoldings, mountShape, profileByNum, profileLabel } from '../model/moldings';
 import { casingReach, openingTrim, roomMoldings } from '../model/room';
 import { View, dimText, fitScale, type Frame } from './draw';
 import { applianceName, placedAppliances, type PlacedAppliance } from '../model/appliances';
@@ -472,7 +472,7 @@ export function beamSection(p: Project, frame: Frame): { svg: string; scale: num
     [B - t / 2, drop * 0.55, `Fascia, ${dimText(t)} ${(c.species ?? 'poplar').toLowerCase()}`],
     [B / 2, c.joint === 'bead' ? c.soffit / 2 : c.reveal + c.soffit / 2, c.joint === 'bead' ? 'Soffit on blocking' : `Soffit, ${dimText(c.tongue)} tongue in a dado`],
     [B / 2, drop - c.nailer / 2, '2x nailer to the ceiling framing'],
-    ...(cm ? [[B + cm.depth * 0.5, drop - cm.height * 0.5, `Crown, A&M #${crown!.num}`] as [number, number, string]] : []),
+    ...(cm ? [[B + cm.depth * 0.5, drop - cm.height * 0.5, `Crown, ${profileLabel(crown!)}`] as [number, number, string]] : []),
   ];
   callouts.sort((a, b) => b[1] - a[1]).forEach(([x, y, text], i) => {
     const ty = drop + v.p(0.1) - i * v.p(0.22);

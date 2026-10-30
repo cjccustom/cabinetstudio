@@ -14,6 +14,18 @@ function buildGeometry(pieces: MoldPiece[]) {
     const flip = pc.kind === 'casing';
     const shape = new THREE.Shape(m.pts.map(([u, v]) => new THREE.Vector2(u, pc.hang ? -v : flip ? m.height - v : v)));
     const g = new THREE.ExtrudeGeometry(shape, { depth: pc.length, bevelEnabled: false, curveSegments: 1 });
+    // Mitered ends: each point moves along the run by how far it stands out from the face
+    if (pc.cut && (pc.cut[0] !== 'square' || pc.cut[1] !== 'square')) {
+      const pos = g.attributes.position as THREE.BufferAttribute;
+      const shift = (cut: string, u: number) => (cut === 'out' ? m.depth - u : cut === 'in' ? u : 0);
+      for (let i = 0; i < pos.count; i++) {
+        const u = pos.getX(i), w = pos.getZ(i);
+        if (Math.abs(w) < 1e-6) pos.setZ(i, shift(pc.cut[0], u));
+        else if (Math.abs(w - pc.length) < 1e-6) pos.setZ(i, pc.length - shift(pc.cut[1], u));
+      }
+      pos.needsUpdate = true;
+      g.computeVertexNormals();
+    }
     // Shape x = out from the face, shape y = up, extrusion = along the run
     const mat = new THREE.Matrix4();
     if (pc.vertical === 'left') mat.set(0, -1, 0, pc.x, 0, 0, 1, pc.y, 1, 0, 0, pc.z, 0, 0, 0, 1);

@@ -14,6 +14,7 @@ import { Scene } from './three/Scene';
 import { Sidebar } from './ui/Sidebar';
 import { Inspector } from './ui/Inspector';
 import { Editor } from './ui/Editor';
+import { AddToolbar } from './ui/AddToolbar';
 import { OrderList, PartsTable } from './ui/PartsTable';
 import { ReleasePanel } from './ui/Release';
 import { EagleRequests } from './ui/EagleRequests';
@@ -151,6 +152,7 @@ export default function App() {
         </div>
         <Scene issueIds={issueIds} />
         <div className="render-view"><ViewTools />{view !== 'plan' && <CoverButton />}{view !== 'plan' && <DesignRenderButton />}</div>
+        <AddToolbar />
         {issues.length > 0 && (
           <div className="issue-bar" role="status">
             <strong>{summary.length} layout issue{summary.length > 1 ? 's' : ''}</strong>

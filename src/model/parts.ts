@@ -134,6 +134,8 @@ export interface EndInfo {
   faceAt?: (side: 'left' | 'right', y: number) => number;
   /** Pilasters: a side tight to a room wall. */
   wall?: { left: boolean; right: boolean };
+  /** Pilasters: the base moulding on the casework beside it (its profile, and how far out its back sits), so the pilaster's carries on from it. */
+  baseBeside?: (side: 'left' | 'right') => { num?: string; z: number } | null;
 }
 
 /** The end panel actually used on one side: only exposed ends get one. */

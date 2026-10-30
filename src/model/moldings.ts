@@ -148,6 +148,7 @@ function lyingDown(p: AMProfile) {
   return horizontal > vertical;
 }
 
+export type MiterCut = 'square' | 'out' | 'in';
 export interface MoldPiece {
   kind: MoldKind;
   num: string;
@@ -161,6 +162,12 @@ export interface MoldPiece {
   length: number;
   /** Turn the profile upside down (light rail hanging under a cabinet). */
   hang?: boolean;
+  /**
+   * How each end is cut, start then end: square, or a 45° miter. 'out' for an outside corner (the
+   * length is measured on the moulding's face, its back shorter), 'in' for an inside corner (the
+   * length is measured on its back, its face shorter). Unset = square.
+   */
+  cut?: [MiterCut, MiterCut];
   /** Run straight up from (x, y) instead of along x: a casing leg, its face widening to the left or right. */
   vertical?: 'left' | 'right';
 }
@@ -177,7 +184,29 @@ export function cabinetMoldings(c: Cabinet, s: ShopSettings, ends: EndInfo): Mol
     { kind: 'lightRail', num: c.lightRail, y: () => 0, z: c.depth, hang: true },
   ];
   const bl = baseLayout(c, s);
-  if (bl.style === 'kick') {
+  const ps = c.kind === 'pilaster' ? pilasterOf(c) : null;
+  if (ps?.wrap && ps.wrap.h > 0) {
+    // A pilaster's wrapped base: the cap is the same moulding as the casework beside it, carried
+    // across the pilaster's face; where the pilaster stands out past its neighbours it returns
+    // back to theirs at an inside corner, so the cap reads as one continuous run
+    const num = c.baseMold ?? ends.baseBeside?.('left')?.num ?? ends.baseBeside?.('right')?.num;
+    const p = profileByNum(num);
+    if (p) {
+      const m = mountShape(p);
+      const { h, t } = ps.wrap;
+      const face = (ps.plinth > 0 ? c.depth + ps.proud : c.depth) + t;
+      const wall = ends.wall ?? { left: false, right: false };
+      const back = (side: 'left' | 'right') => ends.baseBeside?.(side)?.z ?? 0;
+      const ret = { left: !wall.left && face - back('left') > 0.01, right: !wall.right && face - back('right') > 0.01 };
+      const x0 = ret.left ? -t - m.depth : 0, x1 = c.width + (ret.right ? t + m.depth : 0);
+      out.push({ kind: 'baseMold', num: p.num, along: 'x', facing: 'front', x: x0, y: h, z: face, length: x1 - x0, cut: [ret.left ? 'out' : 'square', ret.right ? 'out' : 'square'] });
+      for (const side of ['left', 'right'] as const) {
+        if (!ret[side]) continue;
+        const z0 = back(side);
+        out.push({ kind: 'baseMold', num: p.num, along: 'z', facing: side, x: side === 'left' ? -t : c.width + t, y: h, z: z0, length: face + m.depth - z0, cut: [z0 > 0.01 ? 'in' : 'square', 'out'] });
+      }
+    }
+  } else if (bl.style === 'kick') {
     // Base runs along the floor across the door faces, furniture style
     runs.push({ kind: 'baseMold', num: c.baseMold, y: () => 0, z: doorFace });
   } else {
@@ -206,16 +235,18 @@ export function cabinetMoldings(c: Cabinet, s: ShopSettings, ends: EndInfo): Mol
     const xr = c.width + ext.right + (ends.right ? o : 0);
     const x0 = xl - (ends.left ? m.depth : 0);
     const x1 = xr + (ends.right ? m.depth : 0);
-    out.push({ kind: r.kind, num: p.num, along: 'x', facing: 'front', x: x0, y, z: r.z, length: x1 - x0, hang: r.hang });
+    const corner = (side: 'left' | 'right'): MiterCut => (ends[side] ? 'out' : 'square');
+    out.push({ kind: r.kind, num: p.num, along: 'x', facing: 'front', x: x0, y, z: r.z, length: x1 - x0, hang: r.hang, cut: [corner('left'), corner('right')] });
     // An island's base wraps its finished back too
     const zb = !c.island || r.kind !== 'baseMold' ? null : c.islandSides === 2 ? -r.z - m.depth : -s.endPanelThickness - o - m.depth;
-    if (zb != null) out.push({ kind: r.kind, num: p.num, along: 'x', facing: 'back', x: x1, y, z: zb + m.depth, length: x1 - x0 });
+    if (zb != null) out.push({ kind: r.kind, num: p.num, along: 'x', facing: 'back', x: x1, y, z: zb + m.depth, length: x1 - x0, cut: [corner('right'), corner('left')] });
     // Returns back to the wall on exposed ends, or back to the neighbour's face beside a pilaster
     for (const side of ['left', 'right'] as const) {
       if (!ends[side]) continue;
       const z0 = zb ?? (ends.faceAt ? ends.faceAt(side, y + m.height / 2) : 0);
       const len = r.z + m.depth - z0;
-      if (len > 0.01) out.push({ kind: r.kind, num: p.num, along: 'z', facing: side, x: side === 'left' ? xl : xr, y, z: z0, length: len, hang: r.hang });
+      // Mitered to the front run; at the back it dies into the wall, or meets the run beside it at an inside corner
+      if (len > 0.01) out.push({ kind: r.kind, num: p.num, along: 'z', facing: side, x: side === 'left' ? xl : xr, y, z: z0, length: len, hang: r.hang, cut: [zb != null ? 'out' : z0 > 0.01 ? 'in' : 'square', 'out'] });
     }
   }
   return out;
@@ -236,10 +267,10 @@ function mantelMoldings(c: Cabinet, ends: EndInfo): MoldPiece[] {
     const mm = mountShape(p);
     const y = r.y(mm.height);
     const x0 = r.x0 - (ends.left ? mm.depth : 0), x1 = r.x1 + (ends.right ? mm.depth : 0);
-    out.push({ kind: r.kind, num: p.num, along: 'x', facing: 'front', x: x0, y, z: r.z, length: x1 - x0 });
+    out.push({ kind: r.kind, num: p.num, along: 'x', facing: 'front', x: x0, y, z: r.z, length: x1 - x0, cut: [ends.left ? 'out' : 'square', ends.right ? 'out' : 'square'] });
     for (const side of ['left', 'right'] as const) {
       if (!ends[side]) continue;
-      out.push({ kind: r.kind, num: p.num, along: 'z', facing: side, x: side === 'left' ? r.x0 : r.x1, y, z: 0, length: r.z + mm.depth });
+      out.push({ kind: r.kind, num: p.num, along: 'z', facing: side, x: side === 'left' ? r.x0 : r.x1, y, z: 0, length: r.z + mm.depth, cut: ['square', 'out'] });
     }
   }
   return out;

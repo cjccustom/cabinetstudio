@@ -127,7 +127,7 @@ export function LightingSection() {
   );
 }
 
-function OpeningEditor({ o, species, put, remove }: { o: Opening; species: string; put: (p: Partial<Opening>) => void; remove: () => void }) {
+export function OpeningEditor({ o, species, put, remove }: { o: Opening; species: string; put: (p: Partial<Opening>) => void; remove: () => void }) {
   const room = useStore((s) => s.project.room);
   const len = wallLength(room, o.wall);
   const t = o.trim;

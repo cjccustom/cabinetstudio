@@ -6,15 +6,18 @@ import { useStore } from '../store';
 import { Inspector, inspectorTabs, type InspectorTab } from './Inspector';
 import { PanelInspector } from './PanelInspector';
 import { CofferSection } from './CofferSection';
-import { LightingSection } from './RoomDetails';
+import { LightingSection, OpeningEditor } from './RoomDetails';
 import { LadderSection } from './LadderSection';
-import { DetailButtons } from './DetailsSection';
+import { DetailButtons, DetailsSection } from './DetailsSection';
 
 export function Editor({ issuesFor }: { issuesFor: (id: string) => string[] }) {
   const editing = useStore((s) => s.editing);
   const edit = useStore((s) => s.edit);
   const cabinets = useStore((s) => s.project.cabinets);
   const panels = useStore((s) => s.project.panels);
+  const openings = useStore((s) => s.project.openings);
+  const species = useStore((s) => s.project.settings.moldSpecies);
+  const commit = useStore((s) => s.commit);
   const [tab, setTab] = useState<string>('size');
   // Dragged by its title bar out of the way of what's being changed; stays put for the session
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
@@ -31,6 +34,8 @@ export function Editor({ issuesFor }: { issuesFor: (id: string) => string[] }) {
 
   const cab = editing.kind === 'cabinet' ? cabinets.find((c) => c.id === id) : undefined;
   const panel = editing.kind === 'panel' ? (panels ?? []).find((w) => w.id === id) : undefined;
+  const opening = editing.kind === 'opening' ? (openings ?? []).find((o) => o.id === editing.id) : undefined;
+  if (editing.kind === 'opening' && !opening) return null;
   if ((editing.kind === 'cabinet' || editing.kind === 'panel') && !cab && !panel) return null;
   const tabs = cab ? inspectorTabs(cab) : [];
   const on = cab && !tabs.some((t) => t.id === tab) ? 'size' : tab;
@@ -52,7 +57,7 @@ export function Editor({ issuesFor }: { issuesFor: (id: string) => string[] }) {
           setPos({ x: Math.max(0, Math.min(window.innerWidth - 120, e.clientX - grab.current.dx)), y: Math.max(0, Math.min(window.innerHeight - 48, e.clientY - grab.current.dy)) });
         }}
         onPointerUp={() => { grab.current = null; }}>
-        <strong>{cab ? cab.name : panel ? panel.name : editing.kind === 'ladder' ? 'Rolling ladder' : 'Ceiling & lighting'}</strong>
+        <strong>{cab ? cab.name : panel ? panel.name : opening ? opening.name : ({ ladder: 'Rolling ladder', lights: 'Lighting', details: 'Details & sections', ceiling: 'Ceiling & lighting' } as Record<string, string>)[editing.kind] ?? ''}</strong>
         {cab && cabinets.length > 1 && (
           <span className="editor-step">
             <button className="mini" title="Previous cabinet" onClick={() => step(-1)}>‹</button>
@@ -73,6 +78,10 @@ export function Editor({ issuesFor }: { issuesFor: (id: string) => string[] }) {
         {panel && <PanelInspector key={panel.id} panel={panel} />}
         {editing.kind === 'ceiling' && <><CofferSection /><DetailButtons ceiling /><LightingSection /></>}
         {editing.kind === 'ladder' && <LadderSection />}
+        {editing.kind === 'lights' && <LightingSection />}
+        {editing.kind === 'details' && <DetailsSection />}
+        {opening && <OpeningEditor o={opening} species={species} put={(patch) => commit((p) => ({ ...p, openings: (p.openings ?? []).map((o) => (o.id === opening.id ? { ...o, ...patch } : o)) }))}
+          remove={() => { commit((p) => ({ ...p, openings: (p.openings ?? []).filter((x) => x.id !== opening.id) })); edit(null); }} />}
       </div>
     </div>
   );
