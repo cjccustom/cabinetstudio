@@ -1,0 +1,51 @@
+# Runs on every push and pull request: type checks, the model checks, a build of the app, the
+# full rehearsal (portal flow and every tab in a real browser), and a check that the portal file
+# you paste into Cloudflare matches its source. GitHub emails the repository owner when a run fails.
+name: Checks
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Type check (app)
+        run: npx tsc --noEmit -p .
+
+      - name: Type check (portal)
+        run: npm run check:portal
+
+      - name: Model checks
+        run: npm test
+
+      - name: Build the app
+        run: npm run build:preview
+
+      - name: Portal file matches its source
+        run: |
+          npm run build:portal
+          git diff --exit-code -- portal/portal-worker.js || (echo "::error::portal/portal-worker.js is out of date: run npm run build:portal and commit it" && exit 1)
+
+      - name: Browser for the rehearsal
+        run: |
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+
+      - name: Rehearsal
+        run: npm run rehearsal
+        env:
+          NODE_PATH: ${{ github.workspace }}/node_modules

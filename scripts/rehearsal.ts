@@ -105,7 +105,9 @@ async function app() {
   const shell = existsSync('/opt/pw-browsers') ? readdirSync('/opt/pw-browsers').find((d) => d.startsWith('chromium_headless_shell')) : undefined;
   const dir = shell ? readdirSync(`/opt/pw-browsers/${shell}`).map((d) => `/opt/pw-browsers/${shell}/${d}/headless_shell`).find((f) => existsSync(f)) : undefined;
   const exe = process.env.PW_CHROMIUM ?? dir;
-  const browser = await pw.chromium.launch(exe ? { executablePath: exe } : {});
+  // Software WebGL, so the 3D view renders on a machine with no GPU (GitHub's runners included)
+  const args = ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'];
+  const browser = await pw.chromium.launch(exe ? { executablePath: exe, args } : { args });
   const page = await browser.newPage({ viewport: { width: 1500, height: 950 } });
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
