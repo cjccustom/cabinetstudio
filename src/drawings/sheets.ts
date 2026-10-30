@@ -15,6 +15,43 @@ import { cofferScope } from '../model/quote';
 import { drawingCss, scaleName, type Frame } from './draw';
 import { cabinetCallouts, forAudience, jobCallouts, type Audience } from './notes';
 import { LOGO, LOGO_ASPECT } from './logo';
+import { detailOk, detailTitle, detailsOf, drawDetail, inSet, type Detail } from './details';
+
+/** The details for a set, numbered, two to a sheet: 1/A5, 2/A5, 3/A6… */
+function placeDetails(p: Project, set: 'customer' | 'shop', prefix: string, first: number) {
+  const list = detailsOf(p).filter((d) => inSet(d, set) && detailOk(p, d));
+  return list.map((d, i) => ({ d, n: (i % 2) + 1, sheet: `${prefix}${first + Math.floor(i / 2)}` }));
+}
+
+/** Details sheets: two details side by side, each with its bubble, title, scale and note. */
+function detailSheets(p: Project, s: DrawingSettings, placed: { d: Detail; n: number; sheet: string }[]): Sheet[] {
+  const A = area(s.paper);
+  const out: Sheet[] = [];
+  for (let i = 0; i < placed.length; i += 2) {
+    const pair = placed.slice(i, i + 2);
+    const w = A.w / 2;
+    const body = pair.map(({ d, n }, j) => {
+      const f: Frame = { x: A.x + j * w, y: A.y, w: w - 0.1, h: A.h - 0.95 };
+      const dr = drawDetail(p, d, f);
+      if (!dr) return '';
+      const by = A.y + A.h - 0.8;
+      const bx = f.x + 0.4;
+      return dr.svg
+        + `<circle class="tag" cx="${bx}" cy="${by + 0.2}" r="0.2"/><text x="${bx}" y="${by + 0.26}" font-size="0.17" font-weight="700" text-anchor="middle">${n}</text>`
+        + `<line class="thin" x1="${bx + 0.3}" y1="${by + 0.25}" x2="${f.x + f.w - 0.2}" y2="${by + 0.25}"/>`
+        + `<text x="${bx + 0.32}" y="${by + 0.2}" font-size="0.14" font-weight="700">${esc(detailTitle(p, d).toUpperCase())}</text>`
+        + `<text x="${bx + 0.32}" y="${by + 0.4}" font-size="0.085">Scale: ${esc(scaleName(dr.scale))}</text>`
+        + (d.note?.trim() ? html({ x: bx + 0.3, y: by + 0.46, w: f.w - 0.8, h: 0.4 }, `<p>${esc(d.note.trim())}</p>`, 0.085) : '')
+        + (j === 1 ? `<line class="thin" x1="${f.x - 0.05}" y1="${A.y}" x2="${f.x - 0.05}" y2="${A.y + A.h}"/>` : '');
+    }).join('');
+    out.push(sheet(p, s, pair[0].sheet, 'Details', 'As noted', body));
+  }
+  return out;
+}
+
+/** Wall-section markers for an elevation, pointing at where each detail is drawn. */
+const cutsOn = (placed: { d: Detail; n: number; sheet: string }[], wall: WallId) =>
+  placed.filter(({ d }) => d.kind === 'wall' && d.wall === wall && d.at != null).map(({ d, n, sheet }) => ({ at: d.at!, ref: `${n}/${sheet}` }));
 
 export type Paper = 'tabloid' | 'letter';
 export const papers: Record<Paper, { w: number; h: number; label: string }> = {
@@ -103,7 +140,9 @@ export function customerSet(p: Project, s: DrawingSettings): Sheet[] {
   const sheets: Sheet[] = [];
   const ceiling = cofferOf(p).on;
   const first = ceiling ? 3 : 2;
-  const index = [['A0', 'Cover'], ['A1', 'Floor plan'], ...(ceiling ? [['A2', 'Ceiling plan']] : []), ...walls.map((w, i) => [`A${i + first}`, `${wallNames[w]} elevation`])];
+  const placed = placeDetails(p, 'customer', 'A', first + walls.length);
+  const detailIdx = [...new Set(placed.map((x) => x.sheet))].map((n) => [n, 'Details']);
+  const index = [['A0', 'Cover'], ['A1', 'Floor plan'], ...(ceiling ? [['A2', 'Ceiling plan']] : []), ...walls.map((w, i) => [`A${i + first}`, `${wallNames[w]} elevation`]), ...detailIdx];
   // Cover: the picture, the job, and what's in the set
   const c = clientOf(p);
   const imgW = A.w * 0.64;
@@ -128,10 +167,11 @@ export function customerSet(p: Project, s: DrawingSettings): Sheet[] {
     sheets.push(sheet(p, s, 'A2', 'Ceiling plan', scaleName(rcp.scale), rcp.svg + notes));
   }
   walls.forEach((w, i) => {
-    const e = wallElevation(p, w, { ...A, w: A.w * 0.74 }, 'customer');
+    const e = wallElevation(p, w, { ...A, w: A.w * 0.74 }, 'customer', cutsOn(placed, w));
     const notes = html({ x: A.x + A.w * 0.76, y: A.y, w: A.w * 0.24, h: A.h }, wallNotes(p, w, 'customer'), s.paper === 'tabloid' ? 0.11 : 0.09);
     sheets.push(sheet(p, s, `A${i + first}`, `${wallNames[w]} elevation`, scaleName(e.scale), e.svg + notes));
   });
+  sheets.push(...detailSheets(p, s, placed));
   return sheets;
 }
 
@@ -202,13 +242,17 @@ export function shopSet(p: Project, s: DrawingSettings): Sheet[] {
   const A = area(s.paper);
   const sheets: Sheet[] = [];
   const walls = wallsWithWork(p);
+  // Details go right after the wall assemblies, so the section marks on them point somewhere near
+  const placed = placeDetails(p, 'shop', 'S', walls.length + 1);
+  const nDetail = new Set(placed.map((x) => x.sheet)).size;
   walls.forEach((w, i) => {
     const elevFrame = { ...A, w: A.w * 0.7 };
-    const e = wallElevation(p, w, elevFrame, 'shop');
+    const e = wallElevation(p, w, elevFrame, 'shop', cutsOn(placed, w));
     const notes = html({ x: A.x + A.w * 0.72, y: A.y, w: A.w * 0.28, h: A.h }, installNotes(p, w), s.paper === 'tabloid' ? 0.11 : 0.095);
     sheets.push(sheet(p, s, `S${i + 1}`, `${wallNames[w]} assembly`, scaleName(e.scale), e.svg + notes));
   });
-  let n = 0;
+  sheets.push(...detailSheets(p, s, placed));
+  let n = nDetail;
   for (const w of wallOrder) for (const c of cabinetsOn(p, w)) {
     n++;
     const parts = partsOf(p, c);

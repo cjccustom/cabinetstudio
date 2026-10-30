@@ -160,4 +160,5 @@ export const drawingCss = `
 .dwg .dt{font-weight:500}
 .dwg .tagt{font-weight:700}
 .dwg .lbl{font-weight:700;letter-spacing:.02em}
+.dwg .cutline{fill:none;stroke:#111;stroke-width:.014;stroke-dasharray:.18 .05 .03 .05}
 `;

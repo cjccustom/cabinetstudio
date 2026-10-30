@@ -431,6 +431,8 @@ export interface Project {
   portal?: { jobId: string; url?: string; status?: import('../portal').JobStatus; checkedAt?: number };
   /** Drawing sets: paper, revision, cover picture, notes. */
   drawings?: Partial<import('../drawings/sheets').DrawingSettings>;
+  /** Sections and details for the drawing sets. */
+  details?: import('../drawings/details').Detail[];
   /** What the job sold for: contract lines, options chosen, allowances, payment schedule. */
   contract?: import('./contract').Contract;
   /** Free-standing furniture on the job (dining tables for now). */

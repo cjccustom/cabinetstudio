@@ -8,6 +8,7 @@ import { PanelInspector } from './PanelInspector';
 import { CofferSection } from './CofferSection';
 import { LightingSection } from './RoomDetails';
 import { LadderSection } from './LadderSection';
+import { DetailButtons } from './DetailsSection';
 
 export function Editor({ issuesFor }: { issuesFor: (id: string) => string[] }) {
   const editing = useStore((s) => s.editing);
@@ -68,8 +69,9 @@ export function Editor({ issuesFor }: { issuesFor: (id: string) => string[] }) {
       )}
       <div className="editor-body">
         {cab && <Inspector key={cab.id} cab={cab} issues={issuesFor(cab.id)} tab={on as InspectorTab} />}
+        {cab && on === 'proposal' && <DetailButtons cab={cab} />}
         {panel && <PanelInspector key={panel.id} panel={panel} />}
-        {editing.kind === 'ceiling' && <><CofferSection /><LightingSection /></>}
+        {editing.kind === 'ceiling' && <><CofferSection /><DetailButtons ceiling /><LightingSection /></>}
         {editing.kind === 'ladder' && <LadderSection />}
       </div>
     </div>

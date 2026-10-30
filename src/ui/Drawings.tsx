@@ -8,6 +8,7 @@ import { clientName, clientOf } from '../model/client';
 import { blobToDataUrl, capability, shrinkImage, type Downloads } from '../runtime';
 import { writeFile } from '../dropbox';
 import { Field, Section } from './fields';
+import { DetailsSection } from './DetailsSection';
 
 type SetKind = 'customer' | 'shop';
 const useSetKind = create<{ kind: SetKind; set: (k: SetKind) => void }>((set) => ({ kind: 'customer', set: (kind) => set({ kind }) }));
@@ -101,6 +102,8 @@ export function DrawingsSide() {
             </Field>
           </div>
         </Section>
+
+        <DetailsSection />
 
         {kind === 'customer' && (
           <Section title="Cover picture">

@@ -130,7 +130,7 @@ function drawItems(v: View, items: Item[]) {
 }
 
 /** A wall elevation: the room's wall, openings, trim and cabinets, dimensioned for the customer or the shop. */
-export function wallElevation(p: Project, wall: WallId, frame: Frame, mode: 'customer' | 'shop'): { svg: string; scale: number } {
+export function wallElevation(p: Project, wall: WallId, frame: Frame, mode: 'customer' | 'shop', cuts: { at: number; ref: string }[] = []): { svg: string; scale: number } {
   const L = wallLength(p.room, wall);
   const H = p.room.height;
   const margin = mode === 'shop' ? 1.5 : 1.25;
@@ -169,6 +169,15 @@ export function wallElevation(p: Project, wall: WallId, frame: Frame, mode: 'cus
     // Set height for the uppers, from the floor, once per height, outside the left wall
     const heights = [...new Set(uppers.map((c) => Math.round(c.elevation * 16) / 16))].sort((a, b) => a - b);
     heights.forEach((h, i) => v.dimV(0, h, -4.5, -0.35 - i * 0.3, `${dimText(h)} AFF to bottom of uppers`));
+  }
+  // Where wall sections are cut: a line through the wall with a bubble at each end naming the detail
+  for (const c of cuts) {
+    const top = H + v.p(0.75), bot = -v.p(0.25);
+    v.line(c.at, bot, c.at, top, 'cutline');
+    for (const y of [top, bot]) {
+      v.circle(c.at, y + (y === top ? v.p(0.11) : -v.p(0.11)), v.p(0.11), 'tag');
+      v.text(c.at, y + (y === top ? v.p(0.11) : -v.p(0.11)) - v.p(0.03), c.ref, 0.07, 'middle', 'tagt');
+    }
   }
   v.text(L / 2, -v.p(1.12), wallNames[wall].toUpperCase(), 0.14, 'middle', 'lbl');
   return { svg: v.svg(), scale: perFoot };
@@ -411,8 +420,8 @@ export function beamSection(p: Project, frame: Frame): { svg: string; scale: num
   const crown = profileByNum(c.crown);
   const cm = crown ? mountShape(crown) : null;
   const ext = (cm?.depth ?? 0) + 1.5;
-  const perFoot = fitScale(B + 2 * ext, drop + 2, frame.w - 1.6, frame.h - 1.4);
-  const v = new View(frame, { x0: -ext, y0: -1, x1: B + ext, y1: drop + 1 }, perFoot);
+  const perFoot = fitScale(B + 2 * ext + 14, drop + 2, frame.w - 1.6, frame.h - 1.4);
+  const v = new View(frame, { x0: -ext, y0: -1, x1: B + ext + 14, y1: drop + 1 }, perFoot);
   // y = 0 at the bottom of the beam, up to the ceiling at the drop
   v.line(-ext, drop, B + ext, drop, 'heavy');
   v.rect(t, drop - c.nailer, B - 2 * t, c.nailer, 'ghost');
@@ -457,6 +466,20 @@ export function beamSection(p: Project, frame: Frame): { svg: string; scale: num
   }
   v.dimH(0, B, 0, -0.35, `${dimText(B)} beam`);
   v.dimH(t, B - t, drop - c.nailer, 0.25, `${dimText(B - 2 * t)} nailer`);
+  // What each piece is, out to the right
+  const lx = B + ext + v.p(0.7);
+  const callouts: [number, number, string][] = [
+    [B - t / 2, drop * 0.55, `Fascia, ${dimText(t)} ${(c.species ?? 'poplar').toLowerCase()}`],
+    [B / 2, c.joint === 'bead' ? c.soffit / 2 : c.reveal + c.soffit / 2, c.joint === 'bead' ? 'Soffit on blocking' : `Soffit, ${dimText(c.tongue)} tongue in a dado`],
+    [B / 2, drop - c.nailer / 2, '2x nailer to the ceiling framing'],
+    ...(cm ? [[B + cm.depth * 0.5, drop - cm.height * 0.5, `Crown, A&M #${crown!.num}`] as [number, number, string]] : []),
+  ];
+  callouts.sort((a, b) => b[1] - a[1]).forEach(([x, y, text], i) => {
+    const ty = drop + v.p(0.1) - i * v.p(0.22);
+    v.line(x, y, lx, ty, 'thin');
+    v.circle(x, y, v.p(0.012), 'hw');
+    v.text(lx + v.p(0.04), ty - v.p(0.03), text, 0.085, 'start', 'dt');
+  });
   v.dimV(0, drop, B + ext, 0.3, `${dimText(drop)} drop`);
   v.text(B / 2, -v.p(0.75), 'BEAM SECTION', 0.12, 'middle', 'lbl');
   return { svg: v.svg(), scale: perFoot };

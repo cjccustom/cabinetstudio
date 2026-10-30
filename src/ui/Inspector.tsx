@@ -41,7 +41,7 @@ export function inspectorTabs(cab: Cabinet): { id: InspectorTab; label: string }
     { id: 'fronts', label: cab.kind === 'pilaster' ? 'Pilaster' : cab.kind === 'shelf' ? 'Shelf' : cab.kind === 'mantel' ? 'Mantel' : cab.corner ? 'Corner' : 'Openings' },
     ...(cased || cab.kind === 'pilaster' ? [{ id: 'build' as const, label: 'How it’s built' }] : []),
     ...(cab.kind !== 'shelf' ? [{ id: 'top' as const, label: cab.kind === 'base' ? 'Top, base & mouldings' : floorStanding(cab) ? 'Base & mouldings' : 'Mouldings' }] : []),
-    { id: 'proposal', label: 'Proposal & notes' },
+    { id: 'proposal', label: 'Proposal, notes & drawings' },
     { id: 'parts', label: 'Cut parts' },
   ];
 }

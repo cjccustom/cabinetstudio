@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { canSpots } from "../src/model/lighting";
+import { cutCabinets, newDetail } from "../src/drawings/details";
 import { ladderIssues, ladderOf } from "../src/model/ladder";
 import { newOpening } from "../src/model/room";
 import { cancelDeadline, holidays } from "../portal/src/cancel";
@@ -115,6 +116,14 @@ eq('ladder has 7 steps', lad.stepAt.length, 7);
 eq('ladder foot about 19" out from the rail', Math.round(lad.footOut), 19);
 eq('ladder clears a 104 1/4" ceiling', ladderIssues(lib).length, 0);
 eq('9\' ladder too tall for the room', ladderIssues({ ...lib, ladder: { on: true, railHeight: 103.75 } }).some((i) => i.message.includes('7" clear')), true);
+
+// Details: a wall section and a cabinet section go on Details sheets, marked on the elevation
+const withDetails = { ...p, details: [newDetail({ kind: 'wall', wall: 'back', at: 40 }), newDetail({ kind: 'cabinet', cabinetId: p.cabinets[0].id })] };
+const cset = customerSet(withDetails, drawingsOf(withDetails));
+eq('details sheet in the customer set', cset.filter((x) => x.title === 'Details').length, 1);
+eq('wall section marked on its elevation', cset.some((x) => x.svg.includes('cutline') && x.title.includes('elevation')), true);
+eq('shop set gets the details too', shopSet(withDetails, drawingsOf(withDetails)).filter((x) => x.title === 'Details').length, 1);
+eq('a section drawn through the base and wall cabinets', cutCabinets(withDetails, 'back', 40).length >= 2, true);
 
 // Recessed cans: one per coffer, or a grid about every 5'
 eq('one can per coffer', canSpots({ ...p, ceiling: { on: true, across: 3, deep: 3 } }).length, 9);
