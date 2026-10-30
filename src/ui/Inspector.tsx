@@ -735,6 +735,8 @@ function PilasterSection({ cab, set }: { cab: Cabinet; set: (patch: Partial<Cabi
   const all = useStore((s) => s.project.cabinets);
   const put = (patch: Partial<typeof ps>) => set({ pilaster: { ...ps, ...patch } });
   const commit = useStore((st) => st.commit);
+  // The deepest cabinet touching either side: how far the pilaster stands out is measured from it
+  const beside = Math.max(0, ...all.filter((o) => o.kind !== 'pilaster' && o.wall === cab.wall && (Math.abs(o.offset + o.width - cab.offset) < 0.25 || Math.abs(o.offset - cab.offset - cab.width) < 0.25)).map((o) => (o.wallInset ?? 0) + o.depth));
   // Neighbours' tops on this wall, offered as break heights (the base cabinet top, typically)
   const tops = [...new Set(all.filter((c) => c.wall === cab.wall && c.id !== cab.id && c.kind === 'base').map((c) => c.height + (c.countertop ? c.topThickness ?? 1.25 : 0)))].filter((h) => !ps.breaks.some((b) => Math.abs(b - h) < 1e-3));
   return (
@@ -757,6 +759,11 @@ function PilasterSection({ cab, set }: { cab: Cabinet; set: (patch: Partial<Cabi
           </select>
         </Field>
         <Field label="Blocks proud of panel" htmlFor="pil-proud"><LengthInput id="pil-proud" value={ps.proud} onChange={(v) => put({ proud: v ?? 0 })} /></Field>
+        {beside > 0 && (
+          <Field label="Proud of the cabinets beside it" htmlFor="pil-standout" hint="Sets its depth">
+            <LengthInput id="pil-standout" value={Math.round((cab.depth - beside) * 16) / 16} onChange={(v) => set({ depth: beside + (v ?? 0) })} />
+          </Field>
+        )}
       </div>
       <label className="chk-row"><input type="checkbox" checked={!!ps.wrap} onChange={(e) => {
         // Start from the room baseboard the cabinets beside it use
@@ -771,7 +778,12 @@ function PilasterSection({ cab, set }: { cab: Cabinet; set: (patch: Partial<Cabi
         </div>
       )}
       {all.filter((c) => c.kind === 'pilaster' && c.id !== cab.id).length > 0 && (
-        <div className="order-actions"><button className="mini" onClick={() => commit((p) => ({ ...p, cabinets: p.cabinets.map((c) => (c.kind === 'pilaster' && c.id !== cab.id ? { ...c, pilaster: { ...pilasterOf(c), plinth: ps.plinth, capital: ps.capital, stile: ps.stile, rail: ps.rail, proud: ps.proud, wrap: ps.wrap } } : c)) }))}>Same plinth, capital, frame and base wrap on the other pilasters</button></div>
+        <div className="order-actions"><button className="mini" onClick={() => commit((p) => ({ ...p, cabinets: p.cabinets.map((c) => {
+          if (c.kind !== 'pilaster' || c.id === cab.id) return c;
+          // Same projection past its own neighbours, so they all stand out alike
+          const nb = Math.max(0, ...p.cabinets.filter((o) => o.kind !== 'pilaster' && o.wall === c.wall && (Math.abs(o.offset + o.width - c.offset) < 0.25 || Math.abs(o.offset - c.offset - c.width) < 0.25)).map((o) => (o.wallInset ?? 0) + o.depth));
+          return { ...c, ...(nb > 0 && beside > 0 ? { depth: nb + cab.depth - beside } : {}), pilaster: { ...pilasterOf(c), plinth: ps.plinth, capital: ps.capital, stile: ps.stile, rail: ps.rail, proud: ps.proud, wrap: ps.wrap } };
+        }) }))}>Same plinth, capital, frame, base wrap and projection on the other pilasters</button></div>
       )}
       {ps.wrap && ps.plinth === 0 && <p className="hint">No plinth block: the {fmt(ps.wrap.h + ps.wrap.cap)} base and cap go straight on the pilaster face, and the bottom rail runs from the floor to {fmt(ps.rail)} above the cap.</p>}
       {ps.wrap && ps.plinth > 0 && ps.plinth < ps.wrap.h + ps.wrap.cap && <p className="hint">The {fmt(ps.wrap.h + ps.wrap.cap)} base and cap cover the whole {fmt(ps.plinth)} plinth block. Set the plinth to 0 for no block.</p>}

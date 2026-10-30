@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../store';
 import { Inspector, inspectorTabs, type InspectorTab } from './Inspector';
 import { PanelInspector } from './PanelInspector';
-import { CofferSection } from './CofferSection';
+import { CofferSection, FasciaSection } from './CofferSection';
 import { LightingSection, OpeningEditor } from './RoomDetails';
 import { LadderSection } from './LadderSection';
 import { DetailButtons, DetailsSection } from './DetailsSection';
@@ -76,7 +76,7 @@ export function Editor({ issuesFor }: { issuesFor: (id: string) => string[] }) {
         {cab && <Inspector key={cab.id} cab={cab} issues={issuesFor(cab.id)} tab={on as InspectorTab} />}
         {cab && on === 'proposal' && <DetailButtons cab={cab} />}
         {panel && <PanelInspector key={panel.id} panel={panel} />}
-        {editing.kind === 'ceiling' && <><CofferSection /><DetailButtons ceiling /><LightingSection /></>}
+        {editing.kind === 'ceiling' && <><FasciaSection /><CofferSection /><DetailButtons ceiling /><LightingSection /></>}
         {editing.kind === 'ladder' && <LadderSection />}
         {editing.kind === 'lights' && <LightingSection />}
         {editing.kind === 'details' && <DetailsSection />}

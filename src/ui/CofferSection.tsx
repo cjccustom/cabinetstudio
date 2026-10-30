@@ -1,10 +1,45 @@
 import { useStore } from '../store';
-import { beadCorner, cabinetLine, chimneysOn, cofferLayout, cofferMoldings, cofferOf, cofferParts, coffers, crownLimit, defaultCoffer, defaultSoffitPanels, fasciaHeight, isCornerBead, opposite, perimOf, type CofferCeiling, type SoffitPanels } from '../model/coffer';
+import { fittedDrop, perimeterBottom, pictureHeight, beadCorner, cabinetLine, chimneysOn, cofferLayout, cofferMoldings, cofferOf, cofferParts, coffers, crownLimit, defaultCoffer, defaultSoffitPanels, fasciaHeight, isCornerBead, opposite, perimOf, type CofferCeiling, type SoffitPanels } from '../model/coffer';
 import { wallNames } from '../model/layout';
 import type { WallId } from '../model/types';
 import { fmt } from '../units';
 import { Field, LengthInput, Section } from './fields';
 import { MoldSlot } from './ProfilePicker';
+
+/**
+ * The fascias, beam and perimeter alike: how far they drop, their stock, and the picture moulding
+ * under the perimeter, with a fit that brings fascia and picture moulding down to the tops of the
+ * bookcases and pilasters. What double-clicking a fascia opens first.
+ */
+export function FasciaSection() {
+  const project = useStore((s) => s.project);
+  const commit = useStore((s) => s.commit);
+  const c = cofferOf(project);
+  const put = (patch: Partial<CofferCeiling>) => commit((p) => ({ ...p, ceiling: { ...cofferOf(p), ...patch } }));
+  if (!c.on) return null;
+  const fit = fittedDrop(project, c);
+  const pic = pictureHeight(c);
+  const under = perimeterBottom(project, c);
+  return (
+    <Section title="Fascia">
+      <div className="grid3">
+        <Field label="Fascia drop (all beams & perimeter)" htmlFor="fa-drop"><LengthInput id="fa-drop" value={c.drop} onChange={(v) => put({ drop: v ?? defaultCoffer.drop })} /></Field>
+        <Field label="Fascia stock" htmlFor="fa-t"><LengthInput id="fa-t" value={c.fascia} onChange={(v) => put({ fascia: v ?? defaultCoffer.fascia })} /></Field>
+        <Field label="Beam width" htmlFor="fa-bw"><LengthInput id="fa-bw" value={c.beamWidth} onChange={(v) => put({ beamWidth: v ?? defaultCoffer.beamWidth })} /></Field>
+      </div>
+      {c.perimeter && <MoldSlot kind="picture" label="Picture moulding under the perimeter fascia" num={c.picture} species={project.settings.moldSpecies} onChange={(n) => put({ picture: n })} extra={c.picture && <button className="mini" onClick={() => put({ picture: undefined })}>Remove</button>} />}
+      {fit != null && Math.abs(fit - c.drop) > 1 / 32 && (
+        <div className="order-actions">
+          <button className="mini primary" onClick={() => put({ drop: fit })}>Fit to the bookcases: {fmt(fit)} drop</button>
+        </div>
+      )}
+      <p className="hint">
+        Fascia {fmt(fasciaHeight(c))}{pic ? ` plus ${fmt(pic)} of picture moulding` : ''}: the perimeter’s underside is {fmt(under)} off the floor.
+        {fit != null ? (Math.abs(fit - c.drop) > 1 / 32 ? ` The fit brings it down onto the tops of the bookcases and pilasters, so the picture moulding runs across their fronts sitting right on them; every beam takes the same drop.` : ' It sits right on the tops of the bookcases and pilasters, the picture moulding running across their fronts.') : ''}
+      </p>
+    </Section>
+  );
+}
 
 /** The coffered ceiling: layout, beam build, mouldings and field, with what it comes to. */
 export function CofferSection() {

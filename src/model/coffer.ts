@@ -120,6 +120,26 @@ function soffitPanelParts(run: string, pan: SoffitPanels, len: number, width: nu
 
 const fullHeight = (p: Project, wall: WallId, c: CofferCeiling) => p.cabinets.filter((k) => k.wall === wall && k.kind !== 'shelf' && k.elevation + k.height >= p.room.height - c.drop - 12);
 
+/** How tall the picture moulding under the perimeter fascia is (0 without one). */
+export const pictureHeight = (c: CofferCeiling) => (c.perimeter && c.picture ? moldHeight(c.picture) : 0);
+
+/** The underside of the perimeter: fascia, then picture moulding below it. */
+export const perimeterBottom = (p: Project, c = cofferOf(p)) => p.room.height - fasciaHeight(c) - pictureHeight(c);
+
+/**
+ * The drop that brings the fascia and its picture moulding down to the top of the full-height
+ * cabinets and pilasters, so the picture moulding runs across their fronts sitting right on top
+ * of them. One drop serves every beam and the perimeter. Null without full-height casework.
+ */
+export function fittedDrop(p: Project, c = cofferOf(p)): number | null {
+  const tops = p.cabinets.filter((k) => !k.island && k.kind !== 'shelf' && k.kind !== 'mantel' && k.kind !== 'base' && k.elevation + k.height >= p.room.height - c.drop - 12 && perimOf(c, k.wall) > 0).map((k) => k.elevation + k.height);
+  if (!tops.length) return null;
+  const top = Math.max(...tops);
+  const bead = c.joint === 'bead' ? beadCorner(c) : 0;
+  const drop = p.room.height - top - pictureHeight(c) + bead;
+  return drop > 0.5 ? Math.round(drop * 16) / 16 : null;
+}
+
 const leftOf: Record<WallId, WallId> = { back: 'left', left: 'front', front: 'right', right: 'back' };
 const rightOf: Record<WallId, WallId> = { back: 'right', right: 'front', front: 'left', left: 'back' };
 
@@ -134,7 +154,9 @@ export function pictureRuns(p: Project, c = cofferOf(p)): { wall: WallId; a: num
   for (const wall of ['back', 'right', 'front', 'left'] as WallId[]) {
     const len = wallLength(p.room, wall);
     const a0 = perimOf(c, leftOf[wall]), b0 = len - perimOf(c, rightOf[wall]);
-    const covered = fullHeight(p, wall, c).map((k) => [k.offset, k.offset + k.width] as [number, number]).sort((x, y) => x[0] - y[0]);
+    // Cabinets that stop at (or below) the picture moulding's bottom carry it across their tops; only ones rising into it break it
+    const under = perimeterBottom(p, c);
+    const covered = fullHeight(p, wall, c).filter((k) => k.elevation + k.height > under + 0.125).map((k) => [k.offset, k.offset + k.width] as [number, number]).sort((x, y) => x[0] - y[0]);
     let at = a0, fromCorner = true;
     for (const [a, b] of covered) {
       if (b <= at || a >= b0) continue;
@@ -154,7 +176,8 @@ export function underFascia(p: Project, k: Project['cabinets'][number], c = coff
   // A pilaster keeps its capital's crown: that's part of its design, not the run's ceiling crown
   if (!c.on || !c.perimeter || k.island || k.kind === 'base' || k.kind === 'shelf' || k.kind === 'mantel' || k.kind === 'pilaster') return false;
   const P = perimOf(c, k.wall);
-  return P > 0 && k.elevation + k.height >= p.room.height - c.drop - 0.5 && (k.wallInset ?? 0) + k.depth <= P + 0.01;
+  // Up to the fascia, or to the picture moulding under it
+  return P > 0 && k.elevation + k.height >= perimeterBottom(p, c) - 0.5 && (k.wallInset ?? 0) + k.depth <= P + 0.01;
 }
 
 /**

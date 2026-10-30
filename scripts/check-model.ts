@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { canSpots } from "../src/model/lighting";
 import { cutCabinets, newDetail } from "../src/drawings/details";
-import { underFascia } from "../src/model/coffer";
+import { fittedDrop, moldHeight, pictureRuns, underFascia } from "../src/model/coffer";
 import { cabinetMoldings } from "../src/model/moldings";
 import { ladderIssues, ladderOf } from "../src/model/ladder";
 import { newOpening } from "../src/model/room";
@@ -139,6 +139,11 @@ eq('a section drawn through the base and wall cabinets', cutCabinets(withDetails
   const pm = cabinetMoldings(pil, s, resolveEnds(job.room, job.cabinets, pil));
   eq('proud pilaster: base cap wraps its face with a return', pm.filter((m) => m.kind === 'baseMold').length, 2);
   const tm = cabinetMoldings(tall, s, resolveEnds(job.room, job.cabinets, tall)).find((m) => m.kind === 'baseMold')!;
+  // Fit the fascia to the bookcases: fascia plus picture moulding down to their tops, picture running across them
+  const withPic = { ...job, ceiling: { ...job.ceiling, picture: '1527' } };
+  const fit = fittedDrop(withPic)!;
+  eq('fitted drop brings fascia + picture moulding to the bookcase tops', Math.abs(104.25 - fit - moldHeight('1527') - 98.75) < 0.07, true);
+  eq('picture moulding then runs across the bookcases', pictureRuns({ ...withPic, ceiling: { ...withPic.ceiling, drop: fit } }).some((r) => r.wall === 'back'), true);
   eq('the cabinet\'s cap meets the pilaster\'s cap return, inside-mitered', `${tm.x} ${tm.z} ${tm.cut?.[0]}`, '0 12 in');
 }
 
