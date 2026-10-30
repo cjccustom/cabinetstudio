@@ -194,17 +194,18 @@ export function cabinetMoldings(c: Cabinet, s: ShopSettings, ends: EndInfo, opts
     const p = profileByNum(num);
     if (p) {
       const m = mountShape(p);
-      const { h, t } = ps.wrap;
-      const face = (ps.plinth > 0 ? c.depth + ps.proud : c.depth) + t;
+      const { h } = ps.wrap;
+      // On top of the wrapped baseboard, its back against the pilaster's face (or plinth block)
+      const face = ps.plinth > 0 ? c.depth + ps.proud : c.depth;
       const wall = ends.wall ?? { left: false, right: false };
       const back = (side: 'left' | 'right') => ends.baseBeside?.(side)?.z ?? 0;
       const ret = { left: !wall.left && face - back('left') > 0.01, right: !wall.right && face - back('right') > 0.01 };
-      const x0 = ret.left ? -t - m.depth : 0, x1 = c.width + (ret.right ? t + m.depth : 0);
+      const x0 = ret.left ? -m.depth : 0, x1 = c.width + (ret.right ? m.depth : 0);
       out.push({ kind: 'baseMold', num: p.num, along: 'x', facing: 'front', x: x0, y: h, z: face, length: x1 - x0, cut: [ret.left ? 'out' : 'square', ret.right ? 'out' : 'square'] });
       for (const side of ['left', 'right'] as const) {
         if (!ret[side]) continue;
         const z0 = back(side);
-        out.push({ kind: 'baseMold', num: p.num, along: 'z', facing: side, x: side === 'left' ? -t : c.width + t, y: h, z: z0, length: face + m.depth - z0, cut: [z0 > 0.01 ? 'in' : 'square', 'out'] });
+        out.push({ kind: 'baseMold', num: p.num, along: 'z', facing: side, x: side === 'left' ? 0 : c.width, y: h, z: z0, length: face + m.depth - z0, cut: [z0 > 0.01 ? 'in' : 'square', 'out'] });
       }
     }
   } else if (bl.style === 'kick') {
@@ -212,7 +213,8 @@ export function cabinetMoldings(c: Cabinet, s: ShopSettings, ends: EndInfo, opts
     runs.push({ kind: 'baseMold', num: c.baseMold, y: () => 0, z: doorFace });
   } else {
     // A cap on top of the baseboard or skirt, wrapping its returns
-    runs.push({ kind: 'baseMold', num: c.baseMold, y: () => bl.flat, z: c.depth + bl.out, out: bl.out });
+    // The cap sits on top of the baseboard or skirt, its back against the face the board is fastened to
+    runs.push({ kind: 'baseMold', num: c.baseMold, y: () => bl.flat, z: c.depth });
   }
   if (c.kind !== 'base' && !opts.noCrown) {
     // Crown and any extra mouldings stack down from the top of the build, on the sub-crown's face
@@ -240,7 +242,7 @@ export function cabinetMoldings(c: Cabinet, s: ShopSettings, ends: EndInfo, opts
     const wrapL = r.kind === 'baseMold' && !ends.left ? ends.wrapBeside?.('left') ?? null : null;
     const wrapR = r.kind === 'baseMold' && !ends.right ? ends.wrapBeside?.('right') ?? null : null;
     const corner = (side: 'left' | 'right'): MiterCut => (ends[side] ? 'out' : (side === 'left' ? wrapL : wrapR) != null ? 'in' : 'square');
-    const sx0 = x0 + (wrapL ?? 0), sx1 = x1 - (wrapR ?? 0);
+    const sx0 = x0, sx1 = x1;
     out.push({ kind: r.kind, num: p.num, along: 'x', facing: 'front', x: sx0, y, z: r.z, length: sx1 - sx0, hang: r.hang, cut: [corner('left'), corner('right')] });
     // An island's base wraps its finished back too
     const zb = !c.island || r.kind !== 'baseMold' ? null : c.islandSides === 2 ? -r.z - m.depth : -s.endPanelThickness - o - m.depth;

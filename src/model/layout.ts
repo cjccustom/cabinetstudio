@@ -236,13 +236,15 @@ export function resolveEnds(room: Room, cabinets: Cabinet[], c: Cabinet): EndInf
 
 /** Front of whatever butts against a cabinet's side at a height: face frame plus an overlay door, or 0. */
 /** The base moulding on the floor-standing casework touching a pilaster's side: its profile and the face it sits on. */
-export function baseBeside(cabinets: Cabinet[], c: Cabinet, side: 'left' | 'right', tol = 0.25): { num?: string; z: number } | null {
+export function baseBeside(cabinets: Cabinet[], c: Cabinet, side: 'left' | 'right', tol = 0.25): { num?: string; z: number; board: number } | null {
   const edge = side === 'left' ? c.offset : c.offset + c.width;
   const o = cabinets.find((k) => k.id !== c.id && k.wall === c.wall && k.kind !== 'pilaster' && k.elevation < 1 && !k.island
     && (side === 'left' ? Math.abs(k.offset + k.width - edge) <= tol : Math.abs(k.offset - edge) <= tol));
   if (!o) return null;
-  // On a baseboard or skirt the cap sits on the board's face (3/4" stock); on a toe kick, on 3/4" door faces
-  return { num: o.baseMold, z: (o.wallInset ?? 0) + o.depth + 0.75 };
+  // On a baseboard or skirt the cap sits on top of the board, its back on the case face; on a toe kick, on the door faces
+  const boarded = !!o.base?.style && o.base.style !== 'kick';
+  // z: where the cap's back sits; board: the face of its baseboard (where a pilaster's wrap returns to)
+  return { num: o.baseMold, z: (o.wallInset ?? 0) + o.depth + (boarded ? 0 : 0.75), board: (o.wallInset ?? 0) + o.depth + 0.75 };
 }
 
 export function neighbourFace(cabinets: Cabinet[], c: Cabinet, side: 'left' | 'right', y: number, tol = 0.25): number {

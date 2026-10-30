@@ -139,7 +139,7 @@ eq('a section drawn through the base and wall cabinets', cutCabinets(withDetails
   const pm = cabinetMoldings(pil, s, resolveEnds(job.room, job.cabinets, pil));
   eq('proud pilaster: base cap wraps its face with a return', pm.filter((m) => m.kind === 'baseMold').length, 2);
   const tm = cabinetMoldings(tall, s, resolveEnds(job.room, job.cabinets, tall)).find((m) => m.kind === 'baseMold')!;
-  eq('the cabinet\'s cap stops at the pilaster\'s return, inside-mitered', `${tm.x} ${tm.cut?.[0]}`, '0.75 in');
+  eq('the cabinet\'s cap meets the pilaster\'s cap return, inside-mitered', `${tm.x} ${tm.z} ${tm.cut?.[0]}`, '0 12 in');
 }
 
 // Recessed cans: one per coffer, or a grid about every 5'

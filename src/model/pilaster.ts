@@ -126,7 +126,8 @@ export function pilasterParts(c: Cabinet, settings: ShopSettings, ends?: EndInfo
     const face = ps.plinth > 0 ? c.depth + ps.proud : c.depth;
     // Back to the face of the casework beside it; flush with it, the base runs straight through
     const retOf = (side: 'left' | 'right', y: number) => {
-      const nb = ends?.faceAt?.(side, y) ?? 0;
+      // Back to the neighbour's own baseboard where it has one, else its face
+      const nb = ends?.baseBeside?.(side)?.board ?? ends?.faceAt?.(side, y) ?? 0;
       return nb > 0 ? face + t - nb : ps.proud + t;
     };
     for (const [nm, y, hh] of [['Baseboard', 0, h], ['Base cap', h, cap]] as const) {
