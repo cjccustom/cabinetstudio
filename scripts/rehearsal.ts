@@ -12,7 +12,9 @@ import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import worker from '../portal/src/worker';
 import { sampleProject } from '../src/model/defaults';
-import { quoteDoc, quoteTotals } from '../src/model/client';
+import { proposalLines, quoteDoc, quoteTotals } from '../src/model/client';
+import { proposalSummary, withOptions } from '../src/model/proposal';
+import { cabinetFromPreset, presets } from '../src/model/defaults';
 import { priceQuote } from '../src/model/quote';
 
 let failed = 0;
@@ -47,24 +49,35 @@ async function portal() {
 
   // The proposal exactly as the app builds it for a made-up client
   const p = { ...sampleProject(), name: 'Rehearsal kitchen', client: { first: 'Test', last: 'Customer', partner: '', location: 'Sterling', address: '1 Test Rd', phone: '', phone2: '', email: 'test@example.com', source: '', scope: '', notes: '', measurements: [], todos: [] } };
+  // One option the customer will tick, and one they won't
+  const job = p as never as import('../src/model/types').Project;
+  job.cabinets.push({ ...cabinetFromPreset(presets.find((x) => x.id === 'closet-island')!, 'back', 40, job.cabinets), island: true, wallInset: 70, option: 'Kitchen island' });
+  job.quote = { ...job.quote, extras: [{ id: 'e1', label: 'Under-cabinet lighting', hours: 4, amount: 300, option: 'Lighting' }] };
+  const sm = proposalSummary(job);
   const html = quoteDoc(p as never, { online: true });
+  check('proposal: plain scope has no cabinet sizes', !/\d+”W x \d/.test(html) && html.includes('What') === html.includes('What'));
+  check('proposal: two options priced', sm.options.length === 2 && sm.options.every((o) => o.price > 0), sm.options.map((o) => `${o.label} +$${o.price}`).join(', '));
   const { total, deposit } = quoteTotals(p as never);
-  check('proposal: total from the quote', total > 0 && Math.abs(total - priceQuote(p as never).total) < 1, `$${total}`);
+  check('proposal: base total is the quote without the options', total > 0 && Math.abs(total - priceQuote(withOptions(job)).total) < 1, `$${total}`);
   check('proposal: 30% deposit', Math.abs(deposit - total * 0.3) <= 1, `$${deposit}`);
   check('proposal: no NaN or undefined in the agreement', !/NaN|undefined/.test(html));
-  const pub = await mcp('publish_proposal', { job_id: 'rehearsal', project: 'Rehearsal kitchen', client: { first: 'Test', last: 'Customer', address: '1 Test Rd' }, agreement_html: html, total, deposit }) as { url: string };
+  const pub = await mcp('publish_proposal', { job_id: 'rehearsal', project: 'Rehearsal kitchen', client: { first: 'Test', last: 'Customer', address: '1 Test Rd' }, agreement_html: html, total, deposit, summary: { areas: sm.areas, materials: sm.materials }, sections: proposalLines(job), options: sm.options }) as { url: string };
   const token = pub.url.split('/p/')[1];
   const page = await (await call('/p/' + token)).text();
   check('customer page: opens', page.includes('Rehearsal kitchen') && page.includes('Sign the agreement'));
   check('customer page: no cancellation box before signing', !/Changed your mind|Notice of Cancellation/i.test(page));
-  const signed = await call(`/p/${token}/sign`, { method: 'POST', body: new URLSearchParams({ consent: 'on', agree: 'on', name: 'Test Customer', image: 'data:image/png;base64,iVBORw0KGgo=' }), headers: { 'cf-connecting-ip': '203.0.113.7' }, redirect: 'manual' });
+  check('customer page: what we’ll build, materials, options to tick', page.includes('What we’ll build') && page.includes('Materials &amp; finishes') && (page.match(/name="opt_/g) ?? []).length === 2);
+  const signed = await call(`/p/${token}/sign`, { method: 'POST', body: new URLSearchParams({ consent: 'on', agree: 'on', name: 'Test Customer', image: 'data:image/png;base64,iVBORw0KGgo=', [`opt_${sm.options[0].id}`]: 'on' }), headers: { 'cf-connecting-ip': '203.0.113.7' }, redirect: 'manual' });
   check('customer signs', signed.status === 303);
   const after = await (await call('/p/' + token)).text();
   check('customer page after signing: no cancel box', !/Changed your mind|Cancel the agreement/i.test(after) && after.includes('Signed by'));
   const agreement = await (await call(`/p/${token}/agreement`)).text();
   check('signed copy: signature and two Notices of Cancellation', agreement.includes('Electronic signature') && (agreement.match(/NOTICE OF CANCELLATION/gi) ?? []).length >= 2);
-  const st = await mcp('job_status', { job_id: 'rehearsal' }) as { signed?: { name: string }; cancelDeadline?: string };
+  const st = await mcp('job_status', { job_id: 'rehearsal' }) as { signed?: { name: string; options?: string[]; total?: number; deposit?: number }; cancelDeadline?: string };
   check('your status: signed, with the cancel deadline', st.signed?.name === 'Test Customer' && !!st.cancelDeadline, st.cancelDeadline);
+  const want = total + sm.options[0].price;
+  check('the ticked option is in the signed total and deposit', st.signed?.total === want && st.signed?.deposit === Math.round(want * deposit / total) && st.signed?.options?.join() === sm.options[0].label, `$${st.signed?.total}, deposit $${st.signed?.deposit}`);
+  check('signed copy lists the option and the total', agreement.includes(`Options chosen:</b> ${sm.options[0].label}`) && agreement.includes(`$${want.toLocaleString('en-US')}`));
   let refused = false;
   try { await mcp('publish_proposal', { job_id: 'rehearsal', project: 'x', agreement_html: 'x', total: 1, deposit: 1 }); } catch { refused = true; }
   check('a signed proposal can’t be replaced by accident', refused);

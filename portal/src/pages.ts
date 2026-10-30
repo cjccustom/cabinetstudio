@@ -24,7 +24,14 @@ h1{font-size:26px;line-height:1.2;margin:28px 0 4px}h2{font-size:19px;margin:0 0
 .gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px}.gallery a{display:block;border-radius:8px;overflow:hidden;background:#ddd}
 .gallery img{width:100%;display:block;aspect-ratio:4/3;object-fit:cover}
 .price{display:flex;gap:24px;flex-wrap:wrap;margin:6px 0 12px}.price div{min-width:140px}.price b{display:block;font-size:24px}
-iframe.doc{width:100%;height:70vh;border:1px solid var(--line);border-radius:8px;background:#fff}
+iframe.doc{width:100%;height:70vh;border:1px solid var(--line);border-radius:8px;background:#fff;margin-top:10px}
+.design{margin:16px 0}.design .hero{display:block;border-radius:12px;overflow:hidden;background:#ddd;box-shadow:0 2px 14px rgba(0,0,0,.12)}.design .hero img{width:100%;display:block}.design .gallery{margin-top:10px}.design p{font-size:14px;margin:8px 2px 0}
+h3{font-size:16px;margin:16px 0 6px}ul.items{margin:0;padding-left:20px}ul.items li{margin:5px 0}
+dl.mat{margin:0;display:grid;gap:10px}dl.mat div{display:grid;grid-template-columns:170px 1fr;gap:12px;border-top:1px solid var(--line);padding-top:10px}dl.mat div:first-child{border-top:0;padding-top:0}dt{color:var(--muted)}dd{margin:0}
+@media (max-width:520px){dl.mat div{grid-template-columns:1fr;gap:2px}}
+table.lines{width:100%;border-collapse:collapse;margin:0 0 6px}table.lines td{padding:8px 0;border-top:1px solid var(--line)}table.lines tr:first-child td{border-top:0}table.lines .num{text-align:right;white-space:nowrap}table.lines tr.sub td{font-weight:600}
+.opt{display:flex;gap:12px;align-items:flex-start;padding:12px;border:1px solid var(--line);border-radius:10px;margin:8px 0;cursor:pointer}.opt input{margin-top:4px;width:18px;height:18px}.opt span{display:flex;flex-direction:column;gap:2px;flex:1}.opt span .muted{font-size:14px}.opt .add{white-space:nowrap}
+.opt:has(input:checked){border-color:var(--accent);background:#f2f6f3}details.agree{border-top:1px solid var(--line);margin-top:14px;padding-top:12px}
 details{border-top:1px solid var(--line);padding:10px 0}details:first-of-type{border-top:0}summary{cursor:pointer;font-weight:600}
 ul.docs{list-style:none;padding:0;margin:0}ul.docs li{padding:10px 0;border-top:1px solid var(--line);display:flex;justify-content:space-between;gap:10px}ul.docs li:first-child{border-top:0}
 a{color:var(--accent)}.btn{display:inline-block;padding:11px 18px;border-radius:8px;border:1px solid var(--accent);background:var(--accent);color:var(--accent-ink);font:inherit;font-weight:600;text-decoration:none;cursor:pointer}
@@ -60,9 +67,38 @@ ${i.link ? `<div class="row"><a class="btn" href="${esc(i.link)}" target="_blank
 export function projectPage(j: Job, shop: Shop, token: string, flash = '', visits: Appointment[] = []): string {
   const base = `/p/${token}`;
   const s = j.signature;
-  const shots = j.renderings.length
-    ? `<section class="card"><h2>Your design</h2><div class="gallery">${j.renderings.map((r) => `<a href="${base}/img/${esc(r.id)}" target="_blank" rel="noopener"><img src="${base}/img/${esc(r.id)}" alt="${esc(r.name)}" loading="lazy"></a>`).join('')}</div><p class="muted">Renderings show the look of the work; the signed scope and the shop drawings that follow set the details.</p></section>`
+  // The design leads: the first rendering large, the rest below it
+  const [hero, ...more] = j.renderings;
+  const img = (r: { id: string; name: string }, cls = '') => `<a href="${base}/img/${esc(r.id)}" target="_blank" rel="noopener"${cls ? ` class="${cls}"` : ''}><img src="${base}/img/${esc(r.id)}" alt="${esc(r.name)}"${cls ? '' : ' loading="lazy"'}></a>`;
+  const shots = hero
+    ? `<section class="design">${img(hero, 'hero')}${more.length ? `<div class="gallery">${more.map((r) => img(r)).join('')}</div>` : ''}<p class="muted">Renderings show the look of the work. Exact sizes come with the shop drawings you approve after signing.</p></section>`
     : '';
+  const pr = j.proposal;
+  const build = pr.summary?.areas.length
+    ? `<section class="card"><h2>What we’ll build</h2>${pr.summary.areas.map((a) => `<h3>${esc(a.title)}</h3><ul class="items">${a.items.map((i) => `<li>${esc(i)}</li>`).join('')}</ul>`).join('')}</section>`
+    : '';
+  const mats = pr.summary?.materials.length
+    ? `<section class="card"><h2>Materials &amp; finishes</h2><dl class="mat">${pr.summary.materials.map((m) => `<div><dt>${esc(m.label)}</dt><dd>${esc(m.value)}</dd></div>`).join('')}</dl></section>`
+    : '';
+  const share = pr.total ? pr.deposit / pr.total : 0.3;
+  const chosen = (pr.options ?? []).filter((o) => s?.options?.includes(o.id));
+  const signedFor = s?.total != null ? { total: s.total, deposit: s.deposit ?? pr.deposit } : { total: pr.total, deposit: pr.deposit };
+  const open = !s && !j.cancelled;
+  const optionsBlock = pr.options?.length
+    ? open
+      ? `<h3>Options</h3><p class="muted" style="margin-top:0">Tick any you’d like added. The total and deposit update, and what you tick is part of what you sign.</p>${pr.options.map((o) => `<label class="opt"><input type="checkbox" name="opt_${esc(o.id)}" form="sign" data-price="${o.price}"><span><b>${esc(o.label)}</b>${o.items.length ? `<span class="muted">${o.items.map(esc).join('; ')}</span>` : ''}</span><b class="add">+${money(o.price)}</b></label>`).join('')}`
+      : chosen.length ? `<h3>Options chosen</h3><ul class="items">${chosen.map((o) => `<li>${esc(o.label)} (+${money(o.price)})</li>`).join('')}</ul>` : ''
+    : '';
+  // Sections when there's more than one; with options, the base price they add to
+  const rows = (pr.sections?.length ?? 0) > 1 ? pr.sections! : [];
+  const lines = rows.length || pr.options?.length
+    ? `<table class="lines">${rows.map((l) => `<tr><td>${esc(l.label)}</td><td class="num">${money(l.price)}</td></tr>`).join('')}${pr.options?.length ? `<tr class="sub"><td>${rows.length ? 'Before options' : 'Base price'}</td><td class="num">${money(pr.total)}</td></tr>` : ''}</table>`
+    : '';
+  const price = `<section class="card"><h2>Your investment</h2>${lines}${optionsBlock}
+<div class="price"><div><span class="muted">Total project investment</span><b id="tot">${money(signedFor.total)}</b></div><div><span class="muted">Deposit at signing (${Math.round(share * 100)}%)</span><b id="dep">${money(signedFor.deposit)}</b></div></div>
+${open && pr.options?.length ? `<script>(()=>{const base=${pr.total},share=${share},f=n=>'$'+Math.round(n).toLocaleString('en-US');const go=()=>{let t=base;document.querySelectorAll('input[data-price]').forEach(i=>{if(i.checked)t+=+i.dataset.price});document.getElementById('tot').textContent=f(t);document.getElementById('dep').textContent=f(Math.round(t*share))};document.querySelectorAll('input[data-price]').forEach(i=>i.addEventListener('change',go));go()})();</script>` : ''}
+<details class="agree"><summary>Read the full proposal and agreement</summary><iframe class="doc" title="Project scope and purchase agreement" sandbox srcdoc="${esc(pr.agreementHtml)}"></iframe></details>
+<p class="row"><a href="${base}/agreement" target="_blank" rel="noopener">Open the full agreement to print or save</a></p></section>`;
   const docs = shop.docs.filter((d) => d.kind !== 'terms');
   const termsDoc = shop.docs.find((d) => d.kind === 'terms');
   const signBlock = j.cancelled
@@ -72,7 +108,7 @@ export function projectPage(j: Job, shop: Shop, token: string, flash = '', visit
 <div class="row"><a class="btn" href="${base}/agreement" target="_blank" rel="noopener">Your signed agreement</a></div>
 ${payBlock(j, shop)}
 `
-      : `<p>Read the scope, price and terms above. When you’re ready, sign below; your signed copy opens right away to save or print.</p>
+      : `<p>Read the scope, price and terms above.${pr.options?.length ? ' Any options you ticked are included.' : ''} When you’re ready, sign below; your signed copy opens right away to save or print.</p>
 <form id="sign" method="post" action="${base}/sign">
 <label class="chk"><input type="checkbox" name="consent" required> <span>I agree to sign and receive this agreement electronically. I can save or print it, and I can ask CJC Custom Carpentry for a paper copy at any time.</span></label>
 <label class="chk"><input type="checkbox" name="agree" required> <span>I have read the Project Scope of Work, the Purchase Agreement and the Terms and Conditions, and I agree to them.</span></label>
@@ -94,10 +130,7 @@ f.addEventListener('submit',()=>{document.getElementById('image').value=c.toData
 <h1>${esc(j.project)}</h1><p class="muted">Prepared for ${esc(clientName(j))}${j.client.address ? ` · ${esc(j.client.address)}` : ''}</p>
 ${visits.length ? `<section class="card"><h2>Coming up</h2>${visits.map((v) => `<p><b>${esc(apptLabel[v.kind])}</b> · ${esc(whenEastern(v.start))}${v.location ? `<br><span class="muted">${esc(v.location)}</span>` : ''}${v.clientNote ? `<br>${esc(v.clientNote)}` : ''}</p><p><a class="btn ghost" href="${base}/visit/${esc(v.id)}.ics">Add to my calendar</a></p>`).join('')}</section>` : ''}
 ${shots}
-<section class="card"><h2>Your proposal</h2>
-<div class="price"><div><span class="muted">Total project investment</span><b>${money(j.proposal.total)}</b></div><div><span class="muted">Deposit at signing (30%)</span><b>${money(j.proposal.deposit)}</b></div></div>
-<iframe class="doc" title="Project scope and purchase agreement" sandbox srcdoc="${esc(j.proposal.agreementHtml)}"></iframe>
-<p class="row"><a href="${base}/agreement" target="_blank" rel="noopener">Open the full agreement to print or save</a></p></section>
+${build}${mats}${price}
 <section class="card"><h2>Terms and conditions</h2>${termsOf(j, shop) ? `<details><summary>Read the terms</summary>${paras(termsOf(j, shop))}</details>` : '<p class="muted">Terms are attached to the agreement.</p>'}${termsDoc ? `<p><a href="${base}/doc/${esc(termsDoc.id)}" target="_blank" rel="noopener">${esc(termsDoc.title)} (PDF)</a></p>` : ''}</section>
 ${docs.length ? `<section class="card"><h2>Licenses and insurance</h2><ul class="docs">${docs.map((d) => `<li><a href="${base}/doc/${esc(d.id)}" target="_blank" rel="noopener">${esc(d.title)}</a>${d.expires ? `<span class="muted">valid through ${esc(new Date(`${d.expires}T12:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' }))}</span>` : ''}</li>`).join('')}</ul></section>` : ''}
 ${shop.about ? `<section class="card"><h2>About CJC Custom Carpentry</h2>${paras(shop.about)}</section>` : ''}
@@ -116,6 +149,7 @@ export function agreementPage(j: Job, shop: Shop): string {
   const signed = s
     ? `<section style="page-break-before:always"><h2>Electronic signature</h2>
 <p>Signed by <b>${esc(s.name)}</b> on ${esc(new Date(s.at).toLocaleString('en-US', { timeZone: 'America/New_York', dateStyle: 'long', timeStyle: 'short' }))} (Eastern), from ${esc(s.ip)}.</p>
+${s.total != null ? `<p><b>Options chosen:</b> ${(j.proposal.options ?? []).filter((o) => s.options?.includes(o.id)).map((o) => `${esc(o.label)} (+${money(o.price)})`).join('; ') || 'none'}.<br><b>Total project investment: ${money(s.total)}</b>; deposit ${money(s.deposit ?? 0)}, balance ${money(s.total - (s.deposit ?? 0))} on completion.</p>` : ''}
 <p><img src="${esc(s.image)}" alt="Signature of ${esc(s.name)}" style="max-width:360px;border-bottom:1px solid #111"></p>
 <p class="muted" style="font-size:12px">The signer agreed to sign electronically and confirmed reading the Project Scope of Work, Purchase Agreement and Terms and Conditions. Document fingerprint (SHA-256) ${esc(s.hash.slice(0, 32))}, version ${s.version}.</p>
 ${noticeOfCancellation(easternYmd(s.at), seller, address)}${noticeOfCancellation(easternYmd(s.at), seller, address)}</section>`

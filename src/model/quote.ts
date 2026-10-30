@@ -143,7 +143,7 @@ export const defaultStandards: LaborStandards = {
 
 export type Workload = 'full' | 'normal' | 'light';
 
-export interface QuoteExtra { id: string; label: string; hours: number; amount: number }
+export interface QuoteExtra { id: string; label: string; hours: number; amount: number; /** Offered as part of this named option. */ option?: string }
 
 export interface QuoteSettings {
   laborCost: number;

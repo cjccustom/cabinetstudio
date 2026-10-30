@@ -5,6 +5,8 @@ import { Field, Section } from './fields';
 import { QuoteRendering } from './Rendering';
 import { FurnitureSection } from './Furniture';
 import { furnitureOf, tableScope } from '../model/furniture';
+import { optionNames, optionPrices } from '../model/proposal';
+import { proposalLines } from '../model/client';
 import { defaultSupplies, driverLabel, newSupply, supplyLines, type SupplyDriver, type SupplyItem } from '../model/supplies';
 
 const money = (v: number) => `$${Math.round(v).toLocaleString('en-US')}`;
@@ -221,22 +223,17 @@ export function QuoteBreakdown() {
 export function QuoteSummary() {
   const { project, q, set, result: r } = useQuote();
   const [copied, setCopied] = useState('');
-  const lines = [
-    ...r.groups.map((g) => ({ label: groupLabel[g.group], price: g.price * (1 + q.workloadAdj[q.workload]) })),
-    ...r.extras.map((e) => ({ label: e.label, price: e.price * (1 + q.workloadAdj[q.workload]) })),
-    ...(r.painter ? [{ label: q.paintMode === 'allowance' ? 'Cabinet prefinishing (allowance)' : 'Cabinet prefinishing', price: r.painter }] : []),
-  ];
-  // Spread the adjustment and rounding over the lines so they add up to the total
-  const sum = lines.reduce((t, l) => t + l.price, 0) || 1;
-  const rounded = lines.map((l) => ({ ...l, price: Math.round(((l.price / sum) * r.total) / 10) * 10 }));
-  const drift = r.total - rounded.reduce((t, l) => t + l.price, 0);
-  if (rounded.length) rounded[0].price += drift;
+  // What the customer signs for: the base price in sections, and each option on its own
+  const rounded = proposalLines(project);
+  const options = useMemo(() => optionPrices(project), [project]);
+  const baseTotal = rounded.reduce((t, l) => t + l.price, 0);
   const scope = [...project.cabinets.map((c) => scopeLine(c, project)), cofferScope(project), ...furnitureOf(project).map(tableScope)].filter((x): x is string => !!x);
   const text = [
     ...scope,
     '',
     ...rounded.map((l) => `${l.label}: ${money(l.price)}`),
-    `Total Project Investment: ${money(r.total)}`,
+    `Total Project Investment: ${money(baseTotal)}`,
+    ...options.map((o) => `Option, ${o.label}: add ${money(o.price)}`),
   ].join('\n');
   const copy = () => navigator.clipboard.writeText(text).then(() => setCopied('Copied.'), () => setCopied('Couldn’t reach the clipboard.'));
   return (
@@ -246,7 +243,8 @@ export function QuoteSummary() {
           <table className="totals">
             <tbody>
               {rounded.map((l) => <tr key={l.label}><td>{l.label}</td><td className="num">{money(l.price)}</td></tr>)}
-              <tr className="sum"><td>Total Project Investment</td><td className="num">{money(r.total)}</td></tr>
+              <tr className="sum"><td>Total Project Investment{options.length ? ' (before options)' : ''}</td><td className="num">{money(baseTotal)}</td></tr>
+              {options.map((o) => <tr key={o.id}><td>Option: {o.label}</td><td className="num">+{money(o.price)}</td></tr>)}
             </tbody>
           </table>
           <div className="grid2" style={{ marginTop: 10 }}>
@@ -254,7 +252,7 @@ export function QuoteSummary() {
             <Num id="q-round" label="Round to" suffix="$" value={q.roundTo} onChange={(v) => set({ roundTo: v })} />
           </div>
           <p className="hint">
-            Calculated {money(r.calculated)}
+            {options.length ? `With every option ${money(r.total)}. ` : ''}Calculated {money(r.calculated)}
             {r.workloadAmount ? `, workload ${r.workloadAmount > 0 ? '+' : '−'}${money(Math.abs(r.workloadAmount))}` : ''}
             {q.adjustment ? `, your adjustment ${q.adjustment > 0 ? '+' : '−'}${money(Math.abs(q.adjustment))}` : ''}.
           </p>
@@ -274,10 +272,14 @@ export function QuoteSummary() {
                 <Num id={`ex-h-${e.id}`} label="Hours" value={e.hours} onChange={(v) => set({ extras: q.extras.map((x) => (x.id === e.id ? { ...x, hours: v } : x)) })} />
                 <Num id={`ex-a-${e.id}`} label="Materials or flat" suffix="$" value={e.amount} onChange={(v) => set({ extras: q.extras.map((x) => (x.id === e.id ? { ...x, amount: v } : x)) })} />
               </div>
+              <Field label="Offered as an option (blank = included)" htmlFor={`ex-o-${e.id}`}>
+                <input id={`ex-o-${e.id}`} list="option-names-q" value={e.option ?? ''} placeholder="Included in the base price" onChange={(ev) => set({ extras: q.extras.map((x) => (x.id === e.id ? { ...x, option: ev.target.value || undefined } : x)) })} />
+              </Field>
             </div>
           ))}
         </Section>
 
+        <datalist id="option-names-q">{optionNames(useStore.getState().project).map((n) => <option key={n} value={n} />)}</datalist>
         <QuoteRendering />
 
         <Section title="Scope of work">

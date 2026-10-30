@@ -10,7 +10,7 @@
 // Setup in Cloudflare: a KV namespace bound as PORTAL, and a Secret named SHOP_KEY; for
 // QuickBooks, Secrets QB_CLIENT_ID and QB_CLIENT_SECRET (and QB_ENV = sandbox to test first);
 // for photos, Secrets DBX_APP_KEY and DBX_APP_SECRET.
-import { type Env, type Job, type ShopDoc, b64ToBytes, getJob, getShop, jobByToken, putJob, putShop, randomToken, sha256 } from './store';
+import { type Env, type Job, type ShopDoc, b64ToBytes, getJob, getShop, jobByToken, putJob, putShop, randomToken, sha256, signedTotals } from './store';
 import { agreementPage, esc, projectPage, simplePage } from './pages';
 import { canCancel, cancelDeadline, easternYmd } from './cancel';
 import { calendar, deleteAppt, feedCode, listAppts, saveAppt, apptLabel, type Appointment } from './calendar';
@@ -86,7 +86,14 @@ async function client(request: Request, env: Env, token: string, what: string, i
     if (!name || f.get('consent') !== 'on' || f.get('agree') !== 'on' || !/^data:image\/png;base64,/.test(image) || image.length > 400_000) {
       return html(projectPage(job, shop, token, 'Please check both boxes, type your name and sign in the box.'), 400);
     }
-    job.signature = { name, image, at: Date.now(), ip, ua: (request.headers.get('user-agent') || '').slice(0, 200), hash: job.proposal.hash, version: job.proposal.version, consent: true };
+    // Options ticked on the page add to the total; the deposit keeps the proposal's share of it
+    const picked = (job.proposal.options ?? []).filter((o) => f.get(`opt_${o.id}`) === 'on');
+    const total = job.proposal.total + picked.reduce((t, o) => t + o.price, 0);
+    const share = job.proposal.total ? job.proposal.deposit / job.proposal.total : 0.3;
+    job.signature = {
+      name, image, at: Date.now(), ip, ua: (request.headers.get('user-agent') || '').slice(0, 200), hash: job.proposal.hash, version: job.proposal.version, consent: true,
+      ...(job.proposal.options?.length ? { options: picked.map((o) => o.id), total, deposit: Math.round(total * share) } : {}),
+    };
     await putJob(env, job);
     await autoDeposit(env, job);
     return Response.redirect(new URL(`/p/${token}/agreement`, request.url).href, 303);
@@ -114,11 +121,11 @@ const visitsFor = async (env: Env, jobId: string): Promise<Appointment[]> => {
 
 /** The deposit invoice, made and sent when the client signs (when QuickBooks is connected and that's switched on). */
 async function autoDeposit(env: Env, job: Job) {
-  if (!qbReady(env) || !(job.proposal.deposit > 0) || job.invoices?.some((i) => i.kind === 'deposit')) return;
+  if (!qbReady(env) || !(signedTotals(job).deposit > 0) || job.invoices?.some((i) => i.kind === 'deposit')) return;
   const [conn, s] = [await getConn(env), await getQbSettings(env)];
   if (!conn || !s.autoDeposit) return;
   try {
-    const inv = await makeInvoice(env, job, 'deposit', job.proposal.deposit, depositLine(job));
+    const inv = await makeInvoice(env, job, 'deposit', signedTotals(job).deposit, depositLine(job));
     job.invoices = [...(job.invoices ?? []), inv];
     job.invoiceError = undefined;
   } catch (e) {
@@ -126,7 +133,11 @@ async function autoDeposit(env: Env, job: Job) {
   }
   await putJob(env, job);
 }
-const depositLine = (j: Job) => `Deposit (${Math.round((j.proposal.deposit / (j.proposal.total || 1)) * 100)}%) on ${j.project}, per the signed agreement (version ${j.proposal.version}). Project total $${j.proposal.total.toLocaleString('en-US')}.`;
+const depositLine = (j: Job) => {
+  const t = signedTotals(j);
+  const opts = (j.proposal.options ?? []).filter((o) => j.signature?.options?.includes(o.id)).map((o) => o.label);
+  return `Deposit (${Math.round((t.deposit / (t.total || 1)) * 100)}%) on ${j.project}, per the signed agreement (version ${j.proposal.version})${opts.length ? ` with ${opts.join(', ')}` : ''}. Project total $${t.total.toLocaleString('en-US')}.`;
+};
 
 /** Bring unpaid invoices up to date with QuickBooks, at most every `age` ms. */
 async function freshInvoices(env: Env, job: Job, age: number) {
@@ -241,6 +252,9 @@ const TOOLS = [
         job_id: { type: 'string' }, project: { type: 'string' },
         client: { type: 'object', properties: { first: { type: 'string' }, last: { type: 'string' }, email: { type: 'string' }, phone: { type: 'string' }, address: { type: 'string' } } },
         agreement_html: { type: 'string' }, total: { type: 'number' }, deposit: { type: 'number' },
+        summary: { type: 'object', description: 'The plain-language page: areas (title, items) and materials (label, value).' },
+        sections: { type: 'array', description: 'The base price in sections (label, price).', items: { type: 'object' } },
+        options: { type: 'array', description: 'Options the client can tick when signing (id, label, price, items).', items: { type: 'object' } },
         renderings: { type: 'array', items: { type: 'object', properties: { name: { type: 'string' }, mimeType: { type: 'string' }, data: { type: 'string' } }, required: ['data'] } },
         keep_renderings: { type: 'boolean', description: 'Leave the renderings already published as they are.' },
         replace_signed: { type: 'boolean' },
@@ -304,7 +318,7 @@ async function rpc(raw: unknown, env: Env, url: URL) {
 const status = (j: Job, url: URL) => ({
   job_id: j.jobId, project: j.project, url: `${url.origin}/p/${j.token}`, version: j.proposal.version, publishedAt: j.proposal.publishedAt,
   views: (j.views ?? []).length, lastViewed: j.views?.length ? j.views[j.views.length - 1] : null,
-  signed: j.signature ? { name: j.signature.name, at: j.signature.at, version: j.signature.version, current: j.signature.hash === j.proposal.hash } : null,
+  signed: j.signature ? { name: j.signature.name, at: j.signature.at, version: j.signature.version, current: j.signature.hash === j.proposal.hash, ...(j.signature.total != null ? { options: (j.proposal.options ?? []).filter((o) => j.signature!.options?.includes(o.id)).map((o) => o.label), total: j.signature.total, deposit: j.signature.deposit } : {}) } : null,
   cancelDeadline: j.signature ? cancelDeadline(easternYmd(j.signature.at)) : null,
   cancelled: j.cancelled ? { at: j.cancelled.at } : null,
   invoices: (j.invoices ?? []).map((i) => ({ id: i.id, kind: i.kind, number: i.docNumber ?? null, amount: i.amount, balance: i.balance, paid: i.balance <= 0, emailed: !!i.emailed, payLink: !!i.link, createdAt: i.createdAt, payments: i.payments ?? [] })),
@@ -373,7 +387,7 @@ async function tool(name: string, a: Record<string, unknown>, env: Env, url: URL
       const token = old?.token ?? randomToken(18);
       const job: Job = {
         jobId, token, client: (a.client as Job['client']) ?? old?.client ?? {}, project: String(a.project || old?.project || 'Your project'), stage: 'proposal',
-        proposal: { agreementHtml, total: Number(a.total) || 0, deposit: Number(a.deposit) || 0, publishedAt: Date.now(), version, hash, terms: shop.terms },
+        proposal: { agreementHtml, total: Number(a.total) || 0, deposit: Number(a.deposit) || 0, publishedAt: Date.now(), version, hash, terms: shop.terms, ...cleanSummary(a) },
         renderings, views: old?.views ?? [],
         history: old?.history ?? [],
         invoices: old?.invoices ?? [],
@@ -437,8 +451,9 @@ async function tool(name: string, a: Record<string, unknown>, env: Env, url: URL
       const kind = (str('kind') as QbInvoice['kind']) || 'deposit';
       // Change orders are billed on their own when approved; the final invoice is the contract total less earlier contract invoices
       const before = (j.invoices ?? []).filter((i) => i.kind !== 'change').reduce((t, i) => t + i.amount, 0);
-      const amount = typeof a.amount === 'number' ? a.amount : kind === 'deposit' ? j.proposal.deposit : kind === 'final' ? j.proposal.total - before : 0;
-      const description = str('description') || (kind === 'deposit' ? depositLine(j) : kind === 'final' ? `Final payment on ${j.project}: project total $${j.proposal.total.toLocaleString('en-US')} less $${before.toLocaleString('en-US')} invoiced before.` : `Change order on ${j.project}.`);
+      const t = signedTotals(j);
+      const amount = typeof a.amount === 'number' ? a.amount : kind === 'deposit' ? t.deposit : kind === 'final' ? t.total - before : 0;
+      const description = str('description') || (kind === 'deposit' ? depositLine(j) : kind === 'final' ? `Final payment on ${j.project}: project total $${t.total.toLocaleString('en-US')} less $${before.toLocaleString('en-US')} invoiced before.` : `Change order on ${j.project}.`);
       const inv = await makeInvoice(env, j, kind, amount, description);
       j.invoices = [...(j.invoices ?? []), inv];
       if (kind === 'deposit') j.invoiceError = undefined;
@@ -465,4 +480,20 @@ async function tool(name: string, a: Record<string, unknown>, env: Env, url: URL
     }
     default: throw new Error(`Unknown tool ${name}`);
   }
+}
+
+/** The plain-language parts of a proposal as sent, kept to plain text and numbers. */
+function cleanSummary(a: Record<string, unknown>): Pick<Job['proposal'], 'summary' | 'sections' | 'options'> {
+  const str = (v: unknown, n = 400) => String(v ?? '').slice(0, n);
+  const num = (v: unknown) => (Number.isFinite(Number(v)) ? Number(v) : 0);
+  const arr = (v: unknown) => (Array.isArray(v) ? v : []) as Record<string, unknown>[];
+  const sm = (a.summary ?? null) as Record<string, unknown> | null;
+  const out: Pick<Job['proposal'], 'summary' | 'sections' | 'options'> = {};
+  if (sm) out.summary = {
+    areas: arr(sm.areas).slice(0, 30).map((x) => ({ title: str(x.title, 80), items: arr(x.items).slice(0, 60).map((i) => str(i)) })),
+    materials: arr(sm.materials).slice(0, 20).map((x) => ({ label: str(x.label, 60), value: str(x.value, 200) })),
+  };
+  if (Array.isArray(a.sections)) out.sections = arr(a.sections).slice(0, 20).map((x) => ({ label: str(x.label, 80), price: num(x.price) }));
+  if (Array.isArray(a.options)) out.options = arr(a.options).slice(0, 12).map((x) => ({ id: str(x.id, 40).replace(/[^a-z0-9-]/g, '') || 'option', label: str(x.label, 80), price: num(x.price), items: arr(x.items).slice(0, 30).map((i) => str(i)) }));
+  return out;
 }

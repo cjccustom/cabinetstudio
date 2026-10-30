@@ -62,6 +62,10 @@ export interface Cabinet {
   rightEnd?: EndMode;
   /** Wall cabinets: box bottom flush with the bottom of the face frame instead of tucked behind the rail. */
   bottomFlush?: boolean;
+  /** What the customer calls where it goes ("Fridge wall", "Window seat"); groups it on the proposal. Unset = its wall. */
+  area?: string;
+  /** Offered on top of the base price as part of this named option (e.g. "Additional cabinets"); the customer ticks it when signing. */
+  option?: string;
   /** Notes for the drawings: for the customer, the shop, or both. */
   notes?: CabinetNote[];
   /** Floor cabinets: toe kick, baseboard wrap or a decorative skirt. */
@@ -363,6 +367,8 @@ export interface Room {
 export interface Project {
   version: 2;
   name: string;
+  /** How the customer's proposal describes the work: plain (no sizes, the default) or full, cabinet by cabinet with sizes. */
+  proposalDetail?: 'plain' | 'full';
   room: Room;
   settings: ShopSettings;
   finishes: Finishes;

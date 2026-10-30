@@ -8,6 +8,7 @@ import { eagleRequests, requestText } from './eagleRequest';
 import { hardwareOrder, hardwareText } from './hardware';
 import { releaseOf } from './release';
 import { LOGO } from '../drawings/logo';
+import { proposalSummary, withOptions } from './proposal';
 
 export const JOBS_ROOT = '/CJC/Jobs';
 
@@ -110,7 +111,9 @@ const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replac
 const money = (v: number) => `$${Math.round(v).toLocaleString('en-US')}`;
 
 /** The purchase agreement's price lines: workload, adjustment and rounding spread over them so they add up to the total. */
-export function proposalLines(p: Project): { label: string; price: number }[] {
+export function proposalLines(full: Project): { label: string; price: number }[] {
+  // The base proposal: options are priced on their own and added when the customer picks them
+  const p = withOptions(full);
   const q = quoteOf(p);
   const r = priceQuote(p);
   const adj = 1 + q.workloadAdj[q.workload];
@@ -127,7 +130,7 @@ export function proposalLines(p: Project): { label: string; price: number }[] {
 
 /** The price and the 30% deposit the purchase agreement asks for. */
 export function quoteTotals(p: Project): { total: number; deposit: number } {
-  const total = priceQuote(p).total;
+  const total = priceQuote(withOptions(p)).total;
   return { total, deposit: Math.round(total * 0.3) };
 }
 
@@ -135,26 +138,33 @@ export function quoteTotals(p: Project): { total: number; deposit: number } {
  *  `online` is the copy for the client portal, which is signed electronically on the page instead of on signature lines. */
 export function quoteDoc(p: Project, opts: { online?: boolean } = {}): string {
   const c = clientOf(p);
-  const r = priceQuote(p);
+  const base = withOptions(p);
+  const r = priceQuote(base);
+  const summary = proposalSummary(p);
+  const full = p.proposalDetail === 'full';
   const rounded = proposalLines(p);
   const { deposit } = quoteTotals(p);
   const head = `<div class="co"><img src="${LOGO}" alt="CJC Custom Carpentry" style="height:.62in;display:block;margin-bottom:6px">${COMPANY.slice(1).map(esc).join('<br>')}</div>`;
   const who = `<table class="who"><tr><th>Client Name</th><td>${esc(clientName(c))}</td></tr><tr><th>Project Address</th><td>${esc(c.address)}</td></tr>`;
   return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(clientName(c) || 'Quote')} - ${esc(p.name)}</title>
 <style>body{font:11pt/1.45 Georgia,serif;max-width:7.5in;margin:.6in auto;color:#111}.co{font-size:10pt;margin-bottom:18px}h1{font-size:15pt;text-align:center;letter-spacing:.06em;margin:18px 0}
-table{border-collapse:collapse;width:100%;margin:8px 0}th,td{border:1px solid #999;padding:6px 8px;text-align:left;vertical-align:top}th{width:34%;background:#f3f1ec;font-weight:600}
+h3{font-size:12pt;margin:16px 0 4px}ul{margin:4px 0 8px;padding-left:20px}ul li{margin:4px 0}table{border-collapse:collapse;width:100%;margin:8px 0}th,td{border:1px solid #999;padding:6px 8px;text-align:left;vertical-align:top}th{width:34%;background:#f3f1ec;font-weight:600}
 .price td:last-child{text-align:right;white-space:nowrap}.total td{font-weight:700}ol li{margin:6px 0}.sign{margin-top:48px;display:grid;grid-template-columns:2fr 1fr;gap:28px 24px}.sign div{border-top:1px solid #111;padding-top:4px;font-size:10pt}
 .page{page-break-after:always}@media print{body{margin:0}}</style></head><body>
-<section class="page">${head}<h1>PROJECT SCOPE OF WORK</h1>${who}<tr><th>Cell Phone</th><td>${esc(c.phone)}</td></tr><tr><th>E-Mail</th><td>${esc(c.email)}</td></tr></table>
+<section class="page">${head}<h1>PROJECT SCOPE OF WORK</h1>${who}${c.phone ? `<tr><th>Cell Phone</th><td>${esc(c.phone)}</td></tr>` : ''}${c.email ? `<tr><th>E-Mail</th><td>${esc(c.email)}</td></tr>` : ''}</table>
 <h2>${esc(p.name)}</h2>
 ${c.scope ? `<p>${esc(c.scope).replace(/\n/g, '<br>')}</p>` : ''}
-<ol>${p.cabinets.map((cab) => `<li>${esc(scopeLine(cab, p))}</li>`).join('')}${furnitureOf(p).map((t) => `<li>${esc(tableScope(t))}</li>`).join('')}${cofferScope(p) ? `<li>${esc(cofferScope(p)!)}</li>` : ''}</ol>
-${r.extras.length ? `<p><b>Additional work:</b> ${r.extras.map((e) => esc(e.label)).join('; ')}</p>` : ''}
-<p>Final dimensions will be field verified. The homeowner will approve door style, finish and hardware before ordering.</p></section>
+${full ? `<ol>${base.cabinets.map((cab) => `<li>${esc(scopeLine(cab, base))}</li>`).join('')}${furnitureOf(base).map((t) => `<li>${esc(tableScope(t))}</li>`).join('')}${cofferScope(base) ? `<li>${esc(cofferScope(base)!)}</li>` : ''}</ol>`
+    : summary.areas.map((a) => `<h3>${esc(a.title)}</h3><ul>${a.items.map((i) => `<li>${esc(i)}</li>`).join('')}</ul>`).join('') + `${furnitureOf(base).length || cofferScope(base) ? `<ul>${furnitureOf(base).map((t) => `<li>${esc(tableScope(t).replace(/,?\s*approx[^;]*;/i, ';'))}</li>`).join('')}${cofferScope(base) ? `<li>${esc(cofferScope(base)!)}</li>` : ''}</ul>` : ''}`}
+${!full && summary.materials.length ? `<h3>Materials &amp; finishes</h3><table class="mat">${summary.materials.map((m) => `<tr><th>${esc(m.label)}</th><td>${esc(m.value)}</td></tr>`).join('')}</table>` : ''}
+${!full ? '' : r.extras.length ? `<p><b>Additional work:</b> ${r.extras.map((e) => esc(e.label)).join('; ')}</p>` : ''}
+${summary.options.length ? `<h3>Options</h3><p>Added to the work above only when chosen at signing:</p><ul>${summary.options.map((o) => `<li><b>${esc(o.label)}</b> (${money(o.price)})${o.items.length ? `: ${o.items.map(esc).join('; ')}` : ''}</li>`).join('')}</ul>` : ''}
+<p>${full ? 'Final dimensions will be field verified.' : 'Exact sizes are set on the shop drawings you approve after signing, from measurements taken on site.'} The homeowner will approve door style, finish and hardware before ordering.</p></section>
 <section>${head}<h1>PURCHASE AGREEMENT</h1>${who}<tr><th>Agreement Date</th><td>${date()}</td></tr><tr><th>Estimated Start Date</th><td></td></tr><tr><th>Project Duration</th><td></td></tr></table>
 <p style="font-size:9.5pt">The above Estimated Start Date is an approximation valid on the above listed Agreement Date and is used for planning purposes only. CJC Custom Carpentry, LLC cannot be held responsible for delays caused by weather or other unforeseen circumstances before or during the project. All pricing is valid for (14) days from agreement date.</p>
-<table class="price">${rounded.map((l) => `<tr><th>${esc(l.label)}</th><td>${money(l.price)}</td></tr>`).join('')}<tr class="total"><th>Total Project Investment</th><td>${money(r.total)}</td></tr></table>
-<p><b>Project Payment Schedule</b><br>30% Deposit Due at Agreement – ${money(deposit)}<br>70% Final Payment Due Upon Completion – ${money(r.total - deposit)}</p>
+<table class="price">${rounded.map((l) => `<tr><th>${esc(l.label)}</th><td>${money(l.price)}</td></tr>`).join('')}<tr class="total"><th>Total Project Investment${summary.options.length ? ' (before options)' : ''}</th><td>${money(r.total)}</td></tr></table>
+${summary.options.length ? `<table class="price">${summary.options.map((o) => `<tr><th>Option: ${esc(o.label)}</th><td>add ${money(o.price)}</td></tr>`).join('')}</table><p style="font-size:9.5pt">${opts.online ? 'Options chosen when signing are added to the total and listed with the signature; the deposit and final payment follow that total.' : 'Options chosen: ____________________ &nbsp; Total with options: $__________'}</p>` : ''}
+<p><b>Project Payment Schedule</b><br>30% Deposit Due at Agreement – ${money(deposit)}${summary.options.length ? ' (plus 30% of options chosen)' : ''}<br>70% Final Payment Due Upon Completion – ${money(r.total - deposit)}${summary.options.length ? ' (plus 70% of options chosen)' : ''}</p>
 <p style="font-size:9.5pt">This agreement supersedes all conversations, statements, and agreements expressed or implied between the parties, their agents and representatives.</p>
 ${opts.online ? '<p style="font-size:9.5pt"><b>The Terms and Conditions are part of this agreement.</b> It is signed electronically on the project page.</p>' : '<div class="sign"><div>Owner</div><div>Date</div><div>CJC Custom Carpentry, LLC</div><div>Date</div></div>'}</section></body></html>`;
 }

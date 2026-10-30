@@ -25,6 +25,10 @@ function b64ToBytes(b64) {
   for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
   return out.buffer;
 }
+function signedTotals(j) {
+  const s = j.signature;
+  return s?.total != null ? { total: s.total, deposit: s.deposit ?? j.proposal.deposit } : { total: j.proposal.total, deposit: j.proposal.deposit };
+}
 
 // portal/src/calendar.ts
 var apptLabel = { measure: "Measure", design: "Design meeting", review: "Review & sign", install: "Install", delivery: "Delivery", other: "Appointment" };
@@ -201,7 +205,14 @@ h1{font-size:26px;line-height:1.2;margin:28px 0 4px}h2{font-size:19px;margin:0 0
 .gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px}.gallery a{display:block;border-radius:8px;overflow:hidden;background:#ddd}
 .gallery img{width:100%;display:block;aspect-ratio:4/3;object-fit:cover}
 .price{display:flex;gap:24px;flex-wrap:wrap;margin:6px 0 12px}.price div{min-width:140px}.price b{display:block;font-size:24px}
-iframe.doc{width:100%;height:70vh;border:1px solid var(--line);border-radius:8px;background:#fff}
+iframe.doc{width:100%;height:70vh;border:1px solid var(--line);border-radius:8px;background:#fff;margin-top:10px}
+.design{margin:16px 0}.design .hero{display:block;border-radius:12px;overflow:hidden;background:#ddd;box-shadow:0 2px 14px rgba(0,0,0,.12)}.design .hero img{width:100%;display:block}.design .gallery{margin-top:10px}.design p{font-size:14px;margin:8px 2px 0}
+h3{font-size:16px;margin:16px 0 6px}ul.items{margin:0;padding-left:20px}ul.items li{margin:5px 0}
+dl.mat{margin:0;display:grid;gap:10px}dl.mat div{display:grid;grid-template-columns:170px 1fr;gap:12px;border-top:1px solid var(--line);padding-top:10px}dl.mat div:first-child{border-top:0;padding-top:0}dt{color:var(--muted)}dd{margin:0}
+@media (max-width:520px){dl.mat div{grid-template-columns:1fr;gap:2px}}
+table.lines{width:100%;border-collapse:collapse;margin:0 0 6px}table.lines td{padding:8px 0;border-top:1px solid var(--line)}table.lines tr:first-child td{border-top:0}table.lines .num{text-align:right;white-space:nowrap}table.lines tr.sub td{font-weight:600}
+.opt{display:flex;gap:12px;align-items:flex-start;padding:12px;border:1px solid var(--line);border-radius:10px;margin:8px 0;cursor:pointer}.opt input{margin-top:4px;width:18px;height:18px}.opt span{display:flex;flex-direction:column;gap:2px;flex:1}.opt span .muted{font-size:14px}.opt .add{white-space:nowrap}
+.opt:has(input:checked){border-color:var(--accent);background:#f2f6f3}details.agree{border-top:1px solid var(--line);margin-top:14px;padding-top:12px}
 details{border-top:1px solid var(--line);padding:10px 0}details:first-of-type{border-top:0}summary{cursor:pointer;font-weight:600}
 ul.docs{list-style:none;padding:0;margin:0}ul.docs li{padding:10px 0;border-top:1px solid var(--line);display:flex;justify-content:space-between;gap:10px}ul.docs li:first-child{border-top:0}
 a{color:var(--accent)}.btn{display:inline-block;padding:11px 18px;border-radius:8px;border:1px solid var(--accent);background:var(--accent);color:var(--accent-ink);font:inherit;font-weight:600;text-decoration:none;cursor:pointer}
@@ -230,13 +241,30 @@ ${i.link ? `<div class="row"><a class="btn" href="${esc(i.link)}" target="_blank
 function projectPage(j, shop, token, flash = "", visits = []) {
   const base = `/p/${token}`;
   const s = j.signature;
-  const shots = j.renderings.length ? `<section class="card"><h2>Your design</h2><div class="gallery">${j.renderings.map((r) => `<a href="${base}/img/${esc(r.id)}" target="_blank" rel="noopener"><img src="${base}/img/${esc(r.id)}" alt="${esc(r.name)}" loading="lazy"></a>`).join("")}</div><p class="muted">Renderings show the look of the work; the signed scope and the shop drawings that follow set the details.</p></section>` : "";
+  const [hero, ...more] = j.renderings;
+  const img = (r, cls = "") => `<a href="${base}/img/${esc(r.id)}" target="_blank" rel="noopener"${cls ? ` class="${cls}"` : ""}><img src="${base}/img/${esc(r.id)}" alt="${esc(r.name)}"${cls ? "" : ' loading="lazy"'}></a>`;
+  const shots = hero ? `<section class="design">${img(hero, "hero")}${more.length ? `<div class="gallery">${more.map((r) => img(r)).join("")}</div>` : ""}<p class="muted">Renderings show the look of the work. Exact sizes come with the shop drawings you approve after signing.</p></section>` : "";
+  const pr = j.proposal;
+  const build = pr.summary?.areas.length ? `<section class="card"><h2>What we\u2019ll build</h2>${pr.summary.areas.map((a) => `<h3>${esc(a.title)}</h3><ul class="items">${a.items.map((i) => `<li>${esc(i)}</li>`).join("")}</ul>`).join("")}</section>` : "";
+  const mats = pr.summary?.materials.length ? `<section class="card"><h2>Materials &amp; finishes</h2><dl class="mat">${pr.summary.materials.map((m) => `<div><dt>${esc(m.label)}</dt><dd>${esc(m.value)}</dd></div>`).join("")}</dl></section>` : "";
+  const share = pr.total ? pr.deposit / pr.total : 0.3;
+  const chosen = (pr.options ?? []).filter((o) => s?.options?.includes(o.id));
+  const signedFor = s?.total != null ? { total: s.total, deposit: s.deposit ?? pr.deposit } : { total: pr.total, deposit: pr.deposit };
+  const open = !s && !j.cancelled;
+  const optionsBlock = pr.options?.length ? open ? `<h3>Options</h3><p class="muted" style="margin-top:0">Tick any you\u2019d like added. The total and deposit update, and what you tick is part of what you sign.</p>${pr.options.map((o) => `<label class="opt"><input type="checkbox" name="opt_${esc(o.id)}" form="sign" data-price="${o.price}"><span><b>${esc(o.label)}</b>${o.items.length ? `<span class="muted">${o.items.map(esc).join("; ")}</span>` : ""}</span><b class="add">+${money(o.price)}</b></label>`).join("")}` : chosen.length ? `<h3>Options chosen</h3><ul class="items">${chosen.map((o) => `<li>${esc(o.label)} (+${money(o.price)})</li>`).join("")}</ul>` : "" : "";
+  const rows = (pr.sections?.length ?? 0) > 1 ? pr.sections : [];
+  const lines = rows.length || pr.options?.length ? `<table class="lines">${rows.map((l) => `<tr><td>${esc(l.label)}</td><td class="num">${money(l.price)}</td></tr>`).join("")}${pr.options?.length ? `<tr class="sub"><td>${rows.length ? "Before options" : "Base price"}</td><td class="num">${money(pr.total)}</td></tr>` : ""}</table>` : "";
+  const price = `<section class="card"><h2>Your investment</h2>${lines}${optionsBlock}
+<div class="price"><div><span class="muted">Total project investment</span><b id="tot">${money(signedFor.total)}</b></div><div><span class="muted">Deposit at signing (${Math.round(share * 100)}%)</span><b id="dep">${money(signedFor.deposit)}</b></div></div>
+${open && pr.options?.length ? `<script>(()=>{const base=${pr.total},share=${share},f=n=>'$'+Math.round(n).toLocaleString('en-US');const go=()=>{let t=base;document.querySelectorAll('input[data-price]').forEach(i=>{if(i.checked)t+=+i.dataset.price});document.getElementById('tot').textContent=f(t);document.getElementById('dep').textContent=f(Math.round(t*share))};document.querySelectorAll('input[data-price]').forEach(i=>i.addEventListener('change',go));go()})();</script>` : ""}
+<details class="agree"><summary>Read the full proposal and agreement</summary><iframe class="doc" title="Project scope and purchase agreement" sandbox srcdoc="${esc(pr.agreementHtml)}"></iframe></details>
+<p class="row"><a href="${base}/agreement" target="_blank" rel="noopener">Open the full agreement to print or save</a></p></section>`;
   const docs = shop.docs.filter((d) => d.kind !== "terms");
   const termsDoc = shop.docs.find((d) => d.kind === "terms");
   const signBlock = j.cancelled ? `<div class="warn">This agreement was cancelled on ${esc(longDate(easternYmd(j.cancelled.at)))}. Any deposit paid will be returned within 10 business days.</div>` : s ? `<div class="ok">Signed by <b>${esc(s.name)}</b> on ${esc(longDate(easternYmd(s.at)))}. Thank you!</div>
 <div class="row"><a class="btn" href="${base}/agreement" target="_blank" rel="noopener">Your signed agreement</a></div>
 ${payBlock(j, shop)}
-` : `<p>Read the scope, price and terms above. When you\u2019re ready, sign below; your signed copy opens right away to save or print.</p>
+` : `<p>Read the scope, price and terms above.${pr.options?.length ? " Any options you ticked are included." : ""} When you\u2019re ready, sign below; your signed copy opens right away to save or print.</p>
 <form id="sign" method="post" action="${base}/sign">
 <label class="chk"><input type="checkbox" name="consent" required> <span>I agree to sign and receive this agreement electronically. I can save or print it, and I can ask CJC Custom Carpentry for a paper copy at any time.</span></label>
 <label class="chk"><input type="checkbox" name="agree" required> <span>I have read the Project Scope of Work, the Purchase Agreement and the Terms and Conditions, and I agree to them.</span></label>
@@ -258,10 +286,7 @@ f.addEventListener('submit',()=>{document.getElementById('image').value=c.toData
 <h1>${esc(j.project)}</h1><p class="muted">Prepared for ${esc(clientName(j))}${j.client.address ? ` \xB7 ${esc(j.client.address)}` : ""}</p>
 ${visits.length ? `<section class="card"><h2>Coming up</h2>${visits.map((v) => `<p><b>${esc(apptLabel[v.kind])}</b> \xB7 ${esc(whenEastern(v.start))}${v.location ? `<br><span class="muted">${esc(v.location)}</span>` : ""}${v.clientNote ? `<br>${esc(v.clientNote)}` : ""}</p><p><a class="btn ghost" href="${base}/visit/${esc(v.id)}.ics">Add to my calendar</a></p>`).join("")}</section>` : ""}
 ${shots}
-<section class="card"><h2>Your proposal</h2>
-<div class="price"><div><span class="muted">Total project investment</span><b>${money(j.proposal.total)}</b></div><div><span class="muted">Deposit at signing (30%)</span><b>${money(j.proposal.deposit)}</b></div></div>
-<iframe class="doc" title="Project scope and purchase agreement" sandbox srcdoc="${esc(j.proposal.agreementHtml)}"></iframe>
-<p class="row"><a href="${base}/agreement" target="_blank" rel="noopener">Open the full agreement to print or save</a></p></section>
+${build}${mats}${price}
 <section class="card"><h2>Terms and conditions</h2>${termsOf(j, shop) ? `<details><summary>Read the terms</summary>${paras(termsOf(j, shop))}</details>` : '<p class="muted">Terms are attached to the agreement.</p>'}${termsDoc ? `<p><a href="${base}/doc/${esc(termsDoc.id)}" target="_blank" rel="noopener">${esc(termsDoc.title)} (PDF)</a></p>` : ""}</section>
 ${docs.length ? `<section class="card"><h2>Licenses and insurance</h2><ul class="docs">${docs.map((d) => `<li><a href="${base}/doc/${esc(d.id)}" target="_blank" rel="noopener">${esc(d.title)}</a>${d.expires ? `<span class="muted">valid through ${esc((/* @__PURE__ */ new Date(`${d.expires}T12:00:00Z`)).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" }))}</span>` : ""}</li>`).join("")}</ul></section>` : ""}
 ${shop.about ? `<section class="card"><h2>About CJC Custom Carpentry</h2>${paras(shop.about)}</section>` : ""}
@@ -277,6 +302,7 @@ function agreementPage(j, shop) {
   const address = shop.company[1] || "";
   const signed = s ? `<section style="page-break-before:always"><h2>Electronic signature</h2>
 <p>Signed by <b>${esc(s.name)}</b> on ${esc(new Date(s.at).toLocaleString("en-US", { timeZone: "America/New_York", dateStyle: "long", timeStyle: "short" }))} (Eastern), from ${esc(s.ip)}.</p>
+${s.total != null ? `<p><b>Options chosen:</b> ${(j.proposal.options ?? []).filter((o) => s.options?.includes(o.id)).map((o) => `${esc(o.label)} (+${money(o.price)})`).join("; ") || "none"}.<br><b>Total project investment: ${money(s.total)}</b>; deposit ${money(s.deposit ?? 0)}, balance ${money(s.total - (s.deposit ?? 0))} on completion.</p>` : ""}
 <p><img src="${esc(s.image)}" alt="Signature of ${esc(s.name)}" style="max-width:360px;border-bottom:1px solid #111"></p>
 <p class="muted" style="font-size:12px">The signer agreed to sign electronically and confirmed reading the Project Scope of Work, Purchase Agreement and Terms and Conditions. Document fingerprint (SHA-256) ${esc(s.hash.slice(0, 32))}, version ${s.version}.</p>
 ${noticeOfCancellation(easternYmd(s.at), seller, address)}${noticeOfCancellation(easternYmd(s.at), seller, address)}</section>` : '<p class="muted">Not signed yet.</p>';
@@ -606,7 +632,20 @@ async function client(request, env, token, what, id) {
     if (!name || f.get("consent") !== "on" || f.get("agree") !== "on" || !/^data:image\/png;base64,/.test(image) || image.length > 4e5) {
       return html(projectPage(job, shop, token, "Please check both boxes, type your name and sign in the box."), 400);
     }
-    job.signature = { name, image, at: Date.now(), ip, ua: (request.headers.get("user-agent") || "").slice(0, 200), hash: job.proposal.hash, version: job.proposal.version, consent: true };
+    const picked = (job.proposal.options ?? []).filter((o) => f.get(`opt_${o.id}`) === "on");
+    const total = job.proposal.total + picked.reduce((t, o) => t + o.price, 0);
+    const share = job.proposal.total ? job.proposal.deposit / job.proposal.total : 0.3;
+    job.signature = {
+      name,
+      image,
+      at: Date.now(),
+      ip,
+      ua: (request.headers.get("user-agent") || "").slice(0, 200),
+      hash: job.proposal.hash,
+      version: job.proposal.version,
+      consent: true,
+      ...job.proposal.options?.length ? { options: picked.map((o) => o.id), total, deposit: Math.round(total * share) } : {}
+    };
     await putJob(env, job);
     await autoDeposit(env, job);
     return Response.redirect(new URL(`/p/${token}/agreement`, request.url).href, 303);
@@ -632,11 +671,11 @@ var visitsFor = async (env, jobId) => {
   return (await listAppts(env)).filter((a) => a.jobId === jobId && a.share && !a.cancelled && a.start >= now);
 };
 async function autoDeposit(env, job) {
-  if (!qbReady(env) || !(job.proposal.deposit > 0) || job.invoices?.some((i) => i.kind === "deposit")) return;
+  if (!qbReady(env) || !(signedTotals(job).deposit > 0) || job.invoices?.some((i) => i.kind === "deposit")) return;
   const [conn, s] = [await getConn(env), await getQbSettings(env)];
   if (!conn || !s.autoDeposit) return;
   try {
-    const inv = await makeInvoice(env, job, "deposit", job.proposal.deposit, depositLine(job));
+    const inv = await makeInvoice(env, job, "deposit", signedTotals(job).deposit, depositLine(job));
     job.invoices = [...job.invoices ?? [], inv];
     job.invoiceError = void 0;
   } catch (e) {
@@ -644,7 +683,11 @@ async function autoDeposit(env, job) {
   }
   await putJob(env, job);
 }
-var depositLine = (j) => `Deposit (${Math.round(j.proposal.deposit / (j.proposal.total || 1) * 100)}%) on ${j.project}, per the signed agreement (version ${j.proposal.version}). Project total $${j.proposal.total.toLocaleString("en-US")}.`;
+var depositLine = (j) => {
+  const t = signedTotals(j);
+  const opts = (j.proposal.options ?? []).filter((o) => j.signature?.options?.includes(o.id)).map((o) => o.label);
+  return `Deposit (${Math.round(t.deposit / (t.total || 1) * 100)}%) on ${j.project}, per the signed agreement (version ${j.proposal.version})${opts.length ? ` with ${opts.join(", ")}` : ""}. Project total $${t.total.toLocaleString("en-US")}.`;
+};
 async function freshInvoices(env, job, age) {
   const open = (job.invoices ?? []).filter((i) => i.balance > 0 && Date.now() - i.checkedAt > age);
   if (!open.length || !await getConn(env)) return;
@@ -756,6 +799,9 @@ var TOOLS = [
         agreement_html: { type: "string" },
         total: { type: "number" },
         deposit: { type: "number" },
+        summary: { type: "object", description: "The plain-language page: areas (title, items) and materials (label, value)." },
+        sections: { type: "array", description: "The base price in sections (label, price).", items: { type: "object" } },
+        options: { type: "array", description: "Options the client can tick when signing (id, label, price, items).", items: { type: "object" } },
         renderings: { type: "array", items: { type: "object", properties: { name: { type: "string" }, mimeType: { type: "string" }, data: { type: "string" } }, required: ["data"] } },
         keep_renderings: { type: "boolean", description: "Leave the renderings already published as they are." },
         replace_signed: { type: "boolean" }
@@ -829,7 +875,7 @@ var status = (j, url) => ({
   publishedAt: j.proposal.publishedAt,
   views: (j.views ?? []).length,
   lastViewed: j.views?.length ? j.views[j.views.length - 1] : null,
-  signed: j.signature ? { name: j.signature.name, at: j.signature.at, version: j.signature.version, current: j.signature.hash === j.proposal.hash } : null,
+  signed: j.signature ? { name: j.signature.name, at: j.signature.at, version: j.signature.version, current: j.signature.hash === j.proposal.hash, ...j.signature.total != null ? { options: (j.proposal.options ?? []).filter((o) => j.signature.options?.includes(o.id)).map((o) => o.label), total: j.signature.total, deposit: j.signature.deposit } : {} } : null,
   cancelDeadline: j.signature ? cancelDeadline(easternYmd(j.signature.at)) : null,
   cancelled: j.cancelled ? { at: j.cancelled.at } : null,
   invoices: (j.invoices ?? []).map((i) => ({ id: i.id, kind: i.kind, number: i.docNumber ?? null, amount: i.amount, balance: i.balance, paid: i.balance <= 0, emailed: !!i.emailed, payLink: !!i.link, createdAt: i.createdAt, payments: i.payments ?? [] })),
@@ -902,7 +948,7 @@ ${shop.terms}`);
         client: a.client ?? old?.client ?? {},
         project: String(a.project || old?.project || "Your project"),
         stage: "proposal",
-        proposal: { agreementHtml, total: Number(a.total) || 0, deposit: Number(a.deposit) || 0, publishedAt: Date.now(), version, hash, terms: shop.terms },
+        proposal: { agreementHtml, total: Number(a.total) || 0, deposit: Number(a.deposit) || 0, publishedAt: Date.now(), version, hash, terms: shop.terms, ...cleanSummary(a) },
         renderings,
         views: old?.views ?? [],
         history: old?.history ?? [],
@@ -971,9 +1017,10 @@ ${shop.terms}`);
       const j = await getJob(env, String(a.job_id || ""));
       if (!j) throw new Error("No portal page for that job yet.");
       const kind = str("kind") || "deposit";
-      const before = (j.invoices ?? []).filter((i) => i.kind !== "change").reduce((t, i) => t + i.amount, 0);
-      const amount = typeof a.amount === "number" ? a.amount : kind === "deposit" ? j.proposal.deposit : kind === "final" ? j.proposal.total - before : 0;
-      const description = str("description") || (kind === "deposit" ? depositLine(j) : kind === "final" ? `Final payment on ${j.project}: project total $${j.proposal.total.toLocaleString("en-US")} less $${before.toLocaleString("en-US")} invoiced before.` : `Change order on ${j.project}.`);
+      const before = (j.invoices ?? []).filter((i) => i.kind !== "change").reduce((t2, i) => t2 + i.amount, 0);
+      const t = signedTotals(j);
+      const amount = typeof a.amount === "number" ? a.amount : kind === "deposit" ? t.deposit : kind === "final" ? t.total - before : 0;
+      const description = str("description") || (kind === "deposit" ? depositLine(j) : kind === "final" ? `Final payment on ${j.project}: project total $${t.total.toLocaleString("en-US")} less $${before.toLocaleString("en-US")} invoiced before.` : `Change order on ${j.project}.`);
       const inv = await makeInvoice(env, j, kind, amount, description);
       j.invoices = [...j.invoices ?? [], inv];
       if (kind === "deposit") j.invoiceError = void 0;
@@ -1004,6 +1051,20 @@ ${shop.terms}`);
     default:
       throw new Error(`Unknown tool ${name}`);
   }
+}
+function cleanSummary(a) {
+  const str = (v, n = 400) => String(v ?? "").slice(0, n);
+  const num = (v) => Number.isFinite(Number(v)) ? Number(v) : 0;
+  const arr = (v) => Array.isArray(v) ? v : [];
+  const sm = a.summary ?? null;
+  const out = {};
+  if (sm) out.summary = {
+    areas: arr(sm.areas).slice(0, 30).map((x) => ({ title: str(x.title, 80), items: arr(x.items).slice(0, 60).map((i) => str(i)) })),
+    materials: arr(sm.materials).slice(0, 20).map((x) => ({ label: str(x.label, 60), value: str(x.value, 200) }))
+  };
+  if (Array.isArray(a.sections)) out.sections = arr(a.sections).slice(0, 20).map((x) => ({ label: str(x.label, 80), price: num(x.price) }));
+  if (Array.isArray(a.options)) out.options = arr(a.options).slice(0, 12).map((x) => ({ id: str(x.id, 40).replace(/[^a-z0-9-]/g, "") || "option", label: str(x.label, 80), price: num(x.price), items: arr(x.items).slice(0, 30).map((i) => str(i)) }));
+  return out;
 }
 export {
   worker_default as default

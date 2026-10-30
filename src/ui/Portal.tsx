@@ -4,7 +4,9 @@
 import { contractTotal } from '../model/contract';
 import { useEffect, useState } from 'react';
 import { useStore } from '../store';
-import { clientName, clientOf, COMPANY, quoteDoc, quoteTotals } from '../model/client';
+import { clientName, clientOf, COMPANY, proposalLines, quoteDoc, quoteTotals } from '../model/client';
+import { optionPrices, proposalSummary } from '../model/proposal';
+import { Field } from './fields';
 import { renderOf } from '../model/rendering';
 import { CJC_TERMS } from '../model/terms';
 import { shrinkImage } from '../runtime';
@@ -33,11 +35,33 @@ async function renderingsFor(p: Project) {
   const r = renderOf(p);
   const imgs = r.images.filter((i) => i.kind === 'rendering').sort((a, b) => Number(b.id === r.quoteId) - Number(a.id === r.quoteId)).slice(0, 6);
   const out = [];
+  const mark = `Design by CJC Custom Carpentry for ${clientName(clientOf(p)) || 'this proposal'} · not for reuse`;
   for (const img of imgs) {
-    const blob = await shrinkImage(await (await fetch(img.url)).blob(), 1800, 0.85);
+    const blob = await watermark(await shrinkImage(await (await fetch(img.url)).blob(), 1800, 0.85), mark);
     out.push({ name: img.name || 'Rendering', mimeType: 'image/jpeg', data: await blobToBase64(blob) });
   }
   return out;
+}
+
+/** A quiet line in the corner saying whose design it is, so a rendering passed to another builder says so. */
+async function watermark(blob: Blob, text: string): Promise<Blob> {
+  try {
+    const bmp = await createImageBitmap(blob);
+    const c = document.createElement('canvas');
+    c.width = bmp.width; c.height = bmp.height;
+    const x = c.getContext('2d')!;
+    x.drawImage(bmp, 0, 0);
+    const size = Math.max(12, Math.round(c.width / 70));
+    x.font = `${size}px -apple-system, "Helvetica Neue", Arial, sans-serif`;
+    const w = x.measureText(text).width;
+    const pad = size * 0.6;
+    x.fillStyle = 'rgba(0,0,0,0.38)';
+    x.fillRect(c.width - w - pad * 3, c.height - size - pad * 2.4, w + pad * 2, size + pad * 1.4);
+    x.fillStyle = 'rgba(255,255,255,0.92)';
+    x.textBaseline = 'bottom';
+    x.fillText(text, c.width - w - pad * 2, c.height - pad * 1.6);
+    return await new Promise<Blob>((ok) => c.toBlob((b) => ok(b ?? blob), 'image/jpeg', 0.88));
+  } catch { return blob; }
 }
 
 export function ClientPortal() {
@@ -54,6 +78,7 @@ export function ClientPortal() {
   // A sold job's price is its contract; the design's calculated quote never goes to the client
   const sold = project.contract;
   const renderings = renderOf(project).images.filter((i) => i.kind === 'rendering').length;
+  const options = optionPrices(project);
 
   const run = async (label: string, fn: () => Promise<void>) => {
     setBusy(label); setError(''); setNote('');
@@ -72,10 +97,12 @@ export function ClientPortal() {
       replaceSigned = true;
     }
     const jobId = portal?.jobId ?? newJobId(project);
+    const summary = proposalSummary(project);
     const status = await publishProposal({
       job_id: jobId, project: project.name || 'Your project',
       client: { first: c.first, last: c.last, email: c.email, phone: c.phone, address: c.address },
       agreement_html: quoteDoc(project, { online: true }), total, deposit,
+      summary: { areas: summary.areas, materials: summary.materials }, sections: proposalLines(project), options: summary.options,
       renderings: await renderingsFor(project), replace_signed: replaceSigned,
     });
     keep(status, jobId);
@@ -93,6 +120,18 @@ export function ClientPortal() {
         <button className="link-btn" onClick={() => setSettings(true)}>Portal settings</button>
       </div>
       <p className="hint">The client’s private page: renderings, the scope and purchase agreement, your terms, licenses and insurance. They sign on their phone and get the signed copy with the 3-day Notice of Cancellation.</p>
+      {!sold && (
+        <div className="grid2">
+          <Field label="Scope on the proposal" htmlFor="pp-detail">
+            <select id="pp-detail" value={project.proposalDetail ?? 'plain'} onChange={(e) => commit((p) => ({ ...p, proposalDetail: e.target.value === 'full' ? 'full' : undefined }))}>
+              <option value="plain">Plain words by area, no sizes</option>
+              <option value="full">Every cabinet with its sizes</option>
+            </select>
+          </Field>
+          <p className="hint" style={{ alignSelf: 'end' }}>{(project.proposalDetail ?? 'plain') === 'plain' ? 'No dimensions before they sign: the design can’t be shopped around. Sizes come with the shop drawings after the deposit.' : 'Shows every cabinet’s size. Anyone they forward it to can quote from it.'}</p>
+        </div>
+      )}
+      {!sold && options.length > 0 && <p className="hint">Options they can tick when signing: {options.map((o) => `${o.label} (+${money(o.price)})`).join(', ')}.</p>}
       <p>
         {sold
           ? <>Sold: <b>{money(contractTotal(sold))}</b> under the contract above. Cabinet Studio’s calculated proposal ({money(total)}) stays off the portal for this job.</>

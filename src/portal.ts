@@ -11,7 +11,7 @@ export interface Shop { company: string[]; about: string; terms: string; docs: S
 export interface JobStatus {
   job_id: string; project: string; url: string; version: number; publishedAt: number;
   views: number; lastViewed: number | null;
-  signed: { name: string; at: number; version: number; current: boolean } | null;
+  signed: { name: string; at: number; version: number; current: boolean; /** Options ticked, and the total and deposit signed for. */ options?: string[]; total?: number; deposit?: number } | null;
   cancelDeadline: string | null;
   cancelled: { at: number } | null;
   invoices?: Invoice[];
@@ -30,6 +30,10 @@ export interface Proposal {
   job_id: string; project: string;
   client: { first?: string; last?: string; email?: string; phone?: string; address?: string };
   agreement_html: string; total: number; deposit: number;
+  /** The plain-language page: the work by area, materials, the price in sections, and options to tick. */
+  summary?: { areas: { title: string; items: string[] }[]; materials: { label: string; value: string }[] };
+  sections?: { label: string; price: number }[];
+  options?: { id: string; label: string; price: number; items: string[] }[];
   renderings?: { name: string; mimeType: string; data: string }[];
   keep_renderings?: boolean; replace_signed?: boolean;
 }

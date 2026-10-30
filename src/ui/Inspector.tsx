@@ -80,6 +80,25 @@ export function Inspector({ cab, issues }: { cab: Cabinet; issues: string[] }) {
         <FitButtons cab={cab} />
       </Section>
 
+      <Section title="On the proposal">
+        <div className="grid2">
+          <Field label="Area" htmlFor="cab-area">
+            <input id="cab-area" list="area-names" value={cab.area ?? ''} placeholder={cab.island ? 'Island' : wallNames[cab.wall]} onChange={(e) => set({ area: e.target.value || undefined })} />
+          </Field>
+          <Field label="Offered as an option" htmlFor="cab-option">
+            <input id="cab-option" list="option-names" value={cab.option ?? ''} placeholder="No: in the base price" onChange={(e) => set({ option: e.target.value || undefined })} />
+          </Field>
+        </div>
+        <datalist id="area-names">{[...new Set(all.map((c) => c.area).filter(Boolean))].map((n) => <option key={n} value={n} />)}</datalist>
+        <datalist id="option-names">{[...new Set(all.map((c) => c.option).filter(Boolean))].map((n) => <option key={n} value={n} />)}</datalist>
+        {(cab.area || cab.option) && (
+          <div className="order-actions">
+            {cab.area && <button className="mini" onClick={() => useStore.getState().commit((p) => ({ ...p, cabinets: p.cabinets.map((c) => (c.wall === cab.wall && !c.island ? { ...c, area: cab.area } : c)) }))}>Same area for the whole {wallNames[cab.wall].toLowerCase()}</button>}
+          </div>
+        )}
+        <p className="hint">{cab.option ? `Part of “${cab.option}”: priced on its own and added only if the customer ticks it when signing. Give other cabinets the same name to offer them together.` : 'The customer’s proposal groups the work by area, in plain words. Name an option (like “Additional cabinets”) to offer this cabinet as an add-on.'}</p>
+      </Section>
+
       <Section title="Placement">
         {free ? (() => {
           // Standing out in the room: placed by where it is in the plan, the way you'd tape it

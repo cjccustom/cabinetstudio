@@ -29,14 +29,25 @@ export interface Shop {
   contactEmail?: string;
 }
 
-export interface Signature { name: string; image: string; at: number; ip: string; ua: string; hash: string; version: number; consent: true }
+export interface Signature {
+  name: string; image: string; at: number; ip: string; ua: string; hash: string; version: number; consent: true;
+  /** Options ticked when signing, and the total and deposit that came to. */
+  options?: string[]; total?: number; deposit?: number;
+}
+export interface ProposalOption { id: string; label: string; price: number; items: string[] }
+export interface ProposalSummary { areas: { title: string; items: string[] }[]; materials: { label: string; value: string }[] }
 export interface Job {
   jobId: string;
   token: string;
   client: { first?: string; last?: string; email?: string; phone?: string; address?: string };
   project: string;
   stage: 'proposal';
-  proposal: { agreementHtml: string; total: number; deposit: number; publishedAt: number; version: number; hash: string; /** The terms as published with this version: what the client signs. Older jobs fall back to the shop's. */ terms?: string };
+  proposal: {
+    agreementHtml: string; total: number; deposit: number; publishedAt: number; version: number; hash: string;
+    /** The terms as published with this version: what the client signs. Older jobs fall back to the shop's. */ terms?: string;
+    /** The plain-language page (older jobs show only the agreement). */
+    summary?: ProposalSummary; sections?: { label: string; price: number }[]; options?: ProposalOption[];
+  };
   renderings: { id: string; name: string; mimeType: string }[];
   views: number[];
   signature?: Signature;
@@ -78,4 +89,10 @@ export function b64ToBytes(b64: string): ArrayBuffer {
   const out = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
   return out.buffer;
+}
+
+/** What the client signed for: the base proposal plus any options ticked (the proposal itself before signing). */
+export function signedTotals(j: Job): { total: number; deposit: number } {
+  const s = j.signature;
+  return s?.total != null ? { total: s.total, deposit: s.deposit ?? j.proposal.deposit } : { total: j.proposal.total, deposit: j.proposal.deposit };
 }
