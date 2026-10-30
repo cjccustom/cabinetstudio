@@ -1,5 +1,7 @@
 import { readFileSync } from "node:fs";
 import { canSpots } from "../src/model/lighting";
+import { termsHtml } from "../portal/src/pages";
+import { CJC_TERMS } from "../src/model/terms";
 import { cutCabinets, newDetail } from "../src/drawings/details";
 import { fittedDrop, moldHeight, pictureRuns, underFascia } from "../src/model/coffer";
 import { cabinetMoldings } from "../src/model/moldings";
@@ -41,7 +43,7 @@ import { broscoCatalog } from "../src/model/brosco";
 import { designByCode, doorDrawing, proportionsFor, stockSlab, tradeSize } from "../src/model/reeb";
 import { doorOrder } from "../src/model/doorOrder";
 import { applyDraft, cleanDraft, closestProfile, draftRequest } from "../src/model/photoRoom";
-import { clientInfoDoc, folderName, ordersDoc, parseFolderName, quoteDoc, stageByFolder } from "../src/model/client";
+import { clientInfoDoc, folderName, ordersDoc, parseFolderName, proposalLines, quoteDoc, stageByFolder } from "../src/model/client";
 import { readScan, scanToDraft } from "../src/model/roomScan";
 import { customerSet, drawingsOf, setDocument, shopSet } from "../src/drawings/sheets";
 import { cabinetCallouts, forAudience } from "../src/drawings/notes";
@@ -145,6 +147,18 @@ eq('a section drawn through the base and wall cabinets', cutCabinets(withDetails
   eq('fitted drop brings fascia + picture moulding to the bookcase tops', Math.abs(104.25 - fit - moldHeight('1527') - 98.75) < 0.07, true);
   eq('picture moulding then runs across the bookcases', pictureRuns({ ...withPic, ceiling: { ...withPic.ceiling, drop: fit } }).some((r) => r.wall === 'back'), true);
   eq('the cabinet\'s cap meets the pilaster\'s cap return, inside-mitered', `${tm.x} ${tm.z} ${tm.cut?.[0]}`, '0 12 in');
+}
+
+// From the review: older terms still get a notice on the signed copy; painting left out of the contract
+// costs nothing; a line price you set is shown exactly, the adjustment landing on the other lines
+eq('older terms: signed copy still carries the notice', termsHtml('1. Parties: you.', Date.UTC(2026, 9, 30, 15)).includes('NOTICE OF CANCELLATION'), true);
+eq('new terms: one notice, from the terms', (termsHtml(CJC_TERMS, Date.UTC(2026, 9, 30, 15)).match(/<h3>NOTICE OF CANCELLATION/g) ?? []).length, 1);
+{
+  const q0 = { ...p, quote: { ...p.quote, painter: 6000 } };
+  eq('painting not in contract adds no painter cost', priceQuote({ ...q0, quote: { ...q0.quote, paintWhen: 'none' as const } }).cost < priceQuote(q0).cost - 5999, true);
+  const set = { ...p, quote: { ...p.quote, adjustment: -1000, linePrices: { cabinets: 20000 }, extras: [{ id: 'x1', label: 'Demo', hours: 8, amount: 200 }] } };
+  eq('a set line price is shown exactly', proposalLines(set).find((l) => l.key === 'cabinets')?.price, 20000);
+  eq('the lines still add to the total', proposalLines(set).reduce((t, l) => t + l.price, 0), priceQuote(set).total);
 }
 
 // Recessed cans: one per coffer, or a grid about every 5'

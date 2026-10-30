@@ -43,7 +43,7 @@ export function optionPrices(p: Project): ProposalOption[] {
     const price = Math.round((priceQuote(withOptions(p, [name])).total - base) / 10) * 10;
     const only = { ...p, cabinets: p.cabinets.filter((c) => c.option?.trim() === name) };
     const extras = (p.quote?.extras ?? []).filter((e) => e.option?.trim() === name).map((e) => e.label);
-    return { id: optionId(name), label: name, price, items: [...plainItems(only, only.cabinets), ...extras] };
+    return { id: optionId(name), label: name, price, items: [...plainItems(withOptions(p, [name]), only.cabinets), ...extras] };
   });
 }
 
@@ -92,7 +92,7 @@ export function proposalSummary(p: Project): ProposalSummary {
   const areas = [...groups].map(([title, cabs]) => ({ title, items: plainItems(base, cabs) }));
   const extras = [...(base.quote?.extras ?? []).map((e) => e.label), ...(base.quote?.scopeExtra ?? [])].filter((x) => x?.trim());
   if (extras.length) areas.push({ title: 'Also included', items: extras });
-  return { areas, materials: materialsOf(p), options: optionPrices(p) };
+  return { areas, materials: materialsOf(base), options: optionPrices(p) };
 }
 
 /** Materials and finishes, in a few lines. */

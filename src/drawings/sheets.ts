@@ -15,7 +15,7 @@ import { cofferScope } from '../model/quote';
 import { drawingCss, scaleName, type Frame } from './draw';
 import { cabinetCallouts, forAudience, jobCallouts, type Audience } from './notes';
 import { LOGO, LOGO_ASPECT } from './logo';
-import { detailOk, detailTitle, detailsOf, drawDetail, inSet, type Detail } from './details';
+import { detailOk, detailTitle, detailsOf, drawDetail, inSet, suggestedCut, type Detail } from './details';
 
 /** The details for a set, numbered, two to a sheet: 1/A5, 2/A5, 3/A6… */
 function placeDetails(p: Project, set: 'customer' | 'shop', prefix: string, first: number) {
@@ -50,8 +50,8 @@ function detailSheets(p: Project, s: DrawingSettings, placed: { d: Detail; n: nu
 }
 
 /** Wall-section markers for an elevation, pointing at where each detail is drawn. */
-const cutsOn = (placed: { d: Detail; n: number; sheet: string }[], wall: WallId) =>
-  placed.filter(({ d }) => d.kind === 'wall' && d.wall === wall && d.at != null).map(({ d, n, sheet }) => ({ at: d.at!, ref: `${n}/${sheet}` }));
+const cutsOn = (p: Project, placed: { d: Detail; n: number; sheet: string }[], wall: WallId) =>
+  placed.filter(({ d }) => d.kind === 'wall' && d.wall === wall).map(({ d, n, sheet }) => ({ at: d.at ?? suggestedCut(p, wall), ref: `${n}/${sheet}` }));
 
 export type Paper = 'tabloid' | 'letter';
 export const papers: Record<Paper, { w: number; h: number; label: string }> = {
@@ -167,7 +167,7 @@ export function customerSet(p: Project, s: DrawingSettings): Sheet[] {
     sheets.push(sheet(p, s, 'A2', 'Ceiling plan', scaleName(rcp.scale), rcp.svg + notes));
   }
   walls.forEach((w, i) => {
-    const e = wallElevation(p, w, { ...A, w: A.w * 0.74 }, 'customer', cutsOn(placed, w));
+    const e = wallElevation(p, w, { ...A, w: A.w * 0.74 }, 'customer', cutsOn(p, placed, w));
     const notes = html({ x: A.x + A.w * 0.76, y: A.y, w: A.w * 0.24, h: A.h }, wallNotes(p, w, 'customer'), s.paper === 'tabloid' ? 0.11 : 0.09);
     sheets.push(sheet(p, s, `A${i + first}`, `${wallNames[w]} elevation`, scaleName(e.scale), e.svg + notes));
   });
@@ -247,7 +247,7 @@ export function shopSet(p: Project, s: DrawingSettings): Sheet[] {
   const nDetail = new Set(placed.map((x) => x.sheet)).size;
   walls.forEach((w, i) => {
     const elevFrame = { ...A, w: A.w * 0.7 };
-    const e = wallElevation(p, w, elevFrame, 'shop', cutsOn(placed, w));
+    const e = wallElevation(p, w, elevFrame, 'shop', cutsOn(p, placed, w));
     const notes = html({ x: A.x + A.w * 0.72, y: A.y, w: A.w * 0.28, h: A.h }, installNotes(p, w), s.paper === 'tabloid' ? 0.11 : 0.095);
     sheets.push(sheet(p, s, `S${i + 1}`, `${wallNames[w]} assembly`, scaleName(e.scale), e.svg + notes));
   });

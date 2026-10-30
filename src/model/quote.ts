@@ -620,7 +620,7 @@ export function priceQuote(p: Project): QuoteResult {
     installHours: hours.filter((h) => h.install).reduce((t, h) => t + h.hours, 0),
     materialCost,
     // The painter's cost to you: their quote, or the estimate or allowance less your usual markup
-    cost: materialCost + allHours * q.laborCost + (q.paintMode && q.paintMode !== 'quote' ? painter / (1 + q.painterMarkup) : q.painter) + q.extras.reduce((t, e) => t + e.amount, 0),
+    cost: materialCost + allHours * q.laborCost + (q.paintWhen === 'none' ? 0 : q.paintMode && q.paintMode !== 'quote' ? painter / (1 + q.painterMarkup) : q.painter) + q.extras.reduce((t, e) => t + e.amount, 0),
   };
 }
 
@@ -662,6 +662,8 @@ export function scopeLine(c: Cabinet, p: Project): string {
   if (c.island) bits.push(c.islandSides === 2 ? 'freestanding island with fronts on both sides' : 'freestanding island, back finished with a panel');
   const adj = parts.filter((x) => x.role === 'shelf' && x.name === 'Adjustable shelf').length;
   if (adj) bits.push(`(${adj}) adjustable shel${adj > 1 ? 'ves' : 'f'}`);
+  const fixedShelves = parts.filter((x) => x.role === 'shelf' && x.name === 'Fixed shelf').length;
+  if (fixedShelves) bits.push(`(${fixedShelves}) fixed shel${fixedShelves > 1 ? 'ves' : 'f'}`);
   const hang = c.rows.filter((r) => r.type === 'hang').length;
   if (hang) bits.push(hang === 2 ? 'double hang, two closet rods' : hang === 1 ? `${c.rows.some((r) => r.type === 'open') ? 'hanging with shelf storage above, ' : 'hanging, '}closet rod` : `(${hang}) hanging sections with closet rods`);
   const shoes = c.rows.filter((r) => r.type === 'shoes').reduce((t, r) => t + r.shelves, 0);

@@ -3,7 +3,7 @@
 // as one printable document, the Notice of Cancellation inside the terms with its dates filled in.
 import type { Job, Shop } from './store';
 import { apptLabel, whenEastern, type Appointment } from './calendar';
-import { cancelDeadline, easternYmd, longDate } from './cancel';
+import { cancelDeadline, easternYmd, longDate, noticeOfCancellation } from './cancel';
 import { LOGO } from '../../src/drawings/logo';
 
 export const esc = (s: unknown) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -17,13 +17,14 @@ const termsOf = (j: Job, shop: Shop) => j.proposal.terms ?? shop.terms;
  * blanks: once signed they carry the date signed and the cancellation deadline; before, what they'll be.
  * From the notice's heading on, it's set apart in a box so it prints as its own form.
  */
-export function termsHtml(text: string, signedAt?: number): string {
+export function termsHtml(text: string, signedAt?: number, seller = 'CJC Custom Carpentry LLC', address = ''): string {
   const ymd = signedAt ? easternYmd(signedAt) : '';
   const filled = text
     .replace(/\[DATE OF TRANSACTION\]/gi, ymd ? longDate(ymd) : '(the date you sign)')
     .replace(/\[CANCELLATION DEADLINE\]/gi, ymd ? longDate(cancelDeadline(ymd)).toUpperCase() : '(THE THIRD BUSINESS DAY AFTER YOU SIGN)');
   const at = filled.search(/^\s*NOTICE OF CANCELLATION\s*$/m);
-  if (at < 0) return paras(filled);
+  // Older terms with no notice of their own: the signed copy still gets the standard, filled-in notice
+  if (at < 0) return paras(filled) + (ymd ? noticeOfCancellation(ymd, seller, address) : '');
   const notice = filled.slice(at).replace(/^\s*NOTICE OF CANCELLATION\s*/, '');
   return `${paras(filled.slice(0, at))}<section class="notice"><h3>NOTICE OF CANCELLATION</h3>${paras(notice)}</section>`;
 }
@@ -171,7 +172,7 @@ ${s.total != null ? `<p><b>Options chosen:</b> ${(j.proposal.options ?? []).filt
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow">
 <title>${esc(j.project)} agreement</title><style>body{font:11pt/1.45 Georgia,serif;max-width:7.5in;margin:.5in auto;padding:0 16px;color:#111}${style}${noticeCss}
 .terms p{font-size:10pt}</style></head><body>${inner}
-${termsOf(j, shop) ? `<section class="terms" style="page-break-before:always"><h2>Terms and Conditions</h2>${termsHtml(termsOf(j, shop), s?.at)}</section>` : ''}
+${termsOf(j, shop) ? `<section class="terms" style="page-break-before:always"><h2>Terms and Conditions</h2>${termsHtml(termsOf(j, shop), s?.at, shop.company[0] || undefined, shop.company[1] || '')}</section>` : s ? noticeOfCancellation(easternYmd(s.at), shop.company[0] || 'CJC Custom Carpentry LLC', shop.company[1] || '') : ''}
 ${signed}</body></html>`;
 }
 

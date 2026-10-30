@@ -2,7 +2,7 @@
 // client's private page, send them the link, see whether they've looked and signed, and keep
 // the shop profile (about, terms, licenses, insurance) every client page shows.
 import { contractTotal } from '../model/contract';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useStore } from '../store';
 import { clientName, clientOf, COMPANY, proposalLines, quoteDoc, quoteTotals } from '../model/client';
 import { optionPrices, proposalSummary } from '../model/proposal';
@@ -92,7 +92,7 @@ export function ClientPortal() {
   // A sold job's price is its contract; the design's calculated quote never goes to the client
   const sold = project.contract;
   const renderings = renderOf(project).images.filter((i) => i.kind === 'rendering').length;
-  const options = optionPrices(project);
+  const options = useMemo(() => optionPrices(project), [project]);
 
   const run = async (label: string, fn: () => Promise<void>) => {
     setBusy(label); setError(''); setNote('');

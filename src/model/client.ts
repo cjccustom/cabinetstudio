@@ -123,9 +123,16 @@ export function proposalLines(full: Project): { key: string; label: string; pric
     ...r.extras.map((e) => ({ key: `extra:${e.id}`, label: named(`extra:${e.id}`, e.label), price: e.price * adj })),
     ...(r.painter ? [{ key: 'painting', label: paintLineLabel(q), price: r.painter }] : []),
   ];
-  const sum = lines.reduce((t, l) => t + l.price, 0) || 1;
-  const rounded = lines.map((l) => ({ ...l, price: Math.round(((l.price / sum) * r.total) / 10) * 10 }));
-  if (rounded.length) rounded[0].price += r.total - rounded.reduce((t, l) => t + l.price, 0);
+  // Lines with a price you set keep it exactly; the adjustment and rounding spread over the rest
+  const fixed = (l: { key: string }) => q.linePrices?.[l.key] != null;
+  const free = lines.filter((l) => !fixed(l));
+  const pool = free.length ? free : lines;
+  const fixedTotal = free.length ? lines.filter(fixed).reduce((t, l) => t + l.price, 0) : 0;
+  const sum = pool.reduce((t, l) => t + l.price, 0) || 1;
+  const target = r.total - fixedTotal;
+  const rounded = lines.map((l) => (free.length && fixed(l) ? { ...l, price: Math.round(l.price) } : { ...l, price: Math.round(((l.price / sum) * target) / 10) * 10 }));
+  const first = rounded.find((l) => !free.length || !fixed(l));
+  if (first) first.price += r.total - rounded.reduce((t, l) => t + l.price, 0);
   return rounded;
 }
 

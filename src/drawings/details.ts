@@ -40,7 +40,7 @@ export function detailTitle(p: Project, d: Detail): string {
   if (d.title?.trim()) return d.title.trim();
   if (d.kind === 'beam') return 'Coffer beam section';
   if (d.kind === 'cabinet') { const c = p.cabinets.find((x) => x.id === d.cabinetId); return c ? `${c.name} section` : 'Cabinet section'; }
-  const c = d.wall ? cutCabinets(p, d.wall, d.at ?? 0)[0] : undefined;
+  const c = d.wall ? cutCabinets(p, d.wall, d.at ?? suggestedCut(p, d.wall))[0] : undefined;
   if (d.zoom === 'top') return `Enlarged detail: crown at the ceiling${c ? `, ${c.name}` : ''}`;
   if (d.zoom === 'base') return `Enlarged detail: base${c ? `, ${c.name}` : ''}`;
   return `${d.wall ? wallNames[d.wall] : 'Wall'} section${c ? ` at ${c.name}` : ''}`;

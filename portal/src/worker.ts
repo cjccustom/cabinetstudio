@@ -484,7 +484,10 @@ async function tool(name: string, a: Record<string, unknown>, env: Env, url: URL
       for (const r of j.renderings) await env.PORTAL.delete(`img:${j.jobId}:${r.id}`);
       await env.PORTAL.delete(`tok:${j.token}`);
       await env.PORTAL.delete(`job:${j.jobId}`);
-      return { ok: true, deleted: j.jobId };
+      // Its visits go with it, so the calendar feed doesn't keep a job that no longer exists
+      const appts = (await listAppts(env)).filter((x) => x.jobId === j.jobId);
+      for (const x of appts) await deleteAppt(env, x.id);
+      return { ok: true, deleted: j.jobId, appointments: appts.length };
     }
     case 'list_jobs': {
       const out: unknown[] = [];
