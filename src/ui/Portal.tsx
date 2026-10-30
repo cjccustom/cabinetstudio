@@ -16,6 +16,8 @@ import {
   type Invoice, type JobStatus, type QbStatus, type Shop, type ShopDoc,
 } from '../portal';
 import { askConfirm } from './Confirm';
+import { projectPage } from '../../portal/src/pages';
+import type { Job, Shop as PortalShop } from '../../portal/src/store';
 import type { Project } from '../model/types';
 
 const money = (v: number) => `$${Math.round(v).toLocaleString('en-US')}`;
@@ -82,6 +84,7 @@ export function ClientPortal() {
   const [error, setError] = useState('');
   const [note, setNote] = useState('');
   const [settings, setSettings] = useState(false);
+  const [preview, setPreview] = useState<{ html: string; offline: boolean } | null>(null);
   const c = clientOf(project);
   const portal = project.portal;
   const st = portal?.status;
@@ -117,6 +120,28 @@ export function ClientPortal() {
     });
     keep(status, jobId);
     setNote(`Published version ${status.version}. Send ${c.first || 'the client'} the link below.`);
+  });
+
+  /** The client's page exactly as the portal will draw it, built here from what would be published. */
+  const showPreview = () => run('Building the preview…', async () => {
+    if (!total) throw new PortalError('The quote is $0. Price the job in the Quote tab first.');
+    let shop: PortalShop = { company: [], about: '', terms: CJC_TERMS, docs: [] };
+    let offline = false;
+    try { shop = (await getShop()) as unknown as PortalShop; } catch { offline = true; }
+    const summary = proposalSummary(project);
+    const rend = await renderingsFor(project);
+    const job: Job = {
+      jobId: 'preview', token: 'preview', project: project.name || 'Your project', stage: 'proposal',
+      client: { first: c.first, last: c.last, email: c.email, phone: c.phone, address: c.address },
+      proposal: {
+        agreementHtml: quoteDoc(project, { online: true }), total, deposit, publishedAt: Date.now(), version: (st?.version ?? 0) + 1, hash: '', terms: shop.terms,
+        summary: { areas: summary.areas, materials: summary.materials }, sections: proposalLines(project).map(({ label, price }) => ({ label, price })), options: summary.options,
+      },
+      renderings: rend.map((r, i) => ({ id: `r${i}`, name: r.name, mimeType: r.mimeType })), views: [],
+    };
+    let html = projectPage(job, shop, 'preview');
+    rend.forEach((r, i) => { html = html.split(`/p/preview/img/r${i}`).join(`data:${r.mimeType};base64,${r.data}`); });
+    setPreview({ html, offline });
   });
 
   const refresh = () => run('Checking…', async () => { keep(await jobStatus(portal!.jobId), portal!.jobId); });
@@ -160,6 +185,7 @@ export function ClientPortal() {
       {st && <PortalStatus st={st} checkedAt={portal?.checkedAt} />}
       {st?.signed && !st.cancelled && <Invoices st={st} total={st ? total : 0} busy={!!busy} run={run} keep={(s2) => keep(s2, portal!.jobId)} />}
       <div className="order-actions">
+        {!sold && <button disabled={!!busy} onClick={showPreview}>Preview what they’ll see</button>}
         {!sold && <button className="primary" disabled={!!busy} onClick={publish}>{portal?.url ? 'Update the client’s page' : 'Publish proposal'}</button>}
         {portal?.url && <button disabled={!!busy} onClick={refresh}>Check status</button>}
         {busy && <span className="hint">{busy}</span>}
@@ -167,6 +193,7 @@ export function ClientPortal() {
       {note && <p className="ok">{note}</p>}
       {error && <p className="warn">{error}</p>}
       {settings && <PortalSettings onClose={() => setSettings(false)} />}
+      {preview && <ProposalPreview html={preview.html} offline={preview.offline} onClose={() => setPreview(null)} onPublish={() => { setPreview(null); publish(); }} published={!!portal?.url} />}
     </section>
   );
 }
@@ -397,6 +424,32 @@ function PortalSettings({ onClose }: { onClose: () => void }) {
         {note && <p className="ok">{note}</p>}
         {error && <p className="warn">{error}</p>}
         <div className="modal-actions"><button onClick={onClose}>Close</button></div>
+      </div>
+    </div>
+  );
+}
+
+/** The client's page before it goes up, at phone or computer width. Links and signing are off. */
+function ProposalPreview({ html, offline, onClose, onPublish, published }: { html: string; offline: boolean; onClose: () => void; onPublish: () => void; published: boolean }) {
+  const [phone, setPhone] = useState(true);
+  return (
+    <div className="modal-back" onClick={onClose}>
+      <div className="modal wide preview-modal" role="dialog" aria-modal="true" aria-labelledby="pv-title" onClick={(e) => e.stopPropagation()}>
+        <div className="sec-head">
+          <h2 id="pv-title">Preview: the client’s page</h2>
+          <div className="seg" role="group" aria-label="Screen">
+            <button className={phone ? 'on' : ''} aria-pressed={phone} onClick={() => setPhone(true)}>Phone</button>
+            <button className={!phone ? 'on' : ''} aria-pressed={!phone} onClick={() => setPhone(false)}>Computer</button>
+          </div>
+        </div>
+        <p className="hint">Exactly what they’ll see once it’s published. Nothing has gone to the client yet; links and signing don’t work here.{offline ? ' The portal couldn’t be reached, so your terms and shop details are the defaults built into Cabinet Studio.' : ''}</p>
+        <div className="preview-frame" style={{ width: phone ? 390 : '100%' }}>
+          <iframe title="Client page preview" sandbox="allow-scripts" srcDoc={html} />
+        </div>
+        <div className="modal-actions">
+          <button onClick={onClose}>Close</button>
+          <button className="primary" onClick={onPublish}>{published ? 'Update the client’s page' : 'Publish proposal'}</button>
+        </div>
       </div>
     </div>
   );

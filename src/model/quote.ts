@@ -1,6 +1,6 @@
 // Quoting: material cost from the design, labor hours from standard times, and the shop's two
 // pricing methods side by side. Every number traces back to the design or a setting.
-import { furnitureOf, tableEstimate } from './furniture';
+import { furnitureOf, tableEstimate, tableScope } from './furniture';
 import type { Cabinet, Project, WallId } from './types';
 import { buildParts, eff, isOpenRow, openSpans } from './parts';
 import { resolveEnds, wallNames } from './layout';
@@ -183,6 +183,20 @@ export interface QuoteSettings {
   /** Painting the inside of open sections (prefinished ply scuffed, primed and painted), per sq ft of opening. */
   paintPerInteriorSqFt?: number;
   paintAllowance?: number;
+  /** When the cabinets are painted: sprayed before install (prefinished), on site after install, or not in this contract. Unset = prefinished. */
+  paintWhen?: 'prefinish' | 'site' | 'none';
+  /** The painting line's wording on the agreement; unset = by when it's done. */
+  paintLabel?: string;
+  /**
+   * Your own wording and price for any line on the agreement, by line key: a group ('cabinets',
+   * 'ceiling'…), an extra ('extra:<id>') or 'painting'. A price set here is what the line shows,
+   * in place of its hours and materials (or the painting quote, estimate or allowance).
+   */
+  lineLabels?: Record<string, string>;
+  linePrices?: Record<string, number>;
+  /** Scope of work: your wording for a cabinet's line (by cabinet id, '' hides it), and lines of your own. */
+  scopeText?: Record<string, string>;
+  scopeExtra?: string[];
   extras: QuoteExtra[];
   /** Hours you set yourself for a labor line, by lineKey: used in place of the estimate. */
   hourOverrides?: Record<string, number>;
@@ -226,6 +240,33 @@ export const quoteOf = (p: Project): QuoteSettings => {
 };
 
 export type Group = 'cabinets' | 'tops' | 'paneling' | 'room' | 'ceiling' | 'furniture';
+
+/** The painting line's wording on the agreement: yours, or by when it's done. */
+export const paintLineLabel = (q: QuoteSettings) => q.lineLabels?.painting?.trim() || q.paintLabel?.trim() || (q.paintWhen === 'site' ? 'Site finishing (painting)' : 'Cabinet prefinishing');
+
+export interface ScopeItem { key: string; text: string; /** What Cabinet Studio wrote, when you've changed it. */ auto?: string; custom?: boolean }
+
+/** The scope of work, line by line: each cabinet, tables, the ceiling, and lines of your own, with your wording where you've changed it. Hidden lines are left out. */
+export function scopeItems(p: Project, withHidden = false): ScopeItem[] {
+  const q = quoteOf(p);
+  const auto = [
+    ...p.cabinets.map((c) => ({ key: c.id, text: scopeLine(c, p) })),
+    ...furnitureOf(p).map((t) => ({ key: `table:${t.id}`, text: tableScope(t) })),
+    ...(cofferScope(p) ? [{ key: 'ceiling', text: cofferScope(p)! }] : []),
+  ];
+  const out: ScopeItem[] = auto.map((a) => {
+    const mine = q.scopeText?.[a.key];
+    return mine == null ? a : { key: a.key, text: mine, auto: a.text };
+  });
+  (q.scopeExtra ?? []).forEach((t, i) => out.push({ key: `custom:${i}`, text: t, custom: true }));
+  return withHidden ? out : out.filter((x) => x.text.trim());
+}
+
+/** What painting comes to before any price you set yourself: the painter's quote with markup, the estimate or the allowance. */
+export function paintCalculated(p: Project, q: QuoteSettings): number {
+  if (q.paintWhen === 'none') return 0;
+  return q.paintMode === 'estimate' ? paintEstimate(p, q).amount : q.paintMode === 'allowance' ? q.paintAllowance ?? 0 : q.painter * (1 + q.painterMarkup);
+}
 export const groupLabel: Record<Group, string> = { cabinets: 'Cabinets', tops: 'Solid wood tops & seats', paneling: 'Wall paneling', room: 'Room trim', ceiling: 'Coffered ceiling', furniture: 'Furniture' };
 const moldGroup = (kinds: MoldKind[]): Group => (kinds.includes('cap') ? 'paneling' : kinds.every((k) => ceilingKinds.includes(k)) ? 'ceiling' : kinds.every((k) => roomKinds.includes(k)) ? 'room' : 'cabinets');
 
@@ -505,14 +546,14 @@ export function estimateMaterials(p: Project, q: QuoteSettings): MaterialLine[] 
   return out;
 }
 
-export interface GroupPrice { group: Group; hours: number; materials: number; methodA: number; methodB: number; price: number }
+export interface GroupPrice { group: Group; hours: number; materials: number; methodA: number; methodB: number; price: number; /** The calculated price, when you've set your own. */ estimated?: number }
 
 export interface QuoteResult {
   hours: HourLine[];
   materials: MaterialLine[];
   tax: number;
   groups: GroupPrice[];
-  extras: { label: string; price: number }[];
+  extras: { id: string; label: string; price: number }[];
   painter: number;
   /** Before workload, adjustment and rounding. */
   calculated: number;
@@ -555,11 +596,17 @@ export function priceQuote(p: Project): QuoteResult {
       const h = hours.filter((x) => x.group === g).reduce((t, x) => t + x.hours, 0);
       const m = materials.filter((x) => x.group === g).reduce((t, x) => t + x.cost, 0);
       const pr = price(h, m);
-      return { group: g, hours: h, materials: m, methodA: pr.a, methodB: pr.b, price: pr.chosen };
+      // A price you set for the whole line stands in for its hours and materials (it's what shows on the agreement, so workload comes back out)
+      const set = q.linePrices?.[g];
+      return { group: g, hours: h, materials: m, methodA: pr.a, methodB: pr.b, price: set != null ? set / (1 + q.workloadAdj[q.workload]) : pr.chosen, ...(set != null ? { estimated: pr.chosen } : {}) };
     })
     .filter((g) => g.hours || g.materials);
-  const extras = q.extras.map((e) => ({ label: e.label, price: price(e.hours, 0).chosen + e.amount }));
-  const painter = q.paintMode === 'estimate' ? paintEstimate(p, q).amount : q.paintMode === 'allowance' ? q.paintAllowance ?? 0 : q.painter * (1 + q.painterMarkup);
+  const adjOf = 1 + q.workloadAdj[q.workload];
+  const extras = q.extras.map((e) => {
+    const set = q.linePrices?.[`extra:${e.id}`];
+    return { id: e.id, label: e.label, price: set != null ? set / adjOf : price(e.hours, 0).chosen + e.amount };
+  });
+  const painter = q.paintWhen === 'none' ? 0 : q.linePrices?.painting ?? paintCalculated(p, q);
   const work = groups.reduce((t, g) => t + g.price, 0) + extras.reduce((t, e) => t + e.price, 0);
   const workloadAmount = work * q.workloadAdj[q.workload];
   const calculated = work + painter;

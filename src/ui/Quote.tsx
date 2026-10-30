@@ -1,10 +1,9 @@
 import { useMemo, useState } from 'react';
 import { useStore } from '../store';
-import { cofferScope, defaultStandards, groupLabel, lineKey, newExtra, paintEstimate, paintRates, type Group, priceQuote, quoteOf, scopeLine, type LaborStandards, type QuoteSettings, type Workload } from '../model/quote';
+import { defaultStandards, groupLabel, lineKey, newExtra, paintEstimate, paintLineLabel, paintRates, type Group, priceQuote, quoteOf, scopeItems, type LaborStandards, type QuoteSettings, type Workload } from '../model/quote';
 import { Field, Section } from './fields';
 import { QuoteRendering } from './Rendering';
 import { FurnitureSection } from './Furniture';
-import { furnitureOf, tableScope } from '../model/furniture';
 import { optionNames, optionPrices } from '../model/proposal';
 import { proposalLines } from '../model/client';
 import { defaultSupplies, driverLabel, newSupply, supplyLines, type SupplyDriver, type SupplyItem } from '../model/supplies';
@@ -42,6 +41,27 @@ function EditNum({ value, onSave, digits, prefix = '', label }: { value: number;
   };
   return <input className="cell-input" autoFocus aria-label={label} inputMode="decimal" defaultValue={digits ? value.toFixed(digits) : Math.round(value)}
     onBlur={(e) => done(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') done((e.target as HTMLInputElement).value); if (e.key === 'Escape') setEditing(false); }} />;
+}
+
+/** Text shown as text; click to change it. */
+function EditText({ value, onSave, label, multiline }: { value: string; onSave: (v: string) => void; label: string; multiline?: boolean }) {
+  const [editing, setEditing] = useState(false);
+  if (!editing) return <button className="cell-edit text-edit" title="Click to change the wording" aria-label={label} onClick={() => setEditing(true)}>{value || '—'}</button>;
+  const done = (t: string) => { setEditing(false); if (t !== value) onSave(t); };
+  const keys = (e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); done((e.target as HTMLInputElement).value); }
+    if (e.key === 'Escape') setEditing(false);
+  };
+  return multiline
+    ? <textarea className="text-input" autoFocus aria-label={label} defaultValue={value} rows={3} onBlur={(e) => done(e.target.value)} onKeyDown={keys} />
+    : <input className="text-input" autoFocus aria-label={label} defaultValue={value} onBlur={(e) => done(e.target.value)} onKeyDown={keys} />;
+}
+
+/** Set or clear one entry of a keyed map in the quote settings. */
+function keyed<T>(map: Record<string, T> | undefined, key: string, v: T | undefined): Record<string, T> | undefined {
+  const next = { ...map };
+  if (v === undefined) delete next[key]; else next[key] = v;
+  return Object.keys(next).length ? next : undefined;
 }
 
 /* ---------- Left: how the job is priced ---------- */
@@ -107,13 +127,20 @@ export function QuoteInputs() {
 
         <SuppliesEditor />
 
-        <Section title="Painting (prefinishing)">
-          <div className="seg" role="group" aria-label="How painting is priced">
+        <Section title="Painting & finishing">
+          <div className="seg" role="group" aria-label="When it's painted">
+            {([['prefinish', 'Prefinished'], ['site', 'Site finished'], ['none', 'Not in contract']] as const).map(([k, label]) => (
+              <button key={k} className={(q.paintWhen ?? 'prefinish') === k ? 'on' : ''} aria-pressed={(q.paintWhen ?? 'prefinish') === k} onClick={() => set({ paintWhen: k === 'prefinish' ? undefined : k })}>{label}</button>
+            ))}
+          </div>
+          <p className="hint">{q.paintWhen === 'none' ? 'Painting is left off the agreement: the customer’s painter, or by others.' : q.paintWhen === 'site' ? 'Painted on site after install. ' : 'Sprayed before install. '}{q.paintWhen !== 'none' && <>On the agreement as “{paintLineLabel(q)}”; click the line or its price on the right to change either.</>}</p>
+          {q.paintWhen !== 'none' && <div className="seg" role="group" aria-label="How painting is priced" style={{ marginTop: 6 }}>
             {([['quote', 'Painter’s quote'], ['estimate', 'Estimate'], ['allowance', 'Allowance']] as const).map(([k, label]) => (
               <button key={k} className={(q.paintMode ?? 'quote') === k ? 'on' : ''} aria-pressed={(q.paintMode ?? 'quote') === k} onClick={() => set({ paintMode: k === 'quote' ? undefined : k })}>{label}</button>
             ))}
-          </div>
-          {(q.paintMode ?? 'quote') === 'quote' && (
+          </div>}
+          {q.paintWhen !== 'none' && q.linePrices?.painting != null && <p className="warn">You set painting at {money(q.linePrices.painting)} on the agreement; that’s used in place of the price below. <button className="mini" onClick={() => set({ linePrices: keyed(q.linePrices, 'painting', undefined) })}>Use the calculated price</button></p>}
+          {q.paintWhen !== 'none' && (q.paintMode ?? 'quote') === 'quote' && (
             <>
               <div className="grid2" style={{ marginTop: 8 }}>
                 <Num id="q-paint" label="Painter’s price" suffix="$" value={q.painter} onChange={(v) => set({ painter: v })} />
@@ -122,17 +149,17 @@ export function QuoteInputs() {
               <p className="hint">Leave at $0 when the customer deals with the painter directly. Without a quote yet, the estimate for this job is {money(pe.amount)}.</p>
             </>
           )}
-          {q.paintMode === 'estimate' && (
+          {q.paintWhen !== 'none' && q.paintMode === 'estimate' && (
             <>
               <div className="grid2" style={{ marginTop: 8 }}>
                 <Num id="q-ppf" label="Per door, drawer front or end panel" suffix="$" value={q.paintPerFront ?? paintRates.perFront} onChange={(v) => set({ paintPerFront: v })} />
                 <Num id="q-pps" label="Per sq ft of cabinet face" suffix="$" value={q.paintPerSqFt ?? paintRates.perSqFt} onChange={(v) => set({ paintPerSqFt: v })} />
                 {pe.interior > 0 && <Num id="q-ppi" label="Per sq ft of painted open interior" suffix="$" value={q.paintPerInteriorSqFt ?? paintRates.perInteriorSqFt} onChange={(v) => set({ paintPerInteriorSqFt: v })} />}
               </div>
-              <p className="hint">{pe.fronts} fronts and panels, {Math.round(pe.sqft)} sq ft of cabinet face{pe.interior > 0 ? `, ${Math.round(pe.interior)} sq ft of open sections painted inside (scuff, bonding primer, paint)` : ''}: <strong>{money(pe.amount)}</strong> to the customer. Starting rates fit your past prefinishing prices; Massachusetts cabinet painters run about $90 to $175 a door.</p>
+              <p className="hint">{pe.fronts} fronts and panels, {Math.round(pe.sqft)} sq ft of cabinet face{pe.interior > 0 ? `, ${Math.round(pe.interior)} sq ft of open sections painted inside (scuff, bonding primer, paint)` : ''}: <strong>{money(pe.amount)}</strong> to the customer. {q.paintWhen === 'site' ? 'Starting rates are from your prefinishing prices; set your own for site finishing.' : 'Starting rates fit your past prefinishing prices; Massachusetts cabinet painters run about $90 to $175 a door.'}</p>
             </>
           )}
-          {q.paintMode === 'allowance' && (
+          {q.paintWhen !== 'none' && q.paintMode === 'allowance' && (
             <>
               <div className="grid2" style={{ marginTop: 8 }}>
                 <Num id="q-pal" label="Painting allowance" suffix="$" value={q.paintAllowance ?? 0} onChange={(v) => set({ paintAllowance: v })} />
@@ -228,7 +255,8 @@ export function QuoteSummary() {
   const rounded = proposalLines(project);
   const options = useMemo(() => optionPrices(project), [project]);
   const baseTotal = rounded.reduce((t, l) => t + l.price, 0);
-  const scope = [...project.cabinets.map((c) => scopeLine(c, project)), cofferScope(project), ...furnitureOf(project).map(tableScope)].filter((x): x is string => !!x);
+  const scopeAll = scopeItems(project, true);
+  const scope = scopeAll.filter((x) => x.text.trim()).map((x) => x.text);
   const text = [
     ...scope,
     '',
@@ -243,7 +271,18 @@ export function QuoteSummary() {
         <Section title="Purchase agreement">
           <table className="totals">
             <tbody>
-              {rounded.map((l) => <tr key={l.label}><td>{l.label}</td><td className="num">{money(l.price)}</td></tr>)}
+              {rounded.map((l) => {
+                const changed = q.lineLabels?.[l.key] != null || q.linePrices?.[l.key] != null;
+                return (
+                  <tr key={l.key} className={q.linePrices?.[l.key] != null ? 'overridden' : ''}>
+                    <td>
+                      <EditText value={l.label} label={`Wording for ${l.label}`} onSave={(v) => set({ lineLabels: keyed(q.lineLabels, l.key, v.trim() || undefined) })} />
+                      {changed && <button className="icon-btn reset" title="Back to the calculated wording and price" aria-label={`Reset ${l.label}`} onClick={() => set({ lineLabels: keyed(q.lineLabels, l.key, undefined), linePrices: keyed(q.linePrices, l.key, undefined) })}>↺</button>}
+                    </td>
+                    <td className="num"><EditNum value={l.price} digits={0} prefix="$" label={`Price for ${l.label}`} onSave={(v) => set({ linePrices: keyed(q.linePrices, l.key, v) })} /></td>
+                  </tr>
+                );
+              })}
               <tr className="sum"><td>Total Project Investment{options.length ? ' (before options)' : ''}</td><td className="num">{money(baseTotal)}</td></tr>
               {options.map((o) => <tr key={o.id}><td>Option: {o.label}</td><td className="num">+{money(o.price)}</td></tr>)}
             </tbody>
@@ -252,6 +291,7 @@ export function QuoteSummary() {
             <Num id="q-adj" label="Your adjustment" suffix="$" value={q.adjustment} onChange={(v) => set({ adjustment: v })} />
             <Num id="q-round" label="Round to" suffix="$" value={q.roundTo} onChange={(v) => set({ roundTo: v })} />
           </div>
+          <p className="hint">Click any line’s wording or price to set your own; ↺ puts it back. A price you set stands in for that line’s hours and materials.</p>
           <p className="hint">
             {options.length ? `With every option ${money(r.total)}. ` : ''}Calculated {money(r.calculated)}
             {r.workloadAmount ? `, workload ${r.workloadAmount > 0 ? '+' : '−'}${money(Math.abs(r.workloadAmount))}` : ''}
@@ -283,8 +323,24 @@ export function QuoteSummary() {
         <datalist id="option-names-q">{optionNames(useStore.getState().project).map((n) => <option key={n} value={n} />)}</datalist>
         <QuoteRendering />
 
-        <Section title="Scope of work">
-          <ul className="assembly">{scope.map((s) => <li key={s}>{s}</li>)}</ul>
+        <Section title="Scope of work" aside={<button className="mini" onClick={() => set({ scopeExtra: [...(q.scopeExtra ?? []), 'New line'] })}>Add a line</button>}>
+          <ul className="assembly scope-edit">
+            {scopeAll.map((x) => (
+              <li key={x.key} className={x.text.trim() ? '' : 'muted'}>
+                <EditText multiline value={x.text.trim() ? x.text : '(left off)'} label="Scope line" onSave={(v) => {
+                  if (x.custom) { const i = Number(x.key.split(':')[1]); set({ scopeExtra: (q.scopeExtra ?? []).map((t, j) => (j === i ? v : t)) }); }
+                  else set({ scopeText: keyed(q.scopeText, x.key, v === x.auto ? undefined : v) });
+                }} />
+                {x.custom
+                  ? <button className="icon-btn" aria-label="Remove line" title="Remove" onClick={() => { const i = Number(x.key.split(':')[1]); set({ scopeExtra: (q.scopeExtra ?? []).filter((_, j) => j !== i) }); }}>×</button>
+                  : <>
+                    {x.auto != null && <button className="icon-btn reset" title="Back to Cabinet Studio’s wording" aria-label="Reset line" onClick={() => set({ scopeText: keyed(q.scopeText, x.key, undefined) })}>↺</button>}
+                    {x.text.trim() && <button className="icon-btn" title="Leave this line off" aria-label="Leave off" onClick={() => set({ scopeText: keyed(q.scopeText, x.key, '') })}>×</button>}
+                  </>}
+              </li>
+            ))}
+          </ul>
+          <p className="hint">Click a line to reword it; your wording goes on the agreement and the proposal. Lines you add go under “Also included.”</p>
           <div className="order-actions" style={{ marginTop: 10 }}>
             <button onClick={copy}>Copy scope and prices</button>
             {copied && <span className="ok">{copied}</span>}

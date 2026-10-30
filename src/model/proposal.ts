@@ -56,6 +56,9 @@ const covered = [/^approx/i, /plywood interior with/i, /^(paint|stain) grade$/i,
 
 /** One cabinet in plain words: what it is and what it has, without its sizes. */
 export function plainItem(c: Cabinet, p: Project): string {
+  // Your own wording for this cabinet on the Quote tab goes on the proposal as you wrote it
+  const mine = p.quote?.scopeText?.[c.id];
+  if (mine != null) return mine.replace(/^[A-Z]{1,3}\d{1,3}:\s*/, '').trim();
   const text = scopeLine(c, p).replace(/^[^:]+:\s*/, '');
   const bits = text.split('; ')
     .map((b) => b.replace(/,?\s*approx\.?\s*[\d”"'\-\s/xWHD.]+(thick)?/gi, '').replace(/\s*\(approx [^)]*\)/gi, '')
@@ -70,7 +73,7 @@ export function plainItem(c: Cabinet, p: Project): string {
 /** Cabinets in plain words, identical ones counted together. */
 function plainItems(p: Project, cabs: Cabinet[]): string[] {
   const counts = new Map<string, number>();
-  for (const c of cabs) { const t = plainItem(c, p); counts.set(t, (counts.get(t) ?? 0) + 1); }
+  for (const c of cabs) { const t = plainItem(c, p); if (t) counts.set(t, (counts.get(t) ?? 0) + 1); }
   return [...counts].map(([t, n]) => (n > 1 ? `(${n}) ${t.replace(/^([^:]*?)\bcabinet\b/, '$1cabinets')}` : t));
 }
 
@@ -87,7 +90,7 @@ export function proposalSummary(p: Project): ProposalSummary {
   const groups = new Map<string, Cabinet[]>();
   for (const c of base.cabinets) groups.set(areaOf(c), [...(groups.get(areaOf(c)) ?? []), c]);
   const areas = [...groups].map(([title, cabs]) => ({ title, items: plainItems(base, cabs) }));
-  const extras = (base.quote?.extras ?? []).map((e) => e.label).filter(Boolean);
+  const extras = [...(base.quote?.extras ?? []).map((e) => e.label), ...(base.quote?.scopeExtra ?? [])].filter((x) => x?.trim());
   if (extras.length) areas.push({ title: 'Also included', items: extras });
   return { areas, materials: materialsOf(p), options: optionPrices(p) };
 }
@@ -100,7 +103,8 @@ export function materialsOf(p: Project): { label: string; value: string }[] {
   const out: { label: string; value: string }[] = [];
   const doors = p.cabinets.some((c) => c.rows.some((r) => r.type === 'doors' || r.type === 'drawer' || r.covered));
   if (doors) out.push({ label: 'Doors & drawer fronts', value: `${style.name}${style.bead ? ` (${style.bead.toLowerCase()})` : ''}, ${material.toLowerCase()}, ${s.doorMount === 'inset' ? 'inset' : 'overlay'}` });
-  out.push({ label: 'Finish', value: s.finish === 'stain' ? `Stain grade ${s.woodSpecies.toLowerCase()}, stained in your choice of color` : 'Painted in your choice of color' });
+  const when = p.quote?.paintWhen === 'site' ? ', finished on site after install' : p.quote?.paintWhen === 'none' ? '; painting by others' : '';
+  out.push({ label: 'Finish', value: (s.finish === 'stain' ? `Stain grade ${s.woodSpecies.toLowerCase()}, stained in your choice of color` : 'Painted in your choice of color') + when });
   out.push({ label: 'Construction', value: `${s.construction === 'frameless' ? 'Frameless' : 'Face frame'} cabinets with ${(s.plywood ?? 'Prefinished birch').toLowerCase()} plywood interiors` });
   if (p.cabinets.some((c) => c.rows.some((r) => r.type === 'drawer'))) out.push({ label: 'Drawers', value: 'Dovetail drawer boxes on soft-close, full-extension slides' });
   if (doors) out.push({ label: 'Hinges', value: 'Soft-close, adjustable' });

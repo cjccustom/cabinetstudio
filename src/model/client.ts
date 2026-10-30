@@ -3,7 +3,7 @@
 // into that folder are built here as plain text so they read well in the Dropbox app.
 import { furnitureOf, tableScope } from './furniture';
 import type { Project } from './types';
-import { cofferScope, priceQuote, quoteOf, scopeLine, groupLabel } from './quote';
+import { cofferScope, priceQuote, quoteOf, groupLabel, paintLineLabel, scopeItems } from './quote';
 import { eagleRequests, requestText } from './eagleRequest';
 import { hardwareOrder, hardwareText } from './hardware';
 import { releaseOf } from './release';
@@ -111,16 +111,17 @@ const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replac
 const money = (v: number) => `$${Math.round(v).toLocaleString('en-US')}`;
 
 /** The purchase agreement's price lines: workload, adjustment and rounding spread over them so they add up to the total. */
-export function proposalLines(full: Project): { label: string; price: number }[] {
+export function proposalLines(full: Project): { key: string; label: string; price: number }[] {
   // The base proposal: options are priced on their own and added when the customer picks them
   const p = withOptions(full);
   const q = quoteOf(p);
   const r = priceQuote(p);
   const adj = 1 + q.workloadAdj[q.workload];
+  const named = (key: string, label: string) => q.lineLabels?.[key]?.trim() || label;
   const lines = [
-    ...r.groups.map((g) => ({ label: groupLabel[g.group], price: g.price * adj })),
-    ...r.extras.map((e) => ({ label: e.label, price: e.price * adj })),
-    ...(r.painter ? [{ label: 'Cabinet prefinishing', price: r.painter }] : []),
+    ...r.groups.map((g) => ({ key: g.group, label: named(g.group, groupLabel[g.group]), price: g.price * adj })),
+    ...r.extras.map((e) => ({ key: `extra:${e.id}`, label: named(`extra:${e.id}`, e.label), price: e.price * adj })),
+    ...(r.painter ? [{ key: 'painting', label: paintLineLabel(q), price: r.painter }] : []),
   ];
   const sum = lines.reduce((t, l) => t + l.price, 0) || 1;
   const rounded = lines.map((l) => ({ ...l, price: Math.round(((l.price / sum) * r.total) / 10) * 10 }));
@@ -154,7 +155,7 @@ h3{font-size:12pt;margin:16px 0 4px}ul{margin:4px 0 8px;padding-left:20px}ul li{
 <section class="page">${head}<h1>PROJECT SCOPE OF WORK</h1>${who}${c.phone ? `<tr><th>Cell Phone</th><td>${esc(c.phone)}</td></tr>` : ''}${c.email ? `<tr><th>E-Mail</th><td>${esc(c.email)}</td></tr>` : ''}</table>
 <h2>${esc(p.name)}</h2>
 ${c.scope ? `<p>${esc(c.scope).replace(/\n/g, '<br>')}</p>` : ''}
-${full ? `<ol>${base.cabinets.map((cab) => `<li>${esc(scopeLine(cab, base))}</li>`).join('')}${furnitureOf(base).map((t) => `<li>${esc(tableScope(t))}</li>`).join('')}${cofferScope(base) ? `<li>${esc(cofferScope(base)!)}</li>` : ''}</ol>`
+${full ? `<ol>${scopeItems(base).map((x) => `<li>${esc(x.text)}</li>`).join('')}</ol>`
     : summary.areas.map((a) => `<h3>${esc(a.title)}</h3><ul>${a.items.map((i) => `<li>${esc(i)}</li>`).join('')}</ul>`).join('') + `${furnitureOf(base).length || cofferScope(base) ? `<ul>${furnitureOf(base).map((t) => `<li>${esc(tableScope(t).replace(/,?\s*approx[^;]*;/i, ';'))}</li>`).join('')}${cofferScope(base) ? `<li>${esc(cofferScope(base)!)}</li>` : ''}</ul>` : ''}`}
 ${!full && summary.materials.length ? `<h3>Materials &amp; finishes</h3><table class="mat">${summary.materials.map((m) => `<tr><th>${esc(m.label)}</th><td>${esc(m.value)}</td></tr>`).join('')}</table>` : ''}
 ${!full ? '' : r.extras.length ? `<p><b>Additional work:</b> ${r.extras.map((e) => esc(e.label)).join('; ')}</p>` : ''}
