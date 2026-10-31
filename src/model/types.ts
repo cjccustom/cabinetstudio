@@ -143,6 +143,9 @@ export interface Cushion {
 }
 
 /** Full-height pilaster between built-in sections: plywood sides, Eagle panels on the face, solid plinth and capital. */
+/** How a face frame's rails join its stiles. stubTenon: tongue and groove, a 3/8" tongue on each rail end in a groove in the stile. */
+export type FrameJoinery = 'pocket' | 'stubTenon' | 'domino' | 'lamello' | 'biscuit';
+
 export interface PilasterSpec {
   /** Plinth block at the floor; the base moulding wraps it. */
   plinth: number;
@@ -164,6 +167,8 @@ export interface PilasterSpec {
   rabbet: number;
   /** A&M panel or bead moulding mitered around each panel on the front. */
   panelMold?: string;
+  /** How its frame goes together; unset = the shop's face frame joinery. */
+  joinery?: FrameJoinery;
   /** Stiles, rails, plinth and capital in this species; empty = the job's face frame stock. */
   species?: string;
   /** The room's baseboard and cap wrapped around the plinth: heights and thickness. */
@@ -244,6 +249,8 @@ export interface ShopSettings {
   ffThickness: number;
   stileWidth: number;
   topRailWidth: number;
+  /** How face frames (and pilaster frames) go together. Unset = pocket screws. */
+  ffJoinery?: FrameJoinery;
   bottomRailWidth: number;
   midRailWidth: number;
   /** Planned overhang of the face frame past each case side, on top of what thin plywood gives. */

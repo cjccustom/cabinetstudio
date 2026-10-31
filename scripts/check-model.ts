@@ -189,6 +189,23 @@ eq('new terms: one notice, from the terms', (termsHtml(CJC_TERMS, Date.UTC(2026,
   eq('it goes on a 10\' board, the 15" rail in its leftover', `${r.byLength.map((b) => `${b.count}x${b.length}`).join(',')} ${r.groups[0].strips[0].pieces.length}`, '1x120,1x96 2');
 }
 
+// Sheets: 98 3/4" pilaster sides go on 4x10 sheets the cutlist adds, everything else stays on 4x8
+{
+  const pil = { ...b21, id: 'pl1', kind: 'pilaster' as const, name: 'P1', width: 6, height: 98.75, depth: 12, rows: [], pilaster: { ...defaultPilaster, plinth: 0 } };
+  const job = { ...p, room: { width: 157.25, depth: 180.5, height: 104.25 }, cabinets: [pil, { ...pil, id: 'pl2', name: 'P2', offset: 40 }] };
+  const data = defaultCutlist(job);
+  const res = optimize(optimizerParts(job, data), cutStock(job, data), data.options);
+  eq('pilaster sides placed (4x10 added)', res.every((m) => m.unplaced.length === 0) && cutStock(job, data).some((x) => x.length === 120), true);
+}
+
+// Frame joinery: tongue and groove adds a 3/8" tongue to each rail end; every method is noted
+{
+  const pocket = buildParts(b21, s).find((x) => x.name === 'Top rail')!;
+  const tg = buildParts(b21, { ...s, ffJoinery: 'stubTenon' as const }).find((x) => x.name === 'Top rail')!;
+  eq('T&G rail is 3/4" longer', tg.length - pocket.length, 0.75);
+  eq('Domino noted on the rail', (buildParts(b21, { ...s, ffJoinery: 'domino' as const }).find((x) => x.name === 'Top rail')!.note ?? '').includes('Domino'), true);
+}
+
 // Recessed cans: one per coffer, or a grid about every 5'
 eq('one can per coffer', canSpots({ ...p, ceiling: { on: true, across: 3, deep: 3 } }).length, 9);
 eq('cans on a grid, 3 across by 2 deep', canSpots({ ...p, room: { width: 156, depth: 144, height: 96 } }).length, 6);

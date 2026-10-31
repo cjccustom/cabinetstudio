@@ -3,8 +3,8 @@ import { cofferOf, perimOf } from '../model/coffer';
 import { combine, combineAll, stackedPairs, upperOn } from '../model/onePiece';
 import { freeStanding, useStore } from '../store';
 import { useNav } from '../three/navigation';
-import type { CabinetNote, Cabinet, CaseBuild, CrownBuild, EndMode, FaceRow, PanelChoice, PanelMode, ShopSettings, WallId } from '../model/types';
-import { buildParts, closetRod, isOpenRow, PAINT_TOP, topThick, crownFit, crownLayout, crownRoom, layoutRows, noCrownBuild, panelOn } from '../model/parts';
+import type { CabinetNote, Cabinet, CaseBuild, FrameJoinery, CrownBuild, EndMode, FaceRow, PanelChoice, PanelMode, ShopSettings, WallId } from '../model/types';
+import { buildParts, closetRod, isOpenRow, joineryLabel, PAINT_TOP, topThick, crownFit, crownLayout, crownRoom, layoutRows, noCrownBuild, panelOn } from '../model/parts';
 import { defaultPilaster, pilasterOf, pilasterSections } from '../model/pilaster';
 import { bracketCount, bracketGap, bracketLength, bracketProduct, finishedEnds, floatingOf, shelfPly } from '../model/floatingShelf';
 import { evenRun, facesFrom, fillSpan, footprint, gapBeside, placeOn, resolveEnds, runOf, shiftInRoom, wallLength, wallNames, wallOrder } from '../model/layout';
@@ -21,6 +21,7 @@ import { applianceKinds, appliancePresets, newAppliance, openingFor, placedAppli
 import { cabinetCallouts } from '../drawings/notes';
 import { archBuilds, archShapes, baseLayout, baseOf, baseStyles, cutOutline, defaultBase, floorStanding } from '../model/cabinetBase';
 import { profileLabel, profileByNum } from '../model/moldings';
+import { lumberNames } from '../model/pricebook';
 
 const kindLabel = { base: 'Base cabinet', wall: 'Wall cabinet', tall: 'Tall cabinet', pilaster: 'Pilaster', shelf: 'Floating shelf', mantel: 'Fireplace mantel' };
 const rowTypes: { v: FaceRow['type']; label: string }[] = [
@@ -347,7 +348,7 @@ export function Inspector({ cab, issues, tab }: { cab: Cabinet; issues: string[]
             {cab.countertop && cab.topKind === 'paint' && (
               <Field label="Edging" htmlFor="cab-topedge" hint={'3/4" × 1 1/4"'}>
                 <select id="cab-topedge" value={cab.topEdge ?? 'Poplar'} onChange={(e) => set({ topEdge: e.target.value })}>
-                  {['Poplar', 'Hard maple', 'Soft maple'].map((x) => <option key={x}>{x}</option>)}
+                  {lumberNames().map((x) => <option key={x}>{x}</option>)}
                 </select>
               </Field>
             )}
@@ -767,6 +768,7 @@ function PilasterSection({ cab, set }: { cab: Cabinet; set: (patch: Partial<Cabi
   const all = useStore((s) => s.project.cabinets);
   const put = (patch: Partial<typeof ps>) => set({ pilaster: { ...ps, ...patch } });
   const commit = useStore((st) => st.commit);
+  const settings = useStore((st) => st.project.settings);
   // The deepest cabinet touching either side: how far the pilaster stands out is measured from it
   const beside = Math.max(0, ...all.filter((o) => o.kind !== 'pilaster' && o.wall === cab.wall && (Math.abs(o.offset + o.width - cab.offset) < 0.25 || Math.abs(o.offset - cab.offset - cab.width) < 0.25)).map((o) => (o.wallInset ?? 0) + o.depth));
   // Neighbours' tops on this wall, offered as break heights (the base cabinet top, typically)
@@ -787,9 +789,17 @@ function PilasterSection({ cab, set }: { cab: Cabinet; set: (patch: Partial<Cabi
         <Field label="Frame stock" htmlFor="pil-species">
           <select id="pil-species" value={ps.species ?? ''} onChange={(e) => put({ species: e.target.value || undefined })}>
             <option value="">Job face frame stock</option>
-            {['Poplar', 'Hard maple', 'Soft maple'].map((x) => <option key={x} value={x}>{x}</option>)}
+            {lumberNames().map((x) => <option key={x} value={x}>{x}</option>)}
           </select>
         </Field>
+        {ps.face === 'shop' && (
+          <Field label="Frame joinery" htmlFor="pil-join">
+            <select id="pil-join" value={ps.joinery ?? ''} onChange={(e) => put({ joinery: (e.target.value || undefined) as FrameJoinery | undefined })}>
+              <option value="">Shop standard ({joineryLabel[settings.ffJoinery ?? 'pocket']})</option>
+              {(Object.keys(joineryLabel) as FrameJoinery[]).map((k) => <option key={k} value={k}>{joineryLabel[k]}</option>)}
+            </select>
+          </Field>
+        )}
         <Field label="Blocks proud of panel" htmlFor="pil-proud"><LengthInput id="pil-proud" value={ps.proud} onChange={(v) => put({ proud: v ?? 0 })} /></Field>
         {beside > 0 && (
           <Field label="Proud of the cabinets beside it" htmlFor="pil-standout" hint="Sets its depth">
@@ -1308,7 +1318,7 @@ function MantelSection({ cab, set }: { cab: Cabinet; set: (patch: Partial<Cabine
           </Field>
           {m.pediment !== 'none' && len('pedimentH', 'Pediment height')}
         </div>
-        <Field label="Species" htmlFor="mt-sp"><input id="mt-sp" value={m.species} onChange={(e) => put({ species: e.target.value || 'Poplar' })} /></Field>
+        <Field label="Made from" htmlFor="mt-sp"><select id="mt-sp" value={m.species} onChange={(e) => put({ species: e.target.value || 'Poplar' })}>{[...new Set([m.species, ...lumberNames(), 'MDF'])].map((x) => <option key={x}>{x}</option>)}</select></Field>
       </Section>
     </>
   );

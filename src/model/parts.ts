@@ -1,4 +1,4 @@
-import type { CrownBuild, Cabinet, FaceRow, Part, PanelMode, ShopSettings, VisualBox } from './types';
+import type { CrownBuild, Cabinet, FaceRow, FrameJoinery, Part, PanelMode, ShopSettings, VisualBox } from './types';
 import { mantelParts } from './mantel';
 import { drawerBoxSize, narrowRail, narrowRailBelow, styleById, type DoorProfile, panelByCode } from './eagle';
 import { buildCornerParts } from './corner';
@@ -174,8 +174,33 @@ export function panelExtents(c: Cabinet, s: ShopSettings, ends: EndInfo) {
  * which is where the slim face frame overhang comes from.
  */
 export function buildParts(c: Cabinet, s: ShopSettings, ends: EndInfo = { left: false, right: false }): Part[] {
-  const parts = caseParts(c, s, ends);
-  return c.build?.interior === 'paint' ? paintOpenInterior(c, eff(c, s), parts) : parts;
+  let parts = caseParts(c, s, ends);
+  if (c.build?.interior === 'paint') parts = paintOpenInterior(c, eff(c, s), parts);
+  return frameJoinery(c, eff(c, s), parts);
+}
+
+/** Frame joinery: the tongue length on each rail end for tongue and groove, and how each joint goes together. */
+export const TENON = 0.375;
+export const joineryLabel: Record<FrameJoinery, string> = {
+  pocket: 'Pocket screws', stubTenon: 'Tongue & groove (stub tenon)', domino: 'Festool Domino', lamello: 'Lamello', biscuit: 'Biscuits',
+};
+const joineryNote = (j: FrameJoinery, w: number) => ({
+  pocket: 'Glued, pocket screwed from the back',
+  stubTenon: `Glued; ${fmtShort(TENON)} tongue each end into a ${fmtShort(TENON)} deep groove in the stile`,
+  domino: `Glued; Domino ${w >= 2.5 ? '2 × ' : ''}5 × 30 each end`,
+  lamello: w >= 2 ? 'Glued; Lamello Clamex P-10 each end' : 'Glued; Lamello #0 biscuit each end',
+  biscuit: w >= 2.25 ? 'Glued; #10 biscuit each end' : 'Glued; #0 biscuit each end',
+}[j]);
+
+function frameJoinery(c: Cabinet, s: ShopSettings, parts: Part[]): Part[] {
+  const j: FrameJoinery = (c.kind === 'pilaster' ? c.pilaster?.joinery : undefined) ?? s.ffJoinery ?? 'pocket';
+  return parts.map((p) => {
+    if (p.material !== 'faceframe' || !p.cut) return p;
+    const isRail = p.role === 'rail' || p.name === 'Pilaster rail' || /rail$/i.test(p.name) && p.role !== 'trim';
+    if (isRail) return { ...p, length: p.length + (j === 'stubTenon' ? 2 * TENON : 0), note: [p.note, joineryNote(j, p.width)].filter(Boolean).join(' · ') };
+    if (p.role === 'stile' && j === 'stubTenon') return { ...p, note: [p.note, `Grooved ${fmtShort(TENON)} deep for the rail tongues`].filter(Boolean).join(' · ') };
+    return p;
+  });
 }
 
 /** Where the open sections are, top to bottom, in the cabinet's own coordinates. */

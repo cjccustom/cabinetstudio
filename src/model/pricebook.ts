@@ -29,6 +29,9 @@ export const builtinPrices: PriceItem[] = [
   { id: 'lum-soft-maple', kind: 'lumber', name: 'Soft maple', perBF: 0, updatedAt: 0, builtin: true },
 ];
 
+/** Lumber species in the price book, for choosing what a specialty part is made from. */
+export const lumberNames = (): string[] => builtinPrices.filter((x) => x.kind === 'lumber').map((x) => x.name);
+
 /** The book as it stands: built-in entries with the shop's edits, then everything added, by name. */
 export function priceBook(saved: Record<string, PriceItem>): PriceItem[] {
   const out = builtinPrices.map((b) => (saved[b.id] ? { ...saved[b.id], builtin: true } : b));

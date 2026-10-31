@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { useStore } from '../store';
+import { joineryLabel } from '../model/parts';
+import type { FrameJoinery } from '../model/types';
 import { presets } from '../model/defaults';
 import { newPanel, panelAbove } from '../model/panels';
 import { amSpecies } from '../model/moldings';
@@ -234,6 +236,11 @@ function ShopPanel() {
             <select id="shop-finish" value={settings.finish ?? 'paint'} onChange={(e) => set({ finish: e.target.value === 'stain' ? 'stain' : undefined })}>
               <option value="paint">Paint grade</option>
               <option value="stain">Stain grade</option>
+            </select>
+          </Field>
+          <Field label="Face frame joinery" htmlFor="shop-ffj">
+            <select id="shop-ffj" value={settings.ffJoinery ?? 'pocket'} onChange={(e) => set({ ffJoinery: e.target.value === 'pocket' ? undefined : e.target.value as FrameJoinery })}>
+              {(Object.keys(joineryLabel) as FrameJoinery[]).map((k) => <option key={k} value={k}>{joineryLabel[k]}</option>)}
             </select>
           </Field>
           <Field label="Closet rod" htmlFor="shop-rod">

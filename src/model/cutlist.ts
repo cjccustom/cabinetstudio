@@ -56,11 +56,21 @@ export const sheetPrice = (material: string) => {
  * the job's sheet prices when known.
  */
 export function cutStock(p: Project, data: CutlistData): Stock[] {
-  const need = new Set(optimizerParts(p, data).map((x) => x.material));
+  const parts = optimizerParts(p, data);
+  const need = new Set(parts.map((x) => x.material));
   const out = [...data.stock];
+  const trim = 2 * (data.options.trim ?? 0);
   for (const m of need) {
-    if (out.some((x) => x.material === m)) continue;
-    out.push({ id: `auto:${m}`, label: `4×8 ${m.replace(/^\S+ /, '')}`, material: m, length: 96, width: 48, qty: null, price: p.sheetPrices?.[m] ?? sheetPrice(m) });
+    if (!out.some((x) => x.material === m)) out.push({ id: `auto:${m}`, label: `4×8 ${m.replace(/^\S+ /, '')}`, material: m, length: 96, width: 48, qty: null, price: p.sheetPrices?.[m] ?? sheetPrice(m) });
+    // Parts longer than the sheets on hand (a 98" pilaster side, a tall end panel): add 4×10 sheets
+    // of the same plywood for them, priced at about 1.3× an 8' sheet until you enter the real price
+    const mine = out.filter((x) => x.material === m);
+    const longest = Math.max(...mine.map((x) => x.length)) - trim;
+    const tooLong = parts.filter((x) => x.material === m && (x.grain ? x.length : Math.max(x.length, x.width)) > longest + 1e-6);
+    if (tooLong.length && !mine.some((x) => x.length >= 120)) {
+      const base = mine[0];
+      out.push({ id: `auto10:${m}`, label: `4×10 ${m.replace(/^\S+ /, '')}`, material: m, length: 120, width: 48, qty: null, price: Math.round((base?.price ?? sheetPrice(m)) * 1.3) });
+    }
   }
   return out;
 }
