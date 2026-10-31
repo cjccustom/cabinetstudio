@@ -1,5 +1,8 @@
 import { readFileSync } from "node:fs";
 import { canSpots } from "../src/model/lighting";
+import { crc32, writeXlsx } from "../src/export/xlsx";
+import { pricingWorkbook } from "../src/export/pricingWorkbook";
+import { ballpark, categoriesOf, categoryOf, comparableQuote, defaultRateCard } from "../src/model/ballpark";
 import { termsHtml } from "../portal/src/pages";
 import { CJC_TERMS } from "../src/model/terms";
 import { cutCabinets, newDetail } from "../src/drawings/details";
@@ -1337,6 +1340,38 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   eq('ceiling pick: talls and uppers within 4" of the ceiling, not bases or short uppers', at, 'T1,W1');
   const after = cabs.map((c) => (reachesCeiling(c, room.height) ? (() => { const n = { ...c, crown: '5715' }; const f = crownFit(n, s, room.height)!; return { ...n, height: n.height - Math.ceil(f.over * 16) / 16 }; })() : c));
   eq('ceiling crown: every crowned cabinet meets the ceiling', after.filter((c) => c.crown).every((c) => crownFit(c, s, room.height)!.over < 1e-6 && room.height - crownFit(c, s, room.height)!.top < 1 / 16 + 1e-6), true);
+}
+
+// Ballpark: the meeting calculator's rate card, by lineal foot
+{
+  const mk = (id: string, patch = {}) => ({ ...cabinetFromPreset(presets.find((x) => x.id === id)!, 'back', 0, []), ...patch });
+  eq('ballpark: base', categoryOf(mk('base-1dr')), 'base');
+  eq('ballpark: shallow base', categoryOf(mk('base-1dr', { depth: 12 })), 'shallowBase');
+  eq('ballpark: pantry is tall', categoriesOf(mk('tall-pantry')).join(','), 'tall');
+  const bc = mk('tall-pantry', { depth: 12, height: 96, rows: [{ type: 'open', count: 4 }, { type: 'doors', height: 24, count: 2 }] });
+  eq('ballpark: bookcase over doors = shallow base + full-height bookcase', categoriesOf(bc as any).join(','), 'shallowBase,bookcase96');
+  eq('ballpark: pilasters are off the card', categoryOf({ ...mk('base-1dr'), kind: 'pilaster' } as any), null);
+  const one = { ...p, cabinets: [mk('base-1dr', { width: 36, rows: [{ type: 'drawers', count: 1 }, { type: 'doors', count: 2 }] })], quote: { ...p.quote, paintWhen: 'none' as const } };
+  const b = ballpark(one);
+  eq('ballpark: 3 LF unfinished base at typical', Math.round(b.total[1]), 3 * defaultRateCard.unfinished.base[1]);
+  eq('ballpark: quoted range is ±10% rounded to $250', `${b.low}-${b.high}`, `${Math.round(2400 * 0.9 / 250) * 250}-${Math.round(2400 * 1.1 / 250) * 250}`);
+  const painted = ballpark({ ...one, quote: { ...one.quote, paintWhen: 'prefinish' as const } });
+  eq('ballpark: painted card when prefinished', Math.round(painted.total[1]), 3 * defaultRateCard.painted.base[1]);
+  const c = comparableQuote({ ...one, ceiling: { ...(p as any).ceiling, on: true } });
+  eq('ballpark: comparable leaves the ceiling out', Math.round(c.amount), Math.round(comparableQuote(one).amount));
+  eq('ballpark: comparable estimates painting when there is no painter number', comparableQuote({ ...one, quote: { ...one.quote, paintWhen: 'prefinish' as const, painter: 0 } }).paintEstimated, true);
+}
+
+// Pricing workbook: live formulas whose cached values match the Quote tab
+{
+  eq('xlsx: crc32', crc32(new TextEncoder().encode('123456789')).toString(16), 'cbf43926');
+  const wb = pricingWorkbook(p);
+  const sum = wb.sheets[0].rows;
+  const total = sum.find((r) => typeof r[0] === 'object' && (r[0] as any)?.v === 'Total')![6] as any;
+  eq('xlsx: total cell matches the quote', total.v, priceQuote(p).total);
+  eq('xlsx: total is a formula', /ROUND\(G\d+\/RoundTo/.test(total.f), true);
+  const bytes = writeXlsx(wb);
+  eq('xlsx: a zip', `${bytes[0]},${bytes[1]}`, '80,75');
 }
 
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');

@@ -202,6 +202,8 @@ export interface QuoteSettings {
   /** Scope of work: your wording for a cabinet's line (by cabinet id, '' hides it), and lines of your own. */
   scopeText?: Record<string, string>;
   scopeExtra?: string[];
+  /** The ballpark rate card ($/LF by kind, low/typical/high), when it's been changed from the meeting calculator's. */
+  rateCard?: Partial<import('./ballpark').RateCard>;
   extras: QuoteExtra[];
   /** Hours you set yourself for a labor line, by lineKey: used in place of the estimate. */
   hourOverrides?: Record<string, number>;

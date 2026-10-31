@@ -1,11 +1,15 @@
 import { useMemo, useState } from 'react';
 import { useStore } from '../store';
+import { ballpark, categoryLabel, categoryOf, comparableQuote, featureLabel, rateCardOf, type Band, type BallparkCategory, type BallparkFeature } from '../model/ballpark';
 import { defaultStandards, groupLabel, lineKey, newExtra, paintEstimate, paintLineLabel, paintRates, type Group, priceQuote, quoteOf, scopeItems, type LaborStandards, type QuoteSettings, type Workload } from '../model/quote';
 import { Field, Section } from './fields';
 import { QuoteRendering } from './Rendering';
 import { FurnitureSection } from './Furniture';
 import { optionNames, optionPrices } from '../model/proposal';
 import { proposalLines } from '../model/client';
+import { capability, type Downloads } from '../runtime';
+import { pricingFileName, pricingXlsx } from '../export/pricingWorkbook';
+import { XLSX_TYPE } from '../export/xlsx';
 import { defaultSupplies, driverLabel, newSupply, supplyLines, type SupplyDriver, type SupplyItem } from '../model/supplies';
 
 const money = (v: number) => `$${Math.round(v).toLocaleString('en-US')}`;
@@ -268,7 +272,7 @@ export function QuoteSummary() {
   return (
     <aside className="panel">
       <div className="panel-body">
-        <Section title="Purchase agreement">
+        <Section title="Purchase agreement" aside={<ExcelButton />}>
           <table className="totals">
             <tbody>
               {rounded.map((l) => {
@@ -298,6 +302,8 @@ export function QuoteSummary() {
             {q.adjustment ? `, your adjustment ${q.adjustment > 0 ? '+' : '−'}${money(Math.abs(q.adjustment))}` : ''}.
           </p>
         </Section>
+
+        <BallparkSection />
 
         <FurnitureSection />
 
@@ -388,6 +394,76 @@ function SuppliesEditor() {
           <button className="mini" onClick={() => set({ supplies: [...q.supplies, newSupply()] })}>Add item</button>
           <button className="mini" onClick={() => set({ supplies: defaultSupplies })}>Reset to starting list</button>
         </div>
+      </details>
+    </Section>
+  );
+}
+
+/** The job's pricing as an Excel workbook with live formulas, for fine-tuning and job costing. */
+function ExcelButton() {
+  const project = useStore((s) => s.project);
+  const [msg, setMsg] = useState('');
+  const save = async () => {
+    setMsg('');
+    const data = new Blob([pricingXlsx(project)], { type: XLSX_TYPE });
+    const filename = pricingFileName(project);
+    try {
+      const downloads = await capability<Downloads>('downloads');
+      if (downloads) await downloads.save({ filename, data });
+      else { const a = document.createElement('a'); a.href = URL.createObjectURL(data); a.download = filename; a.click(); }
+    } catch (e) {
+      const code = (e as { code?: string }).code;
+      if (code !== 'declined' && code !== 'cancelled') setMsg('Couldn’t save it');
+    }
+  };
+  return <button className="mini" title="Download this job’s pricing as an Excel workbook: hours, materials, rates and the ballpark, with live formulas" onClick={save}>{msg || 'Excel'}</button>;
+}
+
+/** The meeting calculator's ballpark for this design, beside the calculated quote. */
+function BallparkSection() {
+  const { project, q, set, result: r } = useQuote();
+  const bp = useMemo(() => ballpark(project), [project]);
+  // Like for like: the card covers cabinetry (and its painting), not ceilings, mantels, trim, furniture or extras
+  const cmp = useMemo(() => comparableQuote(project), [project]);
+  const rc = rateCardOf(project);
+  if (!bp.lines.length) return null;
+  const typical = bp.total[1];
+  const comparable = cmp.amount;
+  const left = [...new Set(r.groups.filter((g) => g.group !== 'cabinets').map((g) => groupLabel[g.group].toLowerCase())), ...(q.extras.length ? ['additional work'] : []), ...(project.cabinets.some((c) => !categoryOf(c)) ? ['pilasters, mantels & shelves'] : [])];
+  const diff = typical ? (comparable - typical) / typical : 0;
+  const where = comparable < bp.total[0] ? 'below the low end' : comparable > bp.total[2] ? 'above the high end' : comparable < bp.low ? 'under the quoted range' : comparable > bp.high ? 'over the quoted range' : 'inside the range';
+  const putRate = (table: 'painted' | 'unfinished' | 'features', key: string, i: number, v: number) => {
+    const t = { ...rc[table] } as Record<string, Band>;
+    t[key] = t[key].map((x, j) => (j === i ? v : x)) as Band;
+    set({ rateCard: { ...q.rateCard, [table]: t } });
+  };
+  return (
+    <Section title="Ballpark check">
+      <p className="ballpark-range"><b>{money(bp.low)} – {money(bp.high)}</b> <span className="muted">from the meeting calculator ({bp.painted ? 'painted' : 'unfinished'}, typical {money(typical)})</span></p>
+      <p className={where === 'inside the range' ? 'hint' : 'warn'}>This quote's cabinetry{bp.painted ? (cmp.paintEstimated ? ' and painting (estimated from size — no painter number yet)' : ' and painting') : ''}, {money(comparable)}, is {where}: {diff >= 0 ? '+' : '−'}{Math.abs(Math.round(diff * 100))}% against typical.{left.length ? ` Left out of both: ${left.join(', ')} (the card doesn't price them).` : ''}</p>
+      <details className="overrides">
+        <summary>How the ballpark adds up</summary>
+        <table className="totals">
+          <tbody>
+            {bp.lines.map((l) => <tr key={l.label}><td>{l.label}: {l.unit === 'LF' ? l.qty.toFixed(1) : l.qty} {l.unit} × {money(l.rate[1])}</td><td className="num">{money(l.amount[1])}</td></tr>)}
+            <tr className="sum"><td>Typical (low {money(bp.total[0])}, high {money(bp.total[2])})</td><td className="num">{money(typical)}</td></tr>
+          </tbody>
+        </table>
+      </details>
+      <details className="overrides">
+        <summary>Rate card</summary>
+        <p className="hint">$ per lineal foot, low / typical / high. Starts from your v5 spreadsheet; change it as job costs come in.</p>
+        {(['painted', 'unfinished'] as const).map((t) => (
+          <table key={t} className="totals rate-card">
+            <thead><tr><th>{t === 'painted' ? 'Painted' : 'Unfinished'}</th><th className="num">Low</th><th className="num">Typical</th><th className="num">High</th></tr></thead>
+            <tbody>{(Object.keys(categoryLabel) as BallparkCategory[]).map((k) => <tr key={k}><td>{categoryLabel[k]}</td>{rc[t][k].map((v, i) => <td key={i} className="num"><EditNum value={v} digits={0} prefix="$" label={`${categoryLabel[k]} ${['low', 'typical', 'high'][i]}`} onSave={(n) => putRate(t, k, i, n)} /></td>)}</tr>)}</tbody>
+          </table>
+        ))}
+        <table className="totals rate-card">
+          <thead><tr><th>Adders</th><th className="num">Low</th><th className="num">Typical</th><th className="num">High</th></tr></thead>
+          <tbody>{(Object.keys(featureLabel) as BallparkFeature[]).map((k) => <tr key={k}><td>{featureLabel[k]}</td>{rc.features[k].map((v, i) => <td key={i} className="num"><EditNum value={v} digits={0} prefix="$" label={`${featureLabel[k]} ${['low', 'typical', 'high'][i]}`} onSave={(n) => putRate('features', k, i, n)} /></td>)}</tr>)}</tbody>
+        </table>
+        {q.rateCard && <button className="mini" onClick={() => set({ rateCard: undefined })}>Back to the v5 rate card</button>}
       </details>
     </Section>
   );

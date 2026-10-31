@@ -1,0 +1,397 @@
+<title>CJC Ballpark</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@112,600;112,800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+/* Layout: a working sheet (cabinetry by the foot, then adders) beside a sticky price slip; stacks on a phone. */
+:root {
+  --bg: #eef1ef; --sheet: #ffffff; --ink: #1d2420; --muted: #5f6b65; --line: #d5dcd8;
+  --accent: #2f5d50; --accent-ink: #ffffff; --soft: #e2ebe7; --warn: #8a5a12;
+  --display: "Archivo", "Arial Narrow", system-ui, sans-serif;
+  --body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #141917; --sheet: #1c2320; --ink: #e6ece9; --muted: #9aa8a1; --line: #303a36;
+  --accent: #7fb5a3; --accent-ink: #0f1513; --soft: #24302b; --warn: #e0b46a; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #141917; --sheet: #1c2320; --ink: #e6ece9; --muted: #9aa8a1; --line: #303a36;
+  --accent: #7fb5a3; --accent-ink: #0f1513; --soft: #24302b; --warn: #e0b46a; color-scheme: dark }
+* { box-sizing: border-box }
+body { background: var(--bg); color: var(--ink); font: 16px/1.45 var(--body); -webkit-text-size-adjust: 100% }
+.wrap { max-width: 1180px; margin: 0 auto; padding-block: 20px 48px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)) }
+header.top { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 12px; margin-bottom: 18px }
+h1 { font: 800 112% var(--display); font-size: 26px; letter-spacing: .01em; margin: 0; text-wrap: balance }
+h1 small { display: block; font: 500 13px var(--body); color: var(--muted); letter-spacing: 0 }
+h2 { font: 600 112% var(--display); font-size: 14px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0 0 10px }
+.grid { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 20px; align-items: start }
+@media (max-width: 860px) { .grid { grid-template-columns: minmax(0, 1fr) } .slip { position: static !important } }
+.sheet { background: var(--sheet); border: 1px solid var(--line); border-radius: 10px; padding: 18px; display: grid; gap: 22px; min-width: 0 }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; padding: 3px; background: var(--sheet); gap: 2px }
+.seg button { border: 0; background: transparent; color: var(--ink); font: 600 15px var(--body); padding: 9px 16px; border-radius: 999px; min-height: 40px; cursor: pointer }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink) }
+.rows { display: grid; gap: 2px }
+.row { display: grid; grid-template-columns: minmax(0, 1fr) auto 104px; gap: 12px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--line) }
+.row:last-child { border-bottom: 0 }
+.row .what { min-width: 0 }
+.row .what b { font-weight: 600; display: block }
+.row .what span { color: var(--muted); font-size: 13px; font-family: var(--mono) }
+.row.on .what b { color: var(--accent) }
+.amt { text-align: right; font: 500 15px var(--mono); font-variant-numeric: tabular-nums; color: var(--muted) }
+.row.on .amt { color: var(--ink) }
+.step { display: inline-flex; align-items: center; border: 1px solid var(--line); border-radius: 8px; overflow: hidden }
+.step button { width: 44px; height: 44px; border: 0; background: var(--soft); color: var(--ink); font: 600 20px var(--body); cursor: pointer; touch-action: manipulation }
+.step input { width: 64px; height: 44px; border: 0; text-align: center; font: 500 17px var(--mono); background: var(--sheet); color: var(--ink) }
+.step .u { font-size: 12px; color: var(--muted); padding: 0 8px 0 0; background: var(--sheet); height: 44px; display: flex; align-items: center }
+@media (max-width: 520px) { .row { grid-template-columns: minmax(0, 1fr) auto; } .row .amt { grid-column: 1 / -1; text-align: left; margin-top: -4px } }
+.slip { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 12px); background: var(--sheet); border: 1px solid var(--line); border-radius: 10px; padding: 18px; display: grid; gap: 14px }
+.range { font: 800 112% var(--display); font-size: 34px; line-height: 1.1; font-variant-numeric: tabular-nums; letter-spacing: .005em }
+.range.empty { color: var(--muted); font-size: 22px }
+.typ { color: var(--muted); font-size: 14px }
+.typ b { color: var(--ink); font-family: var(--mono); font-weight: 500 }
+.lines { font-size: 14px; display: grid; gap: 4px }
+.lines div { display: flex; justify-content: space-between; gap: 10px }
+.lines span:last-child { font-family: var(--mono); font-variant-numeric: tabular-nums }
+label.f { display: grid; gap: 4px; font-size: 13px; color: var(--muted) }
+input.t, textarea { width: 100%; border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; font: 16px var(--body); background: var(--sheet); color: var(--ink) }
+textarea { min-height: 90px; resize: vertical }
+.btn { border: 1px solid var(--accent); background: var(--accent); color: var(--accent-ink); font: 600 15px var(--body); border-radius: 8px; padding: 11px 16px; min-height: 44px; cursor: pointer }
+.btn.ghost { background: transparent; color: var(--accent) }
+.btn:disabled { opacity: .5; cursor: default }
+.actions { display: flex; flex-wrap: wrap; gap: 8px }
+.note { font-size: 13px; color: var(--muted) }
+.warn { color: var(--warn) }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px }
+details > summary { cursor: pointer; font: 600 15px var(--body); padding: 6px 0; color: var(--accent) }
+.tbl { overflow-x: auto }
+table { border-collapse: collapse; width: 100%; font-size: 14px }
+th, td { padding: 6px 6px; border-bottom: 1px solid var(--line); text-align: left }
+th { font-weight: 600; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .06em }
+td input { width: 76px; border: 1px solid var(--line); border-radius: 6px; padding: 6px; font: 500 14px var(--mono); text-align: right; background: var(--sheet); color: var(--ink) }
+.saved { display: grid; gap: 8px }
+.est { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--sheet) }
+.est b { font-weight: 600 }
+.est .r { font-family: var(--mono); text-align: right }
+.est .sub { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 13px; color: var(--muted) }
+.est .sub input { width: 110px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; font: 500 14px var(--mono); background: var(--sheet); color: var(--ink) }
+.linkish { background: none; border: 0; color: var(--accent); font: 600 13px var(--body); cursor: pointer; padding: 6px 4px; min-height: 32px }
+.status { font-size: 13px; color: var(--muted); min-height: 1.2em }
+/* Customer view: just the range and what it covers */
+.cust { position: fixed; inset: 0; background: var(--bg); z-index: 20; overflow: auto; padding-block: calc(env(safe-area-inset-top, 0px) + 40px) 40px; padding-left: max(24px, env(safe-area-inset-left, 0px)); padding-right: max(24px, env(safe-area-inset-right, 0px)) }
+.cust .in { max-width: 720px; margin: 0 auto; display: grid; gap: 22px }
+.cust .eyebrow { font: 600 112% var(--display); font-size: 13px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted) }
+.cust .big { font: 800 112% var(--display); font-size: clamp(40px, 8vw, 72px); line-height: 1; font-variant-numeric: tabular-nums }
+.cust ul { margin: 0; padding-left: 20px; display: grid; gap: 6px; font-size: 18px }
+.cust p { font-size: 16px; color: var(--muted); max-width: 60ch; margin: 0 }
+@media (prefers-reduced-motion: no-preference) { .range { transition: color .2s } }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <h1>CJC Ballpark<small>Meeting calculator: price per lineal foot from the rate card, give or take the spread</small></h1>
+    <div class="seg" role="group" aria-label="Finish">
+      <button id="fin-painted" aria-pressed="true">Painted</button>
+      <button id="fin-unfinished" aria-pressed="false">Unfinished</button>
+    </div>
+  </header>
+
+  <div class="grid">
+    <main class="sheet">
+      <section>
+        <h2>Cabinetry by the lineal foot</h2>
+        <div class="rows" id="cats"></div>
+      </section>
+      <section>
+        <h2>Adders</h2>
+        <div class="rows" id="adds"></div>
+      </section>
+      <section>
+        <details id="card-box">
+          <summary>Rate card</summary>
+          <p class="note">$ per lineal foot (adders per foot or each), low / typical / high. Changes save for every device that opens this page.</p>
+          <div class="tbl"><table id="card"></table></div>
+          <div class="actions" style="margin-top:10px">
+            <label class="f" style="width:140px">Range spread (%)<input class="t" id="spread" inputmode="decimal"></label>
+            <label class="f" style="width:140px">Round to ($)<input class="t" id="roundto" inputmode="decimal"></label>
+          </div>
+          <div class="actions" style="margin-top:10px"><button class="btn ghost" id="card-reset">Back to the v5 spreadsheet rates</button></div>
+          <p class="status" id="card-status"></p>
+        </details>
+      </section>
+    </main>
+
+    <aside class="slip" aria-live="polite">
+      <div>
+        <h2>Ballpark</h2>
+        <div class="range" id="range">$0</div>
+        <div class="typ" id="typ"></div>
+      </div>
+      <div class="lines" id="lines"></div>
+      <label class="f">Job (client or room)<input class="t" id="label" placeholder="e.g. Library built-ins, Sterling"></label>
+      <label class="f">Notes<textarea id="notes" placeholder="Style, doors, finish, timing, budget they mentioned"></textarea></label>
+      <div class="actions">
+        <button class="btn" id="save">Save estimate</button>
+        <button class="btn ghost" id="show">Show the customer</button>
+        <button class="btn ghost" id="clear">Clear</button>
+      </div>
+      <p class="status" id="status"></p>
+      <div>
+        <h2 style="margin-top:6px">Saved estimates</h2>
+        <div class="saved" id="saved"><p class="note">Estimates you save show here, newest first. Add the sold price later and they become the record for tuning the rate card.</p></div>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<div class="cust" id="cust" hidden>
+  <div class="in">
+    <div class="eyebrow">CJC Custom Carpentry · preliminary budget</div>
+    <div class="big" id="c-range"></div>
+    <ul id="c-lines"></ul>
+    <p id="c-finish"></p>
+    <p>This is a budget range from our experience with similar work, before design. Your detailed proposal follows the design and lists exactly what's included.</p>
+    <div><button class="btn" id="c-close">Back</button></div>
+  </div>
+</div>
+
+<script>
+// The v5 rate card (CJC_Cabinet_Ballpark_Calculator_v5.xlsx)
+const CATS = [
+  ['base', 'Standard base (18–24" deep)', [650, 800, 950], [850, 1025, 1200], 'Base cabinets'],
+  ['shallowBase', 'Shallow base (up to 16" deep)', [425, 550, 700], [600, 725, 875], 'Shallow base cabinets'],
+  ['wall', 'Wall / upper cabinetry', [475, 600, 750], [650, 800, 950], 'Wall cabinets'],
+  ['tall', 'Full-height / tall cabinetry', [1100, 1375, 1650], [1500, 1800, 2100], 'Tall cabinetry'],
+  ['shortCubby', 'Short open cubbies (up to 24" high)', [225, 300, 400], [300, 400, 525], 'Open cubbies'],
+  ['cubby', 'Open cubbies / bench (up to 36")', [450, 600, 750], [625, 825, 1025], 'Cubbies and bench'],
+  ['bookcase60', 'Open upper bookcase (up to 60")', [525, 700, 875], [750, 1000, 1250], 'Open bookcases'],
+  ['bookcase96', 'Full-height open bookcase (up to 96")', [750, 1000, 1250], [1050, 1350, 1650], 'Full-height bookcases'],
+  ['locker', 'Tall open lockers (up to 96")', [850, 1150, 1450], [1150, 1500, 1900], 'Lockers'],
+];
+const ADDS = [
+  ['inset', 'Inset doors / drawers', 'LF', [100, 150, 225], 'Inset doors and drawers'],
+  ['drawer', 'Drawers beyond the usual mix', 'ea', [125, 175, 250], 'Extra drawers'],
+  ['decorativeEnd', 'Decorative / inset ends', 'ea', [125, 225, 325], 'Decorative end panels'],
+  ['archKick', 'Arched toe kicks', 'ea', [125, 200, 300], 'Arched toe kicks'],
+  ['premiumTop', 'Premium / wide hardwood tops', 'LF', [150, 225, 325], 'Hardwood tops'],
+  ['mapleTop', 'Shallow maple top, ≤18" deep', 'LF', [110, 125, 160], 'Maple tops'],
+  ['shelf', 'Additional bookcase shelf', 'ea', [75, 110, 150], 'Extra shelves'],
+  ['divider', 'Extra cubby divider', 'ea', [125, 175, 250], 'Extra dividers'],
+];
+const V5 = () => ({
+  unfinished: Object.fromEntries(CATS.map((c) => [c[0], [...c[2]]])),
+  painted: Object.fromEntries(CATS.map((c) => [c[0], [...c[3]]])),
+  features: Object.fromEntries(ADDS.map((a) => [a[0], [...a[3]]])),
+  range: 0.1, roundTo: 250,
+});
+
+let card = V5();
+let painted = true;
+const qty = {};
+let db = null;
+const $ = (id) => document.getElementById(id);
+const money = (v) => '$' + Math.round(v).toLocaleString('en-US');
+const num = (s) => { const v = parseFloat(String(s).replace(/[^0-9.\-]/g, '')); return Number.isFinite(v) ? v : 0; };
+const roundTo = (v, s) => (s > 0 ? Math.round(v / s) * s : v);
+
+function rowEl(key, label, unit) {
+  const r = document.createElement('div');
+  r.className = 'row';
+  r.innerHTML = `<div class="what"><b></b><span></span></div>
+    <div class="step"><button type="button" aria-label="Less">−</button><input id="q-${key}" inputmode="decimal" aria-label=""><span class="u">${unit}</span><button type="button" aria-label="More">+</button></div>
+    <div class="amt"></div>`;
+  r.querySelector('b').textContent = label;
+  const inp = r.querySelector('input');
+  inp.setAttribute('aria-label', `${label}, ${unit === 'LF' ? 'lineal feet' : 'count'}`);
+  const [dn, up] = r.querySelectorAll('button');
+  const bump = (d) => { qty[key] = Math.max(0, (qty[key] || 0) + d); inp.value = qty[key] ? +qty[key].toFixed(2) : ''; render(); };
+  dn.onclick = () => bump(-1);
+  up.onclick = () => bump(1);
+  inp.oninput = () => { qty[key] = Math.max(0, num(inp.value)); render(); };
+  return r;
+}
+for (const [k, label] of CATS) $('cats').append(rowEl(k, label, 'LF'));
+for (const [k, label, unit] of ADDS) $('adds').append(rowEl(k, label, unit));
+
+function compute() {
+  const table = painted ? card.painted : card.unfinished;
+  const lines = [];
+  for (const [k, label, , , plain] of CATS) if (qty[k] > 0) lines.push({ k, label, plain, q: qty[k], unit: 'LF', rate: table[k] });
+  for (const [k, label, unit, , plain] of ADDS) if (qty[k] > 0) lines.push({ k, label, plain, q: qty[k], unit, rate: card.features[k] });
+  const tot = [0, 1, 2].map((i) => lines.reduce((t, l) => t + l.q * l.rate[i], 0));
+  return { lines, tot, low: roundTo(tot[1] * (1 - card.range), card.roundTo), high: roundTo(tot[1] * (1 + card.range), card.roundTo) };
+}
+
+function render() {
+  const table = painted ? card.painted : card.unfinished;
+  const rows = [...$('cats').children, ...$('adds').children];
+  const keys = [...CATS.map((c) => c[0]), ...ADDS.map((a) => a[0])];
+  rows.forEach((r, i) => {
+    const k = keys[i];
+    const rate = i < CATS.length ? table[k] : card.features[k];
+    const unit = i < CATS.length ? 'LF' : ADDS[i - CATS.length][2];
+    r.querySelector('.what span').textContent = `${money(rate[1])}/${unit === 'LF' ? 'ft' : 'ea'} (${money(rate[0])}–${money(rate[2])})`;
+    r.querySelector('.amt').textContent = qty[k] > 0 ? money(qty[k] * rate[1]) : '—';
+    r.classList.toggle('on', qty[k] > 0);
+  });
+  const b = compute();
+  const rg = $('range');
+  rg.classList.toggle('empty', !b.lines.length);
+  rg.textContent = b.lines.length ? `${money(b.low)} – ${money(b.high)}` : 'Add some lineal feet';
+  $('typ').innerHTML = b.lines.length ? `Typical <b>${money(b.tot[1])}</b> · card low ${money(b.tot[0])}, high ${money(b.tot[2])} · ${painted ? 'painted' : 'unfinished'}` : `${painted ? 'Painted' : 'Unfinished'} rates, ±${Math.round(card.range * 100)}% around typical`;
+  $('lines').innerHTML = '';
+  for (const l of b.lines) {
+    const d = document.createElement('div');
+    const a = document.createElement('span'); a.textContent = `${l.label}: ${+l.q.toFixed(2)} ${l.unit}`;
+    const c = document.createElement('span'); c.textContent = money(l.q * l.rate[1]);
+    d.append(a, c); $('lines').append(d);
+  }
+  $('save').disabled = !b.lines.length;
+  $('show').disabled = !b.lines.length;
+}
+
+function setFinish(p) {
+  painted = p;
+  $('fin-painted').setAttribute('aria-pressed', String(p));
+  $('fin-unfinished').setAttribute('aria-pressed', String(!p));
+  render();
+}
+$('fin-painted').onclick = () => setFinish(true);
+$('fin-unfinished').onclick = () => setFinish(false);
+
+// ── Rate card editor ──
+function renderCard() {
+  const t = $('card');
+  const head = (title) => `<tr><th>${title}</th><th>Low</th><th>Typical</th><th>High</th></tr>`;
+  let html = '';
+  for (const [tbl, title] of [['painted', 'Painted, per LF'], ['unfinished', 'Unfinished, per LF']]) {
+    html += head(title);
+    for (const [k, label] of CATS) html += `<tr><td>${label}</td>${[0, 1, 2].map((i) => `<td><input id="rc-${tbl}-${k}-${i}" data-t="${tbl}" data-k="${k}" data-i="${i}" inputmode="decimal" value="${card[tbl][k][i]}" aria-label="${title} ${label} ${['low', 'typical', 'high'][i]}"></td>`).join('')}</tr>`;
+  }
+  html += head('Adders');
+  for (const [k, label, unit] of ADDS) html += `<tr><td>${label} (${unit === 'LF' ? 'per LF' : 'each'})</td>${[0, 1, 2].map((i) => `<td><input id="rc-features-${k}-${i}" data-t="features" data-k="${k}" data-i="${i}" inputmode="decimal" value="${card.features[k][i]}" aria-label="${label} ${['low', 'typical', 'high'][i]}"></td>`).join('')}</tr>`;
+  t.innerHTML = html;
+  $('spread').value = +(card.range * 100).toFixed(2);
+  $('roundto').value = card.roundTo;
+}
+let cardTimer = null;
+function cardChanged() {
+  render();
+  clearTimeout(cardTimer);
+  cardTimer = setTimeout(saveCard, 900);
+}
+$('card').addEventListener('input', (e) => {
+  const el = e.target;
+  if (!el.dataset.t) return;
+  card[el.dataset.t][el.dataset.k][+el.dataset.i] = num(el.value);
+  cardChanged();
+});
+$('spread').oninput = () => { card.range = Math.max(0, num($('spread').value) / 100); cardChanged(); };
+$('roundto').oninput = () => { card.roundTo = Math.max(0, num($('roundto').value)); cardChanged(); };
+$('card-reset').onclick = () => { card = V5(); renderCard(); cardChanged(); };
+let cardSaving = Promise.resolve();
+function saveCard() {
+  if (!db) { $('card-status').textContent = 'Changes apply on this screen only (saving isn’t available here).'; return; }
+  const body = JSON.parse(JSON.stringify(card));
+  cardSaving = cardSaving.then(() => db.doc('card/current').set({ ...body, updatedAt: Date.now() }))
+    .then(() => { $('card-status').textContent = 'Rate card saved.'; })
+    .catch(() => { $('card-status').textContent = 'Couldn’t save the rate card. Your changes still apply on this screen.'; });
+}
+
+// ── Estimates ──
+let saved = [];
+function renderSaved() {
+  const box = $('saved');
+  if (!saved.length) { box.innerHTML = '<p class="note">Estimates you save show here, newest first. Add the sold price later and they become the record for tuning the rate card.</p>'; return; }
+  box.innerHTML = '';
+  for (const e of saved) {
+    const d = document.createElement('div');
+    d.className = 'est';
+    const name = document.createElement('b'); name.textContent = e.label || 'Untitled';
+    const r = document.createElement('div'); r.className = 'r'; r.textContent = `${money(e.low)}–${money(e.high)}`;
+    const sub = document.createElement('div'); sub.className = 'sub';
+    const when = document.createElement('span'); when.textContent = `${new Date(e.createdAt).toLocaleDateString()} · ${e.painted ? 'painted' : 'unfinished'}`;
+    const sold = document.createElement('input'); sold.id = `sold-${e.id}`; sold.inputMode = 'decimal'; sold.placeholder = 'Sold at $'; sold.setAttribute('aria-label', `Sold price for ${e.label || 'estimate'}`);
+    if (e.sold) sold.value = e.sold;
+    sold.onchange = () => { if (db) db.doc(`estimates/${e.id}`).update({ sold: num(sold.value) || null }).catch(() => { $('status').textContent = 'Couldn’t save the sold price.'; }); };
+    const load = document.createElement('button'); load.className = 'linkish'; load.textContent = 'Open';
+    load.onclick = () => openEstimate(e);
+    const del = document.createElement('button'); del.className = 'linkish'; del.textContent = 'Delete';
+    del.onclick = () => {
+      if (del.dataset.sure) { if (db) db.doc(`estimates/${e.id}`).delete().catch(() => { $('status').textContent = 'Couldn’t delete it.'; }); return; }
+      del.dataset.sure = '1'; del.textContent = 'Tap again to delete';
+      setTimeout(() => { delete del.dataset.sure; del.textContent = 'Delete'; }, 3000);
+    };
+    sub.append(when, sold, load, del);
+    d.append(name, r, sub);
+    box.append(d);
+  }
+}
+function openEstimate(e) {
+  for (const k of Object.keys(qty)) delete qty[k];
+  Object.assign(qty, e.qty || {});
+  for (const inp of document.querySelectorAll('.step input')) { const k = inp.id.slice(2); inp.value = qty[k] ? +(+qty[k]).toFixed(2) : ''; }
+  $('label').value = e.label || '';
+  $('notes').value = e.notes || '';
+  setFinish(e.painted !== false);
+  $('status').textContent = `Opened “${e.label || 'Untitled'}”. Saving again keeps both.`;
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+$('save').onclick = async () => {
+  const b = compute();
+  if (!b.lines.length) return;
+  const est = {
+    label: $('label').value.trim(), notes: $('notes').value.trim(), painted,
+    qty: Object.fromEntries(Object.entries(qty).filter(([, v]) => v > 0)),
+    low: b.low, high: b.high, typical: Math.round(b.tot[1]), cardLow: Math.round(b.tot[0]), cardHigh: Math.round(b.tot[2]),
+    rates: Object.fromEntries(b.lines.map((l) => [l.k, l.rate[1]])), createdAt: Date.now(),
+  };
+  if (!db) { $('status').textContent = 'Saving isn’t available on this screen. Write the range down: ' + `${money(b.low)}–${money(b.high)}.`; return; }
+  $('save').disabled = true;
+  try { await db.collection('estimates').add(est); $('status').textContent = 'Saved.'; }
+  catch { $('status').textContent = 'Couldn’t save it. Check the connection and try again.'; }
+  finally { $('save').disabled = false; }
+};
+$('clear').onclick = () => {
+  for (const k of Object.keys(qty)) delete qty[k];
+  for (const inp of document.querySelectorAll('.step input')) inp.value = '';
+  $('label').value = ''; $('notes').value = ''; $('status').textContent = '';
+  render();
+};
+
+// ── Customer view ──
+$('show').onclick = () => {
+  const b = compute();
+  $('c-range').textContent = `${money(b.low)} – ${money(b.high)}`;
+  const ul = $('c-lines'); ul.innerHTML = '';
+  for (const l of b.lines) { const li = document.createElement('li'); li.textContent = l.unit === 'LF' ? `${l.plain}, about ${+l.q.toFixed(1)} ft` : `${l.plain}${l.unit === 'ea' ? ` (${l.q})` : ''}`; ul.append(li); }
+  $('c-finish').textContent = painted ? 'Painted finish included.' : 'Unfinished: painting or staining not included.';
+  $('cust').hidden = false;
+};
+$('c-close').onclick = () => { $('cust').hidden = true; };
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') $('cust').hidden = true; });
+
+renderCard();
+render();
+
+// Shared store: the rate card and saved estimates follow you from the iPad to the Mac
+(async () => {
+  try { db = window.claude?.use ? await window.claude.use('db') : null; } catch { db = null; }
+  if (!db) { $('status').textContent = 'Saving isn’t available on this screen; the calculator still works.'; return; }
+  db.doc('card/current').onSnapshot((s) => {
+    if (!s.exists) return;
+    const d = s.data();
+    if (s.metadata.hasPendingWrites) return;
+    const fresh = V5();
+    card = {
+      unfinished: { ...fresh.unfinished, ...(d.unfinished || {}) }, painted: { ...fresh.painted, ...(d.painted || {}) },
+      features: { ...fresh.features, ...(d.features || {}) }, range: typeof d.range === 'number' ? d.range : 0.1, roundTo: typeof d.roundTo === 'number' ? d.roundTo : 250,
+    };
+    if (!$('card').contains(document.activeElement)) renderCard();
+    render();
+  }, () => {});
+  db.collection('estimates').orderBy('createdAt', 'desc').limit(100).onSnapshot((s) => {
+    saved = s.docs.map((d) => ({ id: d.id, ...d.data() }));
+    renderSaved();
+  }, () => { $('status').textContent = 'Couldn’t load saved estimates.'; });
+})();
+</script>
