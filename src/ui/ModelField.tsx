@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { FileButton } from './FileButton';
 import type { Assets } from '../runtime';
 import type { Appliance, Model3D } from '../model/appliances';
 import { guessUnits, modelAccept, modelSize, readModelFile, rememberModel, toStoredGltf, unitInches } from '../three/modelImport';
@@ -54,10 +55,7 @@ export function ModelField({ a, onChange }: { a: Appliance; onChange: (a: Applia
   return (
     <div className="model-field">
       <div className="row-actions">
-        <label className="btn file-btn">
-          {m ? 'Replace 3D model…' : 'Import maker’s 3D model…'}
-          <input type="file" accept={modelAccept} hidden disabled={!!busy} onChange={(e) => { pick(e.target.files?.[0]); e.target.value = ''; }} />
-        </label>
+        <FileButton className="file-btn" accept={modelAccept} disabled={!!busy} onFiles={(f) => pick(f?.[0])}>{m ? 'Replace 3D model…' : 'Import maker’s 3D model…'}</FileButton>
         {m && <button className="mini" onClick={() => onChange({ ...a, model3d: undefined })}>Use the plain box</button>}
       </div>
       {busy && <p className="hint">{busy}</p>}

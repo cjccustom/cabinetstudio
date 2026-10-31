@@ -1,4 +1,5 @@
 import { PhotoRoomButton } from './PhotoRoom';
+import { FileButton } from './FileButton';
 import { askConfirm } from './Confirm';
 import { useEffect, useRef, useState } from 'react';
 import { create } from 'zustand';
@@ -100,11 +101,9 @@ function useAddImages(kind: RenderImage['kind']) {
 
 export function AddButton({ kind, label }: { kind: RenderImage['kind']; label: string }) {
   const { add, busy } = useAddImages(kind);
-  const ref = useRef<HTMLInputElement>(null);
   return (
     <div className="order-actions">
-      <button onClick={() => ref.current?.click()}>{label}</button>
-      <input ref={ref} type="file" accept="image/*" multiple hidden onChange={(e) => { add(e.target.files); e.target.value = ''; }} />
+      <FileButton accept="image/*" multiple onFiles={add}>{label}</FileButton>
       {busy && <span className="muted">{busy}</span>}
     </div>
   );
@@ -252,6 +251,14 @@ export function RenderInputs() {
 
 export function RenderStage() {
   const { r } = useRender();
+  // Photos can also be dropped onto the stage or pasted (⌘V), where a file picker won't open
+  const { add, busy } = useAddImages('photo');
+  useEffect(() => {
+    const paste = (e: ClipboardEvent) => { if (e.clipboardData?.files.length) { e.preventDefault(); add(e.clipboardData.files); } };
+    window.addEventListener('paste', paste);
+    return () => window.removeEventListener('paste', paste);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const drop = { onDragOver: (e: React.DragEvent) => e.preventDefault(), onDrop: (e: React.DragEvent) => { e.preventDefault(); add(e.dataTransfer.files); } };
   const selected = useView((s) => s.selected);
   const [split, setSplit] = useState(50);
   const [compare, setCompare] = useState(true);
@@ -262,7 +269,7 @@ export function RenderStage() {
 
   if (!shown) {
     return (
-      <main className="stage render-stage">
+      <main className="stage render-stage" {...drop}>
         <div className="render-empty">
           <h2>Sell it with a picture of their own room</h2>
           <ol>
@@ -272,12 +279,13 @@ export function RenderStage() {
             <li>Pick the rendering that goes out with the quote.</li>
           </ol>
           <AddButton kind="photo" label="Add photo" />
+          <p className="hint">Or drag a photo here, or copy one and paste it (⌘V).{busy ? ` ${busy}` : ''}</p>
         </div>
       </main>
     );
   }
   return (
-    <main className="stage render-stage">
+    <main className="stage render-stage" {...drop}>
       <div className="render-bar">
         <strong>{shown.kind === 'photo' ? 'Existing space' : 'Rendering'}{shown.note ? `: ${shown.note}` : ''}</strong>
         {canCompare && (

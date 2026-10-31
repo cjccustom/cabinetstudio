@@ -693,3 +693,8 @@ textarea.text-input { resize: vertical; }
 .add-toolbar .ti { font-size: 17px; line-height: 1.1; }
 .app .issue-bar { bottom: 74px; }
 @media (max-width: 860px) { .add-toolbar { position: static; transform: none; margin: 8px; max-width: none; } .app .issue-bar { bottom: 12px; } }
+
+/* File pickers: the real input covers the button so a tap opens it in every app window */
+.file-pick { position: relative; overflow: hidden; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
+.file-pick input[type=file] { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; font-size: 200px; }
+.file-pick.disabled { opacity: 0.5; pointer-events: none; }

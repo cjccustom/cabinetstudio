@@ -1,6 +1,7 @@
 // Photos straight into the client's Dropbox folder: take them on the phone (or pick some), and
 // each one is shrunk to a sensible size and sent through the CJC Portal, which uploads it into
 // <client folder>/Photos. Nothing goes to the camera roll.
+import { FileButton } from './FileButton';
 import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../store';
 import { PortalError, blobToBase64, dropboxStatus, savePhoto, type DbxStatus } from '../portal';
@@ -41,8 +42,6 @@ export function ClientPhotos() {
   const [error, setError] = useState('');
   const [label, setLabel] = useState('');
   const [shots, setShots] = useState<Shot[]>([]);
-  const camera = useRef<HTMLInputElement>(null);
-  const library = useRef<HTMLInputElement>(null);
   const queue = useRef(Promise.resolve());
 
   const check = async () => { setError(''); try { setDbx(await dropboxStatus()); } catch (e) { setError(errText(e)); } };
@@ -87,10 +86,8 @@ export function ClientPhotos() {
         <>
           <div className="photo-bar">
             <input id="ph-label" placeholder="What is it? (Kitchen, sink wall…)" value={label} onChange={(e) => setLabel(e.target.value)} />
-            <button className="primary" onClick={() => camera.current?.click()}>Take photo</button>
-            <button onClick={() => library.current?.click()}>Choose photos</button>
-            <input ref={camera} type="file" accept="image/*" capture="environment" hidden onChange={(e) => { add(e.target.files); e.target.value = ''; }} />
-            <input ref={library} type="file" accept="image/*" multiple hidden onChange={(e) => { add(e.target.files); e.target.value = ''; }} />
+            <FileButton className="primary" accept="image/*" capture="environment" onFiles={add}>Take photo</FileButton>
+            <FileButton accept="image/*" multiple onFiles={add}>Choose photos</FileButton>
           </div>
           <p className="hint">Saved to {folder}/Photos, named by the date and time{label.trim() ? ` and “${label.trim()}”` : ''}. Photos you take here don’t go to your camera roll.</p>
           {shots.length > 0 && (

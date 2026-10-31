@@ -1,4 +1,5 @@
-import { useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
+import { FileButton } from './FileButton';
 import { askConfirm } from './Confirm';
 import { useStore } from '../store';
 import { readCadFile } from '../import/cad';
@@ -10,7 +11,6 @@ const sideName: Record<PlanSide, string> = { top: 'Top of the plan', bottom: 'Bo
 
 /** Open a Chief plan export (DWG or DXF) and turn it into this design's room, openings and cabinets. */
 export function PlanImportButton({ className = '' }: { className?: string }) {
-  const ref = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState('');
   const [err, setErr] = useState('');
   const [found, setFound] = useState<{ plan: PlanFound; file: string } | null>(null);
@@ -25,8 +25,7 @@ export function PlanImportButton({ className = '' }: { className?: string }) {
   };
   return (
     <>
-      <button className={className} disabled={!!busy} onClick={() => ref.current?.click()}>Import Chief plan (DWG/DXF)</button>
-      <input ref={ref} type="file" accept=".dwg,.dxf" hidden onChange={(e) => { pick(e.target.files?.[0]); e.target.value = ''; }} />
+      <FileButton className={className} disabled={!!busy} accept=".dwg,.dxf" onFiles={(f) => pick(f?.[0] ?? undefined)}>Import Chief plan (DWG/DXF)</FileButton>
       {busy && <p className="hint">{busy}</p>}
       {err && <p className="warn">{err}</p>}
       {found && <PlanDialog plan={found.plan} file={found.file} onClose={() => setFound(null)} />}

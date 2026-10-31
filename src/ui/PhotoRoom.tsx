@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { FileButton } from './FileButton';
 import { useStore } from '../store';
 import type { WallId } from '../model/types';
 import { applyDraft, cleanDraft, closestProfile, draftRequest, type DraftOpening, type RoomDraft } from '../model/photoRoom';
@@ -177,15 +178,13 @@ export function PhotoRoomButton({ label = 'Build the room from photos', classNam
 export function ScanImportButton({ className = '' }: { className?: string }) {
   const [scan, setScan] = useState<ScanFile | null>(null);
   const [msg, setMsg] = useState('');
-  const ref = useRef<HTMLInputElement>(null);
   const pick = async (f?: File) => {
     if (!f) return;
     try { setScan(readScan(await f.text())); setMsg(''); } catch (e) { setMsg((e as Error).message); }
   };
   return (
     <>
-      <button className={className} onClick={() => ref.current?.click()}>Import room scan</button>
-      <input ref={ref} type="file" accept=".json,application/json" hidden onChange={(e) => { pick(e.target.files?.[0]); e.target.value = ''; }} />
+      <FileButton className={className} accept=".json,application/json" onFiles={(f) => pick(f?.[0] ?? undefined)}>Import room scan</FileButton>
       {msg && <p className="warn">{msg}</p>}
       {scan && <PhotoRoomDialog scan={scan} onClose={() => setScan(null)} />}
     </>
