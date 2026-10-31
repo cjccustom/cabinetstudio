@@ -12,6 +12,8 @@ export interface FaceRow {
   height: number | null;
   doors: 1 | 2;
   shelves: number;
+  /** Open rows: vertical dividers splitting it into equal cubbies (0 = none). */
+  dividers?: number;
   /** Width of the mid rail above this row, when it isn't the cabinet's standard (e.g. a tall rail for a ladder rail). */
   railAbove?: number;
   /** Hanging and shoe rows: closed with doors (a wardrobe) instead of open; doors = how many. */
@@ -449,7 +451,7 @@ export type MaterialKey = 'box' | 'back' | 'toeSkin' | 'faceframe' | 'door' | 'd
 
 export type PartRole =
   | 'side' | 'bottom' | 'top' | 'stretcher' | 'back' | 'nailer' | 'toekick' | 'shelf'
-  | 'stile' | 'rail' | 'door' | 'drawerFront' | 'drawerBox' | 'endPanel' | 'counter' | 'woodTop' | 'paintTop' | 'trim' | 'rod' | 'cushion';
+  | 'stile' | 'rail' | 'door' | 'drawerFront' | 'drawerBox' | 'endPanel' | 'counter' | 'woodTop' | 'paintTop' | 'divider' | 'trim' | 'rod' | 'cushion';
 
 export interface CabinetNote { id: string; text: string; for: 'both' | 'customer' | 'shop' }
 

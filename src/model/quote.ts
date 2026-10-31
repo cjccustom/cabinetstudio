@@ -54,6 +54,8 @@ export interface LaborStandards {
   extendedStile: number;
   woodTop: number;
   woodTopPerSqFt: number;
+  /** A vertical cubby divider: dadoes, panel and its mid stile. */
+  divider?: number;
   /** Paint-grade plywood tops with applied edging: per top, and per sq ft. */
   paintTop?: number;
   paintTopPerSqFt?: number;
@@ -369,6 +371,7 @@ export function estimateHours(p: Project, q: QuoteSettings): HourLine[] {
     const baseTrim = parts.filter((x) => /^(Baseboard|Skirt|End skirt)/.test(x.name));
     addC('Baseboard / skirt pieces (fit & miter)', baseTrim.length, st.basePiece ?? 0.25);
     addC('Arched cuts (layout & cut)', parts.filter((x) => (x.note ?? '').startsWith('Cut ') && /feet|arch/i.test(x.note ?? '')).length, st.archCut ?? 0.5);
+    addC('Cubby dividers (dadoed, with mid stile)', parts.filter((x) => x.role === 'divider').length, st.divider ?? 0.6);
     addC('Applied shelf fronts', parts.filter((x) => x.name === 'Shelf front').length, st.shelfFront ?? 0.15);
     addC('Shoe fences', parts.filter((x) => x.name === 'Shoe fence').length, st.shelfFront ?? 0.15);
     addC('Closet rods (cut & set in sockets)', n('rod'), st.closetRod ?? 0.25, 'cabinets', true);
@@ -671,6 +674,8 @@ export function scopeLine(c: Cabinet, p: Project): string {
   if (c.island) bits.push(c.islandSides === 2 ? 'freestanding island with fronts on both sides' : 'freestanding island, back finished with a panel');
   const adj = parts.filter((x) => x.role === 'shelf' && x.name === 'Adjustable shelf').length;
   if (adj) bits.push(`(${adj}) adjustable shel${adj > 1 ? 'ves' : 'f'}`);
+  const dividers = parts.filter((x) => x.role === 'divider').length;
+  if (dividers) bits.push(`(${dividers}) vertical divider${dividers > 1 ? 's' : ''}`);
   const fixedShelves = parts.filter((x) => x.role === 'shelf' && x.name === 'Fixed shelf').length;
   if (fixedShelves) bits.push(`(${fixedShelves}) fixed shel${fixedShelves > 1 ? 'ves' : 'f'}`);
   const hang = c.rows.filter((r) => r.type === 'hang').length;

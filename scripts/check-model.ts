@@ -172,6 +172,15 @@ eq('new terms: one notice, from the terms', (termsHtml(CJC_TERMS, Date.UTC(2026,
   eq('edging front flush with a 3/4" overhang', edge[0].boxes[0].min[2] + 0.75, ply.boxes[0].min[2] + ply.boxes[0].size[2] + 0.75);
 }
 
+// Cubbies: dividers in an open row, shelves per bay; two open rows get a fixed divider between them
+{
+  const cub = { ...b21, kind: 'wall' as const, width: 48, height: 30, depth: 14, elevation: 66, rows: [{ id: 'u', type: 'open' as const, height: 12, doors: 1 as const, shelves: 0 }, { id: 'l', type: 'open' as const, height: null, doors: 1 as const, shelves: 1, dividers: 2 }] };
+  const cp = buildParts(cub, s);
+  eq('two dividers, two mid stiles', `${cp.filter((x) => x.role === 'divider').length} ${cp.filter((x) => x.name === 'Mid stile').length}`, '2 2');
+  eq('a shelf in each of the 3 bays', cp.filter((x) => x.name === 'Adjustable shelf').length, 3);
+  eq('fixed divider across between the open rows', cp.some((x) => x.name === 'Fixed shelf' && (x.note ?? '').includes('divider across')), true);
+}
+
 // Recessed cans: one per coffer, or a grid about every 5'
 eq('one can per coffer', canSpots({ ...p, ceiling: { on: true, across: 3, deep: 3 } }).length, 9);
 eq('cans on a grid, 3 across by 2 deep', canSpots({ ...p, room: { width: 156, depth: 144, height: 96 } }).length, 6);

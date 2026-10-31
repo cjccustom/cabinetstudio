@@ -206,7 +206,7 @@ export function Inspector({ cab, issues, tab }: { cab: Cabinet; issues: string[]
           </button>
         }
       >
-        <p className="hint">Top to bottom. Leave height blank to split the remaining space.</p>
+        <p className="hint">Top to bottom. Leave height blank to split the remaining space. Two open rows one over the other get a fixed shelf on the rail between them: a solid divider across the bookcase (say, a line of cubbies over a TV). Open rows can also take vertical dividers.</p>
         <ol className="rows">
           {cab.rows.map((r, i) => (
             <li key={r.id} className="row-ed">
@@ -242,7 +242,7 @@ export function Inspector({ cab, issues, tab }: { cab: Cabinet; issues: string[]
                 </select>
               ) : r.type === 'doors' || r.type === 'open' ? (
                 <select id={`row-sh-${r.id}`} aria-label="Shelves" value={r.shelves} onChange={(e) => setRow(r.id, { shelves: Number(e.target.value) })}>
-                  {[0, 1, 2, 3, 4, 5, 6].map((n) => <option key={n} value={n}>{n} shelf{n === 1 ? '' : 'ves'}</option>)}
+                  {[0, 1, 2, 3, 4, 5, 6].map((n) => <option key={n} value={n}>{n} shelf{n === 1 ? '' : 'ves'}{r.dividers ? ' each' : ''}</option>)}
                 </select>
               ) : <span />}
               <button
@@ -252,6 +252,14 @@ export function Inspector({ cab, issues, tab }: { cab: Cabinet; issues: string[]
                 disabled={cab.rows.length <= 1}
                 onClick={() => set({ rows: cab.rows.filter((x) => x.id !== r.id) })}
               >×</button>
+              {r.type === 'open' && (
+                <div className="row-ledge">
+                  <span>Vertical dividers</span>
+                  <select id={`row-div-${r.id}`} aria-label="Vertical dividers" value={r.dividers ?? 0} onChange={(e) => setRow(r.id, { dividers: Number(e.target.value) || undefined })}>
+                    {[0, 1, 2, 3, 4, 5, 6, 7].map((n) => <option key={n} value={n}>{n ? `${n} (${n + 1} cubbies)` : 'None'}</option>)}
+                  </select>
+                </div>
+              )}
               {i > 0 && (
                 <div className="row-ledge">
                   <label><input type="checkbox" checked={!!r.ledge} onChange={(e) => setRow(r.id, { ledge: e.target.checked ? { thickness: 1, overhang: 0.5 } : undefined })} /> Ledge on the rail above</label>

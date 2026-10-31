@@ -52,6 +52,12 @@ export function sideFastening(c: Cabinet, bare: boolean, exposed: boolean): stri
   }
 }
 
+/** An opening split into equal bays by n mid stiles (or divider edges) of width w: the stiles' centers. */
+export function bayEdges(x0: number, x1: number, n: number, w: number): { bay: number; stiles: number[] } {
+  const bay = (x1 - x0 - n * w) / (n + 1);
+  return { bay, stiles: Array.from({ length: n }, (_, k) => x0 + (k + 1) * bay + k * w + w / 2) };
+}
+
 /** Open to the room: open shelves, or hanging space. */
 export const isOpenRow = (t: FaceRow['type'], covered?: boolean) => t === 'open' || ((t === 'hang' || t === 'shoes') && !covered);
 /** Rows behind doors: door rows, and hanging or shoe space closed in for a wardrobe. */
@@ -455,15 +461,17 @@ function caseParts(c: Cabinet, s: ShopSettings, ends: EndInfo): Part[] {
       // (when there is one) sits on the rail and runs across the front
       const lg = ledgeAbove(c, i);
       const openAbove = isOpenRow(c.rows[i - 1].type, c.rows[i - 1].covered) && !isOpenRow(c.rows[i].type, c.rows[i].covered);
+      // Two open rows: the rail between them carries a fixed shelf, a solid divider across the bookcase
+      const bothOpen = c.rows[i - 1].type === 'open' && c.rows[i].type === 'open';
       // Hanging space has a fixed shelf over it to carry the rod, and under it to close it off
       const hang = c.rows[i].type === 'hang' || c.rows[i - 1].type === 'hang';
       // The cabinet over a fridge closes off with a fixed shelf on the rail
       const overFridge = c.rows[i].type === 'appliance' && c.rows[i].appliance?.kind === 'fridge';
-      if (lg || openAbove || hang || overFridge) {
+      if (lg || openAbove || hang || overFridge || bothOpen) {
         const topY = r.y1 + mw + (lg?.thickness ?? 0);
         const lap = lg ? 0.75 : 0;
         parts.push({ name: 'Fixed shelf', role: 'shelf', material: 'box', length: innerW + 2 * dd, width: boxD - rw - lap, thickness: tn, cut: true,
-          note: lg ? 'Dadoed in, top flush with the top of the ledge' : openAbove ? 'Dadoed in, top flush with the top of the rail; divides the doors from the open shelves above' : 'Dadoed in, top flush with the top of the rail',
+          note: lg ? 'Dadoed in, top flush with the top of the ledge' : bothOpen ? 'Dadoed in, top flush with the top of the rail; a fixed divider across the bookcase' : openAbove ? 'Dadoed in, top flush with the top of the rail; divides the doors from the open shelves above' : 'Dadoed in, top flush with the top of the rail',
           boxes: [vb(xi0, topY - ta, rw, innerW, ta, boxD - rw - lap)] });
         if (lg) {
           const deep = ft + lg.overhang + lap;
@@ -521,6 +529,18 @@ function caseParts(c: Cabinet, s: ShopSettings, ends: EndInfo): Part[] {
     const r = rows[i];
     if (r.height <= 0) return;
     const split = hasDoors(row) && row.doors === 2 && c.centerStile;
+    // Vertical dividers in an open row (cubbies): a plywood panel dadoed into what's above and below,
+    // a mid stile in front of it on a face frame case (its banded edge on a frameless one)
+    if (row.type === 'open' && (row.dividers ?? 0) > 0) {
+      const n = row.dividers!;
+      const lo = Math.max(r.y0, botTop), hi = Math.min(r.y1, topUnder);
+      for (const x of bayEdges(ox0, ox1, n, fl ? ta : sw).stiles) {
+        parts.push({ name: 'Divider', role: 'divider', material: 'box', length: hi - lo + 2 * dd, width: boxD - rw, thickness: tn, cut: true, banded: fl || undefined,
+          note: `In ${dados} dados top and bottom${fl ? ', front edge banded' : ', behind a mid stile'}`, boxes: [vb(x - ta / 2, lo, rw, ta, hi - lo, boxD - rw)] });
+        if (!fl) parts.push({ name: 'Mid stile', role: 'stile', material: 'faceframe', length: r.height, width: sw, thickness: ft, cut: true,
+          note: 'Over the divider', boxes: [vb(x - sw / 2, r.y0, zF, sw, r.height, ft)] });
+      }
+    }
     if (split) {
       parts.push({
         name: 'Center stile', role: 'stile', material: 'faceframe', length: r.height, width: sw, thickness: ft, cut: true,
@@ -614,15 +634,20 @@ function caseParts(c: Cabinet, s: ShopSettings, ends: EndInfo): Part[] {
       const shelfD = fullD - (sf?.thickness ?? 0);
       const lo = Math.max(r.y0, botTop);
       const hi = Math.min(r.y1, topUnder);
-      for (let k = 1; k <= row.shelves; k++) {
+      // With dividers, each bay gets its own shelves between the dividers
+      const bays: [number, number][] = row.type === 'open' && (row.dividers ?? 0) > 0
+        ? (() => { const st = bayEdges(ox0, ox1, row.dividers!, fl ? ta : sw).stiles; const xs = [xi0, ...st.flatMap((x) => [x - ta / 2, x + ta / 2]), xi1]; return xs.reduce<[number, number][]>((a, _, i) => (i % 2 === 0 ? [...a, [xs[i], xs[i + 1]]] : a), []); })()
+        : [[xi0, xi1]];
+      for (const [b0, b1] of bays) for (let k = 1; k <= row.shelves; k++) {
         const y = lo + ((hi - lo) * k) / (row.shelves + 1) - ta / 2;
         const fixed = c.build?.shelves === 'fixed';
-        parts.push({ name: fixed ? 'Fixed shelf' : 'Adjustable shelf', role: 'shelf', material: 'box', length: fixed ? cutW : shelfW, width: shelfD, thickness: tn, cut: true,
+        const bw = b1 - b0, sW = bays.length > 1 ? bw - s.shelfClearance : shelfW;
+        parts.push({ name: fixed ? 'Fixed shelf' : 'Adjustable shelf', role: 'shelf', material: 'box', length: fixed ? bw + 2 * dd : sW, width: shelfD, thickness: tn, cut: true,
           note: [fixed ? `In ${dados} dados` : '', sf ? 'Solid front applied, no banding' : ''].filter(Boolean).join(' · ') || undefined, banded: !sf,
-          boxes: [fixed ? vb(xi0, y, rw, innerW, ta, shelfD) : vb(xi0 + s.shelfClearance / 2, y, rw, shelfW, ta, shelfD)] });
-        if (sf) parts.push({ name: 'Shelf front', role: 'trim', material: 'faceframe', length: shelfW, width: sf.height, thickness: sf.thickness, cut: true,
+          boxes: [fixed ? vb(b0, y, rw, bw, ta, shelfD) : vb(b0 + s.shelfClearance / 2, y, rw, sW, ta, shelfD)] });
+        if (sf) parts.push({ name: 'Shelf front', role: 'trim', material: 'faceframe', length: sW, width: sf.height, thickness: sf.thickness, cut: true,
           note: 'Glued and nailed to the shelf edge, top flush',
-          boxes: [vb(xi0 + s.shelfClearance / 2, y + ta - sf.height, rw + shelfD, shelfW, sf.height, sf.thickness)] });
+          boxes: [vb(b0 + s.shelfClearance / 2, y + ta - sf.height, rw + shelfD, sW, sf.height, sf.thickness)] });
       }
     }
   });
