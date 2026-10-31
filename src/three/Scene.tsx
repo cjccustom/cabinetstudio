@@ -35,6 +35,9 @@ export function Scene({ issueIds }: { issueIds: Set<string> }) {
   const select = useStore((s) => s.select);
   const { room, settings, finishes } = project;
   const showCeiling = useNav((n) => n.ceiling);
+  // Things hidden to see past them (a mantel in front of the bookcases), and the walls, in the 3D view
+  const hidden = useNav((n) => n.hidden);
+  const showWalls = useNav((n) => n.walls) || view !== '3d';
   const elevWall = view.startsWith('elev-') ? (view.slice(5) as WallId) : null;
   const cans = lightsOf(project).kind === 'recessed';
   const visible = elevWall ? project.cabinets.filter((c) => c.wall === elevWall) : project.cabinets;
@@ -60,7 +63,7 @@ export function Scene({ issueIds }: { issueIds: Set<string> }) {
             : <directionalLight position={[room.width * 0.8, room.height * 2.2, room.depth * 2.5]} intensity={1.5} />}
           <directionalLight position={[-room.width, room.height, room.depth]} intensity={0.35} />
         </>}
-      <RoomModel project={project} view={view} />
+      <RoomModel project={project} view={view} walls={showWalls} />
       {showCeiling && <CofferModel project={project} view={view} />}
       {/* Not in the elevation of the wall across from it, where it would stand in front of the view */}
       {(!elevWall || elevWall !== opposite[project.ladder?.wall ?? 'back']) && <LadderModel project={project} />}
@@ -71,7 +74,7 @@ export function Scene({ issueIds }: { issueIds: Set<string> }) {
           <meshStandardMaterial color={project.finishes.ceiling ?? '#f7f6f2'} emissive="#ffffff" emissiveIntensity={0.18} roughness={0.95} />
         </mesh>
       )}
-      {visible.map((c) => (
+      {visible.filter((c) => !hidden.includes(c.id)).map((c) => (
         <CabinetModel
           key={c.id}
           cab={c}
@@ -83,7 +86,7 @@ export function Scene({ issueIds }: { issueIds: Set<string> }) {
           issue={issueIds.has(c.id)}
         />
       ))}
-      {(project.panels ?? []).filter((w) => !elevWall || w.wall === elevWall).map((w) => (
+      {(project.panels ?? []).filter((w) => (!elevWall || w.wall === elevWall) && !hidden.includes(w.id)).map((w) => (
         <WallPanelModel key={w.id} panel={w} room={room} finishes={finishes} selected={w.id === selectedId} />
       ))}
       {elevWall && <ElevationDims room={room} wall={elevWall} cabinets={visible} />}
@@ -118,7 +121,7 @@ function Cameras({ view, room }: { view: ViewMode; room: Room }) {
     return (
       <>
         <PerspectiveCamera key={`persp-${k}`} makeDefault fov={42} near={1} far={8000} position={[W * 0.78, H * 1.25, D + Math.max(W, D) * 1.05]} />
-        <OrbitControls key={`orbit-3d-${k}`} makeDefault target={target} maxPolarAngle={Math.PI * 0.495} enableDamping={false} zoomToCursor screenSpacePanning mouseButtons={buttons(false)} />
+        <OrbitControls key={`orbit-3d-${k}`} makeDefault target={target} maxPolarAngle={Math.PI * 0.92} enableDamping={false} zoomToCursor screenSpacePanning mouseButtons={buttons(false)} />
       </>
     );
   }

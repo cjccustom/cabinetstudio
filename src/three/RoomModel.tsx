@@ -14,7 +14,7 @@ const T = 4.5;
 const EDGE = '#3b3f45';
 
 /** Floor, walls with their openings cut out, casing and room trim. */
-export function RoomModel({ project, view }: { project: Project; view: ViewMode }) {
+export function RoomModel({ project, view, walls = true }: { project: Project; view: ViewMode; walls?: boolean }) {
   const { room } = project;
   const { width: W, depth: D, height: H } = room;
   const wallColor = project.finishes.wall ?? '#f1efea';
@@ -28,7 +28,7 @@ export function RoomModel({ project, view }: { project: Project; view: ViewMode 
         const mine = openings.filter((o) => o.wall === wall);
         return (
           <group key={wall} position={pos} rotation-y={rotY}>
-            <WallFace len={wallLength(room, wall)} H={H} openings={mine} color={wallColor} />
+            {walls && <WallFace len={wallLength(room, wall)} H={H} openings={mine} color={wallColor} />}
             <FacingCamera>
               {mine.map((o) => <OpeningModel key={o.id} o={o} trim={trim} />)}
               <MoldingModel pieces={roomMoldings(project, wall)} color={trim} edgeColor={EDGE} />

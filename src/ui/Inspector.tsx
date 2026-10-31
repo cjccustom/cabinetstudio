@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { cofferOf, perimOf } from '../model/coffer';
 import { combine, combineAll, stackedPairs, upperOn } from '../model/onePiece';
 import { freeStanding, useStore } from '../store';
+import { useNav } from '../three/navigation';
 import type { CabinetNote, Cabinet, CaseBuild, CrownBuild, EndMode, FaceRow, PanelChoice, PanelMode, ShopSettings, WallId } from '../model/types';
 import { buildParts, closetRod, isOpenRow, PAINT_TOP, topThick, crownFit, crownLayout, crownRoom, layoutRows, noCrownBuild, panelOn } from '../model/parts';
 import { defaultPilaster, pilasterOf, pilasterSections } from '../model/pilaster';
@@ -522,6 +523,7 @@ export function Inspector({ cab, issues, tab }: { cab: Cabinet; issues: string[]
 
       <div className="insp-actions">
         <button onClick={() => duplicate(cab.id)}>Duplicate</button>
+        <button title="Hide it in the design view to see past it; Show hidden brings it back" onClick={() => { useNav.getState().hide(cab.id); useStore.getState().select(null); useStore.getState().edit(null); }}>Hide in view</button>
         <button className="danger" onClick={() => remove(cab.id)}>Delete</button>
       </div>
     </div>

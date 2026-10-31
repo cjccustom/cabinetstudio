@@ -19,6 +19,12 @@ export const useNav = create<{
   /** Draw the coffered ceiling (it can hide the room from above). */
   ceiling: boolean;
   setCeiling: (on: boolean) => void;
+  /** Hidden in the 3D view to see past them (this browser session only): items by id, and the walls. */
+  hidden: string[];
+  walls: boolean;
+  hide: (id: string) => void;
+  showAll: () => void;
+  setWalls: (on: boolean) => void;
   setMode: (m: 'orbit' | 'pan') => void;
   setPointer: (p: Pointer, byHand?: boolean) => void;
   reset: () => void;
@@ -29,6 +35,11 @@ export const useNav = create<{
   resetKey: 0,
   ceiling: load('cabinet-studio.ceiling', ['on', 'off'], 'on') === 'on',
   setCeiling: (on) => { save('cabinet-studio.ceiling', on ? 'on' : 'off'); set({ ceiling: on }); },
+  hidden: [],
+  walls: true,
+  hide: (id) => set((s) => ({ hidden: s.hidden.includes(id) ? s.hidden : [...s.hidden, id] })),
+  showAll: () => set({ hidden: [], walls: true }),
+  setWalls: (walls) => set({ walls }),
   setMode: (mode) => { save('cabinet-studio.nav', mode); set({ mode }); },
   setPointer: (pointer, byHand = false) => {
     save('cabinet-studio.pointer', pointer);
@@ -98,6 +109,7 @@ export function onWheel(e: WheelEvent) {
 
 /** For testing views: with #debug in the address, aim the camera from code (look(from, at), room inches). */
 if (typeof window !== 'undefined' && window.location.hash.includes('debug')) {
+  (window as unknown as { hideItem: (id: string) => void }).hideItem = (id) => useNav.getState().hide(id);
   (window as unknown as { look: (from: number[], at: number[]) => void }).look = (from, at) => {
     const c = live.controls;
     if (!c) return;

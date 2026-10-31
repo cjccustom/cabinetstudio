@@ -19,6 +19,8 @@ export function ViewTools() {
       <button className="icon-btn" aria-label="Zoom in" title="Zoom in" onClick={() => zoomStep(true)}>+</button>
       <button onClick={nav.reset} title="Back to the starting view">Reset view</button>
       {hasCeiling && <label className="check-inline" style={{ marginTop: 0 }}><input type="checkbox" checked={nav.ceiling} onChange={(e) => nav.setCeiling(e.target.checked)} /> Ceiling</label>}
+      {!flat && <label className="check-inline" style={{ marginTop: 0 }} title="Hide the room's walls to see the work from any side"><input type="checkbox" checked={nav.walls} onChange={(e) => nav.setWalls(e.target.checked)} /> Walls</label>}
+      {nav.hidden.length > 0 && <button onClick={nav.showAll} title="Show everything hidden in this view">Show {nav.hidden.length} hidden</button>}
       <select aria-label="Pointing device" value={nav.pointer} onChange={(e) => nav.setPointer(e.target.value as 'mouse' | 'trackpad', true)}
         title="Trackpad: two-finger swipe pans and pinch zooms. Mouse: the wheel zooms toward the cursor.">
         <option value="mouse">Mouse</option>
