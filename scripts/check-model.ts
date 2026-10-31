@@ -1,5 +1,7 @@
 import { readFileSync } from "node:fs";
 import { canSpots } from "../src/model/lighting";
+import { shopGroups } from "../src/drawings/sheets";
+import { sidePanelLayout } from "../src/drawings/views";
 import { crc32, writeXlsx } from "../src/export/xlsx";
 import { pricingWorkbook } from "../src/export/pricingWorkbook";
 import { ballpark, categoriesOf, categoryOf, comparableQuote, defaultRateCard } from "../src/model/ballpark";
@@ -803,8 +805,9 @@ eq('panel sticks out past frame', panelExtents(b21, s, { left: true, right: fals
   eq('customer set: cover, plan, an elevation per wall with cabinets', cust.length, 2 + walls);
   eq('elevation dimensions the wall', cust[2].svg.includes(`${p.room.width}"`), true);
   const shop = shopSet(p, d);
-  eq('shop set: a sheet per wall and per cabinet', shop.length, walls + p.cabinets.length);
-  eq('cabinet sheet lists its parts', shop[walls].svg.includes('Bottom') && shop[walls].svg.includes('FACE FRAME'), true);
+  eq('shop set: a sheet per wall, then drawings + parts per cabinet built alike', shop.length, walls + 2 * shopGroups(p).length);
+  eq('cabinet drawing: face frame and side layout', shop[walls].svg.includes('FACE FRAME') && shop[walls].svg.includes('LEFT SIDE, INSIDE FACE'), true);
+  eq('cabinet parts sheet lists its parts and the order of work', shop[walls + 1].svg.includes('Bottom') && shop[walls + 1].svg.includes('Order of work'), true);
   const doc = setDocument('Test', cust, 'letter');
   eq('printable document, letter pages', doc.includes('size:11in 8.5in') && (doc.match(/class="page"/g) ?? []).length === cust.length, true);
   eq('sheets are true size', cust[1].svg.includes('width="17in"'), true);
@@ -1372,6 +1375,17 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   eq('xlsx: total is a formula', /ROUND\(G\d+\/RoundTo/.test(total.f), true);
   const bytes = writeXlsx(wb);
   eq('xlsx: a zip', `${bytes[0]},${bytes[1]}`, '80,75');
+}
+
+// Shop drawings: identical cabinets share a sheet; the side panel layout shows the joinery
+{
+  const groups = shopGroups(p);
+  eq('shop groups: every cabinet once', groups.flat().length, p.cabinets.length);
+  eq('shop groups: same-built uppers share a drawing', groups.some((g) => g.length > 1), true);
+  const base = p.cabinets.find((c) => c.kind === 'base')!;
+  const lay = sidePanelLayout(p, base, { x: 0, y: 0, w: 4, h: 6 })!;
+  eq('side layout: back rabbet and bottom dado noted', lay.notes.some((n) => /Back rabbet/.test(n)) && lay.notes.some((n) => /Dados .* bottom/.test(n)), true);
+  eq('side layout: none for a pilaster', sidePanelLayout(p, { ...base, kind: 'pilaster' } as any, { x: 0, y: 0, w: 4, h: 6 }), null);
 }
 
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');

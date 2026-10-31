@@ -8,7 +8,10 @@ import { eff } from '../model/parts';
 import { styleById } from '../model/eagle';
 import { baseLabel } from '../model/cabinetBase';
 import { fmt } from '../units';
-import { beamSection, cabinetsOn, ceilingPlan, faceFrameView, floorPlan, mantelViews, partRows, partsOf, sideSection, wallElevation } from './views';
+import { beamSection, cabinetsOn, ceilingPlan, faceFrameView, floorPlan, mantelViews, partRows, partsOf, sidePanelLayout, sideSection, wallElevation } from './views';
+import { joineryLabel } from '../model/parts';
+import { hardwareOrder } from '../model/hardware';
+import { hingeTypes } from '../model/eagle';
 import { cofferOf, cofferParts } from '../model/coffer';
 import { fuelLabel, mantelOf } from '../model/mantel';
 import { cofferScope } from '../model/quote';
@@ -194,17 +197,72 @@ function installNotes(p: Project, wall: WallId): string {
     <p class="small">Set bases level from the high point of the floor. Heights are above finished floor (AFF).</p>`;
 }
 
-function cabinetHeader(p: Project, c: Cabinet): string {
+function cabinetHeader(p: Project, c: Cabinet, same: Cabinet[] = [c]): string {
   const s = eff(c, p.settings);
   const style = styleById(s.doorStyleId);
+  const where = (x: Cabinet) => `${wallNames[x.wall]}, ${fmt(x.offset)} from the left${x.elevation > 0.5 ? `, ${fmt(x.elevation)} AFF` : ''}`;
   const bits = [
-    `${kinds[c.kind]}, ${fmt(c.width)} W × ${fmt(c.height)} H × ${fmt(c.depth)} D${c.elevation > 0.5 ? `, ${fmt(c.elevation)} AFF` : ''}`,
-    `${wallNames[c.wall]}, ${fmt(c.offset)} from the left`,
+    `${kinds[c.kind]}, ${fmt(c.width)} W × ${fmt(c.height)} H × ${fmt(c.depth)} D`,
     c.kind === 'mantel' ? `${mantelOf(c).species}, paint grade; ${fuelLabel[mantelOf(c).fuel].toLowerCase()}` : `${style.name} ${s.doorMount === 'inset' ? 'inset' : 'overlay'}; face frame ${fmt(s.ffThickness)} ${p.settings.woodSpecies}`,
     baseLabel(c) ?? (c.kind === 'base' || c.kind === 'tall' ? `${fmt(s.toeKickHeight)} toe kick` : ''),
   ].filter(Boolean);
   const notes = forAudience(cabinetCallouts(p, c), 'shop');
-  return `<h2>${esc(c.name)}</h2><p>${bits.map(esc).join('<br>')}</p>${notes.length ? `<h3>Notes</h3><ul>${notes.map((n) => `<li>${esc(n.text)}</li>`).join('')}</ul>` : ''}`;
+  const make = same.length > 1 ? `<p class="big">Make ${same.length}</p><ul>${same.map((x) => `<li><b>${esc(x.name)}</b>: ${esc(where(x))}</li>`).join('')}</ul>` : `<p>${esc(where(c))}</p>`;
+  return `<h2>${esc(same.map((x) => x.name).join(', '))}</h2>${make}<p>${bits.map(esc).join('<br>')}</p>${notes.length ? `<h3>Notes</h3><ul>${notes.map((n) => `<li>${esc(n.text)}</li>`).join('')}</ul>` : ''}`;
+}
+
+/**
+ * Cabinets built exactly alike share a drawing: same parts at the same sizes, the same notes and
+ * the same hardware. Kept in wall order, each group at its first cabinet.
+ */
+export function shopGroups(p: Project): Cabinet[][] {
+  const groups = new Map<string, Cabinet[]>();
+  for (const w of wallOrder) for (const c of cabinetsOn(p, w)) {
+    const parts = partRows(partsOf(p, c)).map(({ part, qty }) => [qty, part.name, part.role, part.length, part.width, part.thickness, part.material, part.species ?? '', part.sheet ?? '', part.note ?? '', part.order ? JSON.stringify(part.order) : ''].join('|'));
+    const notes = forAudience(cabinetCallouts(p, c), 'shop').map((n) => n.text);
+    const key = [c.kind, c.width, c.height, c.depth, baseLabel(c) ?? '', ...parts.sort(), ...notes].join('\n');
+    const g = groups.get(key);
+    if (g) g.push(c); else groups.set(key, [c]);
+  }
+  return [...groups.values()];
+}
+
+/** The order of work for a case, from how it's built. */
+function assemblySteps(p: Project, c: Cabinet, parts: Part[], sideNotes: string[]): string[] {
+  const s = eff(c, p.settings);
+  const has = (r: Part['role']) => parts.some((x) => x.role === r);
+  const steps: string[] = [];
+  const ff = parts.some((x) => x.material === 'faceframe' && x.role === 'rail');
+  steps.push('Cut the parts to the list; check the sheet goods for grain direction on exposed parts.');
+  if (sideNotes.length) steps.push(`Machine the sides (see the side layout): ${sideNotes.filter((n) => !/mirror/.test(n)).map((n) => n.charAt(0).toLowerCase() + n.slice(1)).join('; ')}.`);
+  const notch = parts.find((x) => x.role === 'side' && /notch|Cut .* to match/i.test(x.note ?? ''));
+  if (notch) steps.push(`Cut the ${/notch/i.test(notch.note ?? '') ? 'toe notch' : 'shaped foot'} in each side.`);
+  const banded = [...new Set(parts.filter((x) => x.banded && x.cut).map((x) => x.name.toLowerCase()))];
+  if (banded.length) steps.push(`Edgeband the front edge of each ${banded.join(', ')}.`);
+  const fasten = parts.find((x) => x.role === 'side')?.note?.split(' · ').find((t) => /glue|screw|staple|confirmat/i.test(t));
+  steps.push(`Assemble the case on a flat bench: sides to ${[has('bottom') ? 'bottom' : '', has('top') ? 'top' : '', has('stretcher') ? 'stretchers' : '', parts.some((x) => x.role === 'shelf' && /dado/i.test(x.note ?? '')) ? 'fixed shelves' : ''].filter(Boolean).join(', ')}${fasten ? ` (${fasten.toLowerCase()})` : ''}.`);
+  if (has('divider')) steps.push('Fit the vertical dividers in their dados before the back goes on.');
+  if (has('back')) steps.push('Glue and staple the back into its rabbet; measure the diagonals to square the case before it sets.');
+  const nailers = [...new Set(parts.filter((x) => x.role === 'nailer').map((x) => x.name.toLowerCase()))];
+  if (nailers.length) steps.push(`Glue and screw the ${nailers.join(' and ')}.`);
+  if (ff) {
+    const j = s.ffJoinery ?? 'pocket';
+    steps.push(`Build the face frame (${joineryLabel[j].toLowerCase()}); check it square and flat, sand the joints flush.`);
+    steps.push(`Glue and nail the face frame to the case, ${s.ffOverhang > 0 ? `${fmt(s.ffOverhang)} proud of the sides where they're hidden` : 'flush to the sides'}.`);
+  }
+  if (has('endPanel')) steps.push('Apply the end panels (or leave for install where they scribe to the wall).');
+  if (has('door') || has('drawerFront') || has('drawerBox')) {
+    const hinge = hingeTypes[s.hingeType]?.name ?? s.hingeType;
+    steps.push(`Hardware: ${[has('door') ? `${hinge} hinges` : '', has('drawerBox') ? `${s.drawerSlide} slides` : ''].filter(Boolean).join(', ')}. Hang doors and fronts and set the reveals at ${fmt(s.doorGap)}.`);
+  }
+  steps.push('Label the case with its name and wall before finishing.');
+  return steps;
+}
+
+function hardwareList(p: Project, c: Cabinet): string {
+  const h = hardwareOrder({ ...p, cabinets: [c] });
+  if (!h.lines.length && !h.problems.length) return '';
+  return `<h3>Hardware, each</h3><ul>${h.lines.map((l) => `<li>${l.qty} × ${esc(l.part.part)}: ${esc(l.part.description)}</li>`).join('')}${h.problems.map((x) => `<li>${esc(x.text)}</li>`).join('')}</ul>`;
 }
 
 function materialName(p: Project, part: Part): string {
@@ -222,19 +280,20 @@ function materialName(p: Project, part: Part): string {
   }
 }
 
-function partsTable(p: Project, c: Cabinet): string {
+function partsTable(p: Project, c: Cabinet, make = 1): string {
   const rows = partRows(partsOf(p, c));
   const cut = rows.filter((r) => r.part.cut);
   const bought = rows.filter((r) => !r.part.cut && r.part.role !== 'counter');
+  const q = (n: number) => (make > 1 ? `${n} <span class="small">(${n * make})</span>` : `${n}`);
   const tr = (r: { part: Part; qty: number }) =>
-    `<tr><td>${r.qty}</td><td>${esc(r.part.name)}</td><td>${fmt(r.part.length)}</td><td>${fmt(r.part.width)}</td><td>${fmt(r.part.thickness)}</td><td>${esc(materialName(p, r.part))}</td><td>${esc(r.part.note ?? '')}</td></tr>`;
+    `<tr><td>${q(r.qty)}</td><td>${esc(r.part.name)}</td><td>${fmt(r.part.length)}</td><td>${fmt(r.part.width)}</td><td>${fmt(r.part.thickness)}</td><td>${esc(materialName(p, r.part))}</td><td>${esc(r.part.note ?? '')}</td></tr>`;
   const size = (part: Part) => {
     const o = part.order;
     if (!o) return `${fmt(part.length)} × ${fmt(part.width)}`;
     return `${fmt(o.w)} W × ${fmt(o.h)} H${o.d ? ` × ${fmt(o.d)} D` : ''}`;
   };
-  const br = (r: { part: Part; qty: number }) => `<tr><td>${r.qty}</td><td>${esc(r.part.name)}</td><td>${size(r.part)}</td><td>${esc(r.part.order?.spec ?? r.part.note ?? '')}</td></tr>`;
-  return `<table class="parts"><thead><tr><th>Qty</th><th>Part</th><th>Length</th><th>Width</th><th>Thick</th><th>Material</th><th>Notes</th></tr></thead><tbody>${cut.map(tr).join('')}</tbody></table>
+  const br = (r: { part: Part; qty: number }) => `<tr><td>${q(r.qty)}</td><td>${esc(r.part.name)}</td><td>${size(r.part)}</td><td>${esc(r.part.order?.spec ?? r.part.note ?? '')}</td></tr>`;
+  return `${make > 1 ? `<p class="small">Quantities are for one; (all ${make}) in brackets.</p>` : ''}<table class="parts"><thead><tr><th>Qty</th><th>Part</th><th>Length</th><th>Width</th><th>Thick</th><th>Material</th><th>Notes</th></tr></thead><tbody>${cut.map(tr).join('')}</tbody></table>
     ${bought.length ? `<h3>Ordered (Eagle)</h3><table class="parts"><thead><tr><th>Qty</th><th>Item</th><th>Size</th><th>Spec</th></tr></thead><tbody>${bought.map(br).join('')}</tbody></table>` : ''}`;
 }
 
@@ -244,7 +303,6 @@ export function shopSet(p: Project, s: DrawingSettings): Sheet[] {
   const walls = wallsWithWork(p);
   // Details go right after the wall assemblies, so the section marks on them point somewhere near
   const placed = placeDetails(p, 'shop', 'S', walls.length + 1);
-  const nDetail = new Set(placed.map((x) => x.sheet)).size;
   walls.forEach((w, i) => {
     const elevFrame = { ...A, w: A.w * 0.7 };
     const e = wallElevation(p, w, elevFrame, 'shop', cutsOn(p, placed, w));
@@ -252,24 +310,53 @@ export function shopSet(p: Project, s: DrawingSettings): Sheet[] {
     sheets.push(sheet(p, s, `S${i + 1}`, `${wallNames[w]} assembly`, scaleName(e.scale), e.svg + notes));
   });
   sheets.push(...detailSheets(p, s, placed));
-  let n = nDetail;
-  for (const w of wallOrder) for (const c of cabinetsOn(p, w)) {
-    n++;
+  const fs = s.paper === 'tabloid' ? 0.11 : 0.09;
+  const ts = s.paper === 'tabloid' ? 0.095 : 0.075;
+  const num = () => `S${sheets.length + 1}`;
+  for (const same of shopGroups(p)) {
+    const c = same[0];
+    const names = same.map((x) => x.name).join(', ');
     const parts = partsOf(p, c);
     const hasFrame = parts.some((x) => x.material === 'faceframe' && (x.role === 'stile' || x.role === 'rail'));
-    const viewH = A.h * 0.56;
-    const left: Frame = { x: A.x, y: A.y + 0.1, w: A.w * 0.4, h: viewH };
-    const mid: Frame = { x: A.x + A.w * 0.4, y: A.y + 0.1, w: A.w * 0.34, h: viewH };
-    const mv = c.kind === 'mantel' ? mantelViews(p, c, left, mid) : null;
-    const ff = hasFrame ? faceFrameView(p, c, left) : mv;
-    const sec = c.kind === 'shelf' || c.kind === 'pilaster' || c.kind === 'mantel' ? null : sideSection(p, c, mid);
-    const labels = [
-      ff ? `<text x="${left.x + left.w / 2}" y="${left.y + left.h + 0.05}" font-size="0.11" font-weight="700" text-anchor="middle">${mv ? 'MANTEL' : 'FACE FRAME'} (${esc(scaleName(ff.scale))})</text>` : '',
-      sec ? `<text x="${mid.x + mid.w / 2}" y="${mid.y + mid.h + 0.05}" font-size="0.11" font-weight="700" text-anchor="middle">SECTION, FROM THE LEFT (${esc(scaleName(sec.scale))})</text>` : '',
-    ].join('');
-    const info = html({ x: A.x + A.w * 0.76, y: A.y, w: A.w * 0.24, h: viewH }, cabinetHeader(p, c), s.paper === 'tabloid' ? 0.11 : 0.09);
-    const table = html({ x: A.x, y: A.y + viewH + 0.25, w: A.w, h: A.h - viewH - 0.25 }, partsTable(p, c), s.paper === 'tabloid' ? 0.095 : 0.075);
-    sheets.push(sheet(p, s, `S${walls.length + n}`, `${c.name} shop drawing`, ff ? scaleName(ff.scale) : 'As noted', (ff?.svg ?? '') + (sec?.svg ?? '') + labels + info + table));
+    const mvOnly = c.kind === 'mantel';
+    const layoutProbe = sidePanelLayout(p, c, { x: 0, y: 0, w: 1, h: 1 });
+    const label = (f: Frame, text: string) => `<text x="${f.x + f.w / 2}" y="${f.y + f.h + 0.05}" font-size="0.11" font-weight="700" text-anchor="middle">${esc(text)}</text>`;
+    if (!layoutProbe) {
+      // Pilasters, floating shelves, mantels: one sheet, as before
+      const viewH = A.h * 0.56;
+      const left: Frame = { x: A.x, y: A.y + 0.1, w: A.w * 0.4, h: viewH };
+      const mid: Frame = { x: A.x + A.w * 0.4, y: A.y + 0.1, w: A.w * 0.34, h: viewH };
+      const mv = mvOnly ? mantelViews(p, c, left, mid) : null;
+      const ff = hasFrame ? faceFrameView(p, c, left) : mv;
+      const sec = c.kind === 'shelf' || c.kind === 'pilaster' || c.kind === 'mantel' ? null : sideSection(p, c, mid);
+      const labels = (ff ? label(left, `${mv ? 'MANTEL' : 'FACE FRAME'} (${scaleName(ff.scale)})`) : '') + (sec ? label(mid, `SECTION, FROM THE LEFT (${scaleName(sec.scale)})`) : '');
+      const info = html({ x: A.x + A.w * 0.76, y: A.y, w: A.w * 0.24, h: viewH }, cabinetHeader(p, c, same) + hardwareList(p, c), fs);
+      const table = html({ x: A.x, y: A.y + viewH + 0.25, w: A.w, h: A.h - viewH - 0.25 }, partsTable(p, c, same.length), ts);
+      sheets.push(sheet(p, s, num(), `${names} shop drawing`, ff ? scaleName(ff.scale) : 'As noted', (ff?.svg ?? '') + (sec?.svg ?? '') + labels + info + table));
+      continue;
+    }
+    // Sheet 1: the views — face frame, section, and the side panel as it's machined
+    const viewH = A.h * 0.64;
+    const fFF: Frame = { x: A.x, y: A.y + 0.1, w: A.w * 0.38, h: viewH };
+    const fSec: Frame = { x: A.x + A.w * 0.38, y: A.y + 0.1, w: A.w * 0.3, h: viewH };
+    const fSide: Frame = { x: A.x + A.w * 0.68, y: A.y + 0.1, w: A.w * 0.32, h: viewH };
+    const ff = hasFrame ? faceFrameView(p, c, fFF) : null;
+    const sec = sideSection(p, c, ff ? fSec : { ...fSec, x: A.x, w: A.w * 0.68 });
+    const lay = sidePanelLayout(p, c, fSide)!;
+    const labels = (ff ? label(fFF, `FACE FRAME (${scaleName(ff.scale)})`) : '') + label(ff ? fSec : { ...fSec, x: A.x, w: A.w * 0.68 }, `SECTION, FROM THE LEFT (${scaleName(sec.scale)})`) + label(fSide, `LEFT SIDE, INSIDE FACE (${scaleName(lay.scale)})`);
+    const lowY = A.y + viewH + 0.3, lowH = A.h - viewH - 0.3;
+    const info = html({ x: A.x, y: lowY, w: A.w * 0.36, h: lowH }, cabinetHeader(p, c, same), fs);
+    const sideNotes = html({ x: A.x + A.w * 0.37, y: lowY, w: A.w * 0.33, h: lowH }, `<h3>Side panel</h3><ul>${lay.notes.map((t) => `<li>${esc(t)}</li>`).join('')}</ul>`, fs);
+    const hw = html({ x: A.x + A.w * 0.71, y: lowY, w: A.w * 0.29, h: lowH }, hardwareList(p, c) || '<h3>Hardware</h3><p>None on this one.</p>', fs);
+    const sheetNo = num();
+    sheets.push(sheet(p, s, sheetNo, `${names} shop drawing`, ff ? scaleName(ff.scale) : scaleName(sec.scale), (ff?.svg ?? '') + sec.svg + lay.svg + labels + info + sideNotes + hw));
+    // Sheet 2: the parts, what's ordered, and the order of work
+    const steps = assemblySteps(p, c, parts, lay.notes);
+    // Short lists print larger
+    const rowCount = partRows(parts).length;
+    const table = html({ x: A.x, y: A.y, w: A.w * 0.66, h: A.h }, `<h2>${esc(names)}: parts${same.length > 1 ? ` (make ${same.length})` : ''}</h2>` + partsTable(p, c, same.length), rowCount <= 24 ? fs : ts);
+    const work = html({ x: A.x + A.w * 0.68, y: A.y, w: A.w * 0.32, h: A.h }, `<h2>Order of work</h2><ol>${steps.map((t) => `<li>${esc(t)}</li>`).join('')}</ol><p class="small">Drawings on ${sheetNo}.</p>`, fs);
+    sheets.push(sheet(p, s, num(), `${names} parts & assembly`, 'No scale', table + work));
   }
   if (cofferOf(p).on) {
     const top = A.h * 0.58;

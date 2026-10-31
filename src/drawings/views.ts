@@ -367,6 +367,98 @@ export function sideSection(p: Project, c: Cabinet, frame: Frame): { svg: string
   return { svg: v.svg(), scale: perFoot };
 }
 
+/** Shelf pin layout used on the side panel drawings: 5 mm holes on 32 mm centers, rows set in from front and back. */
+export const PINS = { pitch: 32 / 25.4, inset: 1.5, clear: 2 };
+
+/**
+ * The left side as it goes on the bench, inside face up, front edge to the right: the dados and
+ * rabbets it takes, the shelf pin rows, the toe notch, all dimensioned from the bottom and the back.
+ * The right side is its mirror. Null for pieces with no case sides (pilasters, shelves, mantels).
+ */
+export function sidePanelLayout(p: Project, c: Cabinet, frame: Frame): { svg: string; scale: number; notes: string[] } | null {
+  if (c.kind === 'pilaster' || c.kind === 'shelf' || c.kind === 'mantel' || c.corner) return null;
+  const parts = partsOf(p, c);
+  const sides = parts.filter((x) => x.role === 'side').map((x) => ({ part: x, x0: Math.min(...x.boxes.map((b) => b.min[0])) })).sort((a, b) => a.x0 - b.x0);
+  if (!sides.length || !sides[0].part.boxes.length) return null;
+  const side = sides[0].part;
+  const inner = Math.min(...side.boxes.map((b) => b.min[0] + b.size[0]));
+  const H = Math.max(...side.boxes.map((b) => b.min[1] + b.size[1]));
+  const Y0 = Math.min(...side.boxes.map((b) => b.min[1]));
+  const D = Math.max(...side.boxes.map((b) => b.min[2] + b.size[2]));
+  const perFoot = fitScale(D, H - Y0, frame.w - 1.6, frame.h - 1.2);
+  const v = new View(frame, { x0: 0, y0: Y0, x1: D, y1: H }, perFoot);
+  const notes: string[] = [];
+  const st = eff(c, p.settings);
+  const dd = st.dadoDepth;
+  // The panel
+  const shaped = (side.shapes ?? []).find((sh) => sh.along === 'z');
+  if (shaped) v.poly(shaped.outline.map(([u, q]) => [u, shaped.min[1] + q]), 'o');
+  else for (const b of side.boxes) v.rect(b.min[2], b.min[1], b.size[2], b.size[1], 'o');
+  // What lands on its inside face
+  const touching = parts.filter((x) => x !== side && x.role !== 'side' && x.boxes.some((b) => Math.abs(b.min[0] - inner) < 0.05 && b.size[0] > 1));
+  const joints: { y0: number; y1: number; z0: number; z1: number; kind: 'dado' | 'rabbet'; name: string }[] = [];
+  const pinShelves: number[] = [];
+  for (const x of touching) {
+    const b = x.boxes.find((bb) => Math.abs(bb.min[0] - inner) < 0.05)!;
+    const note = x.note ?? '';
+    if (/dado/i.test(note) || x.role === 'bottom' || (x.role === 'top' && !/rabbet/i.test(note))) joints.push({ y0: b.min[1], y1: b.min[1] + b.size[1], z0: b.min[2], z1: b.min[2] + b.size[2], kind: 'dado', name: x.name });
+    else if (/rabbet/i.test(note) && x.role !== 'back') joints.push({ y0: b.min[1], y1: b.min[1] + b.size[1], z0: b.min[2], z1: b.min[2] + b.size[2], kind: 'rabbet', name: x.name });
+    else if (x.role === 'shelf') pinShelves.push(b.min[1]);
+  }
+  for (const j of joints) {
+    v.rect(j.z0, j.y0, j.z1 - j.z0, j.y1 - j.y0, 'cut');
+    const stopped = j.kind === 'dado' && D - j.z1 > 0.3;
+    if (stopped) v.text(j.z1 + v.p(0.04), (j.y0 + j.y1) / 2 - v.p(0.03), `stop ${dimText(D - j.z1)}`, 0.065, 'start', 'dt');
+  }
+  // The back rabbet runs the height of the back
+  const back = parts.find((x) => x.role === 'back');
+  if (back?.boxes[0]) {
+    const bb = back.boxes[0];
+    const rw = bb.min[2] + bb.size[2];
+    v.rect(0, bb.min[1], rw, Math.min(H, bb.min[1] + bb.size[1]) - bb.min[1], 'hid');
+    notes.push(`Back rabbet ${dimText(rw)} wide × ${dimText(dd)} deep${bb.min[1] > Y0 + 0.05 ? `, from ${dimText(bb.min[1] - Y0)} up` : ''}`);
+  }
+  // Shelf pin rows between the fixed parts above and below each adjustable shelf
+  const fixedYs = joints.map((j) => [j.y0, j.y1] as const).sort((a, b) => a[0] - b[0]);
+  const zones = new Map<string, [number, number, number]>();
+  for (const y of pinShelves) {
+    const below = fixedYs.filter((f) => f[1] <= y + 0.01).pop();
+    const above = fixedYs.find((f) => f[0] >= y + 0.5);
+    const lo = (below ? below[1] : Y0) + PINS.clear, hi = (above ? above[0] : H) - PINS.clear;
+    if (hi > lo) zones.set(`${lo.toFixed(3)}|${hi.toFixed(3)}`, [lo, hi, below ? below[1] : Y0]);
+  }
+  const rw0 = back?.boxes[0] ? back.boxes[0].min[2] + back.boxes[0].size[2] : 0;
+  const rows = [rw0 + PINS.inset, D - PINS.inset];
+  let holes = 0;
+  for (const [lo, hi, base] of zones.values()) {
+    const n = Math.floor((hi - lo) / PINS.pitch) + 1;
+    const start = lo + ((hi - lo) - (n - 1) * PINS.pitch) / 2;
+    for (let i = 0; i < n; i++) for (const z of rows) v.circle(z, start + i * PINS.pitch, Math.max(0.1, v.p(0.012)), 'f');
+    holes += n * rows.length;
+    v.dimV(start, start + (n - 1) * PINS.pitch, rows[1], 0.22, `${n} holes`);
+    v.dimV(base, start, rows[1], 0.22);
+  }
+  if (holes) notes.push(`Shelf pins: 5 mm holes on 32 mm centers, rows ${dimText(PINS.inset)} from the back rabbet and the front edge (${holes} a side)`);
+  // Toe notch
+  const foot = side.boxes.length > 1 ? side.boxes.find((b) => b.min[1] <= Y0 + 0.01 && b.min[2] + b.size[2] < D - 0.05) : null;
+  if (foot) {
+    const top = foot.min[1] + foot.size[1];
+    v.dimH(foot.min[2] + foot.size[2], D, Y0, -0.3, `${dimText(D - foot.min[2] - foot.size[2])} notch`);
+    v.dimV(Y0, top, D, 0.42, `${dimText(top - Y0)} kick`);
+  }
+  // Heights on the back edge: to the bottom of each dado and rabbet; overall height and depth
+  v.chainV([Y0, ...joints.map((j) => j.y0), H], 0, -0.3);
+  v.dimV(Y0, H, 0, -0.62, `${dimText(H - Y0)} side`);
+  v.dimH(0, D, H, 0.3, `${dimText(D)}`);
+  if (rw0) v.dimH(0, rw0, H, 0.12);
+  const dados = joints.filter((j) => j.kind === 'dado');
+  if (dados.length) notes.push(`Dados ${dimText(dd)} deep for ${[...new Set(dados.map((j) => j.name.toLowerCase()))].join(', ')}; heights to the bottom of each`);
+  const rabbets = joints.filter((j) => j.kind === 'rabbet');
+  if (rabbets.length) notes.push(`Rabbets ${dimText(dd)} deep across the top for the ${[...new Set(rabbets.map((j) => j.name.toLowerCase()))].join(' and ')}`);
+  notes.push('Right side is the mirror image');
+  return { svg: v.svg(), scale: perFoot, notes };
+}
+
 /** Parts for one cabinet, identical ones counted together. */
 export function partRows(parts: Part[]) {
   const rows = new Map<string, { part: Part; qty: number }>();
