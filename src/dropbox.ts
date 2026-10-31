@@ -120,7 +120,8 @@ export async function writeFile(folderPath: string, name: string, content: strin
 /** A text file's contents, or null when it isn't there. */
 export async function readFile(path: string): Promise<string | null> {
   try { return String((await call('fetch', { id: path })).text ?? ''); }
-  catch (e) { if (/not.?found/i.test((e as Error).message) || (e as DropboxError).code === 'NOT_FOUND') return null; throw e; }
+  // Dropbox words a missing file several ways ("not found", "could not find file or folder")
+  catch (e) { if (/not.?found|could ?n[o']t find|couldn.t find|no such file/i.test((e as Error).message) || (e as DropboxError).code === 'NOT_FOUND') return null; throw e; }
 }
 
 /** A five-minute download address for a file, for handing to something that fetches it itself (the client portal). */

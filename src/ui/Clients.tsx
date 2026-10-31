@@ -111,7 +111,10 @@ async function openFolder(f: DbxEntry, stage: StageId) {
     }
     p = { ...p, dropbox: { ...p.dropbox, id: f.id, path: f.path, stage } };
     useStore.getState().loadProject(p);
-    useDbx.getState().set({ savedSig: text ? sig(p) : '', note: text ? `Opened ${f.name}: ${p.cabinets.length} cabinets. Design is ready.` : `Opened ${f.name}; no saved design there yet, so this is a new one.` });
+    // A new design: point out a room scan already in the folder, ready to start from
+    let scan = '';
+    if (!text) try { scan = (await listFolder(f.path)).find((e) => /^Room scan .*\.json$/i.test(e.name))?.name ?? ''; } catch { /* the note just won't mention it */ }
+    useDbx.getState().set({ savedSig: text ? sig(p) : '', note: text ? `Opened ${f.name}: ${p.cabinets.length} cabinets. Design is ready.` : `Opened ${f.name}; no saved design there yet, so this is a new one.${scan ? ` Its folder has a room scan (${scan}): in Design, Room → Start from photos → Room scan to start from it.` : ''}` });
   });
 }
 
