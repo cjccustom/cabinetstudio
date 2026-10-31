@@ -7,6 +7,7 @@ import { useStore } from '../store';
 import { clientName, clientOf, COMPANY, proposalLines, quoteDoc, quoteTotals } from '../model/client';
 import { optionPrices, proposalSummary } from '../model/proposal';
 import { Field } from './fields';
+import { FileButton } from './FileButton';
 import { renderOf } from '../model/rendering';
 import { CJC_TERMS } from '../model/terms';
 import { capability, shrinkImage, type Downloads } from '../runtime';
@@ -453,7 +454,7 @@ function PortalSettings({ onClose }: { onClose: () => void }) {
               </label>
               <label>Expires<input type="date" value={add.expires} onChange={(e) => setAdd({ ...add, expires: e.target.value })} /></label>
             </div>
-            <label className="btn file-btn">Upload a PDF…<input type="file" accept="application/pdf,image/*" hidden onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) fromFile(f); }} /></label>
+            <FileButton className="file-btn" accept="application/pdf,image/*" onFiles={(fl) => { const f = fl?.[0]; if (f) fromFile(f); }}>Upload a PDF…</FileButton>
           </>
         )}
         {shop && <QuickBooksBox />}

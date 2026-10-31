@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 import { BACKUP_KEY, useStore } from '../store';
+import { FileButton } from './FileButton';
 import type { Project } from '../model/types';
 
 /** Save and open jobs as plain text files. The Mac app will swap this for native Save/Open. */
@@ -44,19 +45,7 @@ export function ProjectDialog({ onClose }: { onClose: () => void }) {
         )}
         {msg && <p className={msg.kind === 'err' ? 'warn' : 'ok'}>{msg.text}</p>}
         <div className="modal-actions">
-          <label className="btn">
-            Open file…
-            <input
-              id="pf-file"
-              type="file"
-              accept=".json,.cabinet,application/json,text/plain"
-              hidden
-              onChange={(e) => {
-                const f = e.target.files?.[0];
-                if (f) f.text().then(load);
-              }}
-            />
-          </label>
+          <FileButton accept=".json,.cabinet,application/json,text/plain" onFiles={(f) => { const file = f?.[0]; if (file) file.text().then(load); }}>Open file…</FileButton>
           <span className="spacer" />
           <button onClick={copy}>Copy project</button>
           <button className="primary" disabled={text === json} onClick={() => load(text)}>Open pasted project</button>
