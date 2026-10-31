@@ -9,8 +9,9 @@ import { optionPrices, proposalSummary } from '../model/proposal';
 import { Field } from './fields';
 import { renderOf } from '../model/rendering';
 import { CJC_TERMS } from '../model/terms';
-import { shrinkImage } from '../runtime';
-import { downloadLink } from '../dropbox';
+import { capability, shrinkImage, type Downloads } from '../runtime';
+import { downloadLink, whereIs, writeFile } from '../dropbox';
+import { printQuote, printQuoteFile } from '../model/printQuote';
 import {
   blobToBase64, createInvoice, deleteShopDoc, expiring, getShop, jobStatus, PortalError, publishProposal, qbItems, qbSettings, qbStatus, recordPayment, updateShop, uploadShopDoc,
   type Invoice, type JobStatus, type QbStatus, type Shop, type ShopDoc,
@@ -77,6 +78,26 @@ async function watermark(blob: Blob, text: string): Promise<Blob> {
   } catch { return blob; }
 }
 
+/**
+ * The paper copy in the Word quote's layout, with the terms and the Notice of Cancellation, saved
+ * to the client's Dropbox folder for printing. A failure here never undoes the publish.
+ */
+async function savePrintCopy(project: Project, version: number): Promise<string> {
+  if (!project.dropbox) return ' Link a Dropbox folder to get a print copy saved with each version.';
+  const name = printQuoteFile(version);
+  try {
+    let terms = CJC_TERMS;
+    try { terms = ((await getShop()) as unknown as PortalShop).terms || CJC_TERMS; } catch { /* the starting terms */ }
+    // Where the folder is now (it may have moved between stages); never rename it from here
+    const here = await whereIs(project.dropbox.id);
+    if (!here) return ' The print copy wasn’t saved: this job’s Dropbox folder wasn’t found.';
+    await writeFile(here.path, name, printQuote(project, { terms, version, publishedAt: Date.now() }));
+    return ` Print copy saved to Dropbox: ${here.path}/${name}.`;
+  } catch (e) {
+    return ` The print copy wasn’t saved to Dropbox (${(e as Error).message}).`;
+  }
+}
+
 export function ClientPortal() {
   const project = useStore((s) => s.project);
   const commit = useStore((s) => s.commit);
@@ -119,7 +140,8 @@ export function ClientPortal() {
       renderings: await renderingsFor(project), replace_signed: replaceSigned,
     });
     keep(status, jobId);
-    setNote(`Published version ${status.version}. Send ${c.first || 'the client'} the link below.`);
+    const printed = await savePrintCopy(project, status.version);
+    setNote(`Published version ${status.version}. Send ${c.first || 'the client'} the link below.${printed}`);
   });
 
   /** The client's page exactly as the portal will draw it, built here from what would be published. */
@@ -142,6 +164,19 @@ export function ClientPortal() {
     let html = projectPage(job, shop, 'preview');
     rend.forEach((r, i) => { html = html.split(`/p/preview/img/r${i}`).join(`data:${r.mimeType};base64,${r.data}`); });
     setPreview({ html, offline });
+  });
+
+  /** The paper copy, offered as a download (it's saved to Dropbox by itself each time you publish). */
+  const printCopy = () => run('Making the print copy…', async () => {
+    if (!total) throw new PortalError('The quote is $0. Price the job in the Quote tab first.');
+    let terms = CJC_TERMS;
+    try { terms = ((await getShop()) as unknown as PortalShop).terms || CJC_TERMS; } catch { /* the starting terms */ }
+    const html = printQuote(project, { terms, version: st?.version });
+    const data = new Blob([html], { type: 'text/html' });
+    const filename = `${clientName(c) || project.name} - ${printQuoteFile(st?.version)}`;
+    const downloads = await capability<Downloads>('downloads');
+    if (downloads) { try { await downloads.save({ filename, data }); } catch { /* declined */ } }
+    else { const a = document.createElement('a'); a.href = URL.createObjectURL(data); a.download = filename; a.click(); }
   });
 
   const refresh = () => run('Checking…', async () => { keep(await jobStatus(portal!.jobId), portal!.jobId); });
@@ -186,6 +221,7 @@ export function ClientPortal() {
       {st?.signed && !st.cancelled && <Invoices st={st} total={st ? total : 0} busy={!!busy} run={run} keep={(s2) => keep(s2, portal!.jobId)} />}
       <div className="order-actions">
         {!sold && <button disabled={!!busy} onClick={showPreview}>Preview what they’ll see</button>}
+        {!sold && <button disabled={!!busy} title="The quote in your Word layout with the terms and Notice of Cancellation, to print" onClick={printCopy}>Print copy</button>}
         {!sold && <button className="primary" disabled={!!busy} onClick={publish}>{portal?.url ? 'Update the client’s page' : 'Publish proposal'}</button>}
         {portal?.url && <button disabled={!!busy} onClick={refresh}>Check status</button>}
         {busy && <span className="hint">{busy}</span>}

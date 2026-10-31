@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { canSpots } from "../src/model/lighting";
+import { printQuote } from "../src/model/printQuote";
 import { shopGroups } from "../src/drawings/sheets";
 import { sidePanelLayout } from "../src/drawings/views";
 import { crc32, writeXlsx } from "../src/export/xlsx";
@@ -1386,6 +1387,15 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   const lay = sidePanelLayout(p, base, { x: 0, y: 0, w: 4, h: 6 })!;
   eq('side layout: back rabbet and bottom dado noted', lay.notes.some((n) => /Back rabbet/.test(n)) && lay.notes.some((n) => /Dados .* bottom/.test(n)), true);
   eq('side layout: none for a pilaster', sidePanelLayout(p, { ...base, kind: 'pilaster' } as any, { x: 0, y: 0, w: 4, h: 6 }), null);
+}
+
+// The print copy: the Word layout, the total, the terms with the notice twice and blanks for the dates
+{
+  const doc = printQuote(p, { terms: CJC_TERMS, version: 3 });
+  eq('print copy: scope and agreement', doc.includes('Project Scope of Work') && doc.includes('PURCHASE AGREEMENT'), true);
+  eq('print copy: the total', doc.includes(`$${priceQuote(p).total.toLocaleString('en-US')}`), true);
+  eq('print copy: notice of cancellation in duplicate', (doc.match(/NOTICE OF CANCELLATION<\/h3>/g) ?? []).length, 2);
+  eq('print copy: date blanks, not placeholders', /\[CANCELLATION DEADLINE\]/.test(doc), false);
 }
 
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');
