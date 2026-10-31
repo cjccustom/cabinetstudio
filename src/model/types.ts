@@ -108,7 +108,9 @@ export interface Cabinet {
   /** How this case goes together, where it differs from the usual way. */
   build?: CaseBuild;
   /** What sits on top of a base cabinet: stone (by others) or a solid wood top/bench seat built in the shop. */
-  topKind?: 'stone' | 'wood';
+  topKind?: 'stone' | 'wood' | 'paint';
+  /** A paint-grade top's edging species (poplar or maple). */
+  topEdge?: string;
   topThickness?: number;
   /** Overhang past the door face, and past each end. */
   topFront?: number;
@@ -447,7 +449,7 @@ export type MaterialKey = 'box' | 'back' | 'toeSkin' | 'faceframe' | 'door' | 'd
 
 export type PartRole =
   | 'side' | 'bottom' | 'top' | 'stretcher' | 'back' | 'nailer' | 'toekick' | 'shelf'
-  | 'stile' | 'rail' | 'door' | 'drawerFront' | 'drawerBox' | 'endPanel' | 'counter' | 'woodTop' | 'trim' | 'rod' | 'cushion';
+  | 'stile' | 'rail' | 'door' | 'drawerFront' | 'drawerBox' | 'endPanel' | 'counter' | 'woodTop' | 'paintTop' | 'trim' | 'rod' | 'cushion';
 
 export interface CabinetNote { id: string; text: string; for: 'both' | 'customer' | 'shop' }
 

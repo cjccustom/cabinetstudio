@@ -682,7 +682,7 @@ function caseParts(c: Cabinet, s: ShopSettings, ends: EndInfo): Part[] {
   }
   if (c.kind === 'base' && c.countertop) {
     const top = topPart(c, s, W, D + dt, panelExtents(c, s, ends));
-    parts.push(top);
+    parts.push(top, ...topEdging(c, s, top, ends));
     // A seat cushion covers the top
     const cu = c.cushion;
     if (cu) {
@@ -709,7 +709,7 @@ function twoSidedIsland(c: Cabinet, s0: ShopSettings, ends: EndInfo): Part[] {
   if (c.countertop) {
     const reach = c.depth + (s.doorMount === 'inset' ? 0 : s.doorThickness);
     const top = topPart(c, s, c.width, reach, panelExtents(c, s, ends), reach + (c.topBack ?? c.topFront ?? s.counterOverhang));
-    out.push(top);
+    out.push(top, ...topEdging(c, s, top, { ...ends, left: true, right: true }, true));
   }
   return out;
 }
@@ -812,8 +812,47 @@ function crownParts(c: Cabinet, s: ShopSettings, ends: EndInfo): Part[] {
  * The top of a base cabinet: stone by others, or a solid wood top / bench seat glued up in the shop.
  * Overhangs are measured past the door face and past each end (end panels included).
  */
+/** How thick a base cabinet's top is: a paint-grade top's plywood, a wood top, or stone. */
+export const topThick = (c: Cabinet, counter = 1.5) => (c.topKind === 'paint' ? PAINT_TOP.ply : c.topThickness ?? (c.topKind === 'wood' ? 1.25 : counter));
+
+/** Paint-grade top: 3/4" plywood with solid edging, the edging dropping this far below the plywood over the top rail. */
+export const PAINT_TOP = { ply: 0.75, edgeT: 0.75, edgeH: 1.25 };
+
+/** A paint-grade top's applied edging: across the front, and around exposed ends (and an island's back). */
+function topEdging(c: Cabinet, s: ShopSettings, top: Part, ends: EndInfo, back = !!c.island): Part[] {
+  if (c.topKind !== 'paint') return [];
+  const b = top.boxes[0];
+  const { ply, edgeT: t, edgeH: h } = PAINT_TOP;
+  const y = b.min[1] + ply - h;
+  const sp = c.topEdge ?? 'Poplar';
+  const note = `${sp}, ${fmtShort(t)} × ${fmtShort(h)}; top flush with the plywood, dropping ${fmtShort(h - ply)} over the top rail; mitered at the corners`;
+  const out: Part[] = [{ name: 'Top edging, front', role: 'trim', material: 'faceframe', species: sp, length: b.size[0] + 2 * t, width: h, thickness: t, cut: true, note,
+    boxes: [vb(b.min[0] - t, y, b.min[2] + b.size[2], b.size[0] + 2 * t, h, t)] }];
+  if (back) out.push({ name: 'Top edging, back', role: 'trim', material: 'faceframe', species: sp, length: b.size[0] + 2 * t, width: h, thickness: t, cut: true, note,
+    boxes: [vb(b.min[0] - t, y, b.min[2] - t, b.size[0] + 2 * t, h, t)] });
+  for (const side of ['left', 'right'] as const) {
+    if (!ends[side] && !(c.topLeft && side === 'left') && !(c.topRight && side === 'right')) continue;
+    out.push({ name: `Top edging, ${side} end`, role: 'trim', material: 'faceframe', species: sp, length: b.size[2] + (back ? 2 * t : t), width: h, thickness: t, cut: true, note,
+      boxes: [vb(side === 'left' ? b.min[0] - t : b.min[0] + b.size[0], y, b.min[2] - (back ? t : 0), t, h, b.size[2] + (back ? 2 * t : t))] });
+  }
+  void s;
+  return out;
+}
+
 export function topPart(c: Cabinet, s: ShopSettings, W: number, frontFace: number, ext: { left: number; right: number }, backReach?: number): Part {
   const wood = c.topKind === 'wood';
+  if (c.topKind === 'paint') {
+    // 3/4" paint-grade plywood; the edging adds its thickness to the front and exposed ends
+    const front = (c.topFront ?? 0.75) - PAINT_TOP.edgeT;
+    const left = ext.left + (c.topLeft ?? 0), right = ext.right + (c.topRight ?? 0);
+    const back = backReach != null ? backReach - PAINT_TOP.edgeT : c.island ? s.endPanelThickness + (c.topBack ?? 0.75) - PAINT_TOP.edgeT : 0;
+    const len = W + left + right, depth = frontFace + front + back;
+    return {
+      name: 'Paint-grade top', role: 'paintTop', material: 'box', look: 'paint', length: len, width: depth, thickness: PAINT_TOP.ply, cut: true,
+      note: `3/4" paint-grade plywood; solid ${(c.topEdge ?? 'Poplar').toLowerCase()} edging applied`,
+      boxes: [vb(-left, c.height, -back, len, PAINT_TOP.ply, depth)],
+    };
+  }
   const t = c.topThickness ?? (wood ? 1.25 : s.counterThickness);
   const front = c.topFront ?? s.counterOverhang;
   const left = ext.left + (c.topLeft ?? 0);

@@ -1,7 +1,7 @@
 // The views on a drawing sheet, all drawn from the same parts the 3D view and cut list use:
 // wall elevations, the floor plan, and per-cabinet face frame elevations and side sections.
 import type { Cabinet, Part, Project, WallId } from '../model/types';
-import { buildParts, eff } from '../model/parts';
+import { buildParts, eff, topThick } from '../model/parts';
 import { footprint, resolveEnds, wallLength, wallNames, wallTransform } from '../model/layout';
 import { cabinetMoldings, mountShape, profileByNum, profileLabel } from '../model/moldings';
 import { casingReach, openingTrim, roomMoldings } from '../model/room';
@@ -152,7 +152,7 @@ export function wallElevation(p: Project, wall: WallId, frame: Frame, mode: 'cus
   if (uppers.length) v.chainH([0, L, ...uppers.flatMap((c) => [c.offset, c.offset + c.width])], H, 0.35);
   v.dimH(0, L, 0, -0.83, undefined, true);
   // Heights up the right side: counter, bottom and top of the uppers, ceiling
-  const tops = floor.filter((c) => c.kind === 'base').map((c) => c.elevation + c.height + (c.countertop ? (c.topKind === 'wood' ? c.topThickness ?? 1.25 : 1.5) : 0));
+  const tops = floor.filter((c) => c.kind === 'base').map((c) => c.elevation + c.height + (c.countertop ? topThick(c) : 0));
   const cc = cofferOf(p);
   const fasciaY = cc.on && cc.perimeter ? [H - fasciaHeight(cc), ...(profileByNum(cc.picture) ? [H - fasciaHeight(cc) - mountShape(profileByNum(cc.picture)!).height] : [])] : [];
   const ys = [0, H, ...tops, ...uppers.flatMap((c) => [c.elevation, c.elevation + c.height]), ...fasciaY];

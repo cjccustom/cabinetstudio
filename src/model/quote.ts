@@ -54,6 +54,9 @@ export interface LaborStandards {
   extendedStile: number;
   woodTop: number;
   woodTopPerSqFt: number;
+  /** Paint-grade plywood tops with applied edging: per top, and per sq ft. */
+  paintTop?: number;
+  paintTopPerSqFt?: number;
   moldingPerFt: number;
   beadboardPerSqFt: number;
   installPerBox: number;
@@ -378,6 +381,12 @@ export function estimateHours(p: Project, q: QuoteSettings): HourLine[] {
       add('Top area (sq ft)', Math.round(sqft(t.length, t.width) * 10) / 10, st.woodTopPerSqFt, 'tops');
       add('Install tops', 1, 0.5, 'tops', true);
     }
+    for (const t of parts.filter((x) => x.role === 'paintTop')) {
+      // Plywood cut to size, edging applied and mitered, sanded for paint: much less than a glue-up
+      add('Paint-grade tops: cut, edge & sand', 1, st.paintTop ?? 0.75, 'tops');
+      add('Paint-grade top area (sq ft)', Math.round(sqft(t.length, t.width) * 10) / 10, st.paintTopPerSqFt ?? 0.04, 'tops');
+      add('Install tops', 1, 0.35, 'tops', true);
+    }
     const box = (st.installPerBox + (tall ? st.installTall : 0)) * (stain ? st.stainInstall ?? 1.25 : 1);
     add(stain ? 'Install cabinets, stain grade' : 'Install cabinets', 1, box, 'cabinets', true);
     installHours += box;
@@ -671,6 +680,7 @@ export function scopeLine(c: Cabinet, p: Project): string {
   for (const r of c.rows) if (r.type === 'appliance' && r.appliance) bits.push(`${r.appliance.mount === 'shelf' ? 'open space' : 'built-in opening'} for owner's ${applianceKinds[r.appliance.kind].short.toLowerCase()}`);
   if (n('endPanel')) bits.push(`(${n('endPanel')}) finished end panel${n('endPanel') > 1 ? 's' : ''}`);
   if (c.countertop && c.topKind === 'wood') bits.push(`${fmtIn(c.topThickness ?? 1.25)} thick solid wood top`);
+  if (c.countertop && c.topKind === 'paint') bits.push(`paint grade plywood top with solid ${(c.topEdge ?? 'poplar').toLowerCase()} edging`);
   if (c.countertop && c.cushion) bits.push(`custom ${fmtIn(c.cushion.thickness)} ${c.cushion.edge === 'boxed' ? 'boxed and welted' : 'knife edge'} seat cushion, ${c.cushion.fabric?.trim() ? c.cushion.fabric.trim() : "fabric to be selected by owner"}`);
   if (c.crown) bits.push('crown molding');
   if (c.lightRail) bits.push('light rail');

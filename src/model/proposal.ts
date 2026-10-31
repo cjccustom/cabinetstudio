@@ -111,6 +111,7 @@ export function materialsOf(p: Project): { label: string; value: string }[] {
   const crown = p.cabinets.map((c) => profileByNum(c.crown)).find(Boolean);
   if (crown) out.push({ label: 'Mouldings', value: `Crown moulding${p.cabinets.some((c) => c.baseMold) ? ' and base moulding' : ''} (${profileLabel(crown)})` });
   if (p.cabinets.some((c) => c.countertop && c.topKind === 'wood')) out.push({ label: 'Tops', value: `Solid ${s.woodSpecies.toLowerCase()}` });
+  else if (p.cabinets.some((c) => c.countertop && c.topKind === 'paint')) out.push({ label: 'Tops', value: 'Paint grade, painted with the cabinets' });
   if (p.cabinets.some((c) => c.cushion)) out.push({ label: 'Cushions', value: 'Custom seat cushions, fabric to be selected' });
   return out;
 }

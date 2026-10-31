@@ -1,5 +1,6 @@
 // Wall paneling (beadboard backsplash, wainscot) and what to order for it.
 // Nantucket Beadboard Co. sells 4×8 sheets and 1/2" shiplap strips in four bead profiles.
+import { topThick } from './parts';
 import type { Cabinet, Project, WallId, WallPanel } from './types';
 import { uid } from './defaults';
 import { fmt } from '../units';
@@ -41,7 +42,7 @@ export function newPanel(wall: WallId, offset: number, width: number, bottom: nu
 
 /** Beadboard sized to the wall above a cabinet: from its top up to the upper cabinet, or 30". */
 export function panelAbove(p: Project, cab: Cabinet): WallPanel {
-  const topT = cab.countertop ? cab.topThickness ?? (cab.topKind === 'wood' ? 1.25 : p.settings.counterThickness) : 0;
+  const topT = cab.countertop ? topThick(cab, p.settings.counterThickness) : 0;
   const bottom = cab.elevation + cab.height + topT;
   const upper = p.cabinets
     .filter((o) => o.wall === cab.wall && o.elevation > bottom && o.offset < cab.offset + cab.width && cab.offset < o.offset + o.width)

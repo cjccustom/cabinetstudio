@@ -161,6 +161,17 @@ eq('new terms: one notice, from the terms', (termsHtml(CJC_TERMS, Date.UTC(2026,
   eq('the lines still add to the total', proposalLines(set).reduce((t, l) => t + l.price, 0), priceQuote(set).total);
 }
 
+// Paint-grade top: 3/4" ply on the case, 3/4" x 1 1/4" edging dropping 1/2" over the top rail
+{
+  const pt = buildParts({ ...b21, countertop: true, topKind: 'paint' as const, topFront: 0.75 }, s, { left: true, right: false });
+  const ply = pt.find((x) => x.role === 'paintTop')!;
+  const edge = pt.filter((x) => x.name.startsWith('Top edging'));
+  eq('paint top is 3/4 ply on the sheet list', `${ply.thickness} ${ply.material}`, '0.75 box');
+  eq('paint top edging: front and the exposed left end', edge.map((x) => x.name).join(), 'Top edging, front,Top edging, left end');
+  eq('edging drops 1/2" below the ply', ply.boxes[0].min[1] - edge[0].boxes[0].min[1], 0.5);
+  eq('edging front flush with a 3/4" overhang', edge[0].boxes[0].min[2] + 0.75, ply.boxes[0].min[2] + ply.boxes[0].size[2] + 0.75);
+}
+
 // Recessed cans: one per coffer, or a grid about every 5'
 eq('one can per coffer', canSpots({ ...p, ceiling: { on: true, across: 3, deep: 3 } }).length, 9);
 eq('cans on a grid, 3 across by 2 deep', canSpots({ ...p, room: { width: 156, depth: 144, height: 96 } }).length, 6);

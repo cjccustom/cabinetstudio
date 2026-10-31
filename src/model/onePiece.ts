@@ -2,13 +2,13 @@
 // really built as: doors below, a ledge where the base top was, open shelves above. The doors keep
 // their size and the ledge its height, so the elevation looks the same and the cutlist changes.
 import type { Cabinet, Project, ShopSettings } from './types';
-import { eff, layoutRows } from './parts';
+import { eff, layoutRows, topThick } from './parts';
 import { uid } from './defaults';
 
 /** The upper standing on this base: same wall, same width and position, starting at the top of the base's top. */
 export function upperOn(p: Project, base: Cabinet): Cabinet | null {
   if (base.kind !== 'base') return null;
-  const top = base.elevation + base.height + (base.countertop ? (base.topKind === 'wood' ? base.topThickness ?? 1.25 : 1.5) : 0);
+  const top = base.elevation + base.height + (base.countertop ? topThick(base) : 0);
   return p.cabinets.find((c) => c.kind === 'wall' && c.wall === base.wall && Math.abs(c.offset - base.offset) < 0.06 && Math.abs(c.width - base.width) < 0.06 && Math.abs(c.elevation - top) < 0.6) ?? null;
 }
 
@@ -20,7 +20,7 @@ export function combine(base: Cabinet, upper: Cabinet, s: ShopSettings): Cabinet
   const sb = eff(base, s);
   const su = eff(upper, s);
   const lower = layoutRows(base, s).rows;
-  const ledge = base.countertop ? { thickness: base.topThickness ?? (base.topKind === 'wood' ? 1.25 : 1.5), overhang: base.topFront ?? 0.5 } : undefined;
+  const ledge = base.countertop ? { thickness: topThick(base), overhang: base.topFront ?? 0.5 } : undefined;
   // The rail under the ledge takes the place of the base's top rail
   const rail = sb.topRailWidth;
   const baseRows = base.rows.map((r, i) => ({ ...r, id: uid('row'), height: lower[i]?.height ?? r.height, ...(i === 0 ? { ...(ledge ? { ledge } : {}), ...(rail !== su.midRailWidth ? { railAbove: rail } : {}) } : {}) }));

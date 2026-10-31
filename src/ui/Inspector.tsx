@@ -3,7 +3,7 @@ import { cofferOf, perimOf } from '../model/coffer';
 import { combine, combineAll, stackedPairs, upperOn } from '../model/onePiece';
 import { freeStanding, useStore } from '../store';
 import type { CabinetNote, Cabinet, CaseBuild, CrownBuild, EndMode, FaceRow, PanelChoice, PanelMode, ShopSettings, WallId } from '../model/types';
-import { buildParts, closetRod, isOpenRow, crownFit, crownLayout, crownRoom, layoutRows, noCrownBuild, panelOn } from '../model/parts';
+import { buildParts, closetRod, isOpenRow, PAINT_TOP, topThick, crownFit, crownLayout, crownRoom, layoutRows, noCrownBuild, panelOn } from '../model/parts';
 import { defaultPilaster, pilasterOf, pilasterSections } from '../model/pilaster';
 import { bracketCount, bracketGap, bracketLength, bracketProduct, finishedEnds, floatingOf, shelfPly } from '../model/floatingShelf';
 import { evenRun, facesFrom, fillSpan, footprint, gapBeside, placeOn, resolveEnds, runOf, shiftInRoom, wallLength, wallNames, wallOrder } from '../model/layout';
@@ -313,15 +313,36 @@ export function Inspector({ cab, issues, tab }: { cab: Cabinet; issues: string[]
           <div className="grid3">
             <Field label="Top" htmlFor="cab-topkind">
               <select id="cab-topkind" value={cab.countertop ? cab.topKind ?? 'stone' : 'none'} onChange={(e) => {
-                const v = e.target.value;
-                set(v === 'none' ? { countertop: false } : { countertop: true, topKind: v as 'stone' | 'wood' });
+                const v = e.target.value as 'stone' | 'wood' | 'paint' | 'none';
+                if (v === 'none') return set({ countertop: false });
+                // A paint-grade top is thinner (3/4" ply) and its edging laps the top rail: keep the
+                // finished top where it was by raising the case, and make the top rail taller by the lap
+                const was = cab.countertop ? topThick(cab, settings.counterThickness) : 0;
+                const next = { ...cab, countertop: true, topKind: v };
+                const now = topThick(next, settings.counterThickness);
+                const lap = PAINT_TOP.edgeH - PAINT_TOP.ply;
+                const rail = cab.overrides?.topRailWidth ?? settings.topRailWidth;
+                const toPaint = v === 'paint' && cab.topKind !== 'paint', fromPaint = v !== 'paint' && cab.topKind === 'paint' && cab.countertop;
+                set({
+                  countertop: true, topKind: v,
+                  ...(cab.countertop && Math.abs(was - now) > 1e-3 ? { height: cab.height + was - now } : {}),
+                  ...(toPaint ? { overrides: { ...cab.overrides, topRailWidth: rail + lap } } : fromPaint ? { overrides: { ...cab.overrides, topRailWidth: rail - lap } } : {}),
+                });
               }}>
                 <option value="stone">Stone / by others</option>
                 <option value="wood">Solid wood (shop built)</option>
+                <option value="paint">Paint grade: 3/4" ply, solid edging</option>
                 <option value="none">None</option>
               </select>
             </Field>
-            {cab.countertop && (
+            {cab.countertop && cab.topKind === 'paint' && (
+              <Field label="Edging" htmlFor="cab-topedge" hint={'3/4" × 1 1/4"'}>
+                <select id="cab-topedge" value={cab.topEdge ?? 'Poplar'} onChange={(e) => set({ topEdge: e.target.value })}>
+                  {['Poplar', 'Hard maple', 'Soft maple'].map((x) => <option key={x}>{x}</option>)}
+                </select>
+              </Field>
+            )}
+            {cab.countertop && cab.topKind !== 'paint' && (
               <Field label="Thickness" htmlFor="cab-topt">
                 <LengthInput id="cab-topt" value={cab.topThickness ?? null} allowAuto placeholder={fmt(cab.topKind === 'wood' ? 1.25 : settings.counterThickness)} onChange={(v) => set({ topThickness: v ?? undefined })} />
               </Field>
@@ -348,6 +369,7 @@ export function Inspector({ cab, issues, tab }: { cab: Cabinet; issues: string[]
             )}
           </div>
           {cab.topKind === 'wood' && cab.countertop && <p className="hint">Solid wood tops and bench seats go on the Solid wood list with board feet to buy.</p>}
+          {cab.topKind === 'paint' && cab.countertop && <p className="hint">3/4" paint-grade plywood on the sheet cutlist; the 3/4" × 1 1/4" edging (front and exposed ends) on the Solid wood list. The edging drops 1/2" over the top rail, so the case and its top rail are 1/2" taller than with a 1 1/4" wood top; switching tops adjusts both.</p>}
           {cab.countertop && (
             <div style={{ marginTop: 8 }}>
               <label className="check-inline"><input id="cab-cushion" type="checkbox" checked={!!cab.cushion} onChange={(e) => set({ cushion: e.target.checked ? { thickness: 3, edge: 'boxed' } : undefined })} /> Custom seat cushion on top</label>
