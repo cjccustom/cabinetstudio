@@ -17,6 +17,9 @@ function useFF() {
 
 const lf = (inches: number) => `${(inches / 12).toFixed(1)} lf`;
 
+/** Boards to buy by length: "6 boards × 8', 2 boards × 12'". */
+const boardsText = (r: { byLength: { length: number; count: number }[] }) => r.byLength.map((b) => `${b.count} board${b.count === 1 ? '' : 's'} × ${fmtFeet(b.length)}`).join(', ') || 'no boards';
+
 export function FaceFrameInputs() {
   const { stock: s, set } = useFF();
   const sizes = amSizes(s.species.replace(/,.*$/, '')) ?? {};
@@ -108,7 +111,7 @@ export function FaceFrameBreakdown() {
           </table>
         </div>
         {result.tooLong.length > 0 && (
-          <p className="warn">Longer than a {fmtFeet(stock.boardLength)} board after end trim: {result.tooLong.map((p) => `${p.cabinet} ${p.name} ${fmt(p.length)}`).join(', ')}. Buy longer stock for these.</p>
+          <p className="warn">Longer than a 16' board, the longest yards stock: {result.tooLong.map((p) => `${p.cabinet} ${p.name} ${fmt(p.length)}`).join(', ')}. Splice these, or order them specially.</p>
         )}
       </section>
 
@@ -135,12 +138,12 @@ export function FaceFrameBreakdown() {
       <OtherSpecies />
 
       <section className="mat-block">
-        <header><h2>Rip plan</h2><span className="muted">{result.boards.length} boards, {fmt(stock.boardWidth)} × {fmtFeet(stock.boardLength)}</span></header>
+        <header><h2>Rip plan</h2><span className="muted">{result.byLength.map((b) => `${result.boards.filter((x) => x.length === b.length).length} × ${fmtFeet(b.length)}`).join(', ')} boards, {fmt(stock.boardWidth)} wide</span></header>
         <p className="hint" style={{ marginTop: -4 }}>Each bar is one rough board, widest strips first. Boards rarely come in one width, so treat this as a count. Your actual boards will lay out differently.</p>
         <div className="boards">
           {result.boards.map((b, i) => (
             <div key={i} className="board" title={b.strips.map((w) => fmt(w)).join(' + ')}>
-              <span className="board-n">{i + 1}</span>
+              <span className="board-n">{i + 1}{result.byLength.length > 1 ? ` · ${fmtFeet(b.length)}` : ''}</span>
               <div className="board-bar">
                 <span className="board-edge" style={{ flexBasis: `${(stock.edgeCleanup / stock.boardWidth) * 100}%` }} />
                 {b.strips.map((w, j) => <span key={j} className="board-strip" style={{ flexBasis: `${(w / stock.boardWidth) * 100}%` }}>{fmt(w - stock.ripAllowance)}</span>)}
@@ -230,8 +233,8 @@ export function FaceFrameSummary() {
     ...r.groups.map((g) => `${fmt(g.width)} finished (rip ${fmt(g.ripWidth)}): ${g.count} pcs, ${fmtFeet(g.totalLength)} (${lf(g.cutLength)} with allowances)`),
     '',
     s.pricePerLF
-      ? `Buy ${Math.ceil(r.boards.length * (1 + s.waste))} boards ${s.board} x ${fmtFeet(s.boardLength)} (${Math.ceil(r.buyLF)} lf, ${Math.round(s.waste * 100)}% waste included)`
-      : `Buy about ${Math.ceil(r.buyBF)} BF (${r.boards.length} boards ${fmt(s.boardWidth)} x ${fmtFeet(s.boardLength)} + ${Math.round(s.waste * 100)}% waste)`,
+      ? `Buy ${boardsText(r)} ${s.board} (${Math.ceil(r.buyLF)} lf, ${Math.round(s.waste * 100)}% waste included)`
+      : `Buy about ${Math.ceil(r.buyBF)} BF (${boardsText(r)}, ${fmt(s.boardWidth)} wide, ${Math.round(s.waste * 100)}% waste included)`,
   ].join('\n');
   const copy = () => navigator.clipboard.writeText(text).then(() => setCopied('Copied.'), () => setCopied('Couldn’t reach the clipboard.'));
   return (
@@ -240,7 +243,7 @@ export function FaceFrameSummary() {
         <Section title="To buy">
           <div className="big-stat"><span className="mono">{Math.ceil(r.buyBF + woodBF)}</span> board feet</div>
           {wood.map((g) => <p key={g.quarters} className="hint" style={{ marginTop: 0 }}>{g.quarters}/4 for tops, seats & caps: {Math.ceil(g.buyBF)} BF</p>)}
-          <p className="hint" style={{ marginTop: 0 }}>Face frames: {s.pricePerLF ? `${Math.ceil(r.boards.length * (1 + s.waste))} boards ${s.board}, ${Math.ceil(r.buyLF)} lf at $${s.pricePerLF.toFixed(2)} = $${r.cost.toFixed(2)}` : `${Math.ceil(r.buyBF)} BF (4/4)`}</p>
+          <p className="hint" style={{ marginTop: 0 }}>Face frames: {s.pricePerLF ? `${boardsText(r)} ${s.board}, ${Math.ceil(r.buyLF)} lf at $${s.pricePerLF.toFixed(2)} = $${r.cost.toFixed(2)}` : `${Math.ceil(r.buyBF)} BF (4/4)`}</p>
           {others.map((o) => <p key={o.sp} className="hint" style={{ marginTop: 0 }}>{o.sp} (4/4): {Math.ceil(o.bf)} BF, listed separately</p>)}
           <table className="totals">
             <tbody>

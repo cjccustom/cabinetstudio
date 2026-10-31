@@ -78,17 +78,22 @@ export interface WidthGroup {
   /** With the per-piece length allowance and kerfs. */
   cutLength: number;
   longest: number;
-  /** Full-length strips needed, lengths packed end to end. */
-  strips: { pieces: number[]; used: number }[];
+  /** Full-length strips needed, lengths packed end to end; each on a board of `length` (the stock length, or longer for long pieces). */
+  strips: { pieces: number[]; used: number; length: number }[];
 }
 
-export interface Board { strips: number[]; used: number }
+/** Lengths lumber yards stock, in inches: a piece too long for the usual board goes on the shortest that fits. */
+export const STOCK_LENGTHS = [96, 120, 144, 168, 192];
+
+export interface Board { strips: number[]; used: number; length: number }
 
 export interface FaceFrameResult {
   groups: WidthGroup[];
   boards: Board[];
-  /** Pieces longer than a board. */
+  /** Pieces longer than any board a yard stocks (16'). */
   tooLong: FFPiece[];
+  /** Boards to buy by length, longest first, waste included: e.g. 6 at 8', 2 at 12'. */
+  byLength: { length: number; count: number }[];
   netBF: number;
   roughBF: number;
   buyBF: number;
@@ -101,7 +106,10 @@ const r16 = (v: number) => Math.round(v * 16) / 16;
 
 export function faceFrameNeeds(pieces: FFPiece[], s: FaceFrameStock): FaceFrameResult {
   const usableLen = s.boardLength - 2 * s.endTrim;
-  const tooLong = pieces.filter((p) => p.length + s.lengthAllowance > usableLen);
+  // Board lengths to use: the usual one, then longer standard lengths for pieces that need them
+  const lengths = [s.boardLength, ...STOCK_LENGTHS.filter((l) => l > s.boardLength)];
+  const fitLength = (cut: number) => lengths.find((l) => cut <= l - 2 * s.endTrim + 1e-6);
+  const tooLong = pieces.filter((p) => fitLength(p.length + s.lengthAllowance) == null);
   const widths = [...new Set(pieces.map((p) => r16(p.width)))].sort((a, b) => a - b);
 
   const groups: WidthGroup[] = widths.map((width) => {
@@ -117,12 +125,15 @@ export function faceFrameNeeds(pieces: FFPiece[], s: FaceFrameStock): FaceFrameR
     }
     const rows = [...byLen.values()].sort((a, b) => b.length - a.length);
     // First-fit decreasing: pack cut lengths end to end into board-length strips
+    // Longest first: a long piece starts a strip on the shortest board it fits; shorter pieces fill
+    // whatever strip has room (a long board's leftover included) before a new strip is started
     const strips: WidthGroup['strips'] = [];
     for (const p of mine.filter((x) => !tooLong.includes(x)).map((x) => x.length + s.lengthAllowance).sort((a, b) => b - a)) {
-      const st = strips.find((x) => x.used + s.kerf + p <= usableLen + 1e-6);
+      const st = strips.find((x) => x.used + s.kerf + p <= x.length - 2 * s.endTrim + 1e-6);
       if (st) { st.used += (st.pieces.length ? s.kerf : 0) + p; st.pieces.push(p); }
-      else strips.push({ pieces: [p], used: p });
+      else strips.push({ pieces: [p], used: p, length: fitLength(p) ?? s.boardLength });
     }
+    void usableLen;
     return {
       width,
       ripWidth: width + s.ripAllowance,
@@ -137,20 +148,23 @@ export function faceFrameNeeds(pieces: FFPiece[], s: FaceFrameStock): FaceFrameR
 
   // Rip plan: pack every strip's rip width across rough boards, widest first
   const usableW = s.boardWidth - s.edgeCleanup;
-  const allStrips = groups.flatMap((g) => g.strips.map(() => g.ripWidth)).sort((a, b) => b - a);
+  // Strips only share a board of their own length
+  const allStrips = groups.flatMap((g) => g.strips.map((st) => ({ w: g.ripWidth, length: st.length }))).sort((a, b) => b.length - a.length || b.w - a.w);
   const boards: Board[] = [];
-  for (const w of allStrips) {
-    const b = boards.find((x) => x.used + s.kerf + w <= usableW + 1e-6);
+  for (const { w, length } of allStrips) {
+    const b = boards.find((x) => x.length === length && x.used + s.kerf + w <= usableW + 1e-6);
     if (b) { b.used += s.kerf + w; b.strips.push(w); }
-    else boards.push({ strips: [w], used: w });
+    else boards.push({ strips: [w], used: w, length });
   }
 
   const bf = (w: number, l: number) => (s.nominalThickness * w * l) / 144;
   const netBF = groups.reduce((t, g) => t + bf(g.width, g.totalLength), 0);
-  const roughBF = boards.length * bf(s.boardWidth, s.boardLength);
+  const roughBF = boards.reduce((t, b) => t + bf(s.boardWidth, b.length), 0);
   const buyBF = roughBF * (1 + s.waste);
-  const buyLF = (boards.length * s.boardLength * (1 + s.waste)) / 12;
-  return { groups, boards, tooLong, netBF, roughBF, buyBF, buyLF, cost: s.pricePerLF ? buyLF * s.pricePerLF : buyBF * s.pricePerBF };
+  const buyLF = (boards.reduce((t, b) => t + b.length, 0) * (1 + s.waste)) / 12;
+  const byLength = [...new Set(boards.map((b) => b.length))].sort((a, b) => b - a)
+    .map((length) => ({ length, count: Math.ceil(boards.filter((b) => b.length === length).length * (1 + s.waste)) }));
+  return { groups, boards, tooLong, byLength, netBF, roughBF, buyBF, buyLF, cost: s.pricePerLF ? buyLF * s.pricePerLF : buyBF * s.pricePerBF };
 }
 
 /** Solid wood tops, bench seats and beadboard caps: glued up or milled from thicker stock. */

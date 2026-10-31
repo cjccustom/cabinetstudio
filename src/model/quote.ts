@@ -456,7 +456,7 @@ export function estimateMaterials(p: Project, q: QuoteSettings): MaterialLine[] 
   const ff = faceFrameNeeds(faceFramePieces(p), ffStock);
   if (ff.groups.length) {
     out.push(ffStock.pricePerLF
-      ? { group: 'cabinets', label: `Face frame stock (${ffStock.species.replace(/,.*$/, '')} ${ffStock.board ?? ''})`, cost: ff.cost, detail: `${ff.boards.length} boards, ${Math.ceil(ff.buyLF)} lf at $${ffStock.pricePerLF.toFixed(2)}${ffStock.listed ? ' (A&M list price)' : ''}` }
+      ? { group: 'cabinets', label: `Face frame stock (${ffStock.species.replace(/,.*$/, '')} ${ffStock.board ?? ''})`, cost: ff.cost, detail: `${ff.byLength.map((b) => `${b.count} × ${b.length / 12}'`).join(', ')} boards, ${Math.ceil(ff.buyLF)} lf at $${ffStock.pricePerLF.toFixed(2)}${ffStock.listed ? ' (A&M list price)' : ''}` }
       : { group: 'cabinets', label: `Face frame stock (${ffStock.species})`, cost: ff.cost, detail: `${Math.ceil(ff.buyBF)} BF`, missing: ffStock.pricePerBF ? undefined : 'Pick the species under Materials (Shop standards) or enter a price on the Solid wood tab' });
   }
   for (const sp of otherSpecies(p)) {

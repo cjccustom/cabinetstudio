@@ -181,6 +181,14 @@ eq('new terms: one notice, from the terms', (termsHtml(CJC_TERMS, Date.UTC(2026,
   eq('fixed divider across between the open rows', cp.some((x) => x.name === 'Fixed shelf' && (x.note ?? '').includes('divider across')), true);
 }
 
+// Solid stock: a 98 3/4" pilaster stile goes on a 10' board, shorter pieces fill its leftover, no error
+{
+  const st = { ...defaultFaceFrameStock, boardLength: 96, endTrim: 1, lengthAllowance: 0.5, kerf: 0.125, waste: 0 };
+  const r = faceFrameNeeds([{ cabinet: 'P1', name: 'Stile', width: 1.5, length: 98.75 }, { cabinet: 'P1', name: 'Rail', width: 1.5, length: 15 }, { cabinet: 'B1', name: 'Stile', width: 1.5, length: 30 }], st);
+  eq('long pilaster stile: no "too long" error', r.tooLong.length, 0);
+  eq('it goes on a 10\' board, the 15" rail in its leftover', `${r.byLength.map((b) => `${b.count}x${b.length}`).join(',')} ${r.groups[0].strips[0].pieces.length}`, '1x120,1x96 2');
+}
+
 // Recessed cans: one per coffer, or a grid about every 5'
 eq('one can per coffer', canSpots({ ...p, ceiling: { on: true, across: 3, deep: 3 } }).length, 9);
 eq('cans on a grid, 3 across by 2 deep', canSpots({ ...p, room: { width: 156, depth: 144, height: 96 } }).length, 6);
@@ -1078,7 +1086,7 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   eq('A&M: red oak face frames from a 1x6 by the lineal foot', `${oak.faceFrame!.board} ${oak.faceFrame!.pricePerLF} ${oak.faceFrame!.boardWidth}`, '3/4 x 5-1/2 3.45 5.5');
   const ffLine = estimateMaterials(oak, quoteOf(oak)).find((l) => l.label.startsWith('Face frame stock'))!;
   const need = faceFrameNeeds(faceFramePieces(oak), { ...defaultFaceFrameStock, ...oak.faceFrame });
-  eq('A&M: quote prices face frames by length', `${ffLine.cost.toFixed(2)} ${ffLine.detail}`, `${(need.buyLF * 3.45).toFixed(2)} ${need.boards.length} boards, ${Math.ceil(need.buyLF)} lf at $3.45`);
+  eq('A&M: quote prices face frames by length', `${ffLine.cost.toFixed(2)} ${ffLine.detail}`, `${(need.buyLF * 3.45).toFixed(2)} ${need.byLength.map((b) => `${b.count} × ${b.length / 12}'`).join(', ')} boards, ${Math.ceil(need.buyLF)} lf at $3.45`);
   const own = priceBook({ 'lum-red-oak': { id: 'lum-red-oak', kind: 'lumber', name: 'Red oak', perLF: { '3/4 x 5-1/2': 3.75 }, updatedAt: 3 } });
   const unpriced = { ...p, faceFrame: undefined };
   const listLine = estimateMaterials(unpriced, quoteOf(unpriced)).find((l) => l.label.startsWith('Face frame stock'))!;
