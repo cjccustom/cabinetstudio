@@ -1,7 +1,7 @@
 // The pages a client sees from their private link: a phone-first project page (renderings,
 // proposal, terms, licenses and insurance, about the shop, and signing), and the signed agreement
 // as one printable document, the Notice of Cancellation inside the terms with its dates filled in.
-import type { Job, PortalComment, Shop } from './store';
+import type { DrawingSheets, Job, PortalComment, Shop } from './store';
 import { apptLabel, whenEastern, type Appointment } from './calendar';
 import { cancelDeadline, easternYmd, longDate, noticeOfCancellation } from './cancel';
 import { LOGO } from '../../src/drawings/logo';
@@ -30,7 +30,7 @@ export function termsHtml(text: string, signedAt?: number, seller = 'CJC Custom 
 }
 export const clientName = (j: Job) => [j.client.first, j.client.last].filter(Boolean).join(' ') || 'there';
 
-const msgCss = `.msg .state{font-size:13px;color:var(--accent);margin-top:6px}.sent{margin:10px 0}details.more{margin-top:12px}details.more>summary{display:inline-block;list-style:none;cursor:pointer}details.more>summary::-webkit-details-marker{display:none}details.more[open]>summary{display:none}.msg{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:10px 0;background:#fff}.msg.shop{background:#eef3ef;border-color:#cfdcd3}.msg .who{font-size:13px;color:var(--muted);margin-bottom:4px}.msg p{margin:4px 0}textarea{width:100%;font:inherit;padding:10px;border:1px solid var(--line);border-radius:8px}iframe.dwgs{height:80vh}`;
+const msgCss = `.sheet-head{display:flex;gap:8px;align-items:baseline;margin-bottom:8px}.sheet-head .big-btn{margin-left:auto}button.link{background:none;border:0;color:var(--accent);font:inherit;font-weight:600;cursor:pointer;padding:4px}.sheet-scroll{overflow:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--line);border-radius:6px}.sheet-box{position:relative}.sheet-box img{display:block;width:100%;height:auto}.sheet.big .sheet-box{width:280%}.layer{position:absolute;inset:0}.marking .layer{touch-action:none;cursor:crosshair;background:rgba(194,65,12,.06);outline:2px dashed #c2410c;outline-offset:-2px}.mk{position:absolute;border:2.5px solid #c2410c;border-radius:50%;box-sizing:border-box;display:block}.mk.shop{border-color:var(--accent)}.mk.new{border-style:dashed}.mk .n,.pin{display:inline-block;background:#c2410c;color:#fff;border-radius:50%;width:22px;height:22px;font:700 12px/22px sans-serif;text-align:center;text-decoration:none}.mk .n{position:absolute;top:-11px;left:-11px}.markform{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid var(--line);box-shadow:0 -4px 18px rgba(0,0,0,.15);padding:12px max(16px,env(safe-area-inset-left)) calc(12px + env(safe-area-inset-bottom));z-index:20}.markform textarea{min-height:80px}.msg .state{font-size:13px;color:var(--accent);margin-top:6px}.sent{margin:10px 0}details.more{margin-top:12px}details.more>summary{display:inline-block;list-style:none;cursor:pointer}details.more>summary::-webkit-details-marker{display:none}details.more[open]>summary{display:none}.msg{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:10px 0;background:#fff}.msg.shop{background:#eef3ef;border-color:#cfdcd3}.msg .who{font-size:13px;color:var(--muted);margin-bottom:4px}.msg p{margin:4px 0}textarea{width:100%;font:inherit;padding:10px;border:1px solid var(--line);border-radius:8px}iframe.dwgs{height:80vh}`;
 const noticeCss = `.notice{border:1px solid #999;padding:14px;margin:18px 0;font-size:13px;break-inside:avoid}.notice h3{text-align:center;margin:0 0 8px}.sigline{margin-top:28px}.muted{color:#646b73}`;
 const css = `:root{--ink:#1f2328;--muted:#646b73;--line:#e3e0da;--bg:#f7f5f1;--card:#fff;--accent:#2b4a3c;--accent-ink:#fff;--warn:#9a3412}
 *{box-sizing:border-box}body{margin:0;font:16px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;color:var(--ink);background:var(--bg)}
@@ -194,20 +194,65 @@ ${about === 'drawings' ? '<p><input type="text" name="sheet" placeholder="Which 
 <div class="row"><button class="btn">${asked ? 'Send this question' : 'Send to CJC Custom Carpentry'}</button></div></form>`;
   return `<section class="card" id="comments"><h2>Questions and changes</h2><p class="muted">${esc(intro)}</p>
 ${sent ? '<div class="ok sent">Your question was sent to Cody. The answer will show up right here on this page.</div>' : ''}
-${all.map((c, i) => `<div class="msg ${c.from}"><div class="who">${esc(c.from === 'shop' ? `${c.name} answered` : c.name)} · ${esc(when(c.at))}${c.about !== 'proposal' && c.about !== 'drawings' ? ` · ${esc(c.about.replace(/^drawings:\s*/, ''))}` : ''}</div>${paras(c.text)}${status(c, i)}</div>`).join('')}
+${all.map((c, i) => `<div class="msg ${c.from}" id="c-${esc(c.id)}"><div class="who">${c.mark ? `<a class="pin" href="#sheet-${c.mark.sheet}">${(j.comments ?? []).filter((x) => x.mark).indexOf(c) + 1}</a> ` : ''}${esc(c.from === 'shop' ? `${c.name} answered` : c.name)} · ${esc(when(c.at))}${c.about !== 'proposal' && c.about !== 'drawings' ? ` · ${esc(c.about.replace(/^drawings:\s*/, ''))}` : ''}</div>${paras(c.text)}${status(c, i)}</div>`).join('')}
 ${asked ? `<details class="more"><summary class="btn ghost">Ask another question</summary>${form}</details>` : form}</section>`;
 }
 
 /** The drawing set for review once the agreement is signed, with its own comments. */
-export function drawingsPage(j: Job, shop: Shop, token: string, doc: string, sent = false): string {
+/**
+ * The drawings as a design proof: each sheet fits the screen (Enlarge for detail), and the client
+ * can tap or circle a spot on a sheet and write the change right there.
+ */
+export function drawingsPage(j: Job, shop: Shop, token: string, doc: string, sent = false, split: DrawingSheets | null = null): string {
   const base = `/p/${token}`;
   const d = j.drawings!;
-  const body = `<p><a href="${base}">← Back to your project</a></p>
+  const top = `<p><a href="${base}">← Back to your project</a></p>
 <h1>${esc(d.title)}</h1><p class="muted">${esc(j.project)} · version ${d.version}, ${esc(longDate(easternYmd(d.publishedAt)))}</p>
-<section class="card"><p>Look over each sheet: sizes, layout, door and drawer arrangement. Anything you'd like changed, write it below and say which sheet.</p>
-<iframe class="doc dwgs" title="Drawings" sandbox srcdoc="${esc(doc)}"></iframe>
-<p class="row"><a href="${base}/drawings?print" target="_blank" rel="noopener">Open full size to print or save</a></p></section>
-${commentsBlock(j, base, 'drawings', 'Questions or changes about the drawings. Cody gets them right away and answers here.', sent)}`;
+<p class="row"><a class="btn ghost" href="${base}/drawings?print" target="_blank" rel="noopener">Open full size to zoom, print or save</a></p>`;
+  if (!split?.sheets.length) {
+    // An older set sent before sheets went separately
+    return shell(`${d.title} · ${j.project}`, `${top}<section class="card"><iframe class="doc dwgs" title="Drawings" sandbox srcdoc="${esc(doc)}"></iframe></section>
+${commentsBlock(j, base, 'drawings', 'Questions or changes about the drawings. Say which sheet.', sent)}`, shop, esc(clientName(j)));
+  }
+  const marked = (j.comments ?? []).filter((c) => c.mark);
+  const markHtml = (i: number) => marked.map((c, k) => (c.mark!.sheet === i
+    ? `<a class="mk ${c.from}" href="#c-${esc(c.id)}" title="${esc(c.text.slice(0, 80))}" style="left:${c.mark!.x * 100}%;top:${c.mark!.y * 100}%;width:${c.mark!.w * 100}%;height:${c.mark!.h * 100}%"><span class="n">${k + 1}</span></a>` : '')).join('');
+  // Each sheet as a picture with its own styles inside, so it scales cleanly on any screen
+  const img = (svg: string) => `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg.replace(/^<svg([^>]*)>/, `<svg$1><style>${split.css}</style>`))}`;
+  const sheets = split.sheets.map((sh, i) => `<section class="card sheet" id="sheet-${i}" data-i="${i}" data-label="${esc(`${sh.number} ${sh.title}`.trim())}">
+<div class="sheet-head"><b>${esc(sh.number)}</b> ${esc(sh.title)}<button type="button" class="link big-btn">Enlarge</button></div>
+<div class="sheet-scroll"><div class="sheet-box"><img src="${img(sh.svg)}" alt="Sheet ${esc(sh.number)}: ${esc(sh.title)}"><div class="layer">${markHtml(i)}</div></div></div>
+<p class="row"><button type="button" class="btn ghost mark-btn">Mark a change on this sheet</button></p></section>`).join('');
+  const how = `<section class="card"><h2>How to review</h2><ol class="items">
+<li>Look over each sheet below. Tap <b>Enlarge</b> to see a sheet bigger (scroll sideways to move around).</li>
+<li>Something you’d like changed? Tap <b>Mark a change on this sheet</b>, then tap the spot or draw a circle around it with your finger.</li>
+<li>Write what you’d like changed and send it. Cody sees the spot you marked and answers on this page.</li></ol></section>`;
+  const dialog = `<form id="markform" class="markform" method="post" action="${base}/comment" hidden>
+<p class="muted" id="mf-where"></p>
+<input type="hidden" name="about" id="mf-about" value="drawings"><input type="hidden" name="sheet_i" id="mf-i">
+<input type="hidden" name="mx" id="mf-x"><input type="hidden" name="my" id="mf-y"><input type="hidden" name="mw" id="mf-w"><input type="hidden" name="mh" id="mf-h">
+<textarea name="text" rows="3" required maxlength="2000" placeholder="What would you like changed here?"></textarea>
+<div class="row"><button class="btn">Send to Cody</button><button type="button" class="btn ghost" id="mf-cancel">Cancel</button></div></form>`;
+  const script = `<script>(()=>{let on=null,start=null,temp=null;const f=document.getElementById('markform');
+const off=()=>{if(on){on.classList.remove('marking');on.querySelector('.mark-btn').textContent='Mark a change on this sheet'}on=null};
+const clear=()=>{if(temp){temp.remove();temp=null}f.hidden=true};
+document.querySelectorAll('.sheet').forEach(sh=>{const layer=sh.querySelector('.layer'),btn=sh.querySelector('.mark-btn');
+sh.querySelector('.big-btn').onclick=e=>{sh.classList.toggle('big');e.target.textContent=sh.classList.contains('big')?'Fit to screen':'Enlarge'};
+btn.onclick=()=>{if(on===sh){off();clear();return}off();clear();on=sh;sh.classList.add('marking');btn.textContent='Tap or circle the spot · Cancel'};
+const pt=e=>{const r=layer.getBoundingClientRect();return[Math.min(1,Math.max(0,(e.clientX-r.left)/r.width)),Math.min(1,Math.max(0,(e.clientY-r.top)/r.height))]};
+const draw=(a,b)=>{const x=Math.min(a[0],b[0]),y=Math.min(a[1],b[1]),w=Math.abs(a[0]-b[0]),h=Math.abs(a[1]-b[1]);return[x,y,w,h]};
+const put=([x,y,w,h])=>{if(!temp){temp=document.createElement('div');temp.className='mk new';layer.appendChild(temp)}Object.assign(temp.style,{left:x*100+'%',top:y*100+'%',width:w*100+'%',height:h*100+'%'})};
+layer.addEventListener('pointerdown',e=>{if(on!==sh)return;e.preventDefault();clear();layer.setPointerCapture(e.pointerId);start=pt(e)});
+layer.addEventListener('pointermove',e=>{if(on!==sh||!start)return;put(draw(start,pt(e)))});
+layer.addEventListener('pointerup',e=>{if(on!==sh||!start)return;let m=draw(start,pt(e));start=null;
+if(m[2]<0.02&&m[3]<0.02){const r=layer.getBoundingClientRect(),s=0.035,sy=s*r.width/r.height;m=[Math.max(0,m[0]-s/2),Math.max(0,m[1]-sy/2),s,sy]}
+put(m);const ids=['x','y','w','h'];ids.forEach((k,i)=>document.getElementById('mf-'+k).value=m[i].toFixed(4));
+document.getElementById('mf-i').value=sh.dataset.i;document.getElementById('mf-about').value='drawings: '+sh.dataset.label;
+document.getElementById('mf-where').textContent='Your mark on '+sh.dataset.label;f.hidden=false;f.querySelector('textarea').focus();off()});});
+document.getElementById('mf-cancel').onclick=()=>{clear()};
+f.addEventListener('submit',()=>{f.querySelector('button').disabled=true;f.querySelector('button').textContent='Sending…'});})();</script>`;
+  const body = `${top}${sent ? '<div class="ok sent">Your note was sent to Cody, with the spot you marked. The answer will show up on this page.</div>' : ''}${how}${sheets}
+${commentsBlock(j, base, 'drawings', 'Your notes on the drawings, and Cody’s answers. Numbers match the marks on the sheets.', false)}${dialog}${script}`;
   return shell(`${d.title} · ${j.project}`, body, shop, esc(clientName(j)));
 }
 

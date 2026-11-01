@@ -4,7 +4,8 @@
 //   job:<jobId>          one client job: who, what was published, views, signature, cancellation
 //   tok:<token>          the private link's token, pointing at its job
 //   img:<jobId>:<id>     a rendering's bytes
-//   dwg:<jobId>          the drawing set (HTML), shared after signing
+//   dwg:<jobId>          the drawing set (HTML, for printing), shared after signing
+//   dwgs:<jobId>         the same set as separate sheets (JSON), for marking up
 
 export interface KV {
   get(key: string, type: 'json'): Promise<unknown>;
@@ -65,7 +66,13 @@ export interface Job {
   comments?: PortalComment[];
 }
 
-export interface PortalComment { id: string; at: number; from: 'client' | 'shop'; name: string; text: string; about: string; read?: boolean }
+export interface PortalComment {
+  id: string; at: number; from: 'client' | 'shop'; name: string; text: string; about: string; read?: boolean;
+  /** A spot marked on a drawing sheet: the sheet's index and the area, as fractions of the sheet. */
+  mark?: { sheet: number; x: number; y: number; w: number; h: number };
+}
+/** The drawing set split into sheets, for the proof page (dwgs:<jobId>). */
+export interface DrawingSheets { css: string; sheets: { number: string; title: string; svg: string }[] }
 
 export const emptyShop: Shop = { company: [], about: '', terms: '', docs: [] };
 

@@ -7,7 +7,7 @@ import { useStore } from '../store';
 import { clientName, clientOf, COMPANY, proposalLines, quoteDoc, quoteTotals } from '../model/client';
 import { optionPrices, proposalSummary } from '../model/proposal';
 import { Field } from './fields';
-import { customerSet, drawingsOf, setDocument } from '../drawings/sheets';
+import { customerSet, drawingsOf, setDocument, sheetCss } from '../drawings/sheets';
 import { FileButton } from './FileButton';
 import { renderOf } from '../model/rendering';
 import { CJC_TERMS } from '../model/terms';
@@ -185,7 +185,8 @@ export function ClientPortal() {
   const sendDrawings = () => run('Sending the drawings…', async () => {
     const d = drawingsOf(project);
     const title = `Drawings for review: ${project.name || 'your project'}`;
-    const s2 = await publishDrawings(portal!.jobId, setDocument(title, customerSet(project, d), d.paper), 'Drawings for your review');
+    const sheets = customerSet(project, d);
+    const s2 = await publishDrawings(portal!.jobId, setDocument(title, sheets, d.paper), 'Drawings for your review', sheetCss, sheets.map((x) => ({ number: x.number, title: x.title, svg: x.svg })));
     keep(s2, portal!.jobId);
     setNote(`Drawings version ${s2.drawings?.version ?? 1} are on ${c.first || 'the client'}’s page.`);
   });
@@ -321,7 +322,7 @@ function PortalComments({ st, busy, run, keep }: { st: JobStatus; busy: boolean;
       <div className="pgroup-head"><span>Questions and changes</span>{unread > 0 && <span className="warn">{unread} new</span>}</div>
       {list.map((c) => (
         <div key={c.id} className={`portal-msg ${c.from}${c.from === 'client' && !c.read ? ' unread' : ''}`}>
-          <div className="hint">{c.name} · {when(c.at)}{c.about !== 'proposal' ? ` · ${c.about}` : ''}</div>
+          <div className="hint">{c.name} · {when(c.at)}{c.about !== 'proposal' ? ` · ${c.about}` : ''}{c.mark ? ' · marked a spot' : ''}{c.mark && st.url ? <> · <a href={`${st.url}/drawings#c-${c.id}`} target="_blank" rel="noreferrer">see it</a></> : null}</div>
           <p style={{ whiteSpace: 'pre-wrap', margin: '2px 0 0' }}>{c.text}</p>
         </div>
       ))}

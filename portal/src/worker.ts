@@ -11,7 +11,7 @@
 // QuickBooks, Secrets QB_CLIENT_ID and QB_CLIENT_SECRET (and QB_ENV = sandbox to test first);
 // for photos, Secrets DBX_APP_KEY and DBX_APP_SECRET; for an email when a client comments, a
 // Secret RESEND_API_KEY (resend.com) and the contact email in Portal settings (MAIL_FROM optional).
-import { type Env, type Job, type PortalComment, type Shop, type ShopDoc, b64ToBytes, getJob, getShop, jobByToken, putJob, putShop, randomToken, sha256, signedTotals } from './store';
+import { type DrawingSheets, type Env, type Job, type PortalComment, type Shop, type ShopDoc, b64ToBytes, getJob, getShop, jobByToken, putJob, putShop, randomToken, sha256, signedTotals } from './store';
 import { agreementPage, clientName, drawingsPage, esc, projectPage, simplePage } from './pages';
 import { canCancel, cancelDeadline, easternYmd } from './cancel';
 import { calendar, deleteAppt, feedCode, listAppts, saveAppt, apptLabel, type Appointment } from './calendar';
@@ -83,7 +83,8 @@ async function client(request: Request, env: Env, token: string, what: string, i
     if (!set) return html(simplePage('Drawings aren’t ready yet', 'Your drawings will appear here once they’re ready for your review.', shop), 404);
     const doc = new TextDecoder().decode(set);
     if (new URL(request.url).searchParams.has('print')) return html(doc);
-    return html(drawingsPage(job, shop, token, doc, new URL(request.url).searchParams.has('sent')));
+    const split = (await env.PORTAL.get(`dwgs:${job.jobId}`, 'json')) as DrawingSheets | null;
+    return html(drawingsPage(job, shop, token, doc, new URL(request.url).searchParams.has('sent'), split));
   }
   if (what === 'comment' && request.method === 'POST') {
     const f = await request.formData();
@@ -91,7 +92,11 @@ async function client(request: Request, env: Env, token: string, what: string, i
     const about = String(f.get('about') || 'proposal').trim().slice(0, 80) || 'proposal';
     const back = about.startsWith('drawings') ? `/p/${token}/drawings?sent#comments` : `/p/${token}?sent#comments`;
     if (text && (job.comments?.length ?? 0) < 300) {
-      const c: PortalComment = { id: randomToken(8), at: Date.now(), from: 'client', name: String(f.get('name') || '').trim().slice(0, 80) || clientName(job), text, about };
+      // Only a note sent from a sheet carries a mark; empty fields are no mark at all
+      const num = (k: string) => { const raw = String(f.get(k) ?? '').trim(); const v = raw ? Number(raw) : NaN; return Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : NaN; };
+      const sheet = String(f.get('sheet_i') ?? '').trim() ? Number(f.get('sheet_i')) : NaN;
+      const mark = Number.isInteger(sheet) && sheet >= 0 && [num('mx'), num('my'), num('mw'), num('mh')].every((v) => !Number.isNaN(v)) ? { sheet, x: num('mx'), y: num('my'), w: num('mw'), h: num('mh') } : undefined;
+      const c: PortalComment = { id: randomToken(8), at: Date.now(), from: 'client', name: String(f.get('name') || '').trim().slice(0, 80) || clientName(job), text, about, ...(mark ? { mark } : {}) };
       job.comments = [...(job.comments ?? []), c];
       await putJob(env, job);
       try { await notify(env, shop, job, c, new URL(request.url)); } catch { /* the comment is saved; email is a nicety */ }
@@ -302,7 +307,7 @@ const TOOLS = [
   },
   {
     name: 'publish_drawings', description: 'Share the drawing set (one HTML document) on a signed job’s page, for the client to review and comment on. Refused before the agreement is signed.',
-    inputSchema: { type: 'object', properties: { job_id: { type: 'string' }, html: { type: 'string' }, title: { type: 'string' } }, required: ['job_id', 'html'] },
+    inputSchema: { type: 'object', properties: { job_id: { type: 'string' }, html: { type: 'string' }, title: { type: 'string' }, css: { type: 'string', description: 'Styles for the sheets' }, sheets: { type: 'array', description: 'The sheets one by one (number, title, svg) so the client can mark changes on them', items: { type: 'object', properties: { number: { type: 'string' }, title: { type: 'string' }, svg: { type: 'string' } } } } }, required: ['job_id', 'html'] },
   },
   { name: 'reply_comment', description: 'Answer the client on their page. Marks their comments read.', inputSchema: { type: 'object', properties: { job_id: { type: 'string' }, text: { type: 'string' }, about: { type: 'string' } }, required: ['job_id', 'text'] } },
   { name: 'mark_comments_read', description: 'Mark the client’s comments on a job as read.', inputSchema: { type: 'object', properties: { job_id: { type: 'string' } }, required: ['job_id'] } },
@@ -527,6 +532,7 @@ async function tool(name: string, a: Record<string, unknown>, env: Env, url: URL
       if ((j.signature || j.history?.length || j.invoices?.length) && a.even_signed !== true) throw new Error('This job has a signature or invoices on record. Send even_signed: true to delete it anyway.');
       for (const r of j.renderings) await env.PORTAL.delete(`img:${j.jobId}:${r.id}`);
       await env.PORTAL.delete(`dwg:${j.jobId}`);
+      await env.PORTAL.delete(`dwgs:${j.jobId}`);
       await env.PORTAL.delete(`tok:${j.token}`);
       await env.PORTAL.delete(`job:${j.jobId}`);
       // Its visits go with it, so the calendar feed doesn't keep a job that no longer exists
@@ -541,6 +547,10 @@ async function tool(name: string, a: Record<string, unknown>, env: Env, url: URL
       const doc = String(a.html || '');
       if (!doc || doc.length > 20e6) throw new Error('The drawing set is empty or over 20 MB.');
       await env.PORTAL.put(`dwg:${j.jobId}`, new TextEncoder().encode(doc).buffer as ArrayBuffer);
+      // The sheets one by one, for the page where the client marks changes on them
+      const sheets = Array.isArray(a.sheets) ? (a.sheets as { number?: string; title?: string; svg?: string }[]).filter((x) => typeof x.svg === 'string' && x.svg.startsWith('<svg')).slice(0, 80).map((x) => ({ number: String(x.number || '').slice(0, 12), title: String(x.title || '').slice(0, 120), svg: x.svg! })) : [];
+      if (sheets.length) await env.PORTAL.put(`dwgs:${j.jobId}`, JSON.stringify({ css: String(a.css || ''), sheets } satisfies DrawingSheets));
+      else await env.PORTAL.delete(`dwgs:${j.jobId}`);
       j.drawings = { publishedAt: Date.now(), version: (j.drawings?.version ?? 0) + 1, title: String(a.title || 'Drawings').slice(0, 120) };
       await putJob(env, j);
       return status(j, url);
