@@ -6,7 +6,7 @@ import { customerSet, drawingsOf, papers, setDocument, sheetCss, shopSet, type D
 import { renderOf } from '../model/rendering';
 import { clientName, clientOf } from '../model/client';
 import { blobToDataUrl, capability, shrinkImage, type Downloads } from '../runtime';
-import { writeFile } from '../dropbox';
+import { asciiHtml, writeFile } from '../dropbox';
 import { Field, Section } from './fields';
 import { DetailsSection } from './DetailsSection';
 
@@ -39,7 +39,7 @@ async function exportDocument(kind: SetKind): Promise<{ name: string; html: stri
   const sheets = kind === 'customer' ? customerSet(p, d) : shopSet(p, d);
   const who = clientName(clientOf(p)) || p.name;
   const name = `${setTitle(kind, who)}${d.rev ? ` - Rev ${d.rev}` : ''}.html`.replace(/[\\/:*?"<>|]/g, '');
-  return { name, html: setDocument(name.replace(/\.html$/, ''), sheets, d.paper) };
+  return { name, html: asciiHtml(setDocument(name.replace(/\.html$/, ''), sheets, d.paper)) };
 }
 
 /* ---------- Left: which set, paper, cover, and getting it out ---------- */
@@ -126,10 +126,9 @@ export function DrawingsSide() {
           <div className="order-actions">
             <button className="primary" disabled={busy} onClick={download}>Download</button>
             <button disabled={busy || !project.dropbox} onClick={toDropbox} title={project.dropbox ? '' : 'Link this job to a client in the Clients tab first'}>Save to Dropbox</button>
-            <button disabled={busy} onClick={() => window.print()}>Print</button>
           </div>
           {msg && <p className="hint" role="status">{msg}</p>}
-          <p className="hint">The file opens in Safari or Chrome; print it at 100% (actual size) to {papers[d.paper].label} paper, or Save as PDF, and the scales on each sheet hold.</p>
+          <p className="hint">To print: Download (or open the Dropbox copy), open the file in Safari or Chrome and print from there. Cabinet Studio can’t open the print window itself. Print at 100% (actual size) to {papers[d.paper].label} paper, or Save as PDF, and the scales on each sheet hold.</p>
         </Section>
       </div>
     </aside>

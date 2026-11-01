@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { canSpots } from "../src/model/lighting";
+import { asciiHtml } from "../src/dropbox";
 import { cabinetFixtures, lightingCost, lightingParts, electricianHtml } from "../src/model/cabinetLighting";
 import { printQuote } from "../src/model/printQuote";
 import { shopGroups } from "../src/drawings/sheets";
@@ -1425,6 +1426,13 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   const crown = profileByNum('ND-47')!;
   const m = mountShape(crown);
   eq('next day: crown 47 hangs 3-1/2 drop × 2-5/8 projection', `${m.height}x${m.depth}`, '3.5x2.625');
+}
+
+// Saved HTML reads the same however it's opened: no raw non-ASCII characters
+{
+  eq('ascii html: × and inch marks as entities', asciiHtml('46 3/8″ × 45 5/8″ – ok'), '46 3/8&#8243; &#215; 45 5/8&#8243; &#8211; ok');
+  const d = drawingsOf(p);
+  eq('ascii html: a whole drawing set is plain ASCII', /[^\x00-\x7f]/.test(asciiHtml(setDocument('t', customerSet(p, d), d.paper))), false);
 }
 
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');

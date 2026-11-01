@@ -12,7 +12,7 @@ import { FileButton } from './FileButton';
 import { renderOf } from '../model/rendering';
 import { CJC_TERMS } from '../model/terms';
 import { capability, shrinkImage, type Downloads } from '../runtime';
-import { downloadLink, whereIs, writeFile } from '../dropbox';
+import { asciiHtml, downloadLink, whereIs, writeFile } from '../dropbox';
 import { printQuote, printQuoteFile } from '../model/printQuote';
 import {
   blobToBase64, createInvoice, deleteShopDoc, expiring, getShop, jobStatus, PortalError, publishProposal, publishDrawings, replyComment, markCommentsRead, qbItems, qbSettings, qbStatus, recordPayment, updateShop, uploadShopDoc,
@@ -174,7 +174,7 @@ export function ClientPortal() {
     let terms = CJC_TERMS;
     try { terms = ((await getShop()) as unknown as PortalShop).terms || CJC_TERMS; } catch { /* the starting terms */ }
     const html = printQuote(project, { terms, version: st?.version });
-    const data = new Blob([html], { type: 'text/html' });
+    const data = new Blob([asciiHtml(html)], { type: 'text/html' });
     const filename = `${clientName(c) || project.name} - ${printQuoteFile(st?.version)}`;
     const downloads = await capability<Downloads>('downloads');
     if (downloads) { try { await downloads.save({ filename, data }); } catch { /* declined */ } }

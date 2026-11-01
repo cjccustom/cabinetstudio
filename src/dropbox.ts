@@ -103,8 +103,16 @@ async function removeFile(path: string, name: string): Promise<void> {
   }
 }
 
+/**
+ * HTML with every character outside plain ASCII written as an entity (× as &#215;), so it reads the
+ * same however it's opened: Dropbox's preview and some browsers ignore the page's UTF-8 declaration
+ * and show "Ã—" instead of "×".
+ */
+export const asciiHtml = (html: string) => html.replace(/[^\x00-\x7f]/gu, (ch) => `&#${ch.codePointAt(0)};`);
+
 /** Write a text file into a folder, replacing an earlier copy (which goes to Dropbox's Deleted files). */
 export async function writeFile(folderPath: string, name: string, content: string): Promise<void> {
+  if (/\.html?$/i.test(name)) content = asciiHtml(content);
   const path = `${folderPath}/${name}`;
   await removeFile(path, name);
   for (let attempt = 0; ; attempt++) {

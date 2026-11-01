@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useStore } from '../store';
+import { asciiHtml } from '../dropbox';
 import type { Project } from '../model/types';
 import { cutStock, defaultCutlist, designParts, optimizerParts, sheetPrice, type CutlistData, type ExtraPart } from '../model/cutlist';
 import { optimize, type MaterialResult, type SheetLayout, type Stock } from '../model/optimizer';
@@ -336,7 +337,7 @@ function LabelBar({ results }: { results: MaterialResult[] }) {
   const download = async () => {
     setMsg('');
     const name = `${project.name} - part labels.html`.replace(/[\\/:*?"<>|]/g, '');
-    const blob = new Blob([doc()], { type: 'text/html' });
+    const blob = new Blob([asciiHtml(doc())], { type: 'text/html' });
     try {
       const downloads = await capability<Downloads>('downloads');
       if (downloads) await downloads.save({ filename: name, data: blob });
