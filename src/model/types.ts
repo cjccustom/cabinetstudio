@@ -109,6 +109,8 @@ export interface Cabinet {
   overrides?: Partial<ShopSettings>;
   /** How this case goes together, where it differs from the usual way. */
   build?: CaseBuild;
+  /** LED lighting built into this cabinet. */
+  lighting?: import('./cabinetLighting').CabLightKind[];
   /** What sits on top of a base cabinet: stone (by others) or a solid wood top/bench seat built in the shop. */
   topKind?: 'stone' | 'wood' | 'paint';
   /** A paint-grade top's edging species (poplar or maple). */
@@ -452,6 +454,8 @@ export interface Project {
   ceiling?: Partial<import('./coffer').CofferCeiling>;
   /** A rolling library ladder on a rail across the bookcases. */
   ladder?: Partial<import('./ladder').RollingLadder>;
+  /** Cabinet lighting for the job: color, switching, driver location and your prices. */
+  cabLighting?: Partial<import('./cabinetLighting').LightingJob>;
 }
 
 export type MaterialKey = 'box' | 'back' | 'toeSkin' | 'faceframe' | 'door' | 'drawerBox' | 'counter' | 'solidWood' | 'hardware' | 'upholstery';

@@ -22,6 +22,7 @@ import { cabinetCallouts } from '../drawings/notes';
 import { archBuilds, archShapes, baseLayout, baseOf, baseStyles, cutOutline, defaultBase, floorStanding } from '../model/cabinetBase';
 import { profileLabel, profileByNum } from '../model/moldings';
 import { lumberNames } from '../model/pricebook';
+import { cabinetFixtures, cabLightLabel, type CabLightKind } from '../model/cabinetLighting';
 
 const kindLabel = { base: 'Base cabinet', wall: 'Wall cabinet', tall: 'Tall cabinet', pilaster: 'Pilaster', shelf: 'Floating shelf', mantel: 'Fireplace mantel' };
 const rowTypes: { v: FaceRow['type']; label: string }[] = [
@@ -198,6 +199,7 @@ export function Inspector({ cab, issues, tab }: { cab: Cabinet; issues: string[]
       {show('fronts') && cab.kind === 'mantel' && <MantelSection cab={cab} set={set} />}
       {show('build') && <OnePiece cab={cab} />}
       {show('build') && cased && <AssemblySection cab={cab} set={set} />}
+      {show('build') && cased && <LightingSection cab={cab} set={set} />}
       {show('fronts', true) && !cab.corner && cab.kind !== 'pilaster' && cab.kind !== 'shelf' && cab.kind !== 'mantel' && (
       <>
       <Section
@@ -532,6 +534,29 @@ export function Inspector({ cab, issues, tab }: { cab: Cabinet; issues: string[]
 }
 
 /** How the case goes together: top, bottom, back, shelves and fasteners, for this cabinet. */
+/** LED lighting built into this cabinet; parts, prices and the electrician's sheet are on the Orders tab. */
+function LightingSection({ cab, set }: { cab: Cabinet; set: (p: Partial<Cabinet>) => void }) {
+  const project = useStore((s) => s.project);
+  const open = cab.rows.some((r) => isOpenRow(r.type, r.covered));
+  const kinds = (Object.keys(cabLightLabel) as CabLightKind[]).filter((k) => (k === 'under' ? cab.kind === 'wall' : open));
+  if (!kinds.length) return null;
+  const on = cab.lighting ?? [];
+  const toggle = (k: CabLightKind) => {
+    const next = on.includes(k) ? on.filter((x) => x !== k) : [...on, k];
+    set({ lighting: next.length ? next : undefined });
+  };
+  const fx = cabinetFixtures(cab, project);
+  return (
+    <Section title="Lighting">
+      {kinds.map((k) => (
+        <label key={k} className="check-inline" style={{ display: "flex", gap: 6, margin: "4px 0" }}><input type="checkbox" checked={on.includes(k)} onChange={() => toggle(k)} /> {cabLightLabel[k]}</label>
+      ))}
+      {fx.length > 0 && <p className="hint">{fx.map((f) => (f.length ? `${f.count} × ${fmt(f.length)} strip` : `${f.count} puck${f.count > 1 ? 's' : ''}`)).join(', ')} · about {Math.round(fx.reduce((t, f) => t + f.watts, 0))} W. Parts, prices and the electrician’s sheet are on the Orders tab.</p>}
+      {on.includes('stile') && <p className="hint">Vertical strips light every shelf wherever adjustable shelves end up. Strips under a shelf front only suit fixed shelves.</p>}
+    </Section>
+  );
+}
+
 function AssemblySection({ cab, set }: { cab: Cabinet; set: (p: Partial<Cabinet>) => void }) {
   const settings = useStore((s) => s.project.settings);
   const room = useStore((s) => s.project.room);

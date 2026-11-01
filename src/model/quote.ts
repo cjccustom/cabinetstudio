@@ -1,5 +1,6 @@
 // Quoting: material cost from the design, labor hours from standard times, and the shop's two
 // pricing methods side by side. Every number traces back to the design or a setting.
+import { lightingCost, lightingParts } from './cabinetLighting';
 import { furnitureOf, tableEstimate, tableScope } from './furniture';
 import type { Cabinet, Project, WallId } from './types';
 import { buildParts, eff, isOpenRow, openSpans } from './parts';
@@ -56,6 +57,10 @@ export interface LaborStandards {
   woodTopPerSqFt: number;
   /** A vertical cubby divider: dadoes, panel and its mid stile. */
   divider?: number;
+  /** Cabinet lighting: each strip routed and fitted, each puck, each driver wired on site. */
+  lightStrip?: number;
+  lightPuck?: number;
+  lightDriver?: number;
   /** Paint-grade plywood tops with applied edging: per top, and per sq ft. */
   paintTop?: number;
   paintTopPerSqFt?: number;
@@ -439,6 +444,16 @@ export function estimateHours(p: Project, q: QuoteSettings): HourLine[] {
       installHours += a * st.beadboardPerSqFt * 1.5;
     }
   }
+  // Cabinet lighting: routing and fitting channel or pucks in the shop, wiring and drivers on site
+  const lit = lightingParts(p);
+  if (lit.fixtures.length) {
+    const strips = lit.fixtures.filter((f) => f.length > 0).reduce((t, f) => t + f.count, 0);
+    const pucks = lit.fixtures.filter((f) => f.kind === 'puck').reduce((t, f) => t + f.count, 0);
+    add('Lighting: rout & fit channel and tape (each strip)', strips, st.lightStrip ?? 0.5);
+    add('Lighting: bore & fit puck lights (each)', pucks, st.lightPuck ?? 0.3);
+    add('Lighting: wire, mount drivers & test (each driver)', lit.drivers.length, st.lightDriver ?? 1, 'cabinets', true);
+    installHours += lit.drivers.length * (st.lightDriver ?? 1);
+  }
   // Load-in, protection and cleanup for each install day
   const days = Math.max(installHours > 0 ? 1 : 0, Math.ceil(installHours / 7));
   add('Install days: load-in, protection, cleanup', days, st.installDay, 'cabinets', true);
@@ -550,6 +565,11 @@ export function estimateMaterials(p: Project, q: QuoteSettings): MaterialLine[] 
   if (cc.on && cc.beadboard) {
     const sheets = Math.ceil((cofferMoldings(p, cc).fieldSqFt * 1.15) / 32);
     if (sheets) out.push({ group: 'ceiling', label: 'Beadboard sheets for the coffers', cost: sheets * q.beadboardSheet, detail: `${sheets} sheets`, missing: q.beadboardSheet ? undefined : 'Enter your beadboard sheet price' });
+  }
+  const lit = lightingParts(p);
+  if (lit.parts.length) {
+    const lc = lightingCost(p);
+    out.push({ group: 'cabinets', label: 'Cabinet lighting (LED, channel, drivers)', cost: lc.cost, detail: lit.parts.map((x) => `${x.qty} ${x.unit === 'ft' ? 'ft ' : '× '}${x.label.toLowerCase()}`).join(', '), missing: lc.missing.length ? `Enter lighting prices on the Orders tab (${lc.missing.join(', ')})` : undefined });
   }
   const groups: [SupplyGroup, string][] = [['cabinets', 'Shop supplies: screws, glue, banding, abrasives'], ['tops', 'Shop supplies for tops'], ['paneling', 'Shop supplies for paneling']];
   const sup = supplyLines(p, q.supplies);
@@ -691,6 +711,7 @@ export function scopeLine(c: Cabinet, p: Project): string {
   if (c.countertop && c.cushion) bits.push(`custom ${fmtIn(c.cushion.thickness)} ${c.cushion.edge === 'boxed' ? 'boxed and welted' : 'knife edge'} seat cushion, ${c.cushion.fabric?.trim() ? c.cushion.fabric.trim() : "fabric to be selected by owner"}`);
   if (c.crown) bits.push('crown molding');
   if (c.lightRail) bits.push('light rail');
+  if (c.lighting?.length) bits.push(`LED lighting: ${c.lighting.map((k) => ({ puck: 'recessed puck lights', stile: 'vertical strips lighting the shelves', shelfFront: 'strip under the front of the open section', under: 'under-cabinet strip' })[k]).join(', ')}`);
   const bl = baseLabel(c);
   if (bl) bits.push(bl);
   else if (c.baseMold) bits.push('baseboard');

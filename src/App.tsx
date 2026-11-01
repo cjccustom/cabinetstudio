@@ -19,6 +19,7 @@ import { OrderList, PartsTable } from './ui/PartsTable';
 import { ReleasePanel } from './ui/Release';
 import { EagleRequests } from './ui/EagleRequests';
 import { HardwareOrder } from './ui/HardwareOrder';
+import { LightingOrder } from './ui/LightingOrder';
 import { JobClock, JobMain, JobSide } from './ui/Job';
 import { openingIssues } from './model/room';
 import { ladderIssues } from './model/ladder';
@@ -197,6 +198,7 @@ export default function App() {
               <OrderList cabinets={project.cabinets} />
               <EagleRequests />
               <HardwareOrder />
+              <LightingOrder />
               <BeadboardOrder />
               <MoldingOrder />
               <DoorOrderList />

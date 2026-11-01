@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { canSpots } from "../src/model/lighting";
+import { cabinetFixtures, lightingCost, lightingParts, electricianHtml } from "../src/model/cabinetLighting";
 import { printQuote } from "../src/model/printQuote";
 import { shopGroups } from "../src/drawings/sheets";
 import { sidePanelLayout } from "../src/drawings/views";
@@ -1396,6 +1397,24 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   eq('print copy: the total', doc.includes(`$${priceQuote(p).total.toLocaleString('en-US')}`), true);
   eq('print copy: notice of cancellation in duplicate', (doc.match(/NOTICE OF CANCELLATION<\/h3>/g) ?? []).length, 2);
   eq('print copy: date blanks, not placeholders', /\[CANCELLATION DEADLINE\]/.test(doc), false);
+}
+
+// Cabinet lighting: fixtures from the choices, parts with specs, drivers per wall, quote and electrician sheet
+{
+  const bc = { ...cabinetFromPreset(presets.find((x) => x.id === 'tall-pantry')!, 'back', 0, []), id: 'BC', name: 'BC', width: 36, depth: 12, height: 96, rows: [{ id: 'r1', type: 'open', count: 1, shelves: 4 }, { id: 'r2', type: 'doors', height: 30, count: 2, shelves: 1 }], lighting: ['stile', 'puck'] } as any;
+  const lp = { ...p, cabinets: [...p.cabinets, bc] };
+  const fx = cabinetFixtures(bc, lp);
+  eq('lighting: two vertical strips and pucks', fx.map((f) => `${f.kind}:${f.count}`).join(','), 'stile:2,puck:2');
+  const L = lightingParts(lp);
+  eq('lighting: tape, channel, pucks, a driver, leads and cable', L.parts.map((x) => x.key).join(','), 'tape,channel,puck,driver60,lead,cable');
+  eq('lighting: driver has 20% headroom', L.drivers.every((d) => d.size >= d.watts * 1.2), true);
+  eq('lighting: unpriced parts flagged', lightingCost(lp).missing.length, L.parts.length);
+  const priced = { ...lp, cabLighting: { prices: { tape: 4, channel: 6, puck: 20, driver60: 55, lead: 3, cable: 0.5 } } };
+  const m = estimateMaterials(priced, quoteOf(priced)).find((x) => x.label.startsWith('Cabinet lighting'))!;
+  eq('lighting: priced into materials', m.cost > 0 && !m.missing, true);
+  eq('lighting: labor lines', estimateHours(priced, quoteOf(priced)).some((h) => h.label.startsWith('Lighting: wire')), true);
+  eq('lighting: electrician sheet names the 120 V feed', /120 V receptacle/.test(electricianHtml(priced)), true);
+  eq('lighting: scope mentions it', scopeLine(bc, lp).includes('LED lighting'), true);
 }
 
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');

@@ -83,6 +83,19 @@ td input { width: 76px; border: 1px solid var(--line); border-radius: 6px; paddi
 .cust .big { font: 800 112% var(--display); font-size: clamp(40px, 8vw, 72px); line-height: 1; font-variant-numeric: tabular-nums }
 .cust ul { margin: 0; padding-left: 20px; display: grid; gap: 6px; font-size: 18px }
 .cust p { font-size: 16px; color: var(--muted); max-width: 60ch; margin: 0 }
+/* Meeting checklist */
+.ck { display: grid; gap: 18px }
+.ck fieldset { border: 0; margin: 0; padding: 0; display: grid; gap: 8px; min-width: 0 }
+.ck legend { font: 600 13px var(--body); color: var(--accent); margin-bottom: 6px; padding: 0 }
+.ck .item { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 10px; align-items: center }
+.ck .item > span { font-size: 14px }
+.ck .item.done > span { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--line) }
+@media (max-width: 620px) { .ck .item { grid-template-columns: minmax(0, 1fr) } }
+.chips { display: flex; flex-wrap: wrap; gap: 6px }
+.chips button { border: 1px solid var(--line); background: var(--sheet); color: var(--ink); border-radius: 999px; padding: 8px 14px; min-height: 40px; font: 500 14px var(--body); cursor: pointer }
+.chips button[aria-pressed="true"] { background: var(--soft); border-color: var(--accent); color: var(--accent); font-weight: 600 }
+.ck input.t { padding: 8px 10px }
+.ck .tick { width: 26px; height: 26px; accent-color: var(--accent) }
 @media (prefers-reduced-motion: no-preference) { .range { transition: color .2s } }
 </style>
 
@@ -104,6 +117,10 @@ td input { width: 76px; border: 1px solid var(--line); border-radius: 6px; paddi
       <section>
         <h2>Adders</h2>
         <div class="rows" id="adds"></div>
+      </section>
+      <section>
+        <h2>Meeting checklist <span class="note" id="ck-count" style="text-transform:none;letter-spacing:0;font-weight:500"></span></h2>
+        <div class="ck" id="ck"></div>
       </section>
       <section>
         <details id="card-box">
@@ -212,6 +229,87 @@ function rowEl(key, label, unit) {
 for (const [k, label] of CATS) $('cats').append(rowEl(k, label, 'LF'));
 for (const [k, label, unit] of ADDS) $('adds').append(rowEl(k, label, unit));
 
+// ── Meeting checklist: what to cover at the first meeting, saved with the estimate ──
+const CHECK = [
+  ['Client', [
+    ['phone', 'Phone', 'text'], ['email', 'Email', 'text'], ['address', 'Project address', 'text'],
+    ['deciders', 'Everyone deciding is here', 'check'],
+  ]],
+  ['The room', [
+    ['room', 'Room and what it’s for', 'text'],
+    ['measured', 'Walls, ceiling height, windows and doors measured', 'check'],
+    ['photos', 'Photos of every wall and the ceiling', 'check'],
+    ['obstacles', 'Outlets, switches, vents, heat, baseboard in the way', 'text'],
+    ['floor', 'Floor level / out of plumb notes', 'text'],
+  ]],
+  ['Design', [
+    ['style', 'Style and door profile', 'text'],
+    ['mount', 'Doors', ['Inset', 'Overlay', 'Undecided']],
+    ['finish', 'Finish', ['Painted', 'Stained', 'Unfinished', 'Undecided']],
+    ['color', 'Color / stain', 'text'],
+    ['tops', 'Tops', ['Wood', 'Paint grade', 'Stone by others', 'None']],
+    ['hardware', 'Knobs and pulls', ['CJC supplies', 'Customer supplies', 'Undecided']],
+    ['lighting', 'Lighting', ['None', 'Puck lights', 'Shelf / stile strips', 'Undecided']],
+    ['trim', 'Crown, ceiling or trim tie-in', 'text'],
+  ]],
+  ['The job', [
+    ['budget', 'Budget they mentioned', 'text'],
+    ['timeline', 'Timeline / must be done by', 'text'],
+    ['trades', 'Electrician, painter, other trades', 'text'],
+    ['access', 'Parking, stairs, access, pets', 'text'],
+    ['heard', 'How they heard about us', 'text'],
+    ['next', 'Next step and date', 'text'],
+  ]],
+];
+const ITEMS = CHECK.flatMap(([, items]) => items);
+const checklist = {};
+function renderChecklist() {
+  const box = $('ck');
+  box.innerHTML = '';
+  for (const [group, items] of CHECK) {
+    const fs = document.createElement('fieldset');
+    const lg = document.createElement('legend'); lg.textContent = group; fs.append(lg);
+    for (const [id, label, kind] of items) {
+      const row = document.createElement('div'); row.className = 'item'; row.dataset.id = id;
+      const l = document.createElement('span'); l.textContent = label; l.id = `ckl-${id}`;
+      row.append(l);
+      if (kind === 'text') {
+        const inp = document.createElement('input'); inp.className = 't'; inp.id = `ck-${id}`; inp.setAttribute('aria-labelledby', l.id);
+        inp.value = checklist[id] || '';
+        inp.oninput = () => { checklist[id] = inp.value; markDone(); };
+        row.append(inp);
+      } else if (kind === 'check') {
+        const inp = document.createElement('input'); inp.type = 'checkbox'; inp.className = 'tick'; inp.id = `ck-${id}`; inp.setAttribute('aria-labelledby', l.id);
+        inp.checked = !!checklist[id];
+        inp.onchange = () => { checklist[id] = inp.checked; markDone(); };
+        row.append(inp);
+      } else {
+        const chips = document.createElement('div'); chips.className = 'chips'; chips.setAttribute('role', 'group'); chips.setAttribute('aria-labelledby', l.id);
+        for (const opt of kind) {
+          const b = document.createElement('button'); b.type = 'button'; b.textContent = opt;
+          b.setAttribute('aria-pressed', String(checklist[id] === opt));
+          b.onclick = () => { checklist[id] = checklist[id] === opt ? '' : opt; for (const x of chips.children) x.setAttribute('aria-pressed', String(checklist[id] === x.textContent)); markDone(); };
+          chips.append(b);
+        }
+        row.append(chips);
+      }
+      fs.append(row);
+    }
+    box.append(fs);
+  }
+  markDone();
+}
+function markDone() {
+  let n = 0;
+  for (const row of $('ck').querySelectorAll('.item')) {
+    const v = checklist[row.dataset.id];
+    const done = v === true || (typeof v === 'string' && v.trim() !== '');
+    row.classList.toggle('done', done);
+    if (done) n++;
+  }
+  $('ck-count').textContent = `· ${n} of ${ITEMS.length} covered`;
+}
+
 function compute() {
   const table = painted ? card.painted : card.unfinished;
   const lines = [];
@@ -309,7 +407,8 @@ function renderSaved() {
     const name = document.createElement('b'); name.textContent = e.label || 'Untitled';
     const r = document.createElement('div'); r.className = 'r'; r.textContent = `${money(e.low)}–${money(e.high)}`;
     const sub = document.createElement('div'); sub.className = 'sub';
-    const when = document.createElement('span'); when.textContent = `${new Date(e.createdAt).toLocaleDateString()} · ${e.painted ? 'painted' : 'unfinished'}`;
+    const covered = Object.keys(e.checklist || {}).length;
+    const when = document.createElement('span'); when.textContent = `${new Date(e.createdAt).toLocaleDateString()} · ${e.painted ? 'painted' : 'unfinished'}${covered ? ` · checklist ${covered}/${ITEMS.length}` : ''}`;
     const sold = document.createElement('input'); sold.id = `sold-${e.id}`; sold.inputMode = 'decimal'; sold.placeholder = 'Sold at $'; sold.setAttribute('aria-label', `Sold price for ${e.label || 'estimate'}`);
     if (e.sold) sold.value = e.sold;
     sold.onchange = () => { if (db) db.doc(`estimates/${e.id}`).update({ sold: num(sold.value) || null }).catch(() => { $('status').textContent = 'Couldn’t save the sold price.'; }); };
@@ -332,6 +431,9 @@ function openEstimate(e) {
   for (const inp of document.querySelectorAll('.step input')) { const k = inp.id.slice(2); inp.value = qty[k] ? +(+qty[k]).toFixed(2) : ''; }
   $('label').value = e.label || '';
   $('notes').value = e.notes || '';
+  for (const k of Object.keys(checklist)) delete checklist[k];
+  Object.assign(checklist, e.checklist || {});
+  renderChecklist();
   setFinish(e.painted !== false);
   $('status').textContent = `Opened “${e.label || 'Untitled'}”. Saving again keeps both.`;
   window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -344,6 +446,7 @@ $('save').onclick = async () => {
     qty: Object.fromEntries(Object.entries(qty).filter(([, v]) => v > 0)),
     low: b.low, high: b.high, typical: Math.round(b.tot[1]), cardLow: Math.round(b.tot[0]), cardHigh: Math.round(b.tot[2]),
     rates: Object.fromEntries(b.lines.map((l) => [l.k, l.rate[1]])), createdAt: Date.now(),
+    checklist: Object.fromEntries(Object.entries(checklist).filter(([, v]) => v !== '' && v !== false)),
   };
   if (!db) { $('status').textContent = 'Saving isn’t available on this screen. Write the range down: ' + `${money(b.low)}–${money(b.high)}.`; return; }
   $('save').disabled = true;
@@ -352,9 +455,14 @@ $('save').onclick = async () => {
   finally { $('save').disabled = false; }
 };
 $('clear').onclick = () => {
+  const btn = $('clear');
+  if (!btn.dataset.sure) { btn.dataset.sure = '1'; btn.textContent = 'Tap again to clear'; setTimeout(() => { delete btn.dataset.sure; btn.textContent = 'Clear'; }, 3000); return; }
+  delete btn.dataset.sure; btn.textContent = 'Clear';
   for (const k of Object.keys(qty)) delete qty[k];
   for (const inp of document.querySelectorAll('.step input')) inp.value = '';
   $('label').value = ''; $('notes').value = ''; $('status').textContent = '';
+  for (const k of Object.keys(checklist)) delete checklist[k];
+  renderChecklist();
   render();
 };
 
@@ -371,6 +479,7 @@ $('c-close').onclick = () => { $('cust').hidden = true; };
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') $('cust').hidden = true; });
 
 renderCard();
+renderChecklist();
 render();
 
 // Shared store: the rate card and saved estimates follow you from the iPad to the Mac

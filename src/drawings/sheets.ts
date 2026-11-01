@@ -11,6 +11,7 @@ import { fmt } from '../units';
 import { beamSection, cabinetsOn, ceilingPlan, faceFrameView, floorPlan, mantelViews, partRows, partsOf, sidePanelLayout, sideSection, wallElevation } from './views';
 import { joineryLabel } from '../model/parts';
 import { hardwareOrder } from '../model/hardware';
+import { electricianHtml } from '../model/cabinetLighting';
 import { hingeTypes } from '../model/eagle';
 import { cofferOf, cofferParts } from '../model/coffer';
 import { fuelLabel, mantelOf } from '../model/mantel';
@@ -366,6 +367,8 @@ export function shopSet(p: Project, s: DrawingSettings): Sheet[] {
     const table = html({ x: A.x, y: A.y + top + 0.2, w: A.w, h: A.h - top - 0.2 }, `<table class="parts"><thead><tr><th>Qty</th><th>Part</th><th>Length</th><th>Width</th><th>Thick</th><th>Stock</th><th>Notes</th></tr></thead><tbody>${rows}</tbody></table>`, s.paper === 'tabloid' ? 0.09 : 0.07);
     sheets.push(sheet(p, s, `S${sheets.length + 1}`, 'Coffered ceiling', `${scaleName(rcp.scale)}; section ${scaleName(sec.scale)}`, rcp.svg + sec.svg + table));
   }
+  const elec = electricianHtml(p);
+  if (elec) sheets.push(sheet(p, s, `S${sheets.length + 1}`, 'Cabinet lighting & electrical', 'No scale', html({ x: A.x, y: A.y, w: A.w, h: A.h }, elec, s.paper === 'tabloid' ? 0.11 : 0.09)));
   return sheets;
 }
 
