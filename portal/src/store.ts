@@ -4,6 +4,7 @@
 //   job:<jobId>          one client job: who, what was published, views, signature, cancellation
 //   tok:<token>          the private link's token, pointing at its job
 //   img:<jobId>:<id>     a rendering's bytes
+//   dwg:<jobId>          the drawing set (HTML), shared after signing
 
 export interface KV {
   get(key: string, type: 'json'): Promise<unknown>;
@@ -14,7 +15,7 @@ export interface KV {
   list(opts?: { prefix?: string; cursor?: string }): Promise<{ keys: { name: string }[]; list_complete: boolean; cursor?: string }>;
 }
 
-export interface Env { PORTAL: KV; SHOP_KEY?: string; QB_CLIENT_ID?: string; QB_CLIENT_SECRET?: string; QB_ENV?: string; DBX_APP_KEY?: string; DBX_APP_SECRET?: string }
+export interface Env { PORTAL: KV; SHOP_KEY?: string; RESEND_API_KEY?: string; MAIL_FROM?: string; QB_CLIENT_ID?: string; QB_CLIENT_SECRET?: string; QB_ENV?: string; DBX_APP_KEY?: string; DBX_APP_SECRET?: string }
 
 export interface ShopDoc { id: string; title: string; kind: 'license' | 'insurance' | 'terms' | 'other'; mimeType: string; size: number; expires?: string; uploadedAt: number }
 export interface Shop {
@@ -58,7 +59,13 @@ export interface Job {
   invoices?: import('./qb').QbInvoice[];
   /** Why the automatic deposit invoice didn't go out, until it does. */
   invoiceError?: string;
+  /** The drawing set, shared once the agreement is signed (its HTML is under dwg:<jobId>). */
+  drawings?: { publishedAt: number; version: number; title: string };
+  /** Questions and change requests from the client, and the shop's answers. */
+  comments?: PortalComment[];
 }
+
+export interface PortalComment { id: string; at: number; from: 'client' | 'shop'; name: string; text: string; about: string; read?: boolean }
 
 export const emptyShop: Shop = { company: [], about: '', terms: '', docs: [] };
 

@@ -7,6 +7,7 @@ import { useStore } from '../store';
 import { clientName, clientOf, COMPANY, proposalLines, quoteDoc, quoteTotals } from '../model/client';
 import { optionPrices, proposalSummary } from '../model/proposal';
 import { Field } from './fields';
+import { customerSet, drawingsOf, setDocument } from '../drawings/sheets';
 import { FileButton } from './FileButton';
 import { renderOf } from '../model/rendering';
 import { CJC_TERMS } from '../model/terms';
@@ -14,7 +15,7 @@ import { capability, shrinkImage, type Downloads } from '../runtime';
 import { downloadLink, whereIs, writeFile } from '../dropbox';
 import { printQuote, printQuoteFile } from '../model/printQuote';
 import {
-  blobToBase64, createInvoice, deleteShopDoc, expiring, getShop, jobStatus, PortalError, publishProposal, qbItems, qbSettings, qbStatus, recordPayment, updateShop, uploadShopDoc,
+  blobToBase64, createInvoice, deleteShopDoc, expiring, getShop, jobStatus, PortalError, publishProposal, publishDrawings, replyComment, markCommentsRead, qbItems, qbSettings, qbStatus, recordPayment, updateShop, uploadShopDoc,
   type Invoice, type JobStatus, type QbStatus, type Shop, type ShopDoc,
 } from '../portal';
 import { askConfirm } from './Confirm';
@@ -180,6 +181,15 @@ export function ClientPortal() {
     else { const a = document.createElement('a'); a.href = URL.createObjectURL(data); a.download = filename; a.click(); }
   });
 
+  /** After signing: the customer drawing set on their page, for review and comments. */
+  const sendDrawings = () => run('Sending the drawings…', async () => {
+    const d = drawingsOf(project);
+    const title = `Drawings for review: ${project.name || 'your project'}`;
+    const s2 = await publishDrawings(portal!.jobId, setDocument(title, customerSet(project, d), d.paper), 'Drawings for your review');
+    keep(s2, portal!.jobId);
+    setNote(`Drawings version ${s2.drawings?.version ?? 1} are on ${c.first || 'the client'}’s page.`);
+  });
+
   const refresh = () => run('Checking…', async () => { keep(await jobStatus(portal!.jobId), portal!.jobId); });
   const copy = (text: string, what: string) => navigator.clipboard.writeText(text).then(() => setNote(`${what} copied.`), () => setNote('Select the link and copy it.'));
   const message = `Hi ${c.first || 'there'}, here’s your project page with the design, proposal and agreement: ${portal?.url ?? ''}`;
@@ -225,10 +235,12 @@ export function ClientPortal() {
         {!sold && <button disabled={!!busy} title="The quote in your Word layout with the terms and Notice of Cancellation, to print" onClick={printCopy}>Print copy</button>}
         {!sold && <button className="primary" disabled={!!busy} onClick={publish}>{portal?.url ? 'Update the client’s page' : 'Publish proposal'}</button>}
         {portal?.url && <button disabled={!!busy} onClick={refresh}>Check status</button>}
+        {portal?.jobId && st?.signed && !st.cancelled && <button disabled={!!busy} title="The customer drawing set (plan and elevations with sizes), for them to review and comment on" onClick={sendDrawings}>{st.drawings ? `Update drawings (v${st.drawings.version})` : 'Send drawings to the client'}</button>}
         {busy && <span className="hint">{busy}</span>}
       </div>
       {note && <p className="ok">{note}</p>}
       {error && <p className="warn">{error}</p>}
+      {portal?.jobId && st && <PortalComments st={st} busy={!!busy} run={run} keep={(s2) => keep(s2, portal.jobId)} />}
       {settings && <PortalSettings onClose={() => setSettings(false)} />}
       {preview && <ProposalPreview html={preview.html} offline={preview.offline} onClose={() => setPreview(null)} onPublish={() => { setPreview(null); publish(); }} published={!!portal?.url} />}
     </section>
@@ -292,6 +304,33 @@ function Invoices({ st, busy, run, keep }: { st: JobStatus; total: number; busy:
           <button onClick={() => setChange(null)}>Cancel</button>
         </div>
       )}
+    </div>
+  );
+}
+
+/** The client's questions and change requests from their page, with your answers. */
+function PortalComments({ st, busy, run, keep }: { st: JobStatus; busy: boolean; run: (label: string, fn: () => Promise<void>) => Promise<void>; keep: (s: JobStatus) => void }) {
+  const [text, setText] = useState('');
+  const [about, setAbout] = useState('proposal');
+  const list = st.comments ?? [];
+  if (!list.length) return <p className="hint">No questions from the client yet. They can write from their page; you’ll see them here (Check status) and by email if that’s set up in Portal settings.</p>;
+  const unread = st.unread ?? 0;
+  const send = () => run('Sending your answer…', async () => { keep(await replyComment(st.job_id, text.trim(), about)); setText(''); });
+  return (
+    <div className="pgroup">
+      <div className="pgroup-head"><span>Questions and changes</span>{unread > 0 && <span className="warn">{unread} new</span>}</div>
+      {list.map((c) => (
+        <div key={c.id} className={`portal-msg ${c.from}${c.from === 'client' && !c.read ? ' unread' : ''}`}>
+          <div className="hint">{c.name} · {when(c.at)}{c.about !== 'proposal' ? ` · ${c.about}` : ''}</div>
+          <p style={{ whiteSpace: 'pre-wrap', margin: '2px 0 0' }}>{c.text}</p>
+        </div>
+      ))}
+      <Field label="Your answer (shows on their page)" htmlFor="pc-text"><textarea id="pc-text" rows={3} value={text} onChange={(e) => setText(e.target.value)} /></Field>
+      <div className="order-actions">
+        <select aria-label="About" value={about} onChange={(e) => setAbout(e.target.value)}><option value="proposal">On the project page</option>{st.drawings && <option value="drawings">On the drawings page</option>}</select>
+        <button className="primary" disabled={busy || !text.trim()} onClick={send}>Answer</button>
+        {unread > 0 && <button disabled={busy} onClick={() => run('Marking read…', async () => keep(await markCommentsRead(st.job_id)))}>Mark read</button>}
+      </div>
     </div>
   );
 }

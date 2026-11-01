@@ -16,7 +16,11 @@ export interface JobStatus {
   cancelled: { at: number } | null;
   invoices?: Invoice[];
   invoiceError?: string | null;
+  drawings?: { publishedAt: number; version: number; title: string } | null;
+  comments?: PortalComment[];
+  unread?: number;
 }
+export interface PortalComment { id: string; at: number; from: 'client' | 'shop'; name: string; text: string; about: string; read?: boolean }
 export interface Invoice {
   id: string; kind: 'deposit' | 'final' | 'change'; number: string | null; amount: number; balance: number; paid: boolean;
   emailed: boolean; payLink: boolean; createdAt: number;
@@ -73,6 +77,9 @@ export const uploadShopDoc = async (doc: { id?: string; title: string; kind: Sho
 export const deleteShopDoc = (id: string) => call('delete_shop_doc', { id });
 export const publishProposal = (p: Proposal) => call<JobStatus>('publish_proposal', p as unknown as Raw);
 export const jobStatus = (jobId: string) => call<JobStatus>('job_status', { job_id: jobId });
+export const publishDrawings = (jobId: string, html: string, title: string) => call<JobStatus>('publish_drawings', { job_id: jobId, html, title });
+export const replyComment = (jobId: string, text: string, about = 'proposal') => call<JobStatus>('reply_comment', { job_id: jobId, text, about });
+export const markCommentsRead = (jobId: string) => call<JobStatus>('mark_comments_read', { job_id: jobId });
 export type ApptKind = 'measure' | 'design' | 'review' | 'install' | 'delivery' | 'other';
 export const apptKinds: { v: ApptKind; label: string }[] = [
   { v: 'measure', label: 'Measure' }, { v: 'design', label: 'Design meeting' }, { v: 'review', label: 'Review & sign' },

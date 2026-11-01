@@ -38,10 +38,32 @@ export function DesignRenderButton() {
   return (
     <>
       <button className="render-view-btn" onClick={open} title="Send this view to Gemini for a photorealistic rendering">Render this view</button>
+      <SaveViewButton onMsg={setMsg} />
       {msg && <span className="render-view-msg">{msg}</span>}
       {shot && <DesignRenderDialog shot={shot} onClose={close} />}
     </>
   );
+}
+
+/**
+ * Keep the 3D view as it looks now, as one of the proposal's images: a plain picture of the model
+ * (the client never gets the model itself before signing).
+ */
+function SaveViewButton({ onMsg }: { onMsg: (m: string) => void }) {
+  const { set } = useRender();
+  const assets = useCapability<Assets>('assets');
+  const [busy, setBusy] = useState(false);
+  const save = async () => {
+    setBusy(true); onMsg('');
+    try {
+      const blob = await captureView();
+      if (!blob) { onMsg('Couldn’t capture the view.'); return; }
+      const img = await storeImage(blob, 'rendering', assets, '3D view of the design');
+      set((cur) => ({ images: [...cur.images, { ...img, note: '3D view' }] }));
+      onMsg('Saved to the Rendering tab; it goes out with the proposal.');
+    } catch { onMsg('Couldn’t save the view.'); } finally { setBusy(false); }
+  };
+  return <button className="render-view-btn" disabled={busy} onClick={save} title="Save this 3D view as a picture that goes with the proposal">Save view for proposal</button>;
 }
 
 function DesignRenderDialog({ shot, onClose }: { shot: { blob: Blob; url: string }; onClose: () => void }) {

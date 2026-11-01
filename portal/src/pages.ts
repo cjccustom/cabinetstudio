@@ -30,6 +30,7 @@ export function termsHtml(text: string, signedAt?: number, seller = 'CJC Custom 
 }
 export const clientName = (j: Job) => [j.client.first, j.client.last].filter(Boolean).join(' ') || 'there';
 
+const msgCss = `.msg{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:10px 0;background:#fff}.msg.shop{background:#eef3ef;border-color:#cfdcd3}.msg .who{font-size:13px;color:var(--muted);margin-bottom:4px}.msg p{margin:4px 0}textarea{width:100%;font:inherit;padding:10px;border:1px solid var(--line);border-radius:8px}iframe.dwgs{height:80vh}`;
 const noticeCss = `.notice{border:1px solid #999;padding:14px;margin:18px 0;font-size:13px;break-inside:avoid}.notice h3{text-align:center;margin:0 0 8px}.sigline{margin-top:28px}.muted{color:#646b73}`;
 const css = `:root{--ink:#1f2328;--muted:#646b73;--line:#e3e0da;--bg:#f7f5f1;--card:#fff;--accent:#2b4a3c;--accent-ink:#fff;--warn:#9a3412}
 *{box-sizing:border-box}body{margin:0;font:16px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;color:var(--ink);background:var(--bg)}
@@ -57,7 +58,7 @@ label.chk{display:flex;gap:10px;align-items:flex-start;margin:10px 0}label.chk i
 input[type=text]{width:100%;padding:11px;font:inherit;border:1px solid #c9c4ba;border-radius:8px}
 canvas.pad{width:100%;height:160px;border:1px dashed #a9a296;border-radius:8px;background:#fffdf8;touch-action:none;display:block}
 .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:12px}.ok{color:#14532d;background:#ecfdf3;border:1px solid #bbf7d0;border-radius:10px;padding:12px 14px}
-.warn{color:var(--warn)}.pay{margin-top:14px;padding-top:12px;border-top:1px solid var(--line)}${noticeCss}footer{font-size:13px;color:var(--muted);text-align:center;margin-top:28px}
+.warn{color:var(--warn)}.pay{margin-top:14px;padding-top:12px;border-top:1px solid var(--line)}${noticeCss}${msgCss}footer{font-size:13px;color:var(--muted);text-align:center;margin-top:28px}
 @media print{body{background:#fff}header.top,.noprint{display:none}main{max-width:none;padding:0}.card{border:0;padding:0}}`;
 
 function shell(title: string, body: string, shop: Shop, who = ''): string {
@@ -151,7 +152,9 @@ ${build}${mats}${price}
 <section class="card"><h2>Terms and conditions</h2>${termsOf(j, shop) ? `<details><summary>Read the terms</summary>${termsHtml(termsOf(j, shop), j.signature?.at)}</details>` : '<p class="muted">Terms are attached to the agreement.</p>'}${termsDoc ? `<p><a href="${base}/doc/${esc(termsDoc.id)}" target="_blank" rel="noopener">${esc(termsDoc.title)} (PDF)</a></p>` : ''}</section>
 ${docs.length ? `<section class="card"><h2>Licenses and insurance</h2><ul class="docs">${docs.map((d) => `<li><a href="${base}/doc/${esc(d.id)}" target="_blank" rel="noopener">${esc(d.title)}</a>${d.expires ? `<span class="muted">valid through ${esc(new Date(`${d.expires}T12:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' }))}</span>` : ''}</li>`).join('')}</ul></section>` : ''}
 ${shop.about ? `<section class="card"><h2>About CJC Custom Carpentry</h2>${paras(shop.about)}</section>` : ''}
-<section class="card" id="signing"><h2>${s ? 'Signed' : 'Sign the agreement'}</h2>${signBlock}</section>`;
+<section class="card" id="signing"><h2>${s ? 'Signed' : 'Sign the agreement'}</h2>${signBlock}</section>
+${s && !j.cancelled ? `<section class="card"><h2>Your drawings</h2>${j.drawings ? `<p>Version ${j.drawings.version} is ready for your review (${esc(longDate(easternYmd(j.drawings.publishedAt)))}).</p><p><a class="btn" href="${base}/drawings">Review the drawings</a></p>` : '<p class="muted">Your detailed drawings come next, with every size, for you to review and approve here.</p>'}</section>` : ''}
+${commentsBlock(j, base, 'proposal', s ? 'Questions about your project? Write here and Cody will answer on this page.' : 'Questions about the proposal, or something you’d like changed? Write here and Cody will answer on this page.')}`;
   return shell(`${j.project} · CJC Custom Carpentry`, body, shop, esc(clientName(j)));
 }
 
@@ -174,6 +177,32 @@ ${s.total != null ? `<p><b>Options chosen:</b> ${(j.proposal.options ?? []).filt
 .terms p{font-size:10pt}</style></head><body>${inner}
 ${termsOf(j, shop) ? `<section class="terms" style="page-break-before:always"><h2>Terms and Conditions</h2>${termsHtml(termsOf(j, shop), s?.at, shop.company[0] || undefined, shop.company[1] || '')}</section>` : s ? noticeOfCancellation(easternYmd(s.at), shop.company[0] || 'CJC Custom Carpentry LLC', shop.company[1] || '') : ''}
 ${signed}</body></html>`;
+}
+
+/** The client's questions and the shop's answers, with a box to write more. */
+export function commentsBlock(j: Job, base: string, about: string, intro: string): string {
+  const all = (j.comments ?? []).filter((c) => (about === 'drawings' ? c.about.startsWith('drawings') : !c.about.startsWith('drawings')));
+  const when = (t: number) => new Date(t).toLocaleString('en-US', { timeZone: 'America/New_York', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+  return `<section class="card" id="comments"><h2>Questions and changes</h2><p class="muted">${esc(intro)}</p>
+${all.map((c) => `<div class="msg ${c.from}"><div class="who">${esc(c.name)} · ${esc(when(c.at))}${c.about !== 'proposal' && c.about !== 'drawings' ? ` · ${esc(c.about.replace(/^drawings:\s*/, ''))}` : ''}</div>${paras(c.text)}</div>`).join('')}
+<form method="post" action="${base}/comment">
+${about === 'drawings' ? '<p><input type="text" name="sheet" placeholder="Which sheet or cabinet (optional)" oninput="this.form.about.value=this.value?\'drawings: \'+this.value:\'drawings\'"></p>' : ''}
+<input type="hidden" name="about" value="${esc(about)}">
+<p><textarea name="text" rows="4" required maxlength="2000" placeholder="Write a question or a change you'd like"></textarea></p>
+<div class="row"><button class="btn">Send to CJC Custom Carpentry</button></div></form></section>`;
+}
+
+/** The drawing set for review once the agreement is signed, with its own comments. */
+export function drawingsPage(j: Job, shop: Shop, token: string, doc: string): string {
+  const base = `/p/${token}`;
+  const d = j.drawings!;
+  const body = `<p><a href="${base}">← Back to your project</a></p>
+<h1>${esc(d.title)}</h1><p class="muted">${esc(j.project)} · version ${d.version}, ${esc(longDate(easternYmd(d.publishedAt)))}</p>
+<section class="card"><p>Look over each sheet: sizes, layout, door and drawer arrangement. Anything you'd like changed, write it below and say which sheet.</p>
+<iframe class="doc dwgs" title="Drawings" sandbox srcdoc="${esc(doc)}"></iframe>
+<p class="row"><a href="${base}/drawings?print" target="_blank" rel="noopener">Open full size to print or save</a></p></section>
+${commentsBlock(j, base, 'drawings', 'Questions or changes about the drawings. Cody gets them right away and answers here.')}`;
+  return shell(`${d.title} · ${j.project}`, body, shop, esc(clientName(j)));
 }
 
 export const simplePage = (title: string, text: string, shop: Shop) => shell(title, `<h1>${esc(title)}</h1><p>${esc(text)}</p>`, shop);

@@ -702,3 +702,6 @@ textarea.text-input { resize: vertical; }
 .ballpark-range { margin: 0 0 4px; font-size: 15px; }
 .rate-card { margin-top: 6px; }
 .rate-card td:first-child { font-size: 12px; }
+.portal-msg { border: 1px solid var(--line, #ddd); border-radius: 8px; padding: 6px 10px; margin: 6px 0; }
+.portal-msg.shop { background: rgba(43, 74, 60, 0.07); }
+.portal-msg.unread { border-color: #b45309; }

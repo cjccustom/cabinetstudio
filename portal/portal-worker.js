@@ -202,6 +202,7 @@ function termsHtml(text2, signedAt, seller = "CJC Custom Carpentry LLC", address
   return `${paras(filled.slice(0, at))}<section class="notice"><h3>NOTICE OF CANCELLATION</h3>${paras(notice)}</section>`;
 }
 var clientName = (j) => [j.client.first, j.client.last].filter(Boolean).join(" ") || "there";
+var msgCss = `.msg{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:10px 0;background:#fff}.msg.shop{background:#eef3ef;border-color:#cfdcd3}.msg .who{font-size:13px;color:var(--muted);margin-bottom:4px}.msg p{margin:4px 0}textarea{width:100%;font:inherit;padding:10px;border:1px solid var(--line);border-radius:8px}iframe.dwgs{height:80vh}`;
 var noticeCss = `.notice{border:1px solid #999;padding:14px;margin:18px 0;font-size:13px;break-inside:avoid}.notice h3{text-align:center;margin:0 0 8px}.sigline{margin-top:28px}.muted{color:#646b73}`;
 var css = `:root{--ink:#1f2328;--muted:#646b73;--line:#e3e0da;--bg:#f7f5f1;--card:#fff;--accent:#2b4a3c;--accent-ink:#fff;--warn:#9a3412}
 *{box-sizing:border-box}body{margin:0;font:16px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;color:var(--ink);background:var(--bg)}
@@ -229,7 +230,7 @@ label.chk{display:flex;gap:10px;align-items:flex-start;margin:10px 0}label.chk i
 input[type=text]{width:100%;padding:11px;font:inherit;border:1px solid #c9c4ba;border-radius:8px}
 canvas.pad{width:100%;height:160px;border:1px dashed #a9a296;border-radius:8px;background:#fffdf8;touch-action:none;display:block}
 .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:12px}.ok{color:#14532d;background:#ecfdf3;border:1px solid #bbf7d0;border-radius:10px;padding:12px 14px}
-.warn{color:var(--warn)}.pay{margin-top:14px;padding-top:12px;border-top:1px solid var(--line)}${noticeCss}footer{font-size:13px;color:var(--muted);text-align:center;margin-top:28px}
+.warn{color:var(--warn)}.pay{margin-top:14px;padding-top:12px;border-top:1px solid var(--line)}${noticeCss}${msgCss}footer{font-size:13px;color:var(--muted);text-align:center;margin-top:28px}
 @media print{body{background:#fff}header.top,.noprint{display:none}main{max-width:none;padding:0}.card{border:0;padding:0}}`;
 function shell(title, body, shop, who = "") {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow">
@@ -298,7 +299,9 @@ ${build}${mats}${price}
 <section class="card"><h2>Terms and conditions</h2>${termsOf(j, shop) ? `<details><summary>Read the terms</summary>${termsHtml(termsOf(j, shop), j.signature?.at)}</details>` : '<p class="muted">Terms are attached to the agreement.</p>'}${termsDoc ? `<p><a href="${base}/doc/${esc(termsDoc.id)}" target="_blank" rel="noopener">${esc(termsDoc.title)} (PDF)</a></p>` : ""}</section>
 ${docs.length ? `<section class="card"><h2>Licenses and insurance</h2><ul class="docs">${docs.map((d) => `<li><a href="${base}/doc/${esc(d.id)}" target="_blank" rel="noopener">${esc(d.title)}</a>${d.expires ? `<span class="muted">valid through ${esc((/* @__PURE__ */ new Date(`${d.expires}T12:00:00Z`)).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" }))}</span>` : ""}</li>`).join("")}</ul></section>` : ""}
 ${shop.about ? `<section class="card"><h2>About CJC Custom Carpentry</h2>${paras(shop.about)}</section>` : ""}
-<section class="card" id="signing"><h2>${s ? "Signed" : "Sign the agreement"}</h2>${signBlock}</section>`;
+<section class="card" id="signing"><h2>${s ? "Signed" : "Sign the agreement"}</h2>${signBlock}</section>
+${s && !j.cancelled ? `<section class="card"><h2>Your drawings</h2>${j.drawings ? `<p>Version ${j.drawings.version} is ready for your review (${esc(longDate(easternYmd(j.drawings.publishedAt)))}).</p><p><a class="btn" href="${base}/drawings">Review the drawings</a></p>` : '<p class="muted">Your detailed drawings come next, with every size, for you to review and approve here.</p>'}</section>` : ""}
+${commentsBlock(j, base, "proposal", s ? "Questions about your project? Write here and Cody will answer on this page." : "Questions about the proposal, or something you\u2019d like changed? Write here and Cody will answer on this page.")}`;
   return shell(`${j.project} \xB7 CJC Custom Carpentry`, body, shop, esc(clientName(j)));
 }
 function agreementPage(j, shop) {
@@ -317,6 +320,28 @@ ${s.total != null ? `<p><b>Options chosen:</b> ${(j.proposal.options ?? []).filt
 .terms p{font-size:10pt}</style></head><body>${inner}
 ${termsOf(j, shop) ? `<section class="terms" style="page-break-before:always"><h2>Terms and Conditions</h2>${termsHtml(termsOf(j, shop), s?.at, shop.company[0] || void 0, shop.company[1] || "")}</section>` : s ? noticeOfCancellation(easternYmd(s.at), shop.company[0] || "CJC Custom Carpentry LLC", shop.company[1] || "") : ""}
 ${signed}</body></html>`;
+}
+function commentsBlock(j, base, about, intro) {
+  const all = (j.comments ?? []).filter((c) => about === "drawings" ? c.about.startsWith("drawings") : !c.about.startsWith("drawings"));
+  const when = (t) => new Date(t).toLocaleString("en-US", { timeZone: "America/New_York", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+  return `<section class="card" id="comments"><h2>Questions and changes</h2><p class="muted">${esc(intro)}</p>
+${all.map((c) => `<div class="msg ${c.from}"><div class="who">${esc(c.name)} \xB7 ${esc(when(c.at))}${c.about !== "proposal" && c.about !== "drawings" ? ` \xB7 ${esc(c.about.replace(/^drawings:\s*/, ""))}` : ""}</div>${paras(c.text)}</div>`).join("")}
+<form method="post" action="${base}/comment">
+${about === "drawings" ? `<p><input type="text" name="sheet" placeholder="Which sheet or cabinet (optional)" oninput="this.form.about.value=this.value?'drawings: '+this.value:'drawings'"></p>` : ""}
+<input type="hidden" name="about" value="${esc(about)}">
+<p><textarea name="text" rows="4" required maxlength="2000" placeholder="Write a question or a change you'd like"></textarea></p>
+<div class="row"><button class="btn">Send to CJC Custom Carpentry</button></div></form></section>`;
+}
+function drawingsPage(j, shop, token, doc) {
+  const base = `/p/${token}`;
+  const d = j.drawings;
+  const body = `<p><a href="${base}">\u2190 Back to your project</a></p>
+<h1>${esc(d.title)}</h1><p class="muted">${esc(j.project)} \xB7 version ${d.version}, ${esc(longDate(easternYmd(d.publishedAt)))}</p>
+<section class="card"><p>Look over each sheet: sizes, layout, door and drawer arrangement. Anything you'd like changed, write it below and say which sheet.</p>
+<iframe class="doc dwgs" title="Drawings" sandbox srcdoc="${esc(doc)}"></iframe>
+<p class="row"><a href="${base}/drawings?print" target="_blank" rel="noopener">Open full size to print or save</a></p></section>
+${commentsBlock(j, base, "drawings", "Questions or changes about the drawings. Cody gets them right away and answers here.")}`;
+  return shell(`${d.title} \xB7 ${j.project}`, body, shop, esc(clientName(j)));
 }
 var simplePage = (title, text2, shop) => shell(title, `<h1>${esc(title)}</h1><p>${esc(text2)}</p>`, shop);
 
@@ -571,7 +596,7 @@ var worker_default = {
     const url = new URL(request.url);
     const path = url.pathname.replace(/\/+$/, "") || "/";
     if (!env.PORTAL) return setupPage("Almost there", "<p>The portal is running, but its storage isn\u2019t connected. In Cloudflare open this worker\u2019s <b>Settings \u2192 Bindings</b>, add a <b>KV namespace</b> binding named <code>PORTAL</code> (create a namespace called <b>cjc-portal</b> if you don\u2019t have one), then reload this page.</p>");
-    const m = path.match(/^\/p\/([A-Za-z0-9_-]+)(?:\/(img|doc|visit)\/([A-Za-z0-9_-]+)(?:\.ics)?|\/(agreement|sign|cancel))?$/);
+    const m = path.match(/^\/p\/([A-Za-z0-9_-]+)(?:\/(img|doc|visit)\/([A-Za-z0-9_-]+)(?:\.ics)?|\/(agreement|sign|cancel|drawings|comment))?$/);
     if (m) return client(request, env, m[1], m[2] ?? m[4] ?? "", m[3] ?? "");
     const key = String(env.SHOP_KEY || "").trim();
     const cal = path.match(/^\/cal\/([a-f0-9]{32})\.ics$/);
@@ -629,6 +654,29 @@ async function client(request, env, token, what, id) {
     await freshInvoices(env, job, 5 * 6e4);
     return html(agreementPage(job, shop));
   }
+  if (what === "drawings") {
+    const set = job.signature && !job.cancelled && job.drawings ? await env.PORTAL.get(`dwg:${job.jobId}`, "arrayBuffer") : null;
+    if (!set) return html(simplePage("Drawings aren\u2019t ready yet", "Your drawings will appear here once they\u2019re ready for your review.", shop), 404);
+    const doc = new TextDecoder().decode(set);
+    if (new URL(request.url).searchParams.has("print")) return html(doc);
+    return html(drawingsPage(job, shop, token, doc));
+  }
+  if (what === "comment" && request.method === "POST") {
+    const f = await request.formData();
+    const text2 = String(f.get("text") || "").trim().slice(0, 2e3);
+    const about = String(f.get("about") || "proposal").trim().slice(0, 80) || "proposal";
+    const back = about.startsWith("drawings") ? `/p/${token}/drawings#comments` : `/p/${token}#comments`;
+    if (text2 && (job.comments?.length ?? 0) < 300) {
+      const c = { id: randomToken(8), at: Date.now(), from: "client", name: String(f.get("name") || "").trim().slice(0, 80) || clientName(job), text: text2, about };
+      job.comments = [...job.comments ?? [], c];
+      await putJob(env, job);
+      try {
+        await notify(env, shop, job, c, new URL(request.url));
+      } catch {
+      }
+    }
+    return Response.redirect(new URL(back, request.url).href, 303);
+  }
   const ip = request.headers.get("cf-connecting-ip") || "";
   if (what === "sign" && request.method === "POST") {
     if (job.signature || job.cancelled) return Response.redirect(new URL(`/p/${token}`, request.url).href, 303);
@@ -676,6 +724,22 @@ var visitsFor = async (env, jobId) => {
   const now = new Date(Date.now() - 2 * 36e5).toISOString();
   return (await listAppts(env)).filter((a) => a.jobId === jobId && a.share && !a.cancelled && a.start >= now);
 };
+async function notify(env, shop, job, c, url) {
+  const key = String(env.RESEND_API_KEY || "").trim();
+  const to = shop.contactEmail?.trim();
+  if (!key || !to) return;
+  const link = `${url.origin}/p/${job.token}${c.about.startsWith("drawings") ? "/drawings" : ""}`;
+  await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: { authorization: `Bearer ${key}`, "content-type": "application/json" },
+    body: JSON.stringify({ from: env.MAIL_FROM?.trim() || "CJC Portal <onboarding@resend.dev>", to: [to], subject: `${c.name} commented on ${job.project}`, text: `${c.name} wrote about the ${c.about}:
+
+${c.text}
+
+Their page: ${link}
+Answer from Cabinet Studio (Clients \u2192 Client portal).` })
+  });
+}
 async function autoDeposit(env, job) {
   if (!qbReady(env) || !(signedTotals(job).deposit > 0) || job.invoices?.some((i) => i.kind === "deposit")) return;
   const [conn, s] = [await getConn(env), await getQbSettings(env)];
@@ -821,6 +885,13 @@ var TOOLS = [
     description: "Take a job off the portal for good: its page, link and renderings. Send confirm equal to the job_id. A signed or invoiced job is refused unless even_signed is true, since the signature is the record of the contract.",
     inputSchema: { type: "object", properties: { job_id: { type: "string" }, confirm: { type: "string" }, even_signed: { type: "boolean" } }, required: ["job_id", "confirm"] }
   },
+  {
+    name: "publish_drawings",
+    description: "Share the drawing set (one HTML document) on a signed job\u2019s page, for the client to review and comment on. Refused before the agreement is signed.",
+    inputSchema: { type: "object", properties: { job_id: { type: "string" }, html: { type: "string" }, title: { type: "string" } }, required: ["job_id", "html"] }
+  },
+  { name: "reply_comment", description: "Answer the client on their page. Marks their comments read.", inputSchema: { type: "object", properties: { job_id: { type: "string" }, text: { type: "string" }, about: { type: "string" } }, required: ["job_id", "text"] } },
+  { name: "mark_comments_read", description: "Mark the client\u2019s comments on a job as read.", inputSchema: { type: "object", properties: { job_id: { type: "string" } }, required: ["job_id"] } },
   { name: "list_jobs", description: "Every job on the portal with its status.", inputSchema: { type: "object", properties: {} } },
   { name: "list_appointments", description: "Appointments on the portal calendar, soonest first. By default from yesterday on; pass from (ISO date) for older.", inputSchema: { type: "object", properties: { from: { type: "string" }, job_id: { type: "string" } } } },
   {
@@ -890,7 +961,10 @@ var status = (j, url) => ({
   cancelDeadline: j.signature ? cancelDeadline(easternYmd(j.signature.at)) : null,
   cancelled: j.cancelled ? { at: j.cancelled.at } : null,
   invoices: (j.invoices ?? []).map((i) => ({ id: i.id, kind: i.kind, number: i.docNumber ?? null, amount: i.amount, balance: i.balance, paid: i.balance <= 0, emailed: !!i.emailed, payLink: !!i.link, createdAt: i.createdAt, payments: i.payments ?? [] })),
-  invoiceError: j.invoiceError ?? null
+  invoiceError: j.invoiceError ?? null,
+  drawings: j.drawings ?? null,
+  comments: j.comments ?? [],
+  unread: (j.comments ?? []).filter((c) => c.from === "client" && !c.read).length
 });
 async function fetchDropbox(src) {
   const u = new URL(src);
@@ -967,7 +1041,9 @@ ${shop.terms}`);
         renderings,
         views: old?.views ?? [],
         history: old?.history ?? [],
-        invoices: old?.invoices ?? []
+        invoices: old?.invoices ?? [],
+        comments: old?.comments ?? [],
+        ...old?.drawings ? { drawings: old.drawings } : {}
       };
       if (old?.signature) job.history.push({ ...old.signature, ...old.cancelled ? { cancelled: old.cancelled } : {} });
       await putJob(env, job);
@@ -1056,11 +1132,40 @@ ${shop.terms}`);
       if (a.confirm !== j.jobId) throw new Error("confirm must be the job_id.");
       if ((j.signature || j.history?.length || j.invoices?.length) && a.even_signed !== true) throw new Error("This job has a signature or invoices on record. Send even_signed: true to delete it anyway.");
       for (const r of j.renderings) await env.PORTAL.delete(`img:${j.jobId}:${r.id}`);
+      await env.PORTAL.delete(`dwg:${j.jobId}`);
       await env.PORTAL.delete(`tok:${j.token}`);
       await env.PORTAL.delete(`job:${j.jobId}`);
       const appts = (await listAppts(env)).filter((x) => x.jobId === j.jobId);
       for (const x of appts) await deleteAppt(env, x.id);
       return { ok: true, deleted: j.jobId, appointments: appts.length };
+    }
+    case "publish_drawings": {
+      const j = await getJob(env, String(a.job_id || ""));
+      if (!j) throw new Error("No portal page for that job.");
+      if (!j.signature || j.cancelled) throw new Error("Drawings go to the client after the agreement is signed.");
+      const doc = String(a.html || "");
+      if (!doc || doc.length > 2e7) throw new Error("The drawing set is empty or over 20 MB.");
+      await env.PORTAL.put(`dwg:${j.jobId}`, new TextEncoder().encode(doc).buffer);
+      j.drawings = { publishedAt: Date.now(), version: (j.drawings?.version ?? 0) + 1, title: String(a.title || "Drawings").slice(0, 120) };
+      await putJob(env, j);
+      return status(j, url);
+    }
+    case "reply_comment": {
+      const j = await getJob(env, String(a.job_id || ""));
+      if (!j) throw new Error("No portal page for that job.");
+      const text2 = String(a.text || "").trim().slice(0, 4e3);
+      if (!text2) throw new Error("The reply is empty.");
+      const shop = await getShop(env);
+      j.comments = [...(j.comments ?? []).map((c) => ({ ...c, read: true })), { id: randomToken(8), at: Date.now(), from: "shop", name: shop.company[0] || "CJC Custom Carpentry", text: text2, about: String(a.about || "proposal").slice(0, 80) }];
+      await putJob(env, j);
+      return status(j, url);
+    }
+    case "mark_comments_read": {
+      const j = await getJob(env, String(a.job_id || ""));
+      if (!j) throw new Error("No portal page for that job.");
+      j.comments = (j.comments ?? []).map((c) => ({ ...c, read: true }));
+      await putJob(env, j);
+      return status(j, url);
     }
     case "list_jobs": {
       const out = [];

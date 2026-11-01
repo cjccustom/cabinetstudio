@@ -9,9 +9,10 @@
 //   /cal/<code>.ics    Cody's private appointment calendar, for his iPhone to subscribe to
 // Setup in Cloudflare: a KV namespace bound as PORTAL, and a Secret named SHOP_KEY; for
 // QuickBooks, Secrets QB_CLIENT_ID and QB_CLIENT_SECRET (and QB_ENV = sandbox to test first);
-// for photos, Secrets DBX_APP_KEY and DBX_APP_SECRET.
-import { type Env, type Job, type ShopDoc, b64ToBytes, getJob, getShop, jobByToken, putJob, putShop, randomToken, sha256, signedTotals } from './store';
-import { agreementPage, esc, projectPage, simplePage } from './pages';
+// for photos, Secrets DBX_APP_KEY and DBX_APP_SECRET; for an email when a client comments, a
+// Secret RESEND_API_KEY (resend.com) and the contact email in Portal settings (MAIL_FROM optional).
+import { type Env, type Job, type PortalComment, type Shop, type ShopDoc, b64ToBytes, getJob, getShop, jobByToken, putJob, putShop, randomToken, sha256, signedTotals } from './store';
+import { agreementPage, clientName, drawingsPage, esc, projectPage, simplePage } from './pages';
 import { canCancel, cancelDeadline, easternYmd } from './cancel';
 import { calendar, deleteAppt, feedCode, listAppts, saveAppt, apptLabel, type Appointment } from './calendar';
 import { dbxConnectUrl, dbxDisconnect, dbxFinish, dbxReady, dbxRedirect, dbxUpload, getDbx } from './dbx';
@@ -25,7 +26,7 @@ export default {
     const url = new URL(request.url);
     const path = url.pathname.replace(/\/+$/, '') || '/';
     if (!env.PORTAL) return setupPage('Almost there', '<p>The portal is running, but its storage isn’t connected. In Cloudflare open this worker’s <b>Settings → Bindings</b>, add a <b>KV namespace</b> binding named <code>PORTAL</code> (create a namespace called <b>cjc-portal</b> if you don’t have one), then reload this page.</p>');
-    const m = path.match(/^\/p\/([A-Za-z0-9_-]+)(?:\/(img|doc|visit)\/([A-Za-z0-9_-]+)(?:\.ics)?|\/(agreement|sign|cancel))?$/);
+    const m = path.match(/^\/p\/([A-Za-z0-9_-]+)(?:\/(img|doc|visit)\/([A-Za-z0-9_-]+)(?:\.ics)?|\/(agreement|sign|cancel|drawings|comment))?$/);
     if (m) return client(request, env, m[1], m[2] ?? m[4] ?? '', m[3] ?? '');
     const key = String(env.SHOP_KEY || '').trim();
     const cal = path.match(/^\/cal\/([a-f0-9]{32})\.ics$/);
@@ -77,6 +78,26 @@ async function client(request: Request, env: Env, token: string, what: string, i
     return new Response(calendar([a], shop.company[0] || 'CJC Custom Carpentry', true, shop.company[0] || 'CJC Custom Carpentry'), { headers: { 'content-type': 'text/calendar; charset=utf-8', 'content-disposition': `attachment; filename="${apptLabel[a.kind]}.ics"`, 'cache-control': 'no-store' } });
   }
   if (what === 'agreement') { await freshInvoices(env, job, 5 * 60e3); return html(agreementPage(job, shop)); }
+  if (what === 'drawings') {
+    const set = job.signature && !job.cancelled && job.drawings ? ((await env.PORTAL.get(`dwg:${job.jobId}`, 'arrayBuffer')) as ArrayBuffer | null) : null;
+    if (!set) return html(simplePage('Drawings aren’t ready yet', 'Your drawings will appear here once they’re ready for your review.', shop), 404);
+    const doc = new TextDecoder().decode(set);
+    if (new URL(request.url).searchParams.has('print')) return html(doc);
+    return html(drawingsPage(job, shop, token, doc));
+  }
+  if (what === 'comment' && request.method === 'POST') {
+    const f = await request.formData();
+    const text = String(f.get('text') || '').trim().slice(0, 2000);
+    const about = String(f.get('about') || 'proposal').trim().slice(0, 80) || 'proposal';
+    const back = about.startsWith('drawings') ? `/p/${token}/drawings#comments` : `/p/${token}#comments`;
+    if (text && (job.comments?.length ?? 0) < 300) {
+      const c: PortalComment = { id: randomToken(8), at: Date.now(), from: 'client', name: String(f.get('name') || '').trim().slice(0, 80) || clientName(job), text, about };
+      job.comments = [...(job.comments ?? []), c];
+      await putJob(env, job);
+      try { await notify(env, shop, job, c, new URL(request.url)); } catch { /* the comment is saved; email is a nicety */ }
+    }
+    return Response.redirect(new URL(back, request.url).href, 303);
+  }
   const ip = request.headers.get('cf-connecting-ip') || '';
   if (what === 'sign' && request.method === 'POST') {
     if (job.signature || job.cancelled) return Response.redirect(new URL(`/p/${token}`, request.url).href, 303);
@@ -118,6 +139,18 @@ const visitsFor = async (env: Env, jobId: string): Promise<Appointment[]> => {
   const now = new Date(Date.now() - 2 * 3600e3).toISOString();
   return (await listAppts(env)).filter((a) => a.jobId === jobId && a.share && !a.cancelled && a.start >= now);
 };
+
+/** Email Cody about a new comment, when an email service is set up (Resend: RESEND_API_KEY, and the shop's contact email). */
+async function notify(env: Env, shop: Shop, job: Job, c: PortalComment, url: URL) {
+  const key = String(env.RESEND_API_KEY || '').trim();
+  const to = shop.contactEmail?.trim();
+  if (!key || !to) return;
+  const link = `${url.origin}/p/${job.token}${c.about.startsWith('drawings') ? '/drawings' : ''}`;
+  await fetch('https://api.resend.com/emails', {
+    method: 'POST', headers: { authorization: `Bearer ${key}`, 'content-type': 'application/json' },
+    body: JSON.stringify({ from: env.MAIL_FROM?.trim() || 'CJC Portal <onboarding@resend.dev>', to: [to], subject: `${c.name} commented on ${job.project}`, text: `${c.name} wrote about the ${c.about}:\n\n${c.text}\n\nTheir page: ${link}\nAnswer from Cabinet Studio (Clients → Client portal).` }),
+  });
+}
 
 /** The deposit invoice, made and sent when the client signs (when QuickBooks is connected and that's switched on). */
 async function autoDeposit(env: Env, job: Job) {
@@ -267,6 +300,12 @@ const TOOLS = [
     name: 'delete_job', description: 'Take a job off the portal for good: its page, link and renderings. Send confirm equal to the job_id. A signed or invoiced job is refused unless even_signed is true, since the signature is the record of the contract.',
     inputSchema: { type: 'object', properties: { job_id: { type: 'string' }, confirm: { type: 'string' }, even_signed: { type: 'boolean' } }, required: ['job_id', 'confirm'] },
   },
+  {
+    name: 'publish_drawings', description: 'Share the drawing set (one HTML document) on a signed job’s page, for the client to review and comment on. Refused before the agreement is signed.',
+    inputSchema: { type: 'object', properties: { job_id: { type: 'string' }, html: { type: 'string' }, title: { type: 'string' } }, required: ['job_id', 'html'] },
+  },
+  { name: 'reply_comment', description: 'Answer the client on their page. Marks their comments read.', inputSchema: { type: 'object', properties: { job_id: { type: 'string' }, text: { type: 'string' }, about: { type: 'string' } }, required: ['job_id', 'text'] } },
+  { name: 'mark_comments_read', description: 'Mark the client’s comments on a job as read.', inputSchema: { type: 'object', properties: { job_id: { type: 'string' } }, required: ['job_id'] } },
   { name: 'list_jobs', description: 'Every job on the portal with its status.', inputSchema: { type: 'object', properties: {} } },
   { name: 'list_appointments', description: 'Appointments on the portal calendar, soonest first. By default from yesterday on; pass from (ISO date) for older.', inputSchema: { type: 'object', properties: { from: { type: 'string' }, job_id: { type: 'string' } } } },
   {
@@ -327,6 +366,9 @@ const status = (j: Job, url: URL) => ({
   cancelled: j.cancelled ? { at: j.cancelled.at } : null,
   invoices: (j.invoices ?? []).map((i) => ({ id: i.id, kind: i.kind, number: i.docNumber ?? null, amount: i.amount, balance: i.balance, paid: i.balance <= 0, emailed: !!i.emailed, payLink: !!i.link, createdAt: i.createdAt, payments: i.payments ?? [] })),
   invoiceError: j.invoiceError ?? null,
+  drawings: j.drawings ?? null,
+  comments: j.comments ?? [],
+  unread: (j.comments ?? []).filter((c) => c.from === 'client' && !c.read).length,
 });
 
 /** A file from a Dropbox temporary link. Only Dropbox's own download hosts, so the portal can't be pointed elsewhere. */
@@ -399,6 +441,8 @@ async function tool(name: string, a: Record<string, unknown>, env: Env, url: URL
         renderings, views: old?.views ?? [],
         history: old?.history ?? [],
         invoices: old?.invoices ?? [],
+        comments: old?.comments ?? [],
+        ...(old?.drawings ? { drawings: old.drawings } : {}),
       };
       // A cancelled or replaced signature leaves the page but stays on record in the job's history
       if (old?.signature) job.history!.push({ ...old.signature, ...(old.cancelled ? { cancelled: old.cancelled } : {}) });
@@ -482,12 +526,41 @@ async function tool(name: string, a: Record<string, unknown>, env: Env, url: URL
       if (a.confirm !== j.jobId) throw new Error('confirm must be the job_id.');
       if ((j.signature || j.history?.length || j.invoices?.length) && a.even_signed !== true) throw new Error('This job has a signature or invoices on record. Send even_signed: true to delete it anyway.');
       for (const r of j.renderings) await env.PORTAL.delete(`img:${j.jobId}:${r.id}`);
+      await env.PORTAL.delete(`dwg:${j.jobId}`);
       await env.PORTAL.delete(`tok:${j.token}`);
       await env.PORTAL.delete(`job:${j.jobId}`);
       // Its visits go with it, so the calendar feed doesn't keep a job that no longer exists
       const appts = (await listAppts(env)).filter((x) => x.jobId === j.jobId);
       for (const x of appts) await deleteAppt(env, x.id);
       return { ok: true, deleted: j.jobId, appointments: appts.length };
+    }
+    case 'publish_drawings': {
+      const j = await getJob(env, String(a.job_id || ''));
+      if (!j) throw new Error('No portal page for that job.');
+      if (!j.signature || j.cancelled) throw new Error('Drawings go to the client after the agreement is signed.');
+      const doc = String(a.html || '');
+      if (!doc || doc.length > 20e6) throw new Error('The drawing set is empty or over 20 MB.');
+      await env.PORTAL.put(`dwg:${j.jobId}`, new TextEncoder().encode(doc).buffer as ArrayBuffer);
+      j.drawings = { publishedAt: Date.now(), version: (j.drawings?.version ?? 0) + 1, title: String(a.title || 'Drawings').slice(0, 120) };
+      await putJob(env, j);
+      return status(j, url);
+    }
+    case 'reply_comment': {
+      const j = await getJob(env, String(a.job_id || ''));
+      if (!j) throw new Error('No portal page for that job.');
+      const text = String(a.text || '').trim().slice(0, 4000);
+      if (!text) throw new Error('The reply is empty.');
+      const shop = await getShop(env);
+      j.comments = [...(j.comments ?? []).map((c) => ({ ...c, read: true })), { id: randomToken(8), at: Date.now(), from: 'shop' as const, name: shop.company[0] || 'CJC Custom Carpentry', text, about: String(a.about || 'proposal').slice(0, 80) }];
+      await putJob(env, j);
+      return status(j, url);
+    }
+    case 'mark_comments_read': {
+      const j = await getJob(env, String(a.job_id || ''));
+      if (!j) throw new Error('No portal page for that job.');
+      j.comments = (j.comments ?? []).map((c) => ({ ...c, read: true }));
+      await putJob(env, j);
+      return status(j, url);
     }
     case 'list_jobs': {
       const out: unknown[] = [];
