@@ -4,6 +4,7 @@ import type { Cabinet, Project, ShopSettings, WallPanel } from './types';
 import { mantelLayout, mantelOf } from './mantel';
 import { amCatalog, type AMProfile } from './andersonMcquaid';
 import { broscoCatalog } from './brosco';
+import { nextDayCatalog } from './nextDay';
 import { crownLayout, panelExtents, type EndInfo } from './parts';
 import { pilasterOf, pilasterOpenings } from './pilaster';
 import { inScope, roomMoldingPieces } from './room';
@@ -43,9 +44,9 @@ export const moldCategories: Record<MoldKind, string[]> = {
 export const ceilingKinds: MoldKind[] = ['cofferCrown', 'cofferBead', 'picture'];
 
 /** A moulding profile from either supplier. Brosco numbers are stored as BR-<number> so they never collide with A&M's. */
-export type Profile = AMProfile & { supplier?: Supplier; code?: string; name?: string; wm?: string; custom?: CustomProfile };
-export type Supplier = 'am' | 'brosco' | 'custom';
-export const supplierName: Record<Supplier, string> = { am: 'Anderson & McQuaid', brosco: 'Brosco', custom: 'Custom-milled' };
+export type Profile = AMProfile & { supplier?: Supplier; code?: string; name?: string; wm?: string; custom?: CustomProfile; url?: string; lengths?: string; fit?: { depth: number; height: number } };
+export type Supplier = 'am' | 'brosco' | 'nextday' | 'custom';
+export const supplierName: Record<Supplier, string> = { am: 'Anderson & McQuaid', brosco: 'Brosco', nextday: 'Next Day', custom: 'Custom-milled' };
 
 /**
  * A profile milled to match the house's existing trim, from a sample: no catalog number, just its
@@ -68,14 +69,14 @@ function customProfile(num: string): Profile | undefined {
   return { num, category: c.category, t: c.projection, w: c.height, prices: {}, supplier: 'custom', custom: d && Array.isArray(d.pts) && d.pts.length > 2 ? { ...c, pts: d.pts } : c,
     name: d?.name || (c.by === 'shop' ? 'Milled in the shop to match' : 'Milled by the supplier to match') };
 }
-export const catalog: Profile[] = [...amCatalog, ...broscoCatalog];
+export const catalog: Profile[] = [...amCatalog, ...broscoCatalog, ...nextDayCatalog];
 export const supplierOf = (p: Profile): Supplier => p.supplier ?? 'am';
 /** How a profile is named on an order: "A&M 1827" or "Brosco 8712". */
-export const profileLabel = (p: Profile) => (p.custom ? `Custom ${p.custom.category.toLowerCase()}` : supplierOf(p) === 'brosco' ? `Brosco ${p.code}` : `A&M ${p.num}`);
+export const profileLabel = (p: Profile) => (p.custom ? `Custom ${p.custom.category.toLowerCase()}` : supplierOf(p) === 'brosco' ? `Brosco ${p.code}` : supplierOf(p) === 'nextday' ? `Next Day ${p.code}` : `A&M ${p.num}`);
 
 export const profileByNum = (num?: string): Profile | undefined => (num ? catalog.find((p) => p.num === num) ?? customProfile(num) : undefined);
 
-export const amSpecies = [...new Set(amCatalog.flatMap((p) => Object.keys(p.prices)))].sort();
+export const amSpecies = [...new Set([...amCatalog, ...nextDayCatalog].flatMap((p) => Object.keys(p.prices)))].sort();
 
 /** Price per lineal foot in the job's species, or the closest thing A&M lists. */
 export function priceOf(p: AMProfile, species: string): { species: string; price: number } | null {
@@ -97,6 +98,12 @@ export function mountShape(p: Profile): { pts: [number, number][]; depth: number
     return { pts, depth: d, height: h };
   }
   if (!p.shape || !p.sw || !p.sh) {
+    // A crown with its projection and drop known (Next Day lists them): a sprung crown of that size
+    if (p.fit && p.category === 'Crown') {
+      const { depth: d, height: h } = p.fit;
+      const t = Math.min(p.t, d / 2, h / 2);
+      return { pts: [[0, 0], [t, 0], [d, h - t], [d, h], [0, h]], depth: d, height: h };
+    }
     // Crowns stand at about 45°; everything else lies flat against the face
     const [d, h] = p.category === 'Crown' ? [p.w * 0.7, p.w * 0.7] : [p.t, p.w];
     return { pts: [[0, 0], [d, 0], [d, h], [0, h]], depth: d, height: h };

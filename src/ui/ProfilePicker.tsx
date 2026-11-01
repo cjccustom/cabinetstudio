@@ -11,6 +11,12 @@ export function ProfileThumb({ p, size = 64 }: { p: Profile; size?: number }) {
     const pts = m.pts.map(([u, v]) => `${u + 0.15 + (span - 0.3 - m.depth) / 2},${span - (v + 0.15 + (span - 0.3 - m.height) / 2)}`).join(' ');
     return <svg width={size} height={size} viewBox={`0 0 ${span} ${span}`} className="prof-thumb" aria-hidden="true"><polygon points={pts} className="prof-shape" /></svg>;
   }
+  if ((!p.shape || !p.sw || !p.sh) && p.fit) {
+    const m = mountShape(p);
+    const span = Math.max(m.depth, m.height) + 0.3;
+    const pts = m.pts.map(([u, v]) => `${u + 0.15 + (span - 0.3 - m.depth) / 2},${span - (v + 0.15 + (span - 0.3 - m.height) / 2)}`).join(' ');
+    return <svg width={size} height={size} viewBox={`0 0 ${span} ${span}`} className="prof-thumb" aria-hidden="true"><polygon points={pts} className="prof-shape" /></svg>;
+  }
   if (!p.shape || !p.sw || !p.sh) {
     return (
       <svg width={size} height={size} viewBox="0 0 64 64" className="prof-thumb" aria-hidden="true">
@@ -50,8 +56,8 @@ export function ProfilePicker({ kind, current, species, onPick, onClose, maxHeig
         <h2 id="pp-title">{moldLabel[kind]} profiles</h2>
         <div className="pp-bar">
           <div className="seg" role="group" aria-label="Supplier">
-            {(['all', 'am', 'brosco'] as const).map((k) => (
-              <button key={k} className={sup === k ? 'on' : ''} aria-pressed={sup === k} onClick={() => setSup(k)}>{k === 'all' ? 'Both' : supplierName[k]}</button>
+            {(['all', 'am', 'brosco', 'nextday'] as const).map((k) => (
+              <button key={k} className={sup === k ? 'on' : ''} aria-pressed={sup === k} onClick={() => setSup(k)}>{k === 'all' ? 'All' : supplierName[k]}</button>
             ))}
           </div>
           <select id="pp-cat" aria-label="Category" value={cat} onChange={(e) => { setCat(e.target.value); setQ(''); }}>
@@ -90,6 +96,7 @@ export function ProfilePicker({ kind, current, species, onPick, onClose, maxHeig
                 {(p.name || p.wm) && <span className="muted">{[p.name, p.wm].filter(Boolean).join(' · ')}</span>}
                 {tooTall(p) && <span className="warn-text">{fmt(mountShape(p).height - maxHeight!)} too tall for the space</span>}
                 {pr && <span className="mono">${pr.price.toFixed(2)}/ft{pr.species !== species ? ` ${pr.species.toLowerCase()}` : ''}</span>}
+                {p.url && <a className="muted" href={p.url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>On nextdaymoulding.com</a>}
               </button>
             );
           })}

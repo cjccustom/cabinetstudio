@@ -35,7 +35,7 @@ import { optimize } from "../src/model/optimizer";
 import { defaultFaceFrameStock, faceFrameNeeds, faceFramePieces, otherSpecies, roughQuarters, woodPieces } from "../src/model/faceframe";
 import { panelAbove, panelOrder } from "../src/model/panels";
 import { amCatalog } from "../src/model/andersonMcquaid";
-import { cabinetMoldings, moldingOrder, mountShape, profileByNum, setCustomDrawings } from "../src/model/moldings";
+import { cabinetMoldings, moldingOrder, mountShape, priceOf, profileByNum, profileLabel, setCustomDrawings } from "../src/model/moldings";
 import { closetRods, estimateHours, estimateMaterials, paintEstimate, priceQuote, quoteOf, scopeLine } from "../src/model/quote";
 import { cutStock, defaultCutlist, optimizerParts } from "../src/model/cutlist";
 import { applyBook, choosePlywood, chooseSpecies, priceBook, stalePrices } from "../src/model/pricebook";
@@ -1415,6 +1415,16 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   eq('lighting: labor lines', estimateHours(priced, quoteOf(priced)).some((h) => h.label.startsWith('Lighting: wire')), true);
   eq('lighting: electrician sheet names the 120 V feed', /120 V receptacle/.test(electricianHtml(priced)), true);
   eq('lighting: scope mentions it', scopeLine(bc, lp).includes('LED lighting'), true);
+}
+
+// Next Day Moulding: profiles priced per foot by material; crowns drawn from projection and drop
+{
+  const cap = profileByNum('ND-163')!;
+  eq('next day: basecap 163 in primed FJ pine at $0.96/ft', priceOf(cap, 'Primed FJ pine')?.price, 0.96);
+  eq('next day: labeled by supplier', profileLabel(cap), 'Next Day 163');
+  const crown = profileByNum('ND-47')!;
+  const m = mountShape(crown);
+  eq('next day: crown 47 hangs 3-1/2 drop × 2-5/8 projection', `${m.height}x${m.depth}`, '3.5x2.625');
 }
 
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');
