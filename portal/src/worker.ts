@@ -83,13 +83,13 @@ async function client(request: Request, env: Env, token: string, what: string, i
     if (!set) return html(simplePage('Drawings aren’t ready yet', 'Your drawings will appear here once they’re ready for your review.', shop), 404);
     const doc = new TextDecoder().decode(set);
     if (new URL(request.url).searchParams.has('print')) return html(doc);
-    return html(drawingsPage(job, shop, token, doc));
+    return html(drawingsPage(job, shop, token, doc, new URL(request.url).searchParams.has('sent')));
   }
   if (what === 'comment' && request.method === 'POST') {
     const f = await request.formData();
     const text = String(f.get('text') || '').trim().slice(0, 2000);
     const about = String(f.get('about') || 'proposal').trim().slice(0, 80) || 'proposal';
-    const back = about.startsWith('drawings') ? `/p/${token}/drawings#comments` : `/p/${token}#comments`;
+    const back = about.startsWith('drawings') ? `/p/${token}/drawings?sent#comments` : `/p/${token}?sent#comments`;
     if (text && (job.comments?.length ?? 0) < 300) {
       const c: PortalComment = { id: randomToken(8), at: Date.now(), from: 'client', name: String(f.get('name') || '').trim().slice(0, 80) || clientName(job), text, about };
       job.comments = [...(job.comments ?? []), c];
@@ -131,7 +131,7 @@ async function client(request: Request, env: Env, token: string, what: string, i
   job.views = [...(job.views ?? []), Date.now()].slice(-50);
   await freshInvoices(env, job, 5 * 60e3);
   await putJob(env, job);
-  return html(projectPage(job, shop, token, '', await visitsFor(env, job.jobId)));
+  return html(projectPage(job, shop, token, '', await visitsFor(env, job.jobId), new URL(request.url).searchParams.has('sent')));
 }
 
 /** The client's upcoming visits shown on their page. */

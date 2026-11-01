@@ -1,7 +1,7 @@
 // The pages a client sees from their private link: a phone-first project page (renderings,
 // proposal, terms, licenses and insurance, about the shop, and signing), and the signed agreement
 // as one printable document, the Notice of Cancellation inside the terms with its dates filled in.
-import type { Job, Shop } from './store';
+import type { Job, PortalComment, Shop } from './store';
 import { apptLabel, whenEastern, type Appointment } from './calendar';
 import { cancelDeadline, easternYmd, longDate, noticeOfCancellation } from './cancel';
 import { LOGO } from '../../src/drawings/logo';
@@ -30,7 +30,7 @@ export function termsHtml(text: string, signedAt?: number, seller = 'CJC Custom 
 }
 export const clientName = (j: Job) => [j.client.first, j.client.last].filter(Boolean).join(' ') || 'there';
 
-const msgCss = `.msg{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:10px 0;background:#fff}.msg.shop{background:#eef3ef;border-color:#cfdcd3}.msg .who{font-size:13px;color:var(--muted);margin-bottom:4px}.msg p{margin:4px 0}textarea{width:100%;font:inherit;padding:10px;border:1px solid var(--line);border-radius:8px}iframe.dwgs{height:80vh}`;
+const msgCss = `.msg .state{font-size:13px;color:var(--accent);margin-top:6px}.sent{margin:10px 0}details.more{margin-top:12px}details.more>summary{display:inline-block;list-style:none;cursor:pointer}details.more>summary::-webkit-details-marker{display:none}details.more[open]>summary{display:none}.msg{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:10px 0;background:#fff}.msg.shop{background:#eef3ef;border-color:#cfdcd3}.msg .who{font-size:13px;color:var(--muted);margin-bottom:4px}.msg p{margin:4px 0}textarea{width:100%;font:inherit;padding:10px;border:1px solid var(--line);border-radius:8px}iframe.dwgs{height:80vh}`;
 const noticeCss = `.notice{border:1px solid #999;padding:14px;margin:18px 0;font-size:13px;break-inside:avoid}.notice h3{text-align:center;margin:0 0 8px}.sigline{margin-top:28px}.muted{color:#646b73}`;
 const css = `:root{--ink:#1f2328;--muted:#646b73;--line:#e3e0da;--bg:#f7f5f1;--card:#fff;--accent:#2b4a3c;--accent-ink:#fff;--warn:#9a3412}
 *{box-sizing:border-box}body{margin:0;font:16px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;color:var(--ink);background:var(--bg)}
@@ -82,7 +82,7 @@ ${i.link ? `<div class="row"><a class="btn" href="${esc(i.link)}" target="_blank
 }
 
 /** The client's project page. */
-export function projectPage(j: Job, shop: Shop, token: string, flash = '', visits: Appointment[] = []): string {
+export function projectPage(j: Job, shop: Shop, token: string, flash = '', visits: Appointment[] = [], sent = false): string {
   const base = `/p/${token}`;
   const s = j.signature;
   // The design leads: the first rendering large, the rest below it
@@ -154,7 +154,7 @@ ${docs.length ? `<section class="card"><h2>Licenses and insurance</h2><ul class=
 ${shop.about ? `<section class="card"><h2>About CJC Custom Carpentry</h2>${paras(shop.about)}</section>` : ''}
 <section class="card" id="signing"><h2>${s ? 'Signed' : 'Sign the agreement'}</h2>${signBlock}</section>
 ${s && !j.cancelled ? `<section class="card"><h2>Your drawings</h2>${j.drawings ? `<p>Version ${j.drawings.version} is ready for your review (${esc(longDate(easternYmd(j.drawings.publishedAt)))}).</p><p><a class="btn" href="${base}/drawings">Review the drawings</a></p>` : '<p class="muted">Your detailed drawings come next, with every size, for you to review and approve here.</p>'}</section>` : ''}
-${commentsBlock(j, base, 'proposal', s ? 'Questions about your project? Write here and Cody will answer on this page.' : 'Questions about the proposal, or something you’d like changed? Write here and Cody will answer on this page.')}`;
+${commentsBlock(j, base, 'proposal', s ? 'Questions about your project? Write here and Cody will answer on this page.' : 'Questions about the proposal, or something you’d like changed? Write here and Cody will answer on this page.', sent)}`;
   return shell(`${j.project} · CJC Custom Carpentry`, body, shop, esc(clientName(j)));
 }
 
@@ -180,20 +180,26 @@ ${signed}</body></html>`;
 }
 
 /** The client's questions and the shop's answers, with a box to write more. */
-export function commentsBlock(j: Job, base: string, about: string, intro: string): string {
+export function commentsBlock(j: Job, base: string, about: string, intro: string, sent = false): string {
   const all = (j.comments ?? []).filter((c) => (about === 'drawings' ? c.about.startsWith('drawings') : !c.about.startsWith('drawings')));
   const when = (t: number) => new Date(t).toLocaleString('en-US', { timeZone: 'America/New_York', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
-  return `<section class="card" id="comments"><h2>Questions and changes</h2><p class="muted">${esc(intro)}</p>
-${all.map((c) => `<div class="msg ${c.from}"><div class="who">${esc(c.name)} · ${esc(when(c.at))}${c.about !== 'proposal' && c.about !== 'drawings' ? ` · ${esc(c.about.replace(/^drawings:\s*/, ''))}` : ''}</div>${paras(c.text)}</div>`).join('')}
-<form method="post" action="${base}/comment">
+  // Each of the client's messages says whether it's been answered yet
+  const answered = (i: number) => all.slice(i + 1).some((c) => c.from === 'shop');
+  const status = (c: PortalComment, i: number) => c.from === 'client' ? `<div class="state">${answered(i) ? '✓ Answered below' : '✓ Sent to Cody · waiting for an answer'}</div>` : '';
+  const asked = all.some((c) => c.from === 'client');
+  const form = `<form method="post" action="${base}/comment">
 ${about === 'drawings' ? '<p><input type="text" name="sheet" placeholder="Which sheet or cabinet (optional)" oninput="this.form.about.value=this.value?\'drawings: \'+this.value:\'drawings\'"></p>' : ''}
 <input type="hidden" name="about" value="${esc(about)}">
 <p><textarea name="text" rows="4" required maxlength="2000" placeholder="Write a question or a change you'd like"></textarea></p>
-<div class="row"><button class="btn">Send to CJC Custom Carpentry</button></div></form></section>`;
+<div class="row"><button class="btn">${asked ? 'Send this question' : 'Send to CJC Custom Carpentry'}</button></div></form>`;
+  return `<section class="card" id="comments"><h2>Questions and changes</h2><p class="muted">${esc(intro)}</p>
+${sent ? '<div class="ok sent">Your question was sent to Cody. The answer will show up right here on this page.</div>' : ''}
+${all.map((c, i) => `<div class="msg ${c.from}"><div class="who">${esc(c.from === 'shop' ? `${c.name} answered` : c.name)} · ${esc(when(c.at))}${c.about !== 'proposal' && c.about !== 'drawings' ? ` · ${esc(c.about.replace(/^drawings:\s*/, ''))}` : ''}</div>${paras(c.text)}${status(c, i)}</div>`).join('')}
+${asked ? `<details class="more"><summary class="btn ghost">Ask another question</summary>${form}</details>` : form}</section>`;
 }
 
 /** The drawing set for review once the agreement is signed, with its own comments. */
-export function drawingsPage(j: Job, shop: Shop, token: string, doc: string): string {
+export function drawingsPage(j: Job, shop: Shop, token: string, doc: string, sent = false): string {
   const base = `/p/${token}`;
   const d = j.drawings!;
   const body = `<p><a href="${base}">← Back to your project</a></p>
@@ -201,7 +207,7 @@ export function drawingsPage(j: Job, shop: Shop, token: string, doc: string): st
 <section class="card"><p>Look over each sheet: sizes, layout, door and drawer arrangement. Anything you'd like changed, write it below and say which sheet.</p>
 <iframe class="doc dwgs" title="Drawings" sandbox srcdoc="${esc(doc)}"></iframe>
 <p class="row"><a href="${base}/drawings?print" target="_blank" rel="noopener">Open full size to print or save</a></p></section>
-${commentsBlock(j, base, 'drawings', 'Questions or changes about the drawings. Cody gets them right away and answers here.')}`;
+${commentsBlock(j, base, 'drawings', 'Questions or changes about the drawings. Cody gets them right away and answers here.', sent)}`;
   return shell(`${d.title} · ${j.project}`, body, shop, esc(clientName(j)));
 }
 

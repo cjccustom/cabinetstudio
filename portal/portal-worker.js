@@ -202,7 +202,7 @@ function termsHtml(text2, signedAt, seller = "CJC Custom Carpentry LLC", address
   return `${paras(filled.slice(0, at))}<section class="notice"><h3>NOTICE OF CANCELLATION</h3>${paras(notice)}</section>`;
 }
 var clientName = (j) => [j.client.first, j.client.last].filter(Boolean).join(" ") || "there";
-var msgCss = `.msg{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:10px 0;background:#fff}.msg.shop{background:#eef3ef;border-color:#cfdcd3}.msg .who{font-size:13px;color:var(--muted);margin-bottom:4px}.msg p{margin:4px 0}textarea{width:100%;font:inherit;padding:10px;border:1px solid var(--line);border-radius:8px}iframe.dwgs{height:80vh}`;
+var msgCss = `.msg .state{font-size:13px;color:var(--accent);margin-top:6px}.sent{margin:10px 0}details.more{margin-top:12px}details.more>summary{display:inline-block;list-style:none;cursor:pointer}details.more>summary::-webkit-details-marker{display:none}details.more[open]>summary{display:none}.msg{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:10px 0;background:#fff}.msg.shop{background:#eef3ef;border-color:#cfdcd3}.msg .who{font-size:13px;color:var(--muted);margin-bottom:4px}.msg p{margin:4px 0}textarea{width:100%;font:inherit;padding:10px;border:1px solid var(--line);border-radius:8px}iframe.dwgs{height:80vh}`;
 var noticeCss = `.notice{border:1px solid #999;padding:14px;margin:18px 0;font-size:13px;break-inside:avoid}.notice h3{text-align:center;margin:0 0 8px}.sigline{margin-top:28px}.muted{color:#646b73}`;
 var css = `:root{--ink:#1f2328;--muted:#646b73;--line:#e3e0da;--bg:#f7f5f1;--card:#fff;--accent:#2b4a3c;--accent-ink:#fff;--warn:#9a3412}
 *{box-sizing:border-box}body{margin:0;font:16px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;color:var(--ink);background:var(--bg)}
@@ -247,7 +247,7 @@ function payBlock(j, shop) {
 ${i.link ? `<div class="row"><a class="btn" href="${esc(i.link)}" target="_blank" rel="noopener">Pay by card or bank transfer</a></div>` : ""}
 <p class="muted">${i.link ? "Or pay" : "Pay"} by check to <b>${esc(payee)}</b>${shop.company[1] ? `, ${esc(shop.company[1])}` : ""}, or in person.</p>`).join("")}</div>`;
 }
-function projectPage(j, shop, token, flash = "", visits = []) {
+function projectPage(j, shop, token, flash = "", visits = [], sent = false) {
   const base = `/p/${token}`;
   const s = j.signature;
   const [hero, ...more] = j.renderings;
@@ -301,7 +301,7 @@ ${docs.length ? `<section class="card"><h2>Licenses and insurance</h2><ul class=
 ${shop.about ? `<section class="card"><h2>About CJC Custom Carpentry</h2>${paras(shop.about)}</section>` : ""}
 <section class="card" id="signing"><h2>${s ? "Signed" : "Sign the agreement"}</h2>${signBlock}</section>
 ${s && !j.cancelled ? `<section class="card"><h2>Your drawings</h2>${j.drawings ? `<p>Version ${j.drawings.version} is ready for your review (${esc(longDate(easternYmd(j.drawings.publishedAt)))}).</p><p><a class="btn" href="${base}/drawings">Review the drawings</a></p>` : '<p class="muted">Your detailed drawings come next, with every size, for you to review and approve here.</p>'}</section>` : ""}
-${commentsBlock(j, base, "proposal", s ? "Questions about your project? Write here and Cody will answer on this page." : "Questions about the proposal, or something you\u2019d like changed? Write here and Cody will answer on this page.")}`;
+${commentsBlock(j, base, "proposal", s ? "Questions about your project? Write here and Cody will answer on this page." : "Questions about the proposal, or something you\u2019d like changed? Write here and Cody will answer on this page.", sent)}`;
   return shell(`${j.project} \xB7 CJC Custom Carpentry`, body, shop, esc(clientName(j)));
 }
 function agreementPage(j, shop) {
@@ -321,18 +321,23 @@ ${s.total != null ? `<p><b>Options chosen:</b> ${(j.proposal.options ?? []).filt
 ${termsOf(j, shop) ? `<section class="terms" style="page-break-before:always"><h2>Terms and Conditions</h2>${termsHtml(termsOf(j, shop), s?.at, shop.company[0] || void 0, shop.company[1] || "")}</section>` : s ? noticeOfCancellation(easternYmd(s.at), shop.company[0] || "CJC Custom Carpentry LLC", shop.company[1] || "") : ""}
 ${signed}</body></html>`;
 }
-function commentsBlock(j, base, about, intro) {
+function commentsBlock(j, base, about, intro, sent = false) {
   const all = (j.comments ?? []).filter((c) => about === "drawings" ? c.about.startsWith("drawings") : !c.about.startsWith("drawings"));
   const when = (t) => new Date(t).toLocaleString("en-US", { timeZone: "America/New_York", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
-  return `<section class="card" id="comments"><h2>Questions and changes</h2><p class="muted">${esc(intro)}</p>
-${all.map((c) => `<div class="msg ${c.from}"><div class="who">${esc(c.name)} \xB7 ${esc(when(c.at))}${c.about !== "proposal" && c.about !== "drawings" ? ` \xB7 ${esc(c.about.replace(/^drawings:\s*/, ""))}` : ""}</div>${paras(c.text)}</div>`).join("")}
-<form method="post" action="${base}/comment">
+  const answered = (i) => all.slice(i + 1).some((c) => c.from === "shop");
+  const status2 = (c, i) => c.from === "client" ? `<div class="state">${answered(i) ? "\u2713 Answered below" : "\u2713 Sent to Cody \xB7 waiting for an answer"}</div>` : "";
+  const asked = all.some((c) => c.from === "client");
+  const form = `<form method="post" action="${base}/comment">
 ${about === "drawings" ? `<p><input type="text" name="sheet" placeholder="Which sheet or cabinet (optional)" oninput="this.form.about.value=this.value?'drawings: '+this.value:'drawings'"></p>` : ""}
 <input type="hidden" name="about" value="${esc(about)}">
 <p><textarea name="text" rows="4" required maxlength="2000" placeholder="Write a question or a change you'd like"></textarea></p>
-<div class="row"><button class="btn">Send to CJC Custom Carpentry</button></div></form></section>`;
+<div class="row"><button class="btn">${asked ? "Send this question" : "Send to CJC Custom Carpentry"}</button></div></form>`;
+  return `<section class="card" id="comments"><h2>Questions and changes</h2><p class="muted">${esc(intro)}</p>
+${sent ? '<div class="ok sent">Your question was sent to Cody. The answer will show up right here on this page.</div>' : ""}
+${all.map((c, i) => `<div class="msg ${c.from}"><div class="who">${esc(c.from === "shop" ? `${c.name} answered` : c.name)} \xB7 ${esc(when(c.at))}${c.about !== "proposal" && c.about !== "drawings" ? ` \xB7 ${esc(c.about.replace(/^drawings:\s*/, ""))}` : ""}</div>${paras(c.text)}${status2(c, i)}</div>`).join("")}
+${asked ? `<details class="more"><summary class="btn ghost">Ask another question</summary>${form}</details>` : form}</section>`;
 }
-function drawingsPage(j, shop, token, doc) {
+function drawingsPage(j, shop, token, doc, sent = false) {
   const base = `/p/${token}`;
   const d = j.drawings;
   const body = `<p><a href="${base}">\u2190 Back to your project</a></p>
@@ -340,7 +345,7 @@ function drawingsPage(j, shop, token, doc) {
 <section class="card"><p>Look over each sheet: sizes, layout, door and drawer arrangement. Anything you'd like changed, write it below and say which sheet.</p>
 <iframe class="doc dwgs" title="Drawings" sandbox srcdoc="${esc(doc)}"></iframe>
 <p class="row"><a href="${base}/drawings?print" target="_blank" rel="noopener">Open full size to print or save</a></p></section>
-${commentsBlock(j, base, "drawings", "Questions or changes about the drawings. Cody gets them right away and answers here.")}`;
+${commentsBlock(j, base, "drawings", "Questions or changes about the drawings. Cody gets them right away and answers here.", sent)}`;
   return shell(`${d.title} \xB7 ${j.project}`, body, shop, esc(clientName(j)));
 }
 var simplePage = (title, text2, shop) => shell(title, `<h1>${esc(title)}</h1><p>${esc(text2)}</p>`, shop);
@@ -659,13 +664,13 @@ async function client(request, env, token, what, id) {
     if (!set) return html(simplePage("Drawings aren\u2019t ready yet", "Your drawings will appear here once they\u2019re ready for your review.", shop), 404);
     const doc = new TextDecoder().decode(set);
     if (new URL(request.url).searchParams.has("print")) return html(doc);
-    return html(drawingsPage(job, shop, token, doc));
+    return html(drawingsPage(job, shop, token, doc, new URL(request.url).searchParams.has("sent")));
   }
   if (what === "comment" && request.method === "POST") {
     const f = await request.formData();
     const text2 = String(f.get("text") || "").trim().slice(0, 2e3);
     const about = String(f.get("about") || "proposal").trim().slice(0, 80) || "proposal";
-    const back = about.startsWith("drawings") ? `/p/${token}/drawings#comments` : `/p/${token}#comments`;
+    const back = about.startsWith("drawings") ? `/p/${token}/drawings?sent#comments` : `/p/${token}?sent#comments`;
     if (text2 && (job.comments?.length ?? 0) < 300) {
       const c = { id: randomToken(8), at: Date.now(), from: "client", name: String(f.get("name") || "").trim().slice(0, 80) || clientName(job), text: text2, about };
       job.comments = [...job.comments ?? [], c];
@@ -718,7 +723,7 @@ async function client(request, env, token, what, id) {
   job.views = [...job.views ?? [], Date.now()].slice(-50);
   await freshInvoices(env, job, 5 * 6e4);
   await putJob(env, job);
-  return html(projectPage(job, shop, token, "", await visitsFor(env, job.jobId)));
+  return html(projectPage(job, shop, token, "", await visitsFor(env, job.jobId), new URL(request.url).searchParams.has("sent")));
 }
 var visitsFor = async (env, jobId) => {
   const now = new Date(Date.now() - 2 * 36e5).toISOString();
