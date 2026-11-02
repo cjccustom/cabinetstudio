@@ -5,6 +5,7 @@ import type { Cabinet, Part, Project, WallId } from '../model/types';
 import { wallOrder, wallNames, wallLength } from '../model/layout';
 import { clientName, clientOf, COMPANY } from '../model/client';
 import { eff } from '../model/parts';
+import { doorProfileViews } from './doorProfile';
 import { styleById } from '../model/eagle';
 import { baseLabel } from '../model/cabinetBase';
 import { fmt } from '../units';
@@ -71,6 +72,9 @@ export interface DrawingSettings {
   edits?: DrawingEdits;
   /** Notes typed onto sheets, by sheet number. */
   texts?: Record<string, SheetText[]>;
+  /** Ceiling plan: show the recessed lights (default) and the beam centerline dimensions. */
+  rcpLights?: boolean;
+  rcpCenters?: boolean;
 }
 export const drawingsOf = (p: Project): DrawingSettings => ({ paper: 'tabloid', rev: 0, notes: '', ...p.drawings });
 
@@ -169,7 +173,10 @@ function customerSheets(p: Project, s: DrawingSettings): Sheet[] {
   const first = ceiling ? 3 : 2;
   const placed = placeDetails(p, 'customer', 'A', first + walls.length);
   const detailIdx = [...new Set(placed.map((x) => x.sheet))].map((n) => [n, 'Details']);
-  const index = [['A0', 'Cover'], ['A1', 'Floor plan'], ...(ceiling ? [['A2', 'Ceiling plan']] : []), ...walls.map((w, i) => [`A${i + first}`, `${wallNames[w]} elevation`]), ...detailIdx];
+  // The door style sheet goes last, after any details
+  const doorNo = `A${first + walls.length + detailIdx.length}`;
+  const doorStyle = styleById(eff({ overrides: undefined } as never, p.settings).doorStyleId).profile !== 'slab' && p.cabinets.some((c) => c.rows.some((r) => r.type === 'doors' || r.type === 'drawer'));
+  const index = [['A0', 'Cover'], ['A1', 'Floor plan'], ...(ceiling ? [['A2', 'Ceiling plan']] : []), ...walls.map((w, i) => [`A${i + first}`, `${wallNames[w]} elevation`]), ...detailIdx, ...(doorStyle ? [[doorNo, 'Door style']] : [])];
   // Cover: the picture, the job, and what's in the set
   const c = clientOf(p);
   const imgW = A.w * 0.64;
@@ -189,7 +196,7 @@ function customerSheets(p: Project, s: DrawingSettings): Sheet[] {
   const plan = inView('plan', 'Floor plan', () => floorPlan(p, A));
   sheets.push(sheet(p, s, 'A1', 'Floor plan', scaleName(plan.scale), plan.svg));
   if (ceiling) {
-    const rcp = inView('rcp', 'Ceiling plan', () => ceilingPlan(p, { ...A, w: A.w * 0.74 }));
+    const rcp = inView('rcp', 'Ceiling plan', () => ceilingPlan(p, { ...A, w: A.w * 0.74 }, { lights: s.rcpLights ?? true, centers: !!s.rcpCenters }));
     const notes = html({ x: A.x + A.w * 0.76, y: A.y, w: A.w * 0.24, h: A.h }, `<h2>Notes</h2><p>${esc(cofferScope(p) ?? '')}</p><p class="small">Coffer sizes are clear openings, fascia face to fascia face.</p>`, s.paper === 'tabloid' ? 0.11 : 0.09);
     sheets.push(sheet(p, s, 'A2', 'Ceiling plan', scaleName(rcp.scale), rcp.svg + notes));
   }
@@ -199,6 +206,14 @@ function customerSheets(p: Project, s: DrawingSettings): Sheet[] {
     sheets.push(sheet(p, s, `A${i + first}`, `${wallNames[w]} elevation`, scaleName(e.scale), e.svg + notes));
   });
   sheets.push(...detailSheets(p, s, placed));
+  if (doorStyle) {
+    const dv = inView('door-profile', 'Door style', () => doorProfileViews(p, { x: A.x, y: A.y, w: A.w * 0.5, h: A.h * 0.62 }, { x: A.x + A.w * 0.5, y: A.y, w: A.w * 0.24, h: A.h * 0.62 }));
+    if (dv) {
+      const label = (x: number, w: number, t: string) => `<text x="${x + w / 2}" y="${A.y + A.h * 0.62 + 0.15}" font-size="0.11" font-weight="700" text-anchor="middle">${esc(t)}</text>`;
+      const notes = html({ x: A.x + A.w * 0.76, y: A.y, w: A.w * 0.24, h: A.h }, `<h2>Door style</h2><ul>${dv.notes.map((n) => `<li>${esc(n)}</li>`).join('')}</ul>`, s.paper === 'tabloid' ? 0.11 : 0.09);
+      sheets.push(sheet(p, s, doorNo, 'Door style', 'As noted', dv.svg + label(A.x, A.w * 0.5, 'FRAMING BEAD, SECTION (FULL SIZE)') + label(A.x + A.w * 0.5, A.w * 0.24, 'DOOR (1-1/2" = 1\'-0")') + notes));
+    }
+  }
   return sheets;
 }
 
@@ -388,7 +403,7 @@ function shopSheets(p: Project, s: DrawingSettings): Sheet[] {
   }
   if (cofferOf(p).on) {
     const top = A.h * 0.58;
-    const rcp = inView('shop-rcp', 'Ceiling plan', () => ceilingPlan(p, { x: A.x, y: A.y, w: A.w * 0.6, h: top }));
+    const rcp = inView('shop-rcp', 'Ceiling plan', () => ceilingPlan(p, { x: A.x, y: A.y, w: A.w * 0.6, h: top }, { lights: s.rcpLights ?? true, centers: !!s.rcpCenters }));
     const sec = inView('beam', 'Beam section', () => beamSection(p, { x: A.x + A.w * 0.6, y: A.y, w: A.w * 0.4, h: top }));
     const rows = partRows(cofferParts(p)).map(({ part, qty }) => `<tr><td>${qty}</td><td>${esc(part.name)}</td><td>${fmt(part.length)}</td><td>${fmt(part.width)}</td><td>${fmt(part.thickness)}</td><td>${esc(part.species ?? '')}</td><td>${esc(part.note ?? '')}</td></tr>`).join('');
     const table = html({ x: A.x, y: A.y + top + 0.2, w: A.w, h: A.h - top - 0.2 }, `<table class="parts"><thead><tr><th>Qty</th><th>Part</th><th>Length</th><th>Width</th><th>Thick</th><th>Stock</th><th>Notes</th></tr></thead><tbody>${rows}</tbody></table>`, s.paper === 'tabloid' ? 0.09 : 0.07);

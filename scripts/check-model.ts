@@ -806,7 +806,8 @@ eq('panel sticks out past frame', panelExtents(b21, s, { left: true, right: fals
   const d = drawingsOf(p);
   const cust = customerSet(p, d);
   const walls = new Set(p.cabinets.map((c) => c.wall)).size;
-  eq('customer set: cover, plan, an elevation per wall with cabinets', cust.length, 2 + walls);
+  eq('customer set: cover, plan, an elevation per wall with cabinets, door style', cust.length, 3 + walls);
+  eq('customer set: the door style sheet', cust[cust.length - 1].title, 'Door style');
   eq('elevation dimensions the wall', cust[2].svg.includes(`${p.room.width}"`), true);
   const shop = shopSet(p, d);
   eq('shop set: a sheet per wall, then drawings + parts per cabinet built alike', shop.length, walls + 2 * shopGroups(p).length);
@@ -1480,6 +1481,14 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   const wood = { ...p, cabinets: p.cabinets.map((c) => (c.kind === 'base' && c.countertop ? { ...c, topKind: 'wood' as const, topSpecies: 'Walnut' } : c)) };
   const line = estimateMaterials(wood, quoteOf(wood)).find((m) => /walnut/.test(m.label))!;
   eq('wood top: priced by species from A&M', line.cost > 0 && /A&M/.test(line.detail), true);
+}
+
+// Tall cabinets: end panels divided to line up with the doors
+{
+  const t = p.cabinets.find((c) => c.kind === 'tall')!;
+  const panels = (c: typeof t) => buildParts(c, { ...p.settings, endPanel: 'flush' }, { left: false, right: true }).filter((x) => x.role === 'endPanel');
+  eq('divided end panel: one piece per door row', panels({ ...t, splitEndPanels: true }).length, 2);
+  eq('divided end panel: one piece by default', panels(t).length, 1);
 }
 
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');

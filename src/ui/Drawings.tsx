@@ -10,6 +10,7 @@ import { blobToDataUrl, capability, shrinkImage, type Downloads } from '../runti
 import { asciiHtml, writeFile } from '../dropbox';
 import { Field, Section } from './fields';
 import { DetailsSection } from './DetailsSection';
+import { cofferOf } from '../model/coffer';
 
 type SetKind = 'customer' | 'shop';
 const useSetKind = create<{ kind: SetKind; set: (k: SetKind) => void }>((set) => ({ kind: 'customer', set: (kind) => set({ kind }) }));
@@ -126,6 +127,13 @@ export function DrawingsSide() {
         {kind === 'customer' && (
           <Section title="Notes on the cover">
             <textarea id="dw-notes" rows={4} value={d.notes} placeholder="Paint color, hardware, anything to point out" onChange={(e) => put({ notes: e.target.value })} />
+          </Section>
+        )}
+
+        {cofferOf(project).on && (
+          <Section title="Ceiling plan">
+            <label className="check-inline"><input type="checkbox" checked={d.rcpLights ?? true} onChange={(e) => put({ rcpLights: e.target.checked })} /> Show the recessed lights</label>
+            <label className="check-inline"><input type="checkbox" checked={!!d.rcpCenters} onChange={(e) => put({ rcpCenters: e.target.checked || undefined })} /> Dimension the beam centerlines</label>
           </Section>
         )}
 

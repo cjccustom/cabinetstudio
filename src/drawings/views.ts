@@ -6,6 +6,7 @@ import { footprint, resolveEnds, wallLength, wallNames, wallTransform } from '..
 import { cabinetMoldings, mountShape, profileByNum, profileLabel } from '../model/moldings';
 import { casingReach, openingTrim, roomMoldings } from '../model/room';
 import { View, dimText, fitScale, type Frame } from './draw';
+import { canSpots } from '../model/lighting';
 import { applianceName, placedAppliances, type PlacedAppliance } from '../model/appliances';
 import { mantelLayout, mantelOf } from '../model/mantel';
 import { beadCorner, cofferLayout, cofferOf, coffers, fasciaHeight, perimOf, underFascia } from '../model/coffer';
@@ -473,7 +474,7 @@ export function partRows(parts: Part[]) {
 }
 
 /** The ceiling looking up, drawn as a plan (back wall at the top): beams, perimeter fascia, coffer sizes. */
-export function ceilingPlan(p: Project, frame: Frame): { svg: string; scale: number } {
+export function ceilingPlan(p: Project, frame: Frame, show: { lights?: boolean; centers?: boolean } = {}): { svg: string; scale: number } {
   const { width: W, depth: D } = p.room;
   const T = 4.5;
   const c = cofferOf(p);
@@ -496,14 +497,28 @@ export function ceilingPlan(p: Project, frame: Frame): { svg: string; scale: num
   for (const k of coffers(p, c)) {
     v.rect(k.x0, k.z0, k.x1 - k.x0, k.z1 - k.z0, c.beadboard ? 'f' : 'f');
     if (c.beadboard) for (let x = k.x0 + 3.5; x < k.x1 - 1; x += 3.5) v.line(x, k.z0 + 2, x, k.z1 - 2, 'thin');
-    v.text((k.x0 + k.x1) / 2, (k.z0 + k.z1) / 2 + v.p(0.035), `${dimText(k.x1 - k.x0)} × ${dimText(k.z1 - k.z0)}`, 0.085, 'middle', 'dt');
+    // The size under the light when the lights show, so the two don't overlap
+    v.text((k.x0 + k.x1) / 2, (k.z0 + k.z1) / 2 + v.p(show.lights ? 0.2 : 0.035), `${dimText(k.x1 - k.x0)} × ${dimText(k.z1 - k.z0)}`, 0.085, 'middle', 'dt');
+  }
+  // Recessed lights, a circle with a cross at each can
+  if (show.lights) for (const s of canSpots(p)) {
+    v.circle(s.x, s.z, 2.5, 'f');
+    v.line(s.x - 3.5, s.z, s.x + 3.5, s.z, 'thin'); v.line(s.x, s.z - 3.5, s.x, s.z + 3.5, 'thin');
+  }
+  // Beam centerlines, dimensioned from the walls along the bottom and the right
+  if (show.centers) {
+    const cx = L.beamsX.map((b) => (b.a + b.b) / 2), cz = L.beamsZ.map((b) => (b.a + b.b) / 2);
+    for (const x of cx) { v.line(x, -T / 2, x, D + T / 2, 'cutline'); v.text(x, D + T + v.p(0.12), 'CL', 0.07, 'middle', 'dt'); }
+    for (const z of cz) { v.line(-T / 2, z, W + T / 2, z, 'cutline'); v.text(W + T + v.p(0.12), z + v.p(0.03), 'CL', 0.07, 'middle', 'dt'); }
+    if (cx.length) v.chainH([0, W, ...cx], D + T, -0.3);
+    if (cz.length) v.chainV([0, D, ...cz], W + T, 0.3);
   }
   // Coffers and beams across the top and down the left, then the room
   v.chainH([0, W, f.x0, f.x1, ...L.beamsX.flatMap((b) => [b.a, b.b])], -T, 0.3);
   v.dimH(0, W, -T, 0.65, undefined, true);
   v.chainV([0, D, f.z0, f.z1, ...L.beamsZ.flatMap((b) => [b.a, b.b])], -T, -0.3);
   v.dimV(0, D, -T, -0.65, undefined, true);
-  v.text(W / 2, D + T + v.p(0.45), 'REFLECTED CEILING PLAN', 0.14, 'middle', 'lbl');
+  v.text(W / 2, D + T + v.p(show.centers ? 0.75 : 0.45), 'REFLECTED CEILING PLAN', 0.14, 'middle', 'lbl');
   return { svg: v.svg(), scale: perFoot };
 }
 

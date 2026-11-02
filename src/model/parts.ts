@@ -154,6 +154,21 @@ export interface EndInfo {
   topRun?: { lead: boolean; span: number; last: Cabinet; lastRight: boolean };
 }
 
+/**
+ * An end panel split to match the front: one piece per face frame row, spanning its doors or
+ * fronts (or, for an open row, its opening plus the door overlay), clipped to the panel's height.
+ */
+function endPanelPieces(rows: { y0: number; y1: number }[], parts: Part[], py0: number, py1: number, s: ShopSettings): [number, number][] {
+  const ov = s.doorMount === 'inset' ? 0 : s.doorOverlay;
+  const fronts = parts.filter((p) => p.role === 'door' || p.role === 'drawerFront').flatMap((p) => p.boxes);
+  const spans = rows.map((r) => {
+    const mine = fronts.filter((b) => { const m = b.min[1] + b.size[1] / 2; return m > r.y0 && m < r.y1; });
+    return mine.length ? [Math.min(...mine.map((b) => b.min[1])), Math.max(...mine.map((b) => b.min[1] + b.size[1]))] as [number, number] : [r.y0 - ov, r.y1 + ov] as [number, number];
+  }).sort((a, b) => a[0] - b[0]);
+  const out = spans.map(([a, b], i) => [i === 0 ? py0 : Math.max(py0, a), i === spans.length - 1 ? py1 : Math.min(py1, b)] as [number, number]).filter(([a, b]) => b - a > 2);
+  return out.length ? out : [[py0, py1]];
+}
+
 /** The end panel actually used on one side: only exposed ends get one. */
 export function panelOn(c: Cabinet, s: ShopSettings, side: 'left' | 'right', exposed: boolean): PanelMode {
   s = eff(c, s);
@@ -701,19 +716,23 @@ function caseParts(c: Cabinet, s: ShopSettings, ends: EndInfo): Part[] {
     // A baseboard or skirt wraps over the panel down to the floor; a shaped base has its own end skirt under the panel
     const shapedEnd = BL.style === 'arch' && !BL.applied;
     const [py0, py1] = BL.applied ? [0, mode === 'inset' ? H : doorTop] : shapedEnd ? [BL.top, mode === 'inset' ? H : doorTop] : mode === 'inset' ? [kick, H] : [doorBottom, doorTop];
-    const ph = py1 - py0;
-    const flat = frontBoxes(0, py0, 0, depth, ph, pt, style.profile, doorStile, raised);
-    const boxes = flat.map((b) => {
-      const [u, v, w0] = b.min;
-      const [su, sv, sw0] = b.size;
-      const x = side === 'left' ? xi0 - ta - (w0 + sw0) : xi1 + ta + w0;
-      return vb(x, v, u, sw0, sv, su, b.shade);
-    });
-    parts.push({
-      name: 'End panel', role: 'endPanel', material: 'door', length: ph, width: depth, thickness: pt, cut: false,
-      note: `${side === 'left' ? 'Left' : 'Right'}, ${label}, ${fmtShort(py0)} off cabinet bottom`,
-      order: { item: 'endPanel', w: depth, h: ph, spec: `${doorSpec}, end panel`, ...(style.profile === 'slab' ? {} : { rail: doorStile, stile: doorStile }) },
-      boxes,
+    // Divided to match the front: a piece for each row's doors or opening, with the same gaps between
+    const pieces = c.splitEndPanels ? endPanelPieces(rows, parts, py0, py1, s) : [[py0, py1] as [number, number]];
+    pieces.forEach(([a, b], i) => {
+      const ph = b - a;
+      const flat = frontBoxes(0, a, 0, depth, ph, pt, style.profile, doorStile, raised);
+      const boxes = flat.map((bx) => {
+        const [u, v, w0] = bx.min;
+        const [su, sv, sw0] = bx.size;
+        const x = side === 'left' ? xi0 - ta - (w0 + sw0) : xi1 + ta + w0;
+        return vb(x, v, u, sw0, sv, su, bx.shade);
+      });
+      parts.push({
+        name: pieces.length > 1 ? `End panel ${i + 1} of ${pieces.length}` : 'End panel', role: 'endPanel', material: 'door', length: ph, width: depth, thickness: pt, cut: false,
+        note: `${side === 'left' ? 'Left' : 'Right'}, ${label}, ${fmtShort(a)} off cabinet bottom${pieces.length > 1 ? ', lined up with the front' : ''}`,
+        order: { item: 'endPanel', w: depth, h: ph, spec: `${doorSpec}, end panel`, ...(style.profile === 'slab' ? {} : { rail: doorStile, stile: doorStile }) },
+        boxes,
+      });
     });
     if (shapedEnd) {
       const x = side === 'left' ? xi0 - ta - pt : xi1 + ta;

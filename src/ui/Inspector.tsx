@@ -682,6 +682,9 @@ function AssemblySection({ cab, set }: { cab: Cabinet; set: (p: Partial<Cabinet>
         {hasOpen && b.interior === 'paint' && <li>Open sections: prefinished plywood scuffed, primed with a bonding primer and painted with the millwork; on the painting estimate.</li>}
         {panels.length > 0 && <li>End panel{panels.length > 1 ? 's' : ''}: {panels.join('; ')}.</li>}
       </ul>
+      {panels.length > 0 && cab.rows.length > 1 && (
+        <label className="check-inline" style={{ display: 'flex', gap: 6, margin: '6px 0' }}><input type="checkbox" checked={!!cab.splitEndPanels} onChange={(e) => set({ splitEndPanels: e.target.checked || undefined })} /> Divide the end panels to line up with the doors on the front</label>
+      )}
       <p className="hint">These change the cut list and the parts notes for this cabinet only. Shop standards set the usual way for every job.</p>
       {hasOpen && (
         <div className="order-actions">

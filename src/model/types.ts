@@ -111,6 +111,8 @@ export interface Cabinet {
   overrides?: Partial<ShopSettings>;
   /** How this case goes together, where it differs from the usual way. */
   build?: CaseBuild;
+  /** End panels split into pieces that line up with the doors and openings on the front (tall cabinets). */
+  splitEndPanels?: boolean;
   /** Countertops: start a new piece here instead of joining the top of the cabinet to the left (a seam). */
   topSeam?: boolean;
   /** Solid wood tops: the species (default: the job's wood species). */
