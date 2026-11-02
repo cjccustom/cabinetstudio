@@ -56,7 +56,7 @@ async function portal() {
   job.quote = { ...job.quote, extras: [{ id: 'e1', label: 'Under-cabinet lighting', hours: 4, amount: 300, option: 'Lighting' }] };
   const sm = proposalSummary(job);
   const html = quoteDoc(p as never, { online: true });
-  check('proposal: plain scope has no cabinet sizes', !/\d+”W x \d/.test(html) && html.includes('What') === html.includes('What'));
+  check('proposal: plain scope gives each cabinet its approximate size', /approx. \d+[^W]*W x \d/.test(html));
   check('proposal: two options priced', sm.options.length === 2 && sm.options.every((o) => o.price > 0), sm.options.map((o) => `${o.label} +$${o.price}`).join(', '));
   const { total, deposit } = quoteTotals(p as never);
   check('proposal: base total is the quote without the options', total > 0 && Math.abs(total - priceQuote(withOptions(job)).total) < 1, `$${total}`);
