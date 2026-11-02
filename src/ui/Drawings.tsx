@@ -1,4 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
+import { shiftInRoom, wallLength } from '../model/layout';
+import { fmt, parseLength } from '../units';
 import { createPortal } from 'react-dom';
 import { create } from 'zustand';
 import { useStore } from '../store';
@@ -137,30 +139,135 @@ export function DrawingsSide() {
 
 /* ---------- Middle: the sheets ---------- */
 
+/** A width typed on a sheet, at the spot it was clicked. */
+interface WidthEdit { cab: string; name: string; value: number; x: number; y: number }
+
+/**
+ * The sheets on screen, and editable: click a cabinet to open it, drag it to move it along its
+ * wall (or up and down, for uppers on an elevation), click a width dimension to type a new one,
+ * click a note to change it, click a detail bubble to go to the detail. Zoom with the buttons or
+ * Ctrl/⌘ + scroll.
+ */
 export function DrawingsMain() {
   const sheets = useSheets();
   const { d } = useDrawings();
+  const commit = useStore((s) => s.commit);
   const P = papers[d.paper];
   // Start at the zoom that fits the sheet across the screen
-  const [zoom, setZoom] = useState(() => Math.max(0.3, Math.min(1, +((Math.max(600, window.innerWidth - 700) / (P.w * 96))).toFixed(2))));
+  const fit = () => Math.max(0.3, Math.min(1, +((Math.max(600, window.innerWidth - 700) / (P.w * 96))).toFixed(2)));
+  const [zoom, setZoom] = useState(fit);
+  const [width, setWidth] = useState<WidthEdit | null>(null);
+  const [tip, setTip] = useState('');
+  const drag = useRef<{ el: SVGRectElement; cab: string; x0: number; y0: number; k: number; yup: boolean; along: string; moved: boolean; dx: number; dy: number } | null>(null);
+  const scroller = useRef<HTMLDivElement>(null);
+  const zoomBy = (f: number) => setZoom((z) => Math.min(4, Math.max(0.25, +(z * f).toFixed(2))));
+
+  const moveCab = (id: string, along: string, dxw: number, dyw: number, plan: boolean) => {
+    const snap = (v: number) => Math.round(v * 16) / 16;
+    commit((p) => ({
+      ...p,
+      cabinets: p.cabinets.map((c) => {
+        if (c.id !== id) return c;
+        if (plan) {
+          const s = shiftInRoom(c, along === 'free' ? dxw : along.endsWith('x') ? dxw : 0, along === 'free' ? dyw : along.endsWith('y') ? dyw : 0);
+          return { ...c, offset: snap(s.offset), ...(c.island ? { wallInset: s.wallInset != null ? snap(s.wallInset) : undefined } : {}) };
+        }
+        // Kept on the wall: between its ends, and an upper no higher than the ceiling
+        const L = wallLength(p.room, c.wall);
+        const offset = Math.min(Math.max(0, snap(c.offset + dxw)), Math.max(0, L - c.width));
+        return { ...c, offset, ...(along === 'xy' ? { elevation: Math.min(Math.max(0, snap(c.elevation + dyw)), Math.max(0, p.room.height - c.height)) } : {}) };
+      }),
+    }));
+  };
+
+  const down = (e: React.PointerEvent) => {
+    const el = (e.target as Element).closest('rect.hit[data-field="place"]') as SVGRectElement | null;
+    if (!el || e.button !== 0) return;
+    const ds = el.dataset;
+    drag.current = { el, cab: ds.cab!, x0: e.clientX, y0: e.clientY, k: +ds.k!, yup: ds.yup === '1', along: ds.along ?? 'x', moved: false, dx: 0, dy: 0 };
+    el.setPointerCapture(e.pointerId);
+  };
+  const move = (e: React.PointerEvent) => {
+    const g = drag.current;
+    if (!g) return;
+    let dx = (e.clientX - g.x0) / (96 * zoom), dy = (e.clientY - g.y0) / (96 * zoom);
+    if (!g.moved && Math.hypot(dx, dy) * 96 * zoom < 5) return;
+    g.moved = true;
+    // Only along the wall, unless it can also go up and down (uppers) or anywhere (islands, in plan)
+    if (g.along === 'x' || g.along === '-x') dy = 0;
+    if (g.along === 'y' || g.along === '-y') dx = 0;
+    g.dx = dx; g.dy = dy;
+    g.el.setAttribute('transform', `translate(${dx} ${dy})`);
+    g.el.classList.add('dragging');
+    const w = dx / g.k, h = (g.yup ? -dy : dy) / g.k;
+    setTip(`${g.el.dataset.name}: ${Math.abs(w) >= 1 / 32 ? `${w > 0 ? '→' : '←'} ${fmt(Math.abs(w))}` : ''}${Math.abs(h) >= 1 / 32 && g.along === 'xy' ? ` ${h > 0 ? '↑' : '↓'} ${fmt(Math.abs(h))}` : ''}`);
+  };
+  const up = (e: React.PointerEvent) => {
+    const g = drag.current;
+    drag.current = null;
+    setTip('');
+    if (!g) return;
+    g.el.removeAttribute('transform');
+    g.el.classList.remove('dragging');
+    if (!g.moved) { useStore.getState().edit({ kind: 'cabinet', id: g.cab, tab: 'size' }); return; }
+    const plan = g.along !== 'x' && g.along !== 'xy';
+    // Paper inches back to the room's inches; on a plan, y runs down the page into the room
+    const wx = g.dx / g.k, wy = (g.yup ? -g.dy : g.dy) / g.k;
+    moveCab(g.cab, g.along, wx, wy, plan);
+    void e;
+  };
+  const click = (e: React.MouseEvent) => {
+    const t = e.target as Element;
+    const hit = t.closest('[data-field]') as HTMLElement | SVGElement | null;
+    if (!hit) return;
+    const ds = (hit as HTMLElement).dataset;
+    if (ds.field === 'width') {
+      const box = scroller.current!.getBoundingClientRect();
+      setWidth({ cab: ds.cab!, name: ds.name!, value: +ds.value!, x: e.clientX - box.left + scroller.current!.scrollLeft, y: e.clientY - box.top + scroller.current!.scrollTop });
+    } else if (ds.field === 'notes') useStore.getState().edit({ kind: 'cabinet', id: ds.cab!, tab: 'proposal' });
+    else if (ds.field === 'cover-notes') { const n = document.getElementById('dw-notes'); n?.scrollIntoView({ block: 'center' }); n?.focus(); }
+    else if (ds.field === 'goto' && ds.sheet) document.getElementById(`sheet-${ds.sheet}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+  const wheel = (e: React.WheelEvent) => {
+    if (!(e.ctrlKey || e.metaKey)) return;
+    e.preventDefault();
+    zoomBy(e.deltaY < 0 ? 1.1 : 1 / 1.1);
+  };
+  const setW = (v: number) => {
+    if (!width || !(v > 0)) { setWidth(null); return; }
+    const id = width.cab;
+    commit((p) => ({ ...p, cabinets: p.cabinets.map((c) => (c.id === id ? { ...c, width: Math.round(v * 16) / 16 } : c)) }));
+    setWidth(null);
+  };
+
   return (
     <main className="stage drawings-stage">
       <style>{sheetCss + `@media print{@page{size:${P.w}in ${P.h}in;margin:0}}`}</style>
       <div className="dw-bar">
-        <span className="muted">{sheets.length} sheet{sheets.length === 1 ? '' : 's'}</span>
+        <span className="muted">{sheets.length} sheet{sheets.length === 1 ? '' : 's'} · click a cabinet, a width or a note to change it; drag a cabinet to move it</span>
         <span className="grow" />
-        <button className="icon-btn" aria-label="Zoom out" onClick={() => setZoom((z) => Math.max(0.25, +(z - 0.1).toFixed(2)))}>−</button>
+        <button className="icon-btn" aria-label="Zoom out" onClick={() => zoomBy(1 / 1.25)}>−</button>
         <span className="muted">{Math.round(zoom * 100)}%</span>
-        <button className="icon-btn" aria-label="Zoom in" onClick={() => setZoom((z) => Math.min(1.5, +(z + 0.1).toFixed(2)))}>+</button>
+        <button className="icon-btn" aria-label="Zoom in" onClick={() => zoomBy(1.25)}>+</button>
+        <button className="mini" onClick={() => setZoom(fit())}>Fit</button>
       </div>
-      <div className="dw-scroll">
+      <div className="dw-scroll" ref={scroller} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onClick={click} onWheel={wheel}>
         {!sheets.length && <p className="hint" style={{ padding: 20 }}>Add cabinets in Design to make drawings.</p>}
         {sheets.map((s) => (
           <div key={s.id} id={`sheet-${s.id}`} className="dw-sheet" style={{ width: `${P.w * 96 * zoom}px`, height: `${P.h * 96 * zoom}px` }}>
             <div style={{ transform: `scale(${zoom})`, transformOrigin: '0 0', width: `${P.w}in`, height: `${P.h}in` }} dangerouslySetInnerHTML={{ __html: s.svg }} />
           </div>
         ))}
+        {width && (
+          <form className="dw-pop" style={{ left: width.x, top: width.y }} onSubmit={(e) => { e.preventDefault(); setW(parseLength(String(new FormData(e.currentTarget).get('w') ?? '')) ?? NaN); }} onPointerDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
+            <label htmlFor="dw-w">{width.name} width</label>
+            <input id="dw-w" name="w" autoFocus defaultValue={fmt(width.value)} onKeyDown={(e) => { if (e.key === 'Escape') setWidth(null); }} />
+            <button className="mini primary">Set</button>
+            <button type="button" className="mini" onClick={() => setWidth(null)}>Cancel</button>
+          </form>
+        )}
       </div>
+      {tip && <div className="dw-tip" role="status">{tip}</div>}
       {/* What prints: the same sheets at true size, outside the app's layout */}
       {createPortal(
         <div className="dw-print" aria-hidden>

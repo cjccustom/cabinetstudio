@@ -158,6 +158,13 @@ export function wallElevation(p: Project, wall: WallId, frame: Frame, mode: 'cus
   const ys = [0, H, ...tops, ...uppers.flatMap((c) => [c.elevation, c.elevation + c.height]), ...fasciaY];
   v.chainV(ys, L + 4.5, 0.35);
   v.dimV(0, H, L + 4.5, 0.75, undefined, true);
+  // Targets for the in-app viewer: each cabinet (click to edit, drag to move) and its width dimension
+  const sa = v.scaleAttrs;
+  for (const c of cabs) {
+    v.hit(c.offset, c.elevation, c.width, c.height, { cab: c.id, field: 'place', name: c.name, ...sa, along: isFloor(c) ? 'x' : 'xy' });
+    if (isFloor(c)) v.hit(c.offset, -v.p(0.62), c.width, v.p(0.28), { cab: c.id, field: 'width', name: c.name, value: c.width });
+    else v.hit(c.offset, H + v.p(0.22), c.width, v.p(0.28), { cab: c.id, field: 'width', name: c.name, value: c.width });
+  }
   // Cabinet tags, and opening sizes
   // Tags: uppers in their middle, floor cabinets just under the floor line, clear of hardware
   for (const c of cabs) v.tag(c.offset + c.width / 2, isFloor(c) ? -v.p(0.2) : c.elevation + c.height / 2, c.name);
@@ -177,6 +184,8 @@ export function wallElevation(p: Project, wall: WallId, frame: Frame, mode: 'cus
     for (const y of [top, bot]) {
       v.circle(c.at, y + (y === top ? v.p(0.11) : -v.p(0.11)), v.p(0.11), 'tag');
       v.text(c.at, y + (y === top ? v.p(0.11) : -v.p(0.11)) - v.p(0.03), c.ref, 0.07, 'middle', 'tagt');
+      const cy = y + (y === top ? v.p(0.11) : -v.p(0.11));
+      v.hit(c.at - v.p(0.12), cy - v.p(0.12), v.p(0.24), v.p(0.24), { field: 'goto', sheet: c.ref.split('/')[1] ?? '', name: `detail ${c.ref}` });
     }
   }
   v.text(L / 2, -v.p(1.12), wallNames[wall].toUpperCase(), 0.14, 'middle', 'lbl');
@@ -222,6 +231,9 @@ export function floorPlan(p: Project, frame: Frame): { svg: string; scale: numbe
   const ordered = [...p.cabinets].sort((a, b) => Number(!isFloor(a)) - Number(!isFloor(b)));
   const prints = ordered.map((c) => ({ c, f: footprint(p.room, c) }));
   for (const { c, f } of prints) v.rect(f.x0, f.z0, f.x1 - f.x0, f.z1 - f.z0, isFloor(c) ? 'o' : 'hid');
+  // Targets for the in-app viewer: click a cabinet to edit it, drag it along its wall
+  const dragDir: Record<WallId, string> = { back: 'x', front: '-x', left: '-y', right: 'y' };
+  for (const { c, f } of prints) v.hit(f.x0, f.z0, f.x1 - f.x0, f.z1 - f.z0, { cab: c.id, field: 'place', name: c.name, ...v.scaleAttrs, along: c.island ? 'free' : dragDir[c.wall] });
   // Labels: an upper's in its outline; a base under one gets its label in the strip in front of it
   const overlap = (a: typeof prints[0]['f'], b: typeof prints[0]['f']) => a.x0 < b.x1 - 0.5 && b.x0 < a.x1 - 0.5 && a.z0 < b.z1 - 0.5 && b.z0 < a.z1 - 0.5;
   for (const { c, f } of prints) {

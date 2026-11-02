@@ -53,7 +53,7 @@ import { doorOrder } from "../src/model/doorOrder";
 import { applyDraft, cleanDraft, closestProfile, draftRequest } from "../src/model/photoRoom";
 import { clientInfoDoc, folderName, ordersDoc, parseFolderName, proposalLines, quoteDoc, stageByFolder } from "../src/model/client";
 import { readScan, scanToDraft } from "../src/model/roomScan";
-import { customerSet, drawingsOf, setDocument, shopSet } from "../src/drawings/sheets";
+import { customerSet, drawingsOf, setDocument, sheetCss, shopSet } from "../src/drawings/sheets";
 import { cabinetCallouts, forAudience } from "../src/drawings/notes";
 import { hardwareItems, partsOf } from "../src/drawings/views";
 import { cabinetLine, cofferFeet, cofferLayout, cofferMoldings, cofferParts, coffers as cofferList, fasciaBacking } from "../src/model/coffer";
@@ -1433,6 +1433,16 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   eq('ascii html: × and inch marks as entities', asciiHtml('46 3/8″ × 45 5/8″ – ok'), '46 3/8&#8243; &#215; 45 5/8&#8243; &#8211; ok');
   const d = drawingsOf(p);
   eq('ascii html: a whole drawing set is plain ASCII', /[^\x00-\x7f]/.test(asciiHtml(setDocument('t', customerSet(p, d), d.paper))), false);
+}
+
+// Click-to-edit: every cabinet on an elevation has a target to click or drag, and its width dimension one to retype
+{
+  const d = drawingsOf(p);
+  const el = customerSet(p, d).find((x) => /Back wall elevation/.test(x.title))!;
+  const back = p.cabinets.filter((c) => c.wall === 'back');
+  eq('click-to-edit: a place target per cabinet', (el.svg.match(/class="hit"[^>]*data-field="place"/g) ?? []).length, back.length);
+  eq('click-to-edit: a width target per cabinet', (el.svg.match(/class="hit"[^>]*data-field="width"/g) ?? []).length, back.length);
+  eq('click-to-edit: targets never print', sheetCss.includes('.dwg .hit{fill:none;stroke:none}'), true);
 }
 
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');

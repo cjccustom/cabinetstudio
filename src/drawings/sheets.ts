@@ -130,7 +130,7 @@ const html = (f: Frame, inner: string, size = 0.1) =>
 
 /** The notes column on an elevation: the job's, then each cabinet's on that wall, by tag. */
 function wallNotes(p: Project, wall: WallId, a: Audience): string {
-  const items = cabinetsOn(p, wall).flatMap((c) => forAudience(cabinetCallouts(p, c), a).map((n) => `<li><b>${esc(c.name)}</b> ${esc(n.text)}</li>`));
+  const items = cabinetsOn(p, wall).flatMap((c) => forAudience(cabinetCallouts(p, c), a).map((n) => `<li data-cab="${esc(c.id)}" data-field="notes"><b>${esc(c.name)}</b> ${esc(n.text)}</li>`));
   return `<h2>Notes</h2><ul>${jobCallouts(p, a).map((t) => `<li>${esc(t)}</li>`).join('')}${items.join('')}</ul>`;
 }
 
@@ -159,7 +159,7 @@ export function customerSet(p: Project, s: DrawingSettings): Sheet[] {
       <p>${esc(c.address || c.location || '')}</p>
       <h2>Drawings</h2>
       <table class="idx">${index.map(([n, t]) => `<tr><td>${n}</td><td>${esc(t)}</td></tr>`).join('')}</table>
-      ${s.notes ? `<h2>Notes</h2><p>${esc(s.notes).replace(/\n/g, '<br>')}</p>` : ''}
+      ${s.notes ? `<div data-field="cover-notes"><h2>Notes</h2><p>${esc(s.notes).replace(/\n/g, '<br>')}</p></div>` : ''}
       <p class="small">Drawings show design intent. Final dimensions are field verified before fabrication.</p>`, s.paper === 'tabloid' ? 0.13 : 0.11),
   ].join('');
   sheets.push(sheet(p, s, 'A0', 'Cover', 'None', cover));

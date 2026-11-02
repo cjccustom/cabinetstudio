@@ -135,7 +135,20 @@ export class View {
     const X = this.X(x), Y = this.Y(y), t = 0.035;
     this.out.push(`<line class="tk" x1="${n(X - t)}" y1="${n(Y + t)}" x2="${n(X + t)}" y2="${n(Y - t)}"/>`);
   }
-  svg() { return this.out.join(''); }
+  /**
+   * An invisible target over part of the drawing, for the in-app viewer: click to edit, drag to move.
+   * It never shows on paper (the sheet styles leave it unpainted).
+   */
+  hit(x: number, y: number, w: number, h: number, data: Record<string, string | number>) {
+    if (w <= 0 || h <= 0) return;
+    const top = this.yUp ? y + h : y;
+    const attrs = Object.entries(data).map(([k, v]) => ` data-${k}="${esc(String(v))}"`).join('');
+    this.hits.push(`<rect class="hit" x="${this.X(x)}" y="${this.Y(top)}" width="${n(w * this.k)}" height="${n(h * this.k)}"${attrs}/>`);
+  }
+  private hits: string[] = [];
+  /** Paper inches per world inch, with the sign of y on paper (for dragging in the viewer). */
+  get scaleAttrs() { return { k: n(this.k), yup: this.yUp ? 1 : 0 }; }
+  svg() { return this.out.join('') + this.hits.join(''); }
 }
 
 /** Line weights and text styles, in paper inches. */
@@ -160,5 +173,6 @@ export const drawingCss = `
 .dwg .dt{font-weight:500}
 .dwg .tagt{font-weight:700}
 .dwg .lbl{font-weight:700;letter-spacing:.02em}
+.dwg .hit{fill:none;stroke:none}
 .dwg .cutline{fill:none;stroke:#111;stroke-width:.014;stroke-dasharray:.18 .05 .03 .05}
 `;
