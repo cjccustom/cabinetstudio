@@ -1436,14 +1436,22 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   eq('ascii html: a whole drawing set is plain ASCII', /[^\x00-\x7f]/.test(asciiHtml(setDocument('t', customerSet(p, d), d.paper))), false);
 }
 
-// Click-to-edit: every cabinet on an elevation has a target to click or drag, and its width dimension one to retype
+// Editing the drawings (never the design): a view's scale, a dimension hidden or retyped, notes on sheets
 {
   const d = drawingsOf(p);
   const el = customerSet(p, d).find((x) => /Back wall elevation/.test(x.title))!;
-  const back = p.cabinets.filter((c) => c.wall === 'back');
-  eq('click-to-edit: a place target per cabinet', (el.svg.match(/class="hit"[^>]*data-field="place"/g) ?? []).length, back.length);
-  eq('click-to-edit: a width target per cabinet', (el.svg.match(/class="hit"[^>]*data-field="width"/g) ?? []).length, back.length);
-  eq('click-to-edit: targets never print', sheetCss.includes('.dwg .hit{fill:none;stroke:none}'), true);
+  eq('drawing edits: the elevation lists its view and scale', el.views?.[0]?.key, 'elev:back');
+  const dimIds = [...el.svg.matchAll(/data-dim="([^"]+)"/g)].map((m) => m[1]);
+  eq('drawing edits: every dimension has a target', dimIds.length > 5, true);
+  const id = dimIds[0];
+  const ed = { ...d, edits: { scales: { 'elev:back': 0.25 }, dims: { [id]: { text: 'VIF' } } }, texts: { [el.number]: [{ id: 't1', x: 2, y: 2, text: 'Verify window trim' }] } };
+  const el2 = customerSet(p, ed).find((x) => /Back wall elevation/.test(x.title))!;
+  eq('drawing edits: scale set by hand', el2.views?.[0]?.scale, 0.25);
+  eq('drawing edits: retyped dimension', el2.svg.includes('>VIF<'), true);
+  eq('drawing edits: note on the sheet', el2.svg.includes('Verify window trim'), true);
+  const el3 = customerSet(p, { ...d, edits: { dims: { [id]: { hidden: true } } } }).find((x) => /Back wall elevation/.test(x.title))!;
+  eq('drawing edits: hidden dimension keeps only its target', (el3.svg.match(/class="dt"/g) ?? []).length, (el.svg.match(/class="dt"/g) ?? []).length - 1);
+  eq('drawing edits: targets never print', sheetCss.includes('.dwg .hit{fill:none;stroke:none}'), true);
 }
 
 // Payment schedule: 30% / balance by default; added payments by share or amount, the last takes the rest

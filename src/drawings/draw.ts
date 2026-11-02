@@ -10,10 +10,40 @@ const scaleNames: Record<number, string> = {
 };
 export const scaleName = (perFoot: number) => scaleNames[perFoot] ?? `1:${Math.round(12 / perFoot)}`;
 
-/** The largest standard scale that fits w × h (world inches) into aw × ah (paper inches). */
+/**
+ * Changes made to the drawings themselves (never the design): a view's scale, and each dimension
+ * hidden, retyped or moved out. Views are named by a key that stays put as the design changes
+ * (elev:back, plan, ff:<cabinet id>...); a dimension by its view and where it measures.
+ */
+export interface DimEdit { hidden?: boolean; text?: string; /** Paper inches further out (+) or in (−). */ off?: number }
+export interface DrawingEdits { scales?: Record<string, number>; dims?: Record<string, DimEdit> }
+export interface ViewInfo { key: string; label: string; scale: number; fit: number }
+
+let ctx: { edits: DrawingEdits; key: string; label: string; views: ViewInfo[] } | null = null;
+/** Start drawing a set with these edits applied; views drawn are recorded for the viewer. */
+export function beginEdits(edits: DrawingEdits | undefined) { ctx = { edits: edits ?? {}, key: '', label: '', views: [] }; }
+export function endEdits() { ctx = null; }
+/** The views drawn since the last call (for the sheet they're on). */
+export function takeViews(): ViewInfo[] { if (!ctx) return []; const v = ctx.views; ctx.views = []; return v; }
+/** Draw one named view: its scale can be set by hand, its dimensions edited. */
+export function inView<T>(key: string, label: string, draw: () => T): T {
+  if (!ctx) return draw();
+  const prev = [ctx.key, ctx.label];
+  ctx.key = key; ctx.label = label;
+  try { return draw(); } finally { [ctx.key, ctx.label] = prev; }
+}
+
+/** The largest standard scale that fits w × h (world inches) into aw × ah (paper inches), or the one set for this view. */
 export function fitScale(w: number, h: number, aw: number, ah: number): number {
   const fit = Math.min(aw / Math.max(w, 1), ah / Math.max(h, 1)) * 12;
-  return scales.find((s) => s <= fit) ?? scales[scales.length - 1];
+  const auto = scales.find((s) => s <= fit) ?? scales[scales.length - 1];
+  if (!ctx?.key) return auto;
+  const set = ctx.edits.scales?.[ctx.key];
+  const prior = ctx.views.find((v) => v.key === ctx!.key);
+  const fitted = prior ? Math.min(prior.fit, auto) : auto;
+  const scale = set ?? fitted;
+  if (prior) Object.assign(prior, { fit: fitted, scale }); else ctx.views.push({ key: ctx.key, label: ctx.label, scale, fit: fitted });
+  return scale;
 }
 
 const n = (v: number) => +v.toFixed(4);
@@ -37,6 +67,9 @@ export class View {
   out: string[] = [];
   /** Paper inches per world inch. */
   k: number;
+  /** The view's name for drawing edits, and its edited dimensions. */
+  vkey = ctx?.key ?? '';
+  private dimEdits = ctx?.edits.dims ?? {};
   constructor(public frame: Frame, public world: { x0: number; y0: number; x1: number; y1: number }, public perFoot: number, public yUp = true) {
     this.k = perFoot / 12;
     // Center the drawing in its frame
@@ -76,9 +109,21 @@ export class View {
   }
 
   /** A horizontal dimension from x1 to x2, measured at world height y, drawn `off` paper inches away (+ above, − below). */
+  /** A dimension's name for drawing edits: its view, direction and where it measures, to 1/16". */
+  private dimId(dir: 'h' | 'v', a: number, b: number, at: number) {
+    const r = (v: number) => Math.round(v * 16) / 16;
+    return `${this.vkey}|${dir}|${r(Math.min(a, b))}|${r(Math.max(a, b))}|${r(at)}`;
+  }
   dimH(x1: number, x2: number, y: number, off: number, label?: string, feet = false, lift = 0) {
     if (Math.abs(x2 - x1) < 0.01) return;
-    const yd = y + (this.yUp ? 1 : -1) * this.p(off);
+    const id = this.dimId('h', x1, x2, y);
+    const ed = this.dimEdits[id];
+    if (ed?.off) off += Math.sign(off || 1) * ed.off;
+    const yd0 = y + (this.yUp ? 1 : -1) * this.p(off);
+    if (this.vkey) this.hit(Math.min(x1, x2), yd0 - this.p(0.07), Math.abs(x2 - x1), this.p(0.17), { dim: id, text: ed?.text ?? label ?? dimText(Math.abs(x2 - x1), feet), measured: dimText(Math.abs(x2 - x1), feet), ...(ed?.hidden ? { hidden: 1 } : {}) });
+    if (ed?.hidden) return;
+    if (ed?.text) label = ed.text;
+    const yd = yd0;
     const gap = this.p(0.04) * Math.sign(off) * (this.yUp ? 1 : -1);
     this.line(x1, y + gap, x1, yd + gap * 1.5, 'd');
     this.line(x2, y + gap, x2, yd + gap * 1.5, 'd');
@@ -92,7 +137,13 @@ export class View {
   /** A vertical dimension from y1 to y2 at world x, drawn `off` paper inches to the right (+) or left (−). */
   dimV(y1: number, y2: number, x: number, off: number, label?: string, feet = false, lift = 0) {
     if (Math.abs(y2 - y1) < 0.01) return;
+    const id = this.dimId('v', y1, y2, x);
+    const ed = this.dimEdits[id];
+    if (ed?.off) off += Math.sign(off || 1) * ed.off;
     const xd = x + this.p(off);
+    if (this.vkey) this.hit(xd - this.p(0.1), Math.min(y1, y2), this.p(0.17), Math.abs(y2 - y1), { dim: id, text: ed?.text ?? label ?? dimText(Math.abs(y2 - y1), feet), measured: dimText(Math.abs(y2 - y1), feet), ...(ed?.hidden ? { hidden: 1 } : {}) });
+    if (ed?.hidden) return;
+    if (ed?.text) label = ed.text;
     const gap = this.p(0.04) * Math.sign(off);
     this.line(x + gap, y1, xd + gap * 1.5, y1, 'd');
     this.line(x + gap, y2, xd + gap * 1.5, y2, 'd');

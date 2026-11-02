@@ -16,7 +16,7 @@ import { hingeTypes } from '../model/eagle';
 import { cofferOf, cofferParts } from '../model/coffer';
 import { fuelLabel, mantelOf } from '../model/mantel';
 import { cofferScope } from '../model/quote';
-import { drawingCss, scaleName, type Frame } from './draw';
+import { beginEdits, drawingCss, endEdits, inView, scaleName, takeViews, type DrawingEdits, type Frame, type ViewInfo } from './draw';
 import { cabinetCallouts, forAudience, jobCallouts, type Audience } from './notes';
 import { LOGO, LOGO_ASPECT } from './logo';
 import { detailOk, detailTitle, detailsOf, drawDetail, inSet, suggestedCut, type Detail } from './details';
@@ -36,7 +36,7 @@ function detailSheets(p: Project, s: DrawingSettings, placed: { d: Detail; n: nu
     const w = A.w / 2;
     const body = pair.map(({ d, n }, j) => {
       const f: Frame = { x: A.x + j * w, y: A.y, w: w - 0.1, h: A.h - 0.95 };
-      const dr = drawDetail(p, d, f);
+      const dr = inView(`detail:${d.id}`, `Detail: ${detailTitle(p, d)}`, () => drawDetail(p, d, f));
       if (!dr) return '';
       const by = A.y + A.h - 0.8;
       const bx = f.x + 0.4;
@@ -63,10 +63,18 @@ export const papers: Record<Paper, { w: number; h: number; label: string }> = {
   letter: { w: 11, h: 8.5, label: '8-1/2 × 11' },
 };
 
-export interface DrawingSettings { paper: Paper; rev: number; cover?: string; notes: string }
+/** A note typed onto a sheet, at a spot in paper inches from its top left. */
+export interface SheetText { id: string; x: number; y: number; text: string; size?: number }
+export interface DrawingSettings {
+  paper: Paper; rev: number; cover?: string; notes: string;
+  /** Changes to the drawings themselves: view scales and dimensions hidden, retyped or moved. */
+  edits?: DrawingEdits;
+  /** Notes typed onto sheets, by sheet number. */
+  texts?: Record<string, SheetText[]>;
+}
 export const drawingsOf = (p: Project): DrawingSettings => ({ paper: 'tabloid', rev: 0, notes: '', ...p.drawings });
 
-export interface Sheet { id: string; number: string; title: string; svg: string }
+export interface Sheet { id: string; number: string; title: string; svg: string; /** The views on it, with their scales, for the viewer. */ views?: ViewInfo[] }
 
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const M = 0.4;
@@ -119,8 +127,19 @@ function sheet(p: Project, s: DrawingSettings, number: string, title: string, sc
   const svg = `<svg class="dwg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${P.w} ${P.h}" width="${P.w}in" height="${P.h}in">`
     + `<rect x="0" y="0" width="${P.w}" height="${P.h}" fill="#fff"/>`
     + `<rect class="heavy" x="${M}" y="${M}" width="${P.w - 2 * M}" height="${P.h - 2 * M}"/>`
-    + body + titleBlock(p, s, number, title, scale) + '</svg>';
-  return { id: number, number, title, svg };
+    + body + sheetTexts(s, number) + titleBlock(p, s, number, title, scale) + '</svg>';
+  return { id: number, number, title, svg, views: takeViews() };
+}
+
+/** Notes typed onto the sheet, with a target over each for moving or changing it in the viewer. */
+function sheetTexts(s: DrawingSettings, number: string): string {
+  return (s.texts?.[number] ?? []).map((t) => {
+    const size = t.size ?? 0.11;
+    const lines = t.text.split('\n');
+    const w = Math.max(...lines.map((l) => l.length)) * size * 0.55, h = lines.length * size * 1.25;
+    return `<text class="sheet-note" x="${t.x}" y="${t.y + size}" font-size="${size}">${lines.map((l, i) => `<tspan x="${t.x}" dy="${i ? size * 1.25 : 0}">${esc(l)}</tspan>`).join('')}</text>`
+      + `<rect class="hit" x="${t.x - 0.04}" y="${t.y - 0.03}" width="${w + 0.08}" height="${h + 0.08}" data-note="${esc(t.id)}" data-sheet="${esc(number)}"/>`;
+  }).join('');
 }
 
 /** HTML (tables, lists) placed on a sheet. */
@@ -130,7 +149,7 @@ const html = (f: Frame, inner: string, size = 0.1) =>
 
 /** The notes column on an elevation: the job's, then each cabinet's on that wall, by tag. */
 function wallNotes(p: Project, wall: WallId, a: Audience): string {
-  const items = cabinetsOn(p, wall).flatMap((c) => forAudience(cabinetCallouts(p, c), a).map((n) => `<li data-cab="${esc(c.id)}" data-field="notes"><b>${esc(c.name)}</b> ${esc(n.text)}</li>`));
+  const items = cabinetsOn(p, wall).flatMap((c) => forAudience(cabinetCallouts(p, c), a).map((n) => `<li><b>${esc(c.name)}</b> ${esc(n.text)}</li>`));
   return `<h2>Notes</h2><ul>${jobCallouts(p, a).map((t) => `<li>${esc(t)}</li>`).join('')}${items.join('')}</ul>`;
 }
 
@@ -139,6 +158,10 @@ const wallsWithWork = (p: Project) => wallOrder.filter((w) => cabinetsOn(p, w).l
 /* ---------- Customer set ---------- */
 
 export function customerSet(p: Project, s: DrawingSettings): Sheet[] {
+  beginEdits(s.edits);
+  try { return customerSheets(p, s); } finally { endEdits(); }
+}
+function customerSheets(p: Project, s: DrawingSettings): Sheet[] {
   const A = area(s.paper);
   const walls = wallsWithWork(p);
   const sheets: Sheet[] = [];
@@ -159,19 +182,19 @@ export function customerSet(p: Project, s: DrawingSettings): Sheet[] {
       <p>${esc(c.address || c.location || '')}</p>
       <h2>Drawings</h2>
       <table class="idx">${index.map(([n, t]) => `<tr><td>${n}</td><td>${esc(t)}</td></tr>`).join('')}</table>
-      ${s.notes ? `<div data-field="cover-notes"><h2>Notes</h2><p>${esc(s.notes).replace(/\n/g, '<br>')}</p></div>` : ''}
+      ${s.notes ? `<h2>Notes</h2><p>${esc(s.notes).replace(/\n/g, '<br>')}</p>` : ''}
       <p class="small">Drawings show design intent. Final dimensions are field verified before fabrication.</p>`, s.paper === 'tabloid' ? 0.13 : 0.11),
   ].join('');
   sheets.push(sheet(p, s, 'A0', 'Cover', 'None', cover));
-  const plan = floorPlan(p, A);
+  const plan = inView('plan', 'Floor plan', () => floorPlan(p, A));
   sheets.push(sheet(p, s, 'A1', 'Floor plan', scaleName(plan.scale), plan.svg));
   if (ceiling) {
-    const rcp = ceilingPlan(p, { ...A, w: A.w * 0.74 });
+    const rcp = inView('rcp', 'Ceiling plan', () => ceilingPlan(p, { ...A, w: A.w * 0.74 }));
     const notes = html({ x: A.x + A.w * 0.76, y: A.y, w: A.w * 0.24, h: A.h }, `<h2>Notes</h2><p>${esc(cofferScope(p) ?? '')}</p><p class="small">Coffer sizes are clear openings, fascia face to fascia face.</p>`, s.paper === 'tabloid' ? 0.11 : 0.09);
     sheets.push(sheet(p, s, 'A2', 'Ceiling plan', scaleName(rcp.scale), rcp.svg + notes));
   }
   walls.forEach((w, i) => {
-    const e = wallElevation(p, w, { ...A, w: A.w * 0.74 }, 'customer', cutsOn(p, placed, w));
+    const e = inView(`elev:${w}`, `${wallNames[w]} elevation`, () => wallElevation(p, w, { ...A, w: A.w * 0.74 }, 'customer', cutsOn(p, placed, w)));
     const notes = html({ x: A.x + A.w * 0.76, y: A.y, w: A.w * 0.24, h: A.h }, wallNotes(p, w, 'customer'), s.paper === 'tabloid' ? 0.11 : 0.09);
     sheets.push(sheet(p, s, `A${i + first}`, `${wallNames[w]} elevation`, scaleName(e.scale), e.svg + notes));
   });
@@ -299,6 +322,10 @@ function partsTable(p: Project, c: Cabinet, make = 1): string {
 }
 
 export function shopSet(p: Project, s: DrawingSettings): Sheet[] {
+  beginEdits(s.edits);
+  try { return shopSheets(p, s); } finally { endEdits(); }
+}
+function shopSheets(p: Project, s: DrawingSettings): Sheet[] {
   const A = area(s.paper);
   const sheets: Sheet[] = [];
   const walls = wallsWithWork(p);
@@ -306,7 +333,7 @@ export function shopSet(p: Project, s: DrawingSettings): Sheet[] {
   const placed = placeDetails(p, 'shop', 'S', walls.length + 1);
   walls.forEach((w, i) => {
     const elevFrame = { ...A, w: A.w * 0.7 };
-    const e = wallElevation(p, w, elevFrame, 'shop', cutsOn(p, placed, w));
+    const e = inView(`shop-elev:${w}`, `${wallNames[w]} assembly`, () => wallElevation(p, w, elevFrame, 'shop', cutsOn(p, placed, w)));
     const notes = html({ x: A.x + A.w * 0.72, y: A.y, w: A.w * 0.28, h: A.h }, installNotes(p, w), s.paper === 'tabloid' ? 0.11 : 0.095);
     sheets.push(sheet(p, s, `S${i + 1}`, `${wallNames[w]} assembly`, scaleName(e.scale), e.svg + notes));
   });
@@ -327,9 +354,9 @@ export function shopSet(p: Project, s: DrawingSettings): Sheet[] {
       const viewH = A.h * 0.56;
       const left: Frame = { x: A.x, y: A.y + 0.1, w: A.w * 0.4, h: viewH };
       const mid: Frame = { x: A.x + A.w * 0.4, y: A.y + 0.1, w: A.w * 0.34, h: viewH };
-      const mv = mvOnly ? mantelViews(p, c, left, mid) : null;
-      const ff = hasFrame ? faceFrameView(p, c, left) : mv;
-      const sec = c.kind === 'shelf' || c.kind === 'pilaster' || c.kind === 'mantel' ? null : sideSection(p, c, mid);
+      const mv = mvOnly ? inView(`mantel:${c.id}`, `${c.name} mantel`, () => mantelViews(p, c, left, mid)) : null;
+      const ff = hasFrame ? inView(`ff:${c.id}`, `${c.name} face frame`, () => faceFrameView(p, c, left)) : mv;
+      const sec = c.kind === 'shelf' || c.kind === 'pilaster' || c.kind === 'mantel' ? null : inView(`sec:${c.id}`, `${c.name} section`, () => sideSection(p, c, mid));
       const labels = (ff ? label(left, `${mv ? 'MANTEL' : 'FACE FRAME'} (${scaleName(ff.scale)})`) : '') + (sec ? label(mid, `SECTION, FROM THE LEFT (${scaleName(sec.scale)})`) : '');
       const info = html({ x: A.x + A.w * 0.76, y: A.y, w: A.w * 0.24, h: viewH }, cabinetHeader(p, c, same) + hardwareList(p, c), fs);
       const table = html({ x: A.x, y: A.y + viewH + 0.25, w: A.w, h: A.h - viewH - 0.25 }, partsTable(p, c, same.length), ts);
@@ -341,9 +368,9 @@ export function shopSet(p: Project, s: DrawingSettings): Sheet[] {
     const fFF: Frame = { x: A.x, y: A.y + 0.1, w: A.w * 0.38, h: viewH };
     const fSec: Frame = { x: A.x + A.w * 0.38, y: A.y + 0.1, w: A.w * 0.3, h: viewH };
     const fSide: Frame = { x: A.x + A.w * 0.68, y: A.y + 0.1, w: A.w * 0.32, h: viewH };
-    const ff = hasFrame ? faceFrameView(p, c, fFF) : null;
-    const sec = sideSection(p, c, ff ? fSec : { ...fSec, x: A.x, w: A.w * 0.68 });
-    const lay = sidePanelLayout(p, c, fSide)!;
+    const ff = hasFrame ? inView(`ff:${c.id}`, `${names} face frame`, () => faceFrameView(p, c, fFF)) : null;
+    const sec = inView(`sec:${c.id}`, `${names} section`, () => sideSection(p, c, ff ? fSec : { ...fSec, x: A.x, w: A.w * 0.68 }));
+    const lay = inView(`side:${c.id}`, `${names} side panel`, () => sidePanelLayout(p, c, fSide))!;
     const labels = (ff ? label(fFF, `FACE FRAME (${scaleName(ff.scale)})`) : '') + label(ff ? fSec : { ...fSec, x: A.x, w: A.w * 0.68 }, `SECTION, FROM THE LEFT (${scaleName(sec.scale)})`) + label(fSide, `LEFT SIDE, INSIDE FACE (${scaleName(lay.scale)})`);
     const lowY = A.y + viewH + 0.3, lowH = A.h - viewH - 0.3;
     const info = html({ x: A.x, y: lowY, w: A.w * 0.36, h: lowH }, cabinetHeader(p, c, same), fs);
@@ -361,8 +388,8 @@ export function shopSet(p: Project, s: DrawingSettings): Sheet[] {
   }
   if (cofferOf(p).on) {
     const top = A.h * 0.58;
-    const rcp = ceilingPlan(p, { x: A.x, y: A.y, w: A.w * 0.6, h: top });
-    const sec = beamSection(p, { x: A.x + A.w * 0.6, y: A.y, w: A.w * 0.4, h: top });
+    const rcp = inView('shop-rcp', 'Ceiling plan', () => ceilingPlan(p, { x: A.x, y: A.y, w: A.w * 0.6, h: top }));
+    const sec = inView('beam', 'Beam section', () => beamSection(p, { x: A.x + A.w * 0.6, y: A.y, w: A.w * 0.4, h: top }));
     const rows = partRows(cofferParts(p)).map(({ part, qty }) => `<tr><td>${qty}</td><td>${esc(part.name)}</td><td>${fmt(part.length)}</td><td>${fmt(part.width)}</td><td>${fmt(part.thickness)}</td><td>${esc(part.species ?? '')}</td><td>${esc(part.note ?? '')}</td></tr>`).join('');
     const table = html({ x: A.x, y: A.y + top + 0.2, w: A.w, h: A.h - top - 0.2 }, `<table class="parts"><thead><tr><th>Qty</th><th>Part</th><th>Length</th><th>Width</th><th>Thick</th><th>Stock</th><th>Notes</th></tr></thead><tbody>${rows}</tbody></table>`, s.paper === 'tabloid' ? 0.09 : 0.07);
     sheets.push(sheet(p, s, `S${sheets.length + 1}`, 'Coffered ceiling', `${scaleName(rcp.scale)}; section ${scaleName(sec.scale)}`, rcp.svg + sec.svg + table));

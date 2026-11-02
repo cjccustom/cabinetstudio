@@ -705,14 +705,16 @@ textarea.text-input { resize: vertical; }
 .portal-msg { border: 1px solid var(--line, #ddd); border-radius: 8px; padding: 6px 10px; margin: 6px 0; }
 .portal-msg.shop { background: rgba(43, 74, 60, 0.07); }
 .portal-msg.unread { border-color: #b45309; }
-/* Click-to-edit drawings */
+/* Editing the drawings (never the design) */
 .drawings-stage .dw-scroll { position: relative; }
 .drawings-stage .dwg .hit { pointer-events: all; cursor: pointer; }
-.drawings-stage .dwg .hit[data-field="place"] { cursor: grab; }
-.drawings-stage .dwg .hit:hover { fill: rgba(37, 99, 235, 0.08); stroke: #2563eb; stroke-width: 0.012; }
-.drawings-stage .dwg .hit.dragging { fill: rgba(37, 99, 235, 0.15); stroke: #2563eb; stroke-width: 0.015; stroke-dasharray: 0.05 0.03; cursor: grabbing; }
-.drawings-stage .dwg [data-field="notes"], .drawings-stage .dwg [data-field="cover-notes"] { cursor: pointer; }
-.drawings-stage .dwg [data-field="notes"]:hover, .drawings-stage .dwg [data-field="cover-notes"]:hover { background: rgba(37, 99, 235, 0.1); outline: 1px solid #2563eb; }
+.drawings-stage .dwg .hit:hover { fill: rgba(37, 99, 235, 0.1); stroke: #2563eb; stroke-width: 0.012; }
+.drawings-stage .dwg .hit[data-hidden] { stroke: #dc2626; stroke-width: 0.01; stroke-dasharray: 0.04 0.03; }
+.drawings-stage .dwg .hit[data-note] { cursor: move; }
+.view-scale { display: flex; align-items: center; justify-content: space-between; gap: 6px; padding: 2px 0 2px 18px; font-size: 12px; }
+.view-scale select { font-size: 12px; max-width: 150px; }
+.view-scale select.overridden { border-color: #2563eb; }
+.dw-pop.note textarea { width: 220px; }
 .dw-pop { position: absolute; z-index: 5; display: flex; gap: 6px; align-items: center; background: var(--panel, #fff); border: 1px solid #2563eb; border-radius: 8px; padding: 8px; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18); transform: translate(-50%, 8px); }
 .dw-pop input { width: 90px; }
 .dw-pop label { font-size: 12px; white-space: nowrap; }
