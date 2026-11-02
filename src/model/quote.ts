@@ -1,6 +1,7 @@
 // Quoting: material cost from the design, labor hours from standard times, and the shop's two
 // pricing methods side by side. Every number traces back to the design or a setting.
 import { lightingCost, lightingParts } from './cabinetLighting';
+import { corbelByCode } from './corbels';
 import { furnitureOf, tableEstimate, tableScope } from './furniture';
 import type { Cabinet, Project, WallId } from './types';
 import { buildParts, eff, isOpenRow, openSpans } from './parts';
@@ -14,7 +15,7 @@ import { panelOrder } from './panels';
 import { uid } from './defaults';
 import { eaglePrice, eagleWood, hingeTypes } from './eagle';
 import { hardwareOrder } from './hardware';
-import { bracketCount, bracketLength, bracketProduct, finishedEnds } from './floatingShelf';
+import { bracketCount, bracketLength, bracketProduct, finishedEnds, floatingOf } from './floatingShelf';
 import { doorOrder } from './doorOrder';
 import { baseLabel } from './cabinetBase';
 import { defaultSupplies, supplyLines, type SupplyGroup, type SupplyItem } from './supplies';
@@ -82,6 +83,8 @@ export interface LaborStandards {
   mantelBuild: number;
   mantelPilasters: number;
   mantelCorbel: number;
+  /** Fitting and mounting a bought corbel under a floating shelf. */
+  shelfCorbel?: number;
   mantelPediment: number;
   /** Full height above the shelf: upper pilasters and the overmantel frame and panel; installing it. */
   mantelUpper: number;
@@ -331,6 +334,9 @@ export function estimateHours(p: Project, q: QuoteSettings): HourLine[] {
     if (c.kind === 'shelf') {
       add('Floating shelves: miter fold & glue-up', 1, st.floatingShelf);
       add('Floating shelves: finished ends', finishedEnds(resolveEnds(p.room, p.cabinets, c)), st.shelfFinishedEnd);
+      // Corbels under a shelf: making them (shop-made), fitting and mounting them
+      const nc = floatingOf(c).corbels ?? 0;
+      if (nc) add(floatingOf(c).corbelCode ? 'Shelf corbels: fit & mount (each)' : 'Shelf corbels: make, fit & mount (each)', nc, floatingOf(c).corbelCode ? st.shelfCorbel ?? 0.5 : st.mantelCorbel ?? 1.5);
       add('Install floating shelves', 1, st.installFloatingShelf, 'cabinets', true);
       installHours += st.installFloatingShelf;
       continue;
@@ -577,6 +583,16 @@ export function estimateMaterials(p: Project, q: QuoteSettings): MaterialLine[] 
   if (cc.on && cc.beadboard) {
     const sheets = Math.ceil((cofferMoldings(p, cc).fieldSqFt * 1.15) / 32);
     if (sheets) out.push({ group: 'ceiling', label: 'Beadboard sheets for the coffers', cost: sheets * q.beadboardSheet, detail: `${sheets} sheets`, missing: q.beadboardSheet ? undefined : 'Enter your beadboard sheet price' });
+  }
+  // Corbels bought from Next Day, under mantel shelves and floating shelves
+  const bought = new Map<string, number>();
+  for (const c of p.cabinets) {
+    const [n, code] = c.kind === 'mantel' ? [mantelOf(c).corbels, mantelOf(c).corbelCode] : c.kind === 'shelf' ? [floatingOf(c).corbels ?? 0, floatingOf(c).corbelCode] : [0, undefined];
+    if (n && code) bought.set(code, (bought.get(code) ?? 0) + n);
+  }
+  for (const [code, n] of bought) {
+    const k = corbelByCode(code);
+    if (k) out.push({ group: 'cabinets', label: `Corbels, Next Day ${k.code}`, cost: n * k.price, detail: `${n} × $${k.price.toFixed(2)} (${k.name})` });
   }
   const lit = lightingParts(p);
   if (lit.parts.length) {

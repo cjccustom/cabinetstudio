@@ -1,5 +1,7 @@
 // Floating shelves built with miter folds: 3/4" plywood top and bottom, a solid face (and end caps on
 // exposed ends) mitered to them, and the space between left open for a floating shelf bracket.
+import { corbelByCode } from './corbels';
+import { corbelShape } from './mantel';
 import type { Cabinet, FloatingShelfSpec, Part, ShopSettings } from './types';
 import type { EndInfo } from './parts';
 import { eff, vb } from './parts';
@@ -34,6 +36,16 @@ export function floatingShelfParts(c: Cabinet, settings: ShopSettings, ends: End
   out.push({ name: 'Shelf face', role: 'trim', material: solid, length: W, width: H, thickness: ft, cut: true,
     note: 'mitered top and bottom to fold over the plywood',
     boxes: [vb(0, 0, D - ft, W, H, ft)] });
+  // Corbels under the shelf, evenly spaced with the end ones 4" in (or centered when there's one)
+  const nCorb = f.corbels ?? 0;
+  if (nCorb > 0) {
+    const bought = corbelByCode(f.corbelCode);
+    const cw = bought?.w ?? 3.5, ch = bought?.h ?? 7, cd = Math.min(D, bought?.d ?? D - 1);
+    const xs = nCorb === 1 ? [W / 2] : Array.from({ length: nCorb }, (_, i) => 4 + cw / 2 + (i * (W - 8 - cw)) / (nCorb - 1));
+    for (const cx of xs) out.push({ name: 'Corbel', role: 'trim', material: solid, length: ch, width: cd, thickness: cw, cut: !bought,
+      note: bought ? `Next Day ${bought.code} (${bought.name}); screwed to the wall through its back, glued and screwed up into the shelf` : 'Shop-made; screwed to the wall, glued and screwed up into the shelf',
+      boxes: [], shapes: [corbelShape(cx - cw / 2, -ch, 0, cw, ch, cd)] });
+  }
   for (const side of ['left', 'right'] as const) {
     if (!ends[side]) continue;
     out.push({ name: 'Shelf end cap', role: 'trim', material: solid, length: D, width: H, thickness: ft, cut: true,

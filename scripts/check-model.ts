@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { canSpots } from "../src/model/lighting";
+import { corbelCatalog } from "../src/model/corbels";
 import { roomMoldings as roomMolds, wallAccentBoxes } from "../src/model/room";
 import { paymentSchedule } from "../src/model/schedule";
 import { asciiHtml } from "../src/dropbox";
@@ -1499,6 +1500,17 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   eq('wall finish: no accent on a wall without one', wallAccentBoxes(w, 'back').length, 0);
   eq('wall finish: base off on the right wall only', roomMolds(w, 'right').some((m) => m.kind === 'roomBase'), false);
   eq('wall finish: the room base stays on the left', roomMolds(w, 'left').some((m) => m.kind === 'roomBase'), true);
+}
+
+// Corbels from Next Day under a floating shelf: drawn at their size, bought (not cut), priced in materials
+{
+  const k = corbelCatalog.find((x) => x.code === 'CORBEL-7')!;
+  eq('corbels: size from the code (6 W x 9 H x 4 D)', `${k.w}x${k.h}x${k.d}`, '6x9x4');
+  const shelf = { ...cabinetFromPreset(presets.find((x) => x.id === 'floating-shelf') ?? presets.find((x) => x.kind === 'shelf')!, 'back', 30, []), id: 'FS', name: 'FS', depth: 10, floating: { grade: 'paint' as const, face: 0.75, corbels: 2, corbelCode: 'CORBEL-7' } } as any;
+  const parts = buildParts(shelf, p.settings, { left: true, right: true }).filter((x) => x.name === 'Corbel');
+  eq('corbels: two under the shelf, bought', parts.length === 2 && parts.every((x) => !x.cut), true);
+  const q = { ...p, cabinets: [...p.cabinets, shelf] };
+  eq('corbels: priced from Next Day', estimateMaterials(q, quoteOf(q)).some((m) => m.label === 'Corbels, Next Day CORBEL-7' && Math.abs(m.cost - 2 * k.price) < 0.01), true);
 }
 
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');

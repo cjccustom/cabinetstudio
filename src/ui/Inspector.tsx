@@ -23,6 +23,7 @@ import { cabinetCallouts } from '../drawings/notes';
 import { archBuilds, archShapes, baseLayout, baseOf, baseStyles, cutOutline, defaultBase, floorStanding } from '../model/cabinetBase';
 import { profileLabel, profileByNum } from '../model/moldings';
 import { lumberNames } from '../model/pricebook';
+import { corbelByCode, corbelCatalog, corbelLabel } from '../model/corbels';
 import { cabinetFixtures, cabLightLabel, type CabLightKind } from '../model/cabinetLighting';
 
 const kindLabel = { base: 'Base cabinet', wall: 'Wall cabinet', tall: 'Tall cabinet', pilaster: 'Pilaster', shelf: 'Floating shelf', mantel: 'Fireplace mantel' };
@@ -950,6 +951,21 @@ function FloatingShelfSection({ cab, set }: { cab: Cabinet; set: (patch: Partial
             onChange={(e) => { const n = parseInt(e.target.value, 10); set({ floating: { ...f, brackets: Number.isFinite(n) && n > 0 ? n : undefined } }); }} />
         </Field>
       </div>
+      <div className="grid2">
+        <Field label="Corbels under it" htmlFor="fs-corb">
+          <select id="fs-corb" value={f.corbels ?? 0} onChange={(e) => set({ floating: { ...f, corbels: Number(e.target.value) || undefined } })}>
+            {[0, 1, 2, 3, 4].map((n) => <option key={n} value={n}>{n ? n : 'None (floating)'}</option>)}
+          </select>
+        </Field>
+        {(f.corbels ?? 0) > 0 && (
+          <Field label="Corbel" htmlFor="fs-corb-code">
+            <select id="fs-corb-code" value={f.corbelCode ?? ''} onChange={(e) => set({ floating: { ...f, corbelCode: e.target.value || undefined } })}>
+              <option value="">Shop-made 3-1/2" × 7"</option>
+              {corbelCatalog.map((k) => <option key={k.code} value={k.code}>{corbelLabel(k)}</option>)}
+            </select>
+          </Field>
+        )}
+      </div>
       <div className="order-actions">
         <span className="muted">Stack another:</span>
         <button className="mini" onClick={() => stack(1)}>Above</button>
@@ -1362,8 +1378,17 @@ function MantelSection({ cab, set }: { cab: Cabinet; set: (patch: Partial<Cabine
               <option value={4}>4, two on each leg</option>
             </select>
           </Field>
-          {m.corbels > 0 && len('corbelW', 'Corbel width')}
-          {m.corbels > 0 && len('corbelH', 'Corbel height')}
+          {m.corbels > 0 && (
+            <Field label="Corbel" htmlFor="mt-corbel-code">
+              <select id="mt-corbel-code" value={m.corbelCode ?? ''} onChange={(e) => put({ corbelCode: e.target.value || undefined })}>
+                <option value="">Shop-made, to the size below</option>
+                {corbelCatalog.map((k) => <option key={k.code} value={k.code}>{corbelLabel(k)}</option>)}
+              </select>
+            </Field>
+          )}
+          {m.corbels > 0 && !m.corbelCode && len('corbelW', 'Corbel width')}
+          {m.corbels > 0 && !m.corbelCode && len('corbelH', 'Corbel height')}
+          {m.corbels > 0 && m.corbelCode && corbelByCode(m.corbelCode) && <p className="hint"><a href={corbelByCode(m.corbelCode)!.url} target="_blank" rel="noreferrer">See it on nextdaymoulding.com</a>. Its depth is fit to the shelf.</p>}
           <Field label="Pediment" htmlFor="mt-ped">
             <select id="mt-ped" value={m.pediment} onChange={(e) => put({ pediment: e.target.value as MantelSpec['pediment'] })}>
               <option value="none">None</option>

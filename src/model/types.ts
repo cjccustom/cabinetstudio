@@ -194,6 +194,9 @@ export interface FloatingShelfSpec {
   face: number;
   /** Floating shelf brackets; empty = one per stud at 16" centers. */
   brackets?: number;
+  /** Corbels or brackets under the shelf, showing (0 = none): a Next Day item code, or shop-made 3-1/2" × 7". */
+  corbels?: number;
+  corbelCode?: string;
 }
 
 /**
