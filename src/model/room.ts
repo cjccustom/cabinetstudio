@@ -2,7 +2,7 @@
 // crown, baseboard and chair rail that run each wall, broken wherever a cabinet or a door casing
 // gets in the way. Everything here is in wall coordinates: x along the wall from its left end
 // (as you face it), y up from the floor, z out from the wall into the room.
-import type { Cabinet, Floor, Opening, Project, RoomTrim, VisualBox, WallId } from './types';
+import type { Cabinet, Floor, Opening, Project, RoomTrim, VisualBox, WallFinish, WallId } from './types';
 import { footprint, wallLength, wallOrder, type Issue } from './layout';
 import { mountShape, profileByNum, type MoldPiece } from './moldings';
 import { uid } from './defaults';
@@ -131,8 +131,16 @@ export function freeRuns(len: number, blocked: [number, number][], min = 2): [nu
 
 /** Room crown, base and chair rail for one wall, in its wall coordinates. */
 export function roomMoldings(p: Project, wall: WallId): MoldPiece[] {
-  const t = roomTrimOf(p);
-  if (!t.walls.includes(wall)) return [];
+  const room = roomTrimOf(p);
+  const wf = p.wallFinishes?.[wall] ?? {};
+  // This wall's own trim wins over the room's; a wall with any of its own trim gets it even if the room's skips it
+  const own = (k: 'crown' | 'base' | 'chairRail') => wf[k] !== undefined;
+  if (!room.walls.includes(wall) && !own('crown') && !own('base') && !own('chairRail')) return [];
+  const on = room.walls.includes(wall);
+  const pick = (k: 'crown' | 'base' | 'chairRail') => (own(k) ? wf[k] ?? undefined : on ? room[k] : undefined);
+  // A chair rail over an accent caps it at the accent's height
+  const capAt = wf.accent && wf.accent !== 'shiplap' && wf.accent !== 'slats' ? accentHeightOf(wf, p.room.height) : room.chairHeight;
+  const t = { crown: pick('crown'), base: pick('base'), chairRail: pick('chairRail'), chairHeight: capAt };
   const len = wallLength(p.room, wall);
   const out: MoldPiece[] = [];
   const run = (kind: MoldPiece['kind'], num: string | undefined, y: (h: number) => number, windows: boolean) => {
@@ -148,6 +156,57 @@ export function roomMoldings(p: Project, wall: WallId): MoldPiece[] {
   // Base and chair rail run under windows
   run('roomBase', t.base, () => 0, false);
   run('chairRail', t.chairRail, (h) => t.chairHeight - h, true);
+  return out;
+}
+
+/** How high a wall's accent runs: what was set, or the usual for it. */
+export function accentHeightOf(wf: WallFinish, H: number): number {
+  if (wf.accentHeight) return Math.min(H, wf.accentHeight);
+  return wf.accent === 'shiplap' || wf.accent === 'slats' ? H : wf.accent === 'boardBatten' ? 60 : 36;
+}
+
+/**
+ * The accent on a wall as boxes in the wall's own coordinates (x along, y up, z out from it),
+ * stopping at windows, doors and cabinets: frame-and-panel wainscot, beadboard, shiplap boards,
+ * vertical slats, or board and batten.
+ */
+export function wallAccentBoxes(p: Project, wall: WallId): VisualBox[] {
+  const wf = p.wallFinishes?.[wall];
+  if (!wf?.accent) return [];
+  const len = wallLength(p.room, wall);
+  const h = accentHeightOf(wf, p.room.height);
+  const out: VisualBox[] = [];
+  const vb = (x: number, y: number, z: number, sx: number, sy: number, sz: number, shade?: number): VisualBox => ({ min: [x, y, z], size: [sx, sy, sz], ...(shade ? { shade } : {}) });
+  for (const [a, b] of freeRuns(len, blockedAlong(p, wall, 0, h, { windows: true }))) {
+    const w = b - a;
+    switch (wf.accent) {
+      case 'shiplap':
+        for (let y = 0; y < h - 0.5; y += 5.5) out.push(vb(a, y + 0.0625, 0, w, Math.min(5.375, h - y - 0.0625), 0.5));
+        break;
+      case 'slats':
+        out.push(vb(a, 0, 0, w, h, 0.25, 0.75));
+        for (let x = a + 0.75; x + 1.5 <= b; x += 3) out.push(vb(x, 0, 0.25, 1.5, h, 0.75));
+        break;
+      case 'beadboard':
+        out.push(vb(a, 0, 0, w, h, 0.3125));
+        for (let x = a + 1.5; x < b - 0.2; x += 1.5) out.push(vb(x - 0.06, 0, 0.3, 0.12, h, 0.02, 0.8));
+        break;
+      case 'boardBatten': {
+        out.push(vb(a, 0, 0, w, h, 0.5));
+        out.push(vb(a, h - 3.5, 0.5, w, 3.5, 0.75));
+        const n = Math.max(1, Math.round(w / 16));
+        for (let i = 0; i <= n; i++) out.push(vb(Math.min(b - 2.5, a + (i * (w - 2.5)) / n), 0, 0.5, 2.5, h - 3.5, 0.75));
+        break;
+      }
+      default: {
+        // Frame and panel: a backer, bottom and top rails, stiles about every 2'
+        out.push(vb(a, 0, 0, w, h, 0.25, 0.85));
+        out.push(vb(a, 0, 0.25, w, 5.5, 0.75), vb(a, h - 3.5, 0.25, w, 3.5, 0.75));
+        const n = Math.max(1, Math.round(w / 24));
+        for (let i = 0; i <= n; i++) out.push(vb(Math.min(b - 3, a + (i * (w - 3)) / n), 5.5, 0.25, 3, h - 9, 0.75));
+      }
+    }
+  }
   return out;
 }
 

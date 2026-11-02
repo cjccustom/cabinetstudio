@@ -4,7 +4,7 @@ import type { Cabinet, Part, Project, WallId } from '../model/types';
 import { buildParts, eff, topThick } from '../model/parts';
 import { footprint, resolveEnds, wallLength, wallNames, wallTransform } from '../model/layout';
 import { cabinetMoldings, mountShape, profileByNum, profileLabel } from '../model/moldings';
-import { casingReach, openingTrim, roomMoldings } from '../model/room';
+import { casingReach, openingTrim, roomMoldings, wallAccentBoxes } from '../model/room';
 import { View, dimText, fitScale, type Frame } from './draw';
 import { canSpots } from '../model/lighting';
 import { applianceName, placedAppliances, type PlacedAppliance } from '../model/appliances';
@@ -142,6 +142,8 @@ export function wallElevation(p: Project, wall: WallId, frame: Frame, mode: 'cus
   v.rect(L, 0, 4.5, H, 'wall');
   v.line(-4.5, 0, L + 4.5, 0, 'heavy');
   v.line(0, H, L, H, 'f');
+  // The wall's accent (wainscot, shiplap, slats...) behind everything in front of it
+  for (const b of wallAccentBoxes(p, wall)) v.rect(b.min[0], b.min[1], b.size[0], b.size[1], 'thin');
   drawItems(v, elevationItems(p, wall));
   v.line(-4.5, 0, L + 4.5, 0, 'heavy');
 

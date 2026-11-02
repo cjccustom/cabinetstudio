@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { canSpots } from "../src/model/lighting";
+import { roomMoldings as roomMolds, wallAccentBoxes } from "../src/model/room";
 import { paymentSchedule } from "../src/model/schedule";
 import { asciiHtml } from "../src/dropbox";
 import { cabinetFixtures, lightingCost, lightingParts, electricianHtml } from "../src/model/cabinetLighting";
@@ -1489,6 +1490,15 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   const panels = (c: typeof t) => buildParts(c, { ...p.settings, endPanel: 'flush' }, { left: false, right: true }).filter((x) => x.role === 'endPanel');
   eq('divided end panel: one piece per door row', panels({ ...t, splitEndPanels: true }).length, 2);
   eq('divided end panel: one piece by default', panels(t).length, 1);
+}
+
+// One wall at a time: its own accent and trim
+{
+  const w = { ...p, roomTrim: { walls: ['left', 'right'] as ('left' | 'right')[], base: '1827', chairHeight: 34 }, wallFinishes: { left: { accent: 'wainscot' as const }, right: { base: null } } } as any;
+  eq('wall finish: wainscot boxes on the left wall', wallAccentBoxes(w, 'left').length > 3, true);
+  eq('wall finish: no accent on a wall without one', wallAccentBoxes(w, 'back').length, 0);
+  eq('wall finish: base off on the right wall only', roomMolds(w, 'right').some((m) => m.kind === 'roomBase'), false);
+  eq('wall finish: the room base stays on the left', roomMolds(w, 'left').some((m) => m.kind === 'roomBase'), true);
 }
 
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');

@@ -7,9 +7,9 @@ import { useStore } from '../store';
 import { doorOf } from '../model/doorOrder';
 import { designByCode, stockSlab, tradeSize } from '../model/reeb';
 import { DoorGlyph, DoorPicker } from './DoorPicker';
-import type { Floor, Opening, OpeningTrim, RoomTrim, WallId } from '../model/types';
+import type { Floor, Opening, OpeningTrim, RoomTrim, WallAccent, WallFinish, WallId } from '../model/types';
 import { wallLength, wallNames, wallOrder } from '../model/layout';
-import { defaultFloor, floorOf, inScope, newOpening, openingKinds, roomTrimOf } from '../model/room';
+import { accentHeightOf, defaultFloor, floorOf, inScope, newOpening, openingKinds, roomTrimOf } from '../model/room';
 import { fmt } from '../units';
 import { Field, LengthInput, Section } from './fields';
 import { MoldSlot } from './ProfilePicker';
@@ -77,6 +77,8 @@ export function RoomDetails() {
           label="This job supplies and installs room trim & casing"
           note="Off: crown, base, chair rail and door and window casing are drawn for the design only. On: footage goes on the moulding orders, flat casing on the Solid wood list, and both into the quote under Room trim." />
       </Section>
+
+      <WallsSection />
 
       <Section title="Floor">
         <div className="grid2">
@@ -217,5 +219,66 @@ function ScopeToggle({ id, on, set, label, note }: { id: string; on: boolean; se
       <label htmlFor={id}><input id={id} type="checkbox" checked={on} onChange={(e) => set(e.target.checked)} /> {label}</label>
       <p className="hint">{note}</p>
     </div>
+  );
+}
+
+const accentLabel: Record<WallAccent, string> = { wainscot: 'Frame & panel wainscot', beadboard: 'Beadboard', shiplap: 'Shiplap', slats: 'Wood slats', boardBatten: 'Board & batten' };
+
+/** One wall at a time: its paint, an accent treatment, and trim of its own. */
+function WallsSection() {
+  const project = useStore((s) => s.project);
+  const commit = useStore((s) => s.commit);
+  const species = project.settings.moldSpecies;
+  const [wall, setWall] = useState<WallId>('back');
+  const wf: WallFinish = project.wallFinishes?.[wall] ?? {};
+  const put = (patch: Partial<WallFinish>) => commit((p) => {
+    const cur = { ...p.wallFinishes?.[wall], ...patch };
+    (Object.keys(cur) as (keyof WallFinish)[]).forEach((k) => cur[k] === undefined && delete cur[k]);
+    const next = { ...p.wallFinishes, [wall]: cur };
+    if (!Object.keys(cur).length) delete next[wall];
+    return { ...p, wallFinishes: next };
+  });
+  const trimSlot = (k: 'crown' | 'base' | 'chairRail', kind: 'roomCrown' | 'roomBase' | 'chairRail', label: string) => (
+    <div className="row-ledge" style={{ alignItems: 'center' }}>
+      <select aria-label={`${label} on this wall`} value={wf[k] === undefined ? 'room' : wf[k] === null ? 'none' : 'own'} onChange={(e) => put({ [k]: e.target.value === 'room' ? undefined : e.target.value === 'none' ? null : wf[k] ?? roomTrimOf(project)[k] ?? '' } as Partial<WallFinish>)}>
+        <option value="room">{label}: same as the room</option>
+        <option value="none">{label}: none on this wall</option>
+        <option value="own">{label}: its own profile</option>
+      </select>
+      {typeof wf[k] === 'string' && <MoldSlot kind={kind} num={wf[k] || undefined} species={species} onChange={(n) => put({ [k]: n ?? null } as Partial<WallFinish>)} />}
+    </div>
+  );
+  return (
+    <Section title="Walls">
+      <div className="seg" role="tablist" aria-label="Wall">
+        {wallOrder.map((w) => <button key={w} role="tab" aria-selected={wall === w} className={wall === w ? 'on' : ''} onClick={() => setWall(w)}>{wallNames[w].replace(' wall', '')}{project.wallFinishes?.[w] ? ' •' : ''}</button>)}
+      </div>
+      <div className="grid2" style={{ marginTop: 8 }}>
+        <Field label="Paint color" htmlFor="wf-color">
+          <input id="wf-color" type="color" value={wf.color ?? project.finishes.wall ?? '#f1efea'} onChange={(e) => put({ color: e.target.value })} />
+        </Field>
+        <Field label="Accent" htmlFor="wf-accent">
+          <select id="wf-accent" value={wf.accent ?? ''} onChange={(e) => put({ accent: (e.target.value || undefined) as WallAccent | undefined })}>
+            <option value="">None</option>
+            {(Object.keys(accentLabel) as WallAccent[]).map((k) => <option key={k} value={k}>{accentLabel[k]}</option>)}
+          </select>
+        </Field>
+        {wf.accent && (
+          <Field label="Accent height" htmlFor="wf-ah" hint="Off the floor">
+            <LengthInput id="wf-ah" value={wf.accentHeight ?? null} allowAuto placeholder={fmt(accentHeightOf(wf, project.room.height))} onChange={(v) => put({ accentHeight: v ?? undefined })} />
+          </Field>
+        )}
+        {wf.accent && (
+          <Field label="Accent color" htmlFor="wf-ac">
+            <input id="wf-ac" type="color" value={wf.accentColor ?? project.finishes.trim ?? '#f7f5ef'} onChange={(e) => put({ accentColor: e.target.value })} />
+          </Field>
+        )}
+      </div>
+      {trimSlot('crown', 'roomCrown', 'Crown')}
+      {trimSlot('base', 'roomBase', 'Base')}
+      {trimSlot('chairRail', 'chairRail', 'Chair rail')}
+      {wf.accent && wf.accent !== 'shiplap' && wf.accent !== 'slats' && <p className="hint">A chair rail on this wall caps the accent at its height.</p>}
+      {Object.keys(wf).length > 0 && <button className="mini" onClick={() => commit((p) => { const next = { ...p.wallFinishes }; delete next[wall]; return { ...p, wallFinishes: next }; })}>Back to the room’s finish</button>}
+    </Section>
   );
 }

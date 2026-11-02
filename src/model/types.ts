@@ -390,6 +390,20 @@ export interface RoomTrim {
   walls: WallId[];
 }
 
+/** One wall's own finish: paint color, an accent treatment, and trim different from the rest of the room. */
+export type WallAccent = 'wainscot' | 'beadboard' | 'shiplap' | 'slats' | 'boardBatten';
+export interface WallFinish {
+  color?: string;
+  accent?: WallAccent;
+  /** How high the accent runs off the floor; unset = the usual for it (full height for shiplap and slats). */
+  accentHeight?: number;
+  accentColor?: string;
+  /** Trim on this wall, in place of the room's: a profile, or null for none. Unset = the room's. */
+  crown?: string | null;
+  base?: string | null;
+  chairRail?: string | null;
+}
+
 export interface Floor {
   kind: 'hardwood' | 'tile' | 'vinyl' | 'carpet' | 'concrete';
   color: string;
@@ -423,6 +437,8 @@ export interface Project {
   shopJobId?: string;
   openings?: Opening[];
   roomTrim?: RoomTrim;
+  /** Each wall's own paint, accent and trim. */
+  wallFinishes?: Partial<Record<WallId, WallFinish>>;
   /** How the room is lit in 3D. */
   lights?: Partial<import('./lighting').RoomLights>;
   /** Price per board foot for solid stock in species other than the face frame stock, by species. */

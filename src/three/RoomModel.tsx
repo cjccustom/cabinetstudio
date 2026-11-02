@@ -5,7 +5,7 @@ import { Edges, Line } from '@react-three/drei';
 import type { ViewMode } from '../store';
 import type { Floor, Opening, Project, VisualBox, WallId } from '../model/types';
 import { wallLength, wallOrder, wallTransform } from '../model/layout';
-import { floorOf, openingTrim, roomMoldings } from '../model/room';
+import { floorOf, openingTrim, roomMoldings, wallAccentBoxes } from '../model/room';
 import { designByCode, doorDrawing, proportionsFor, type ReebDesign } from '../model/reeb';
 import { doorOf } from '../model/doorOrder';
 import { MoldingModel } from './MoldingModel';
@@ -28,8 +28,9 @@ export function RoomModel({ project, view, walls = true }: { project: Project; v
         const mine = openings.filter((o) => o.wall === wall);
         return (
           <group key={wall} position={pos} rotation-y={rotY}>
-            {walls && <WallFace len={wallLength(room, wall)} H={H} openings={mine} color={wallColor} />}
+            {walls && <WallFace len={wallLength(room, wall)} H={H} openings={mine} color={project.wallFinishes?.[wall]?.color ?? wallColor} />}
             <FacingCamera>
+              {wallAccentBoxes(project, wall).map((b, i) => <Box key={i} b={b} color={shadeOf(project.wallFinishes?.[wall]?.accentColor ?? trim, b.shade)} />)}
               {mine.map((o) => <OpeningModel key={o.id} o={o} trim={trim} />)}
               <MoldingModel pieces={roomMoldings(project, wall)} color={trim} edgeColor={EDGE} />
             </FacingCamera>
@@ -88,6 +89,9 @@ function Box({ b, color, edges = true, opacity }: { b: VisualBox; color: string;
     </mesh>
   );
 }
+
+/** A color a little darker, for the recessed parts of an accent (backers, grooves). */
+const shadeOf = (c: string, k?: number) => (k ? `#${new THREE.Color(c).multiplyScalar(k).getHexString()}` : c);
 
 const vb = (x: number, y: number, z: number, sx: number, sy: number, sz: number): VisualBox => ({ min: [x, y, z], size: [sx, sy, sz] });
 
