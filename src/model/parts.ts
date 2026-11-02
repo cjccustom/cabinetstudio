@@ -146,6 +146,12 @@ export interface EndInfo {
   wrapBeside?: (side: 'left' | 'right') => number | null;
   /** Pilasters: the base moulding on the casework beside it (its profile, and how far out its back sits), so the pilaster's carries on from it. */
   baseBeside?: (side: 'left' | 'right') => { num?: string; z: number; board: number } | null;
+  /**
+   * Countertops on cabinets that touch along a wall are one piece: the first cabinet carries it
+   * across the run (lead), the others have none (joined). last: the run's right-hand cabinet and
+   * whether its right end is exposed, for the top's right overhang and edging.
+   */
+  topRun?: { lead: boolean; span: number; last: Cabinet; lastRight: boolean };
 }
 
 /** The end panel actually used on one side: only exposed ends get one. */
@@ -732,9 +738,18 @@ function caseParts(c: Cabinet, s: ShopSettings, ends: EndInfo): Part[] {
       boxes: frontBoxes(-ext.left, py0, -pt, len, py1 - py0, pt, style.profile, doorStile, raised),
     });
   }
-  if (c.kind === 'base' && c.countertop) {
-    const top = topPart(c, s, W, D + dt, panelExtents(c, s, ends));
-    parts.push(top, ...topEdging(c, s, top, ends));
+  // Joined into the top of the cabinet to its left: no top of its own
+  if (c.kind === 'base' && c.countertop && ends.topRun && !ends.topRun.lead) { /* the lead cabinet's top covers it */ }
+  else if (c.kind === 'base' && c.countertop) {
+    const run = ends.topRun;
+    const ext = panelExtents(c, s, ends);
+    // Leading a run: one piece across to the far side of the last cabinet, overhanging its end as it would its own
+    const lastExt = run ? panelExtents(run.last, s, { left: false, right: run.lastRight }) : null;
+    const top = run && lastExt
+      ? topPart({ ...c, topRight: run.last.topRight }, s, run.span, D + dt, { left: ext.left, right: lastExt.right })
+      : topPart(c, s, W, D + dt, ext);
+    if (run) top.note = [top.note, `One piece across ${fmt(run.span)} of cabinets`].filter(Boolean).join(' · ');
+    parts.push(top, ...topEdging(run ? { ...c, topRight: run.last.topRight } : c, s, top, run ? { ...ends, right: run.lastRight } : ends));
     // A seat cushion covers the top
     const cu = c.cushion;
     if (cu) {
@@ -916,7 +931,8 @@ export function topPart(c: Cabinet, s: ShopSettings, W: number, frontFace: numbe
   return wood
     ? {
         name: 'Wood top', role: 'woodTop', material: 'solidWood', length: len, width: depth, thickness: t, cut: true,
-        note: `${s.woodSpecies}, glued up; ${fmt(front)} front overhang${backReach != null ? `, ${fmt(c.topBack ?? front)} past the far side's fronts` : c.island ? `, ${fmt(back - s.endPanelThickness)} past the back panel` : ''}`,
+        ...(c.topSpecies && c.topSpecies !== s.woodSpecies ? { species: c.topSpecies } : {}),
+        note: `${c.topSpecies ?? s.woodSpecies}, glued up; ${fmt(front)} front overhang${backReach != null ? `, ${fmt(c.topBack ?? front)} past the far side's fronts` : c.island ? `, ${fmt(back - s.endPanelThickness)} past the back panel` : ''}`,
         boxes: [vb(-left, c.height, -back, len, t, depth)],
       }
     : {

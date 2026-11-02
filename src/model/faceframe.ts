@@ -168,17 +168,29 @@ export function faceFrameNeeds(pieces: FFPiece[], s: FaceFrameStock): FaceFrameR
 }
 
 /** Solid wood tops, bench seats and beadboard caps: glued up or milled from thicker stock. */
-export interface WoodPiece { label: string; length: number; width: number; thickness: number }
+export interface WoodPiece { label: string; length: number; width: number; thickness: number; /** Set when it isn't the job's wood species. */ species?: string }
 
 export function woodPieces(p: Project): WoodPiece[] {
   const out: WoodPiece[] = [];
   for (const c of p.cabinets) {
     for (const part of buildParts(c, p.settings, resolveEnds(p.room, p.cabinets, c))) {
-      if (part.material === 'solidWood') out.push({ label: `${c.name} ${part.name.toLowerCase()}`, length: part.length, width: part.width, thickness: part.thickness });
+      if (part.material === 'solidWood') out.push({ label: `${c.name} ${part.name.toLowerCase()}`, length: part.length, width: part.width, thickness: part.thickness, ...(part.species ? { species: part.species } : {}) });
     }
   }
   for (const w of p.panels ?? []) if (w.cap && !w.capProfile) out.push({ label: `${w.name} beadboard cap`, length: w.width, width: w.capDepth, thickness: w.capHeight });
   return out;
+}
+
+/**
+ * A&M's price as $ per board foot for a species, worked from its thickest listed board (the
+ * closest to glue-up stock) at its widest: their list is by the lineal foot of surfaced boards.
+ */
+export function amPerBF(species: string): { perBF: number; board: string } | null {
+  const sizes = Object.entries(amSizes(species) ?? {}).map(([k, price]) => ({ k, price, b: boardSize(k) })).filter((x) => x.b && x.b.t <= 2);
+  if (!sizes.length) return null;
+  const t = Math.max(...sizes.map((x) => x.b!.t));
+  const best = sizes.filter((x) => x.b!.t === t).sort((a, b) => b.b!.w - a.b!.w)[0];
+  return { perBF: best.price / ((best.b!.t * best.b!.w) / 12), board: best.k };
 }
 
 /** Rough stock thickness to buy for a finished thickness, in quarters: 1 1/4" finished comes from 6/4. */

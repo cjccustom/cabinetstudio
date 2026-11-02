@@ -1469,6 +1469,19 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   eq('inset hinges: no Compact warning on the order', hardwareOrder(ins).problems.some((x) => /Compact/.test(x.text)), false);
 }
 
+// Countertops on touching cabinets are one piece, built on the leftmost; a seam starts a new one
+{
+  const run = p.cabinets.filter((c) => c.wall === 'back' && c.kind === 'base' && c.countertop).sort((a, b) => a.offset - b.offset);
+  const tops = (q: typeof p) => q.cabinets.flatMap((c) => buildParts(c, q.settings, resolveEnds(q.room, q.cabinets, c)).filter((x) => x.role === 'counter' || x.role === 'woodTop').map((x) => `${c.name}:${x.length}`));
+  const joined = tops(p);
+  eq('one-piece top: fewer tops than cabinets with tops', joined.length < run.length, true);
+  const seam = { ...p, cabinets: p.cabinets.map((c) => (c.id === run[2].id ? { ...c, topSeam: true } : c)) };
+  eq('one-piece top: a seam splits it', tops(seam).length, joined.length + 1);
+  const wood = { ...p, cabinets: p.cabinets.map((c) => (c.kind === 'base' && c.countertop ? { ...c, topKind: 'wood' as const, topSpecies: 'Walnut' } : c)) };
+  const line = estimateMaterials(wood, quoteOf(wood)).find((m) => /walnut/.test(m.label))!;
+  eq('wood top: priced by species from A&M', line.cost > 0 && /A&M/.test(line.detail), true);
+}
+
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');
 
 console.log(failed ? `${failed} check(s) failed` : 'All model checks passed');

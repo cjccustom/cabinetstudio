@@ -231,7 +231,37 @@ export function resolveEnds(room: Room, cabinets: Cabinet[], c: Cabinet): EndInf
   const autoLeft = !covered(toRoom(room, c, ...leftPt)) || (!c.corner && !covered(toRoom(room, c, ...front(leftPt))));
   const autoRight = !covered(toRoom(room, c, ...rightPt)) || (!c.corner && !covered(toRoom(room, c, ...front(rightPt))));
   const pick = (mode: Cabinet['leftEnd'], auto: boolean) => (mode === 'exposed' ? true : mode === 'hidden' ? false : auto);
-  return { left: pick(c.leftEnd, autoLeft), right: pick(c.rightEnd, autoRight), wrapBeside };
+  const ends: EndInfo = { left: pick(c.leftEnd, autoLeft), right: pick(c.rightEnd, autoRight), wrapBeside };
+  const run = topRun(cabinets, c);
+  if (run) {
+    const last = run[run.length - 1];
+    ends.topRun = { lead: run[0].id === c.id, span: last.offset + last.width - run[0].offset, last, lastRight: last.id === c.id ? ends.right : resolveEnds(room, cabinets, last).right };
+  }
+  return ends;
+}
+
+/** Can these two share a countertop: base cabinets with tops of the same kind and height, on the same wall, side by side? */
+const sameTop = (a: Cabinet, b: Cabinet) =>
+  a.kind === 'base' && b.kind === 'base' && !!a.countertop && !!b.countertop && !a.island && !b.island && !a.corner && !b.corner
+  && a.wall === b.wall && (a.topKind ?? 'stone') === (b.topKind ?? 'stone') && Math.abs(a.elevation + a.height - (b.elevation + b.height)) < 1 / 16
+  && Math.abs((a.wallInset ?? 0) - (b.wallInset ?? 0)) < 1 / 16 && Math.abs(a.depth - b.depth) < 1 / 16;
+
+/**
+ * The cabinets whose countertop is one piece with this one's: touching neighbours along the wall
+ * with the same kind of top at the same height, left to right, up to a cabinet marked as a seam.
+ * Null when it stands alone.
+ */
+export function topRun(cabinets: Cabinet[], c: Cabinet): Cabinet[] | null {
+  if (c.kind !== 'base' || !c.countertop || c.island || c.corner) return null;
+  const row = cabinets.filter((o) => sameTop(o, c)).sort((a, b) => a.offset - b.offset);
+  const runs: Cabinet[][] = [];
+  for (const o of row) {
+    const cur = runs[runs.length - 1];
+    const prev = cur?.[cur.length - 1];
+    if (prev && !o.topSeam && Math.abs(prev.offset + prev.width - o.offset) < 1 / 16) cur.push(o); else runs.push([o]);
+  }
+  const mine = runs.find((r) => r.some((o) => o.id === c.id));
+  return mine && mine.length > 1 ? mine : null;
 }
 
 /** Front of whatever butts against a cabinet's side at a height: face frame plus an overlay door, or 0. */

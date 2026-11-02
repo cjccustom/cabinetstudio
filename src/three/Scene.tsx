@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { Canvas, ThreeEvent, useThree } from '@react-three/fiber';
 import { Html, Line, OrbitControls, OrthographicCamera, PerspectiveCamera } from '@react-three/drei';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
-import { finishColors } from '../model/woodColors';
+import { finishColors, woodColor } from '../model/woodColors';
 import { freeStanding, picked, runWall, useStore, type ViewMode } from '../store';
 import type { Cabinet, Finishes, Project, Room, ShopSettings, WallId, WallPanel } from '../model/types';
 import { canSpots, lightsOf } from '../model/lighting';
@@ -262,7 +262,7 @@ function CabinetModel(props: {
   // Stain grade shows the species; the case interior shows the plywood
   const fc = finishColors(eff(cab, settings), finishes);
   const colorFor = (material: string, shade: number) => {
-    const base = material === 'hardware' ? '#c9ccd1' : material === 'upholstery' ? '#9aa3ad' : material === 'box' || material === 'back' ? fc.box : material === 'counter' ? finishes.counter : material === 'solidWood' ? finishes.wood ?? '#b9875a' : fc.paint;
+    const base = material === 'hardware' ? '#c9ccd1' : material === 'upholstery' ? '#9aa3ad' : material === 'box' || material === 'back' ? fc.box : material === 'counter' ? finishes.counter : material === 'solidWood' ? woodColor(cab.topSpecies) ?? finishes.wood ?? '#b9875a' : fc.paint;
     return new THREE.Color(base).multiplyScalar(shade);
   };
 

@@ -7,7 +7,7 @@ import { buildParts, eff, isOpenRow, openSpans } from './parts';
 import { resolveEnds, wallNames } from './layout';
 import { cutStock, defaultCutlist, optimizerParts } from './cutlist';
 import { optimize } from './optimizer';
-import { faceFrameNeeds, ffStockOf, faceFramePieces, otherSpecies, stockFor, woodNeeds, woodPieces } from './faceframe';
+import { amPerBF, faceFrameNeeds, ffStockOf, faceFramePieces, otherSpecies, stockFor, woodNeeds, woodPieces } from './faceframe';
 import { ceilingKinds, moldLabel, moldingOrder, profileByNum, profileLabel, roomKinds, type MoldKind } from './moldings';
 import { chimneysOn, cofferFeet, cofferLayout, cofferMoldings, cofferOf, cofferParts, perimOf } from './coffer';
 import { panelOrder } from './panels';
@@ -493,9 +493,18 @@ export function estimateMaterials(p: Project, q: QuoteSettings): MaterialLine[] 
     out.push({ group: 'ceiling', label: 'Prepped beam & fascia stock (millwork supplier)', cost: ft * q.cofferStockPerFt, detail: `${ft} ft of beam`, missing: q.cofferStockPerFt ? undefined : 'Enter the millwork price per foot of beam' });
     out.push({ group: 'ceiling', label: '2x nailers, blocking, adhesive & fasteners', cost: ft * q.cofferSundriesPerFt, detail: `${ft} ft of beam` });
   }
-  const wood = woodNeeds(woodPieces(p), ffStock);
-  const woodBF = wood.reduce((t, g) => t + g.buyBF, 0);
-  if (woodBF) out.push({ group: 'tops', label: 'Solid wood for tops, seats & caps', cost: woodBF * ffStock.pricePerBF, detail: `${Math.ceil(woodBF)} BF`, missing: ffStock.pricePerBF ? undefined : 'Enter $/BF on the Solid wood tab' });
+  // Solid wood tops, seats and caps, by species: your $/BF, else A&M's list worked back to $/BF
+  const pieces = woodPieces(p);
+  const jobSp = p.settings.woodSpecies;
+  for (const sp of [...new Set(pieces.map((x) => x.species ?? jobSp))]) {
+    const mine = pieces.filter((x) => (x.species ?? jobSp) === sp);
+    const bf = woodNeeds(mine, ffStock).reduce((t, g) => t + g.buyBF, 0);
+    if (!bf) continue;
+    const own = p.speciesPrices?.[sp] ?? (sp === jobSp && ffStock.pricePerBF ? ffStock.pricePerBF : undefined);
+    const am = own == null ? amPerBF(sp) : null;
+    const per = own ?? am?.perBF ?? 0;
+    out.push({ group: 'tops', label: `Solid wood for tops, seats & caps (${sp.toLowerCase()})`, cost: bf * per, detail: `${Math.ceil(bf)} BF${am ? ` at about $${am.perBF.toFixed(2)}/BF (A&M list, from ${am.board})` : ''}`, missing: per ? undefined : `Enter $/BF for ${sp.toLowerCase()} on the Solid wood tab` });
+  }
 
   let fronts = 0, frontArea = 0, doors = 0, drawers = 0, boxCost = 0;
   /** Estimates by Eagle request: doors with end panels, and drawer fronts. */

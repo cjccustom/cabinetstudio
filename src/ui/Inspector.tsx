@@ -7,6 +7,7 @@ import type { CabinetNote, Cabinet, CaseBuild, FrameJoinery, CrownBuild, EndMode
 import { buildParts, closetRod, isOpenRow, joineryLabel, PAINT_TOP, topThick, crownFit, crownLayout, crownRoom, layoutRows, noCrownBuild, panelOn } from '../model/parts';
 import { defaultPilaster, pilasterOf, pilasterSections } from '../model/pilaster';
 import { bracketCount, bracketGap, bracketLength, bracketProduct, finishedEnds, floatingOf, shelfPly } from '../model/floatingShelf';
+import { topRun } from '../model/layout';
 import { evenRun, facesFrom, fillSpan, footprint, gapBeside, placeOn, resolveEnds, runOf, shiftInRoom, wallLength, wallNames, wallOrder } from '../model/layout';
 import { panelLabel } from '../model/eagle';
 import { nextName, uid } from '../model/defaults';
@@ -359,6 +360,13 @@ export function Inspector({ cab, issues, tab }: { cab: Cabinet; issues: string[]
                 </select>
               </Field>
             )}
+            {cab.countertop && cab.topKind === 'wood' && (
+              <Field label="Wood species" htmlFor="cab-topsp" hint="Priced from A&M">
+                <select id="cab-topsp" value={cab.topSpecies ?? settings.woodSpecies} onChange={(e) => set({ topSpecies: e.target.value === settings.woodSpecies ? undefined : e.target.value })}>
+                  {[...new Set([settings.woodSpecies, ...lumberNames()])].map((x) => <option key={x}>{x}</option>)}
+                </select>
+              </Field>
+            )}
             {cab.countertop && cab.topKind !== 'paint' && (
               <Field label="Thickness" htmlFor="cab-topt">
                 <LengthInput id="cab-topt" value={cab.topThickness ?? null} allowAuto placeholder={fmt(cab.topKind === 'wood' ? 1.25 : settings.counterThickness)} onChange={(v) => set({ topThickness: v ?? undefined })} />
@@ -385,7 +393,8 @@ export function Inspector({ cab, issues, tab }: { cab: Cabinet; issues: string[]
               </Field>
             )}
           </div>
-          {cab.topKind === 'wood' && cab.countertop && <p className="hint">Solid wood tops and bench seats go on the Solid wood list with board feet to buy.</p>}
+          {cab.topKind === 'wood' && cab.countertop && <p className="hint">Solid wood tops and bench seats go on the Solid wood list with board feet to buy, priced from A&M’s list for the species.</p>}
+          {cab.countertop && <TopRunNote cab={cab} set={set} />}
           {cab.topKind === 'paint' && cab.countertop && <p className="hint">3/4" paint-grade plywood on the sheet cutlist; the 3/4" × 1 1/4" edging (front and exposed ends) on the Solid wood list. The edging drops 1/2" over the top rail, so the case and its top rail are 1/2" taller than with a 1 1/4" wood top; switching tops adjusts both.</p>}
           {cab.countertop && (
             <div style={{ marginTop: 8 }}>
@@ -539,6 +548,19 @@ export function Inspector({ cab, issues, tab }: { cab: Cabinet; issues: string[]
 }
 
 /** How the case goes together: top, bottom, back, shelves and fasteners, for this cabinet. */
+/** Whether this cabinet's top is one piece with its neighbours', and a way to put a seam here. */
+function TopRunNote({ cab, set }: { cab: Cabinet; set: (p: Partial<Cabinet>) => void }) {
+  const cabinets = useStore((s) => s.project.cabinets);
+  const run = topRun(cabinets, cab);
+  const left = cabinets.find((o) => o.wall === cab.wall && o.kind === 'base' && o.countertop && Math.abs(o.offset + o.width - cab.offset) < 1 / 16);
+  return (
+    <div style={{ marginTop: 6 }}>
+      {run && <p className="hint">One-piece top across {run.map((c) => c.name).join(', ')} ({fmt(run[run.length - 1].offset + run[run.length - 1].width - run[0].offset)}), built on {run[0].name}.</p>}
+      {(left || cab.topSeam) && <label className="check-inline"><input type="checkbox" checked={!!cab.topSeam} onChange={(e) => set({ topSeam: e.target.checked || undefined })} /> Seam here: start a separate top at this cabinet</label>}
+    </div>
+  );
+}
+
 /** LED lighting built into this cabinet; parts, prices and the electrician's sheet are on the Orders tab. */
 function LightingSection({ cab, set }: { cab: Cabinet; set: (p: Partial<Cabinet>) => void }) {
   const project = useStore((s) => s.project);
