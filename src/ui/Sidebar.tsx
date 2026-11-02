@@ -331,7 +331,8 @@ function ShopPanel() {
             const v = e.target.value;
             // Inset end panels go with inset doors; applied panels with overlay
             const panel = v === 'inset' ? (settings.endPanel === 'none' ? 'none' : 'inset') : settings.endPanel === 'inset' ? 'flush' : settings.endPanel;
-            if (v === 'inset') set({ doorMount: 'inset', endPanel: panel });
+            // Compact hinges are overlay only: inset doors go to Clip Top (half-crank on the face frame plate)
+            if (v === 'inset') set({ doorMount: 'inset', endPanel: panel, ...(settings.hingeType === 'compact' ? { hingeType: 'cliptop' as HingeType } : {}) });
             else if (v === 'custom') set({ doorMount: 'overlay', endPanel: panel });
             else set({ doorMount: 'overlay', doorOverlay: Number(v), endPanel: panel });
           }}>

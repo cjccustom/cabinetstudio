@@ -209,6 +209,9 @@ export interface QuoteSettings {
   scopeExtra?: string[];
   /** The ballpark rate card ($/LF by kind, low/typical/high), when it's been changed from the meeting calculator's. */
   rateCard?: Partial<import('./ballpark').RateCard>;
+  /** The payment schedule: payments before the final one (the final takes what's left). Unset = 30% deposit, balance on completion. */
+  payments?: import('./schedule').PaymentStep[];
+  finalPaymentLabel?: string;
   extras: QuoteExtra[];
   /** Hours you set yourself for a labor line, by lineKey: used in place of the estimate. */
   hourOverrides?: Record<string, number>;

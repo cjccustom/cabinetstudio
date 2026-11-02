@@ -9,6 +9,7 @@ import { hardwareOrder, hardwareText } from './hardware';
 import { releaseOf } from './release';
 import { LOGO } from '../drawings/logo';
 import { proposalSummary, withOptions } from './proposal';
+import { paymentSchedule, pctText } from './schedule';
 
 export const JOBS_ROOT = '/CJC/Jobs';
 
@@ -136,10 +137,22 @@ export function proposalLines(full: Project): { key: string; label: string; pric
   return rounded;
 }
 
-/** The price and the 30% deposit the purchase agreement asks for. */
+/** What the client sees as the proposal's title: yours, or "Cutler Project Proposal" from their last name. */
+export function proposalTitle(p: Project): string {
+  if (p.proposalTitle?.trim()) return p.proposalTitle.trim();
+  const last = clientOf(p).last?.trim();
+  return last ? `${last} Project Proposal` : 'Your Project Proposal';
+}
+
+/** The price and the first payment the purchase agreement asks for (the deposit). */
 export function quoteTotals(p: Project): { total: number; deposit: number } {
   const total = priceQuote(withOptions(p)).total;
-  return { total, deposit: Math.round(total * 0.3) };
+  return { total, deposit: paymentSchedule(p, total)[0].amount };
+}
+
+/** The schedule as agreement lines; with options, each payment's share of what's chosen is noted. */
+export function scheduleHtml(p: Project, total: number, withOptions: boolean, sep = '<br>'): string {
+  return paymentSchedule(p, total).map((l) => `${esc(l.label)} – ${money(l.amount)}${withOptions ? ` (plus ${pctText(l.pct)} of options chosen)` : ''}`).join(sep);
 }
 
 /** Scope of work and purchase agreement, laid out like Cody's Word template; opens in a browser or Word and prints to PDF.
@@ -151,7 +164,6 @@ export function quoteDoc(p: Project, opts: { online?: boolean } = {}): string {
   const summary = proposalSummary(p);
   const full = p.proposalDetail === 'full';
   const rounded = proposalLines(p);
-  const { deposit } = quoteTotals(p);
   const head = `<div class="co"><img src="${LOGO}" alt="CJC Custom Carpentry" style="height:.62in;display:block;margin-bottom:6px">${COMPANY.slice(1).map(esc).join('<br>')}</div>`;
   const who = `<table class="who"><tr><th>Client Name</th><td>${esc(clientName(c))}</td></tr><tr><th>Project Address</th><td>${esc(c.address)}</td></tr>`;
   return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(clientName(c) || 'Quote')} - ${esc(p.name)}</title>
@@ -160,19 +172,19 @@ h3{font-size:12pt;margin:16px 0 4px}ul{margin:4px 0 8px;padding-left:20px}ul li{
 .price td:last-child{text-align:right;white-space:nowrap}.total td{font-weight:700}ol li{margin:6px 0}.sign{margin-top:48px;display:grid;grid-template-columns:2fr 1fr;gap:28px 24px}.sign div{border-top:1px solid #111;padding-top:4px;font-size:10pt}
 .page{page-break-after:always}@media print{body{margin:0}}</style></head><body>
 <section class="page">${head}<h1>PROJECT SCOPE OF WORK</h1>${who}${c.phone ? `<tr><th>Cell Phone</th><td>${esc(c.phone)}</td></tr>` : ''}${c.email ? `<tr><th>E-Mail</th><td>${esc(c.email)}</td></tr>` : ''}</table>
-<h2>${esc(p.name)}</h2>
+<h2>${esc(proposalTitle(p))}</h2>
 ${c.scope ? `<p>${esc(c.scope).replace(/\n/g, '<br>')}</p>` : ''}
 ${full ? `<ol>${scopeItems(base).map((x) => `<li>${esc(x.text)}</li>`).join('')}</ol>`
     : summary.areas.map((a) => `<h3>${esc(a.title)}</h3><ul>${a.items.map((i) => `<li>${esc(i)}</li>`).join('')}</ul>`).join('') + `${furnitureOf(base).length || cofferScope(base) ? `<ul>${furnitureOf(base).map((t) => `<li>${esc(tableScope(t).replace(/,?\s*approx[^;]*;/i, ';'))}</li>`).join('')}${cofferScope(base) ? `<li>${esc(cofferScope(base)!)}</li>` : ''}</ul>` : ''}`}
 ${!full && summary.materials.length ? `<h3>Materials &amp; finishes</h3><table class="mat">${summary.materials.map((m) => `<tr><th>${esc(m.label)}</th><td>${esc(m.value)}</td></tr>`).join('')}</table>` : ''}
 ${!full ? '' : r.extras.length ? `<p><b>Additional work:</b> ${r.extras.map((e) => esc(e.label)).join('; ')}</p>` : ''}
 ${summary.options.length ? `<h3>Options</h3><p>Added to the work above only when chosen at signing:</p><ul>${summary.options.map((o) => `<li><b>${esc(o.label)}</b> (${money(o.price)})${o.items.length ? `: ${o.items.map(esc).join('; ')}` : ''}</li>`).join('')}</ul>` : ''}
-<p>${full ? 'Final dimensions will be field verified.' : 'Exact sizes are set on the shop drawings you approve after signing, from measurements taken on site.'} The homeowner will approve door style, finish and hardware before ordering.</p></section>
+<p>${full ? 'Final dimensions will be field verified.' : 'Sizes shown are approximate; exact sizes are set on the shop drawings you approve after signing, from measurements taken on site.'} The homeowner will approve door style, finish and hardware before ordering.</p></section>
 <section>${head}<h1>PURCHASE AGREEMENT</h1>${who}<tr><th>Agreement Date</th><td>${date()}</td></tr><tr><th>Estimated Start Date</th><td></td></tr><tr><th>Project Duration</th><td></td></tr></table>
 <p style="font-size:9.5pt">The above Estimated Start Date is an approximation valid on the above listed Agreement Date and is used for planning purposes only. CJC Custom Carpentry, LLC cannot be held responsible for delays caused by weather or other unforeseen circumstances before or during the project. All pricing is valid for (14) days from agreement date.</p>
 <table class="price">${rounded.map((l) => `<tr><th>${esc(l.label)}</th><td>${money(l.price)}</td></tr>`).join('')}<tr class="total"><th>Total Project Investment${summary.options.length ? ' (before options)' : ''}</th><td>${money(r.total)}</td></tr></table>
 ${summary.options.length ? `<table class="price">${summary.options.map((o) => `<tr><th>Option: ${esc(o.label)}</th><td>add ${money(o.price)}</td></tr>`).join('')}</table><p style="font-size:9.5pt">${opts.online ? 'Options chosen when signing are added to the total and listed with the signature; the deposit and final payment follow that total.' : 'Options chosen: ____________________ &nbsp; Total with options: $__________'}</p>` : ''}
-<p><b>Project Payment Schedule</b><br>30% Deposit Due at Agreement – ${money(deposit)}${summary.options.length ? ' (plus 30% of options chosen)' : ''}<br>70% Final Payment Due Upon Completion – ${money(r.total - deposit)}${summary.options.length ? ' (plus 70% of options chosen)' : ''}</p>
+<p><b>Project Payment Schedule</b><br>${scheduleHtml(p, r.total, summary.options.length > 0)}</p>
 <p style="font-size:9.5pt">This agreement supersedes all conversations, statements, and agreements expressed or implied between the parties, their agents and representatives.</p>
 ${opts.online ? '<p style="font-size:9.5pt"><b>The Terms and Conditions are part of this agreement.</b> It is signed electronically on the project page.</p>' : '<div class="sign"><div>Owner</div><div>Date</div><div>CJC Custom Carpentry, LLC</div><div>Date</div></div>'}</section></body></html>`;
 }

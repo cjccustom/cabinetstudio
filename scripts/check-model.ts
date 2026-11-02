@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { canSpots } from "../src/model/lighting";
+import { paymentSchedule } from "../src/model/schedule";
 import { asciiHtml } from "../src/dropbox";
 import { cabinetFixtures, lightingCost, lightingParts, electricianHtml } from "../src/model/cabinetLighting";
 import { printQuote } from "../src/model/printQuote";
@@ -23,7 +24,7 @@ import { mantelOf, shelfFor } from "../src/model/mantel";
 import { defaultPilaster } from "../src/model/pilaster";
 import { combineAll } from "../src/model/onePiece";
 // Sanity checks on the cabinet model: run with `npm test`.
-import { buildParts, crownFit, crownLayout, crownRoom, layoutRows, panelExtents, realOverhang } from "../src/model/parts";
+import { buildParts, eff, crownFit, crownLayout, crownRoom, layoutRows, panelExtents, realOverhang } from "../src/model/parts";
 import { placedAppliances } from "../src/model/appliances";
 import { legWidth, mantelClearances } from "../src/model/mantel";
 import { defaultBack, planToProject, readPlan } from "../src/model/planImport";
@@ -1443,6 +1444,21 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   eq('click-to-edit: a place target per cabinet', (el.svg.match(/class="hit"[^>]*data-field="place"/g) ?? []).length, back.length);
   eq('click-to-edit: a width target per cabinet', (el.svg.match(/class="hit"[^>]*data-field="width"/g) ?? []).length, back.length);
   eq('click-to-edit: targets never print', sheetCss.includes('.dwg .hit{fill:none;stroke:none}'), true);
+}
+
+// Payment schedule: 30% / balance by default; added payments by share or amount, the last takes the rest
+{
+  eq('schedule: default 30% deposit and balance', paymentSchedule(p, 10000).map((l) => l.amount).join(','), '3000,7000');
+  const q = { ...p, quote: { ...p.quote, payments: [{ id: 'a', label: 'Deposit', pct: 0.25 }, { id: 'b', label: 'At install', amount: 4000 }], finalPaymentLabel: 'On completion' } } as any;
+  eq('schedule: share, amount, remainder', paymentSchedule(q, 10000).map((l) => `${l.label}:${l.amount}`).join(','), 'Deposit:2500,At install:4000,On completion:3500');
+  eq('schedule: on the agreement', quoteDoc(q).includes('At install – $4,000'), true);
+}
+// Inset doors hang on Clip Top even when the job says Compact
+{
+  const base = p.cabinets.find((c) => c.kind === 'base')!;
+  eq('inset hinges: Clip Top', eff({ ...base, overrides: { doorMount: 'inset' } } as any, { ...p.settings, hingeType: 'compact' }).hingeType, 'cliptop');
+  const ins = { ...p, settings: { ...p.settings, doorMount: 'inset' as const, hingeType: 'compact' as const } };
+  eq('inset hinges: no Compact warning on the order', hardwareOrder(ins).problems.some((x) => /Compact/.test(x.text)), false);
 }
 
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');

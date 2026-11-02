@@ -4,6 +4,7 @@
 import { useState } from 'react';
 import { useStore } from '../store';
 import { clientOf, proposalLines } from '../model/client';
+import { paymentSchedule } from '../model/schedule';
 import { contractTotal, defaultSchedule, parseWordQuote, received, splitNames, type Contract, type ContractLine, type Payment } from '../model/contract';
 import { priceQuote } from '../model/quote';
 import { uid } from '../model/defaults';
@@ -64,7 +65,7 @@ export function ContractSection() {
   const fromStudio = () => {
     const r = priceQuote(project);
     const lines: ContractLine[] = proposalLines(project).map((l) => ({ id: uid('cl'), label: l.label, price: l.price, option: false, chosen: true }));
-    commit((p) => ({ ...p, contract: { source: 'studio', importedAt: Date.now(), agreementDate: today(), title: p.name, scope: [], allowances: [], lines, totalOverride: undefined, schedule: defaultSchedule(r.total), notes: '' } }));
+    commit((p) => ({ ...p, contract: { source: 'studio', importedAt: Date.now(), agreementDate: today(), title: p.name, scope: [], allowances: [], lines, totalOverride: undefined, schedule: paymentSchedule(p, r.total).map((l) => ({ id: uid('pay'), label: l.label, amount: l.amount })), notes: '' } }));
     setWarnings([]);
   };
   const remove = async () => { if (await askConfirm('Remove the contract from this job? The Word file in Dropbox isn’t touched.', 'Remove')) commit((p) => ({ ...p, contract: undefined })); };

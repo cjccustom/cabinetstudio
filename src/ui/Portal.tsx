@@ -4,7 +4,7 @@
 import { contractTotal } from '../model/contract';
 import { useEffect, useMemo, useState } from 'react';
 import { useStore } from '../store';
-import { clientName, clientOf, COMPANY, proposalLines, quoteDoc, quoteTotals } from '../model/client';
+import { clientName, clientOf, COMPANY, proposalLines, proposalTitle, quoteDoc, quoteTotals } from '../model/client';
 import { optionPrices, proposalSummary } from '../model/proposal';
 import { Field } from './fields';
 import { customerSet, drawingsOf, setDocument, sheetCss } from '../drawings/sheets';
@@ -136,7 +136,7 @@ export function ClientPortal() {
     const jobId = portal?.jobId ?? newJobId(project);
     const summary = proposalSummary(project);
     const status = await publishProposal({
-      job_id: jobId, project: project.name || 'Your project',
+      job_id: jobId, project: proposalTitle(project),
       client: { first: c.first, last: c.last, email: c.email, phone: c.phone, address: c.address },
       agreement_html: withCarried(quoteDoc(project, { online: true }), { summary: { areas: summary.areas, materials: summary.materials }, sections: proposalLines(project), options: summary.options }), total, deposit,
       renderings: await renderingsFor(project), replace_signed: replaceSigned,
@@ -155,7 +155,7 @@ export function ClientPortal() {
     const summary = proposalSummary(project);
     const rend = await renderingsFor(project);
     const job: Job = {
-      jobId: 'preview', token: 'preview', project: project.name || 'Your project', stage: 'proposal',
+      jobId: 'preview', token: 'preview', project: proposalTitle(project), stage: 'proposal',
       client: { first: c.first, last: c.last, email: c.email, phone: c.phone, address: c.address },
       proposal: {
         agreementHtml: quoteDoc(project, { online: true }), total, deposit, publishedAt: Date.now(), version: (st?.version ?? 0) + 1, hash: '', terms: shop.terms,
@@ -203,14 +203,19 @@ export function ClientPortal() {
       </div>
       <p className="hint">The client’s private page: renderings, the scope and purchase agreement, your terms, licenses and insurance. They sign on their phone and get the signed copy with the 3-day Notice of Cancellation.</p>
       {!sold && (
+        <Field label="Title the client sees" htmlFor="pp-title">
+          <input id="pp-title" value={project.proposalTitle ?? ''} placeholder={proposalTitle({ ...project, proposalTitle: undefined })} onChange={(e) => commit((p) => ({ ...p, proposalTitle: e.target.value || undefined }))} />
+        </Field>
+      )}
+      {!sold && (
         <div className="grid2">
           <Field label="Scope on the proposal" htmlFor="pp-detail">
             <select id="pp-detail" value={project.proposalDetail ?? 'plain'} onChange={(e) => commit((p) => ({ ...p, proposalDetail: e.target.value === 'full' ? 'full' : undefined }))}>
-              <option value="plain">Plain words by area, no sizes</option>
+              <option value="plain">Plain words by area, with approximate sizes</option>
               <option value="full">Every cabinet with its sizes</option>
             </select>
           </Field>
-          <p className="hint" style={{ alignSelf: 'end' }}>{(project.proposalDetail ?? 'plain') === 'plain' ? 'No dimensions before they sign: the design can’t be shopped around. Sizes come with the shop drawings after the deposit.' : 'Shows every cabinet’s size. Anyone they forward it to can quote from it.'}</p>
+          <p className="hint" style={{ alignSelf: 'end' }}>{(project.proposalDetail ?? 'plain') === 'plain' ? 'Each cabinet with its approximate size, in plain words. Exact sizes come with the drawings they approve after signing.' : 'Shows every cabinet’s size. Anyone they forward it to can quote from it.'}</p>
         </div>
       )}
       {!sold && options.length > 0 && <p className="hint">Options they can tick when signing: {options.map((o) => `${o.label} (+${money(o.price)})`).join(', ')}.</p>}

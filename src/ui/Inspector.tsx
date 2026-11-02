@@ -264,6 +264,11 @@ export function Inspector({ cab, issues, tab }: { cab: Cabinet; issues: string[]
                   </select>
                 </div>
               )}
+              {(r.type === 'open' || r.type === 'doors') && r.shelves > 0 && cab.build?.shelves !== 'fixed' && (
+                <div className="row-ledge">
+                  <label><input type="checkbox" checked={!!r.fixedShelves} onChange={(e) => setRow(r.id, { fixedShelves: e.target.checked || undefined })} /> Shelves fixed in dados (horizontal dividers)</label>
+                </div>
+              )}
               {i > 0 && (
                 <div className="row-ledge">
                   <label><input type="checkbox" checked={!!r.ledge} onChange={(e) => setRow(r.id, { ledge: e.target.checked ? { thickness: 1, overhang: 0.5 } : undefined })} /> Ledge on the rail above</label>

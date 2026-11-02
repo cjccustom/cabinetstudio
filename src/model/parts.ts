@@ -25,7 +25,9 @@ export interface RowLayout {
 export const kickOf = (c: Cabinet, s: ShopSettings) => (c.kind === 'wall' ? 0 : baseLayout(c, eff(c, s)).kick);
 
 /** The shop standards with this cabinet's own changes applied. */
-export const eff = (c: Cabinet, s: ShopSettings): ShopSettings => frameless(c.overrides ? { ...s, ...c.overrides } : s);
+/** Blum Compact hinges are overlay only, so inset doors always hang on Clip Top. */
+const insetHinges = (s: ShopSettings): ShopSettings => (s.doorMount === 'inset' && s.hingeType === 'compact' ? { ...s, hingeType: 'cliptop' } : s);
+export const eff = (c: Cabinet, s: ShopSettings): ShopSettings => frameless(insetHinges(c.overrides ? { ...s, ...c.overrides } : s));
 
 /**
  * Frameless cases, worked as a face frame of nothing: the case edges stand where the stiles and
@@ -217,7 +219,7 @@ export function openSpans(c: Cabinet, s: ShopSettings): { y0: number; y1: number
 function paintOpenInterior(c: Cabinet, s: ShopSettings, parts: Part[]): Part[] {
   const spans = openSpans(c, s);
   if (!spans.length) return parts;
-  const roles = new Set(['side', 'back', 'top', 'bottom', 'shelf', 'stretcher', 'nailer']);
+  const roles = new Set(['side', 'back', 'top', 'bottom', 'shelf', 'stretcher', 'nailer', 'divider']);
   const shows = (p: Part) => (p.material === 'box' || p.material === 'back') && roles.has(p.role)
     && p.boxes.some((b) => spans.some((o) => b.min[1] < o.y1 + 1 && b.min[1] + b.size[1] > o.y0 - 1));
   const note = 'Open section: scuff, bonding primer, paint to match the millwork';
@@ -665,7 +667,7 @@ function caseParts(c: Cabinet, s: ShopSettings, ends: EndInfo): Part[] {
         : [[xi0, xi1]];
       for (const [b0, b1] of bays) for (let k = 1; k <= row.shelves; k++) {
         const y = lo + ((hi - lo) * k) / (row.shelves + 1) - ta / 2;
-        const fixed = c.build?.shelves === 'fixed';
+        const fixed = c.build?.shelves === 'fixed' || !!row.fixedShelves;
         const bw = b1 - b0, sW = bays.length > 1 ? bw - s.shelfClearance : shelfW;
         parts.push({ name: fixed ? 'Fixed shelf' : 'Adjustable shelf', role: 'shelf', material: 'box', length: fixed ? bw + 2 * dd : sW, width: shelfD, thickness: tn, cut: true,
           note: [fixed ? `In ${dados} dados` : '', sf ? 'Solid front applied, no banding' : ''].filter(Boolean).join(' · ') || undefined, banded: !sf,

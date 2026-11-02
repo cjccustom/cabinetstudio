@@ -10,6 +10,8 @@ import { proposalLines } from '../model/client';
 import { capability, type Downloads } from '../runtime';
 import { pricingFileName, pricingXlsx } from '../export/pricingWorkbook';
 import { XLSX_TYPE } from '../export/xlsx';
+import { defaultFinalLabel, paymentSchedule, paymentsOf, type PaymentStep } from '../model/schedule';
+import { quoteTotals } from '../model/client';
 import { defaultSupplies, driverLabel, newSupply, supplyLines, type SupplyDriver, type SupplyItem } from '../model/supplies';
 
 const money = (v: number) => `$${Math.round(v).toLocaleString('en-US')}`;
@@ -303,6 +305,8 @@ export function QuoteSummary() {
           </p>
         </Section>
 
+        <ScheduleSection />
+
         <BallparkSection />
 
         <FurnitureSection />
@@ -395,6 +399,44 @@ function SuppliesEditor() {
           <button className="mini" onClick={() => set({ supplies: defaultSupplies })}>Reset to starting list</button>
         </div>
       </details>
+    </Section>
+  );
+}
+
+/** The payment schedule on the agreement: payments as a share or a set amount, the final one takes the rest. */
+function ScheduleSection() {
+  const { project, q, set, result: r } = useQuote();
+  const steps = paymentsOf(project);
+  const lines = paymentSchedule(project, quoteTotals(project).total);
+  const put = (next: PaymentStep[]) => set({ payments: next });
+  const upd = (i: number, patch: Partial<PaymentStep>) => put(steps.map((x, k) => (k === i ? { ...x, ...patch } : x)));
+  void r;
+  return (
+    <Section title="Payment schedule" aside={<button className="mini" onClick={() => put([...steps, { id: `pay${Date.now().toString(36)}`, label: 'Progress payment due at cabinet installation', pct: 0.4 }])}>Add a payment</button>}>
+      <table className="totals sched-edit">
+        <tbody>
+          {steps.map((st, i) => (
+            <tr key={st.id}>
+              <td><input aria-label="Payment" value={st.label} onChange={(e) => upd(i, { label: e.target.value })} /></td>
+              <td className="num" style={{ whiteSpace: 'nowrap' }}>
+                <select aria-label="How it's figured" value={st.amount != null ? 'amt' : 'pct'} onChange={(e) => upd(i, e.target.value === 'amt' ? { amount: lines[i].amount, pct: undefined } : { pct: lines[i].pct, amount: undefined })}>
+                  <option value="pct">%</option><option value="amt">$</option>
+                </select>{' '}
+                <input aria-label={st.amount != null ? 'Amount' : 'Percent'} inputMode="decimal" style={{ width: 70 }} value={st.amount != null ? st.amount : +((st.pct ?? 0) * 100).toFixed(2)}
+                  onChange={(e) => { const v = parseFloat(e.target.value) || 0; upd(i, st.amount != null ? { amount: v } : { pct: v / 100 }); }} />
+              </td>
+              <td className="num">{money(lines[i].amount)}</td>
+              <td>{steps.length > 1 || i > 0 ? <button className="icon-btn" aria-label={`Remove ${st.label}`} onClick={() => put(steps.filter((_, k) => k !== i))}>×</button> : null}</td>
+            </tr>
+          ))}
+          <tr className="sum">
+            <td><input aria-label="Final payment" value={q.finalPaymentLabel ?? defaultFinalLabel} onChange={(e) => set({ finalPaymentLabel: e.target.value })} /></td>
+            <td className="num muted">the rest</td>
+            <td className="num">{money(lines[lines.length - 1].amount)}</td><td />
+          </tr>
+        </tbody>
+      </table>
+      <p className="hint">The first payment is the deposit: it’s what the client portal asks for at signing and what the deposit invoice charges. {q.payments ? <button className="link-btn" onClick={() => set({ payments: undefined, finalPaymentLabel: undefined })}>Back to 30% / balance</button> : null}</p>
     </Section>
   );
 }

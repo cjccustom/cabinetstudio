@@ -54,19 +54,22 @@ const noun = (c: Cabinet) => c.island ? (c.islandSides === 2 ? 'Island with fron
 /** Said once under Materials & finishes, so left out of each line. */
 const covered = [/^approx/i, /plywood interior with/i, /^(paint|stain) grade$/i, /^built-in opening for owner's refrigerator$/i, /^freestanding island/i];
 
-/** One cabinet in plain words: what it is and what it has, without its sizes. */
+/** One cabinet in plain words: what it is, its approximate size, and what it has. */
 export function plainItem(c: Cabinet, p: Project): string {
   // Your own wording for this cabinet on the Quote tab goes on the proposal as you wrote it
   const mine = p.quote?.scopeText?.[c.id];
   if (mine != null) return mine.replace(/^[A-Z]{1,3}\d{1,3}:\s*/, '').trim();
   const text = scopeLine(c, p).replace(/^[^:]+:\s*/, '');
+  // Its size, as on the Word quotes: approx 36"W x 34-1/2"H x 24"D
+  const size = text.match(/approx\.?:?\s*([\d”"'\-\s/.]+W\s*x\s*[\d”"'\-\s/.]+H(?:\s*x\s*[\d”"'\-\s/.]+D)?)/i)?.[1]?.replace(/\s+/g, ' ').trim();
   const bits = text.split('; ')
     .map((b) => b.replace(/,?\s*approx\.?\s*[\d”"'\-\s/xWHD.]+(thick)?/gi, '').replace(/\s*\(approx [^)]*\)/gi, '')
       .replace(/ with dovetail drawer boxes and soft close slides/, '').replace(/\boverlay (doors?)\b/, '$1').replace(/\binset (doors?)\b/, '$1').trim())
     .filter((b) => b && !covered.some((r) => r.test(b)));
   const n = noun(c);
   // Pilasters, shelves and mantels name themselves in their first phrase
-  const [head, ...rest] = n ? [n, ...bits] : bits;
+  const [first, ...rest] = n ? [n, ...bits] : bits;
+  const head = first && size ? `${first}, approx. ${size}` : first;
   return rest.length ? `${head}: ${rest.join('; ')}` : head ?? '';
 }
 
@@ -74,7 +77,7 @@ export function plainItem(c: Cabinet, p: Project): string {
 function plainItems(p: Project, cabs: Cabinet[]): string[] {
   const counts = new Map<string, number>();
   for (const c of cabs) { const t = plainItem(c, p); if (t) counts.set(t, (counts.get(t) ?? 0) + 1); }
-  return [...counts].map(([t, n]) => (n > 1 ? `(${n}) ${t.replace(/^([^:]*?)\bcabinet\b/, '$1cabinets')}` : t));
+  return [...counts].map(([t, n]) => (n > 1 ? `(${n}) ${t.replace(/^([^:]*?)\bcabinet\b/, '$1cabinets').replace(/^Pilaster\b/, 'Pilasters')}` : t));
 }
 
 /** Where each cabinet is, as a customer would say it: by wall, with islands on their own. */

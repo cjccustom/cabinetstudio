@@ -3,7 +3,8 @@
 // Conditions with the Notice of Cancellation in duplicate. Saved to the client's Dropbox folder
 // each time a proposal is published, for the paper copy that goes to the client.
 import type { Project } from './types';
-import { clientName, clientOf, proposalLines, quoteTotals } from './client';
+import { clientName, clientOf, proposalLines, proposalTitle } from './client';
+import { paymentSchedule, pctText } from './schedule';
 import { proposalSummary, withOptions } from './proposal';
 import { cofferScope, priceQuote, scopeItems } from './quote';
 import { furnitureOf, tableScope } from './furniture';
@@ -31,14 +32,13 @@ export function printQuote(p: Project, opts: { terms: string; version?: number; 
   const summary = proposalSummary(p);
   const full = p.proposalDetail === 'full';
   const lines = proposalLines(p);
-  const { deposit } = quoteTotals(p);
   const when = opts.publishedAt ?? Date.now();
   const bullets = (items: string[]) => `<ul class="dash">${items.map((i) => `<li>${esc(i)}</li>`).join('')}</ul>`;
 
   // Scope sections: setup, then the work by area (or cabinet by cabinet), materials, options
   const sections: string[] = [`<h4>Project Setup, Protection, &amp; Cleaning</h4>${SETUP.map((t) => `<p>${t}</p>`).join('')}`];
   if (c.scope) sections.push(`<p>${esc(c.scope).replace(/\n/g, '<br>')}</p>`);
-  if (full) sections.push(`<h4>${esc(p.name || 'Scope of Work')}</h4>${bullets(scopeItems(base).map((x) => x.text))}`);
+  if (full) sections.push(`<h4>${esc(proposalTitle(p))}</h4>${bullets(scopeItems(base).map((x) => x.text))}`);
   else for (const a of summary.areas) sections.push(`<h4>${esc(a.title)}</h4>${bullets(a.items)}`);
   const more = [...furnitureOf(base).map((t) => tableScope(t).replace(/,?\s*approx[^;]*;/i, ';')), ...(cofferScope(base) ? [cofferScope(base)!] : [])];
   if (!full && more.length) sections.push(bullets(more));
@@ -46,7 +46,7 @@ export function printQuote(p: Project, opts: { terms: string; version?: number; 
   if (!full && summary.materials.length) sections.push(`<h4>Materials &amp; Finishes</h4>${bullets(summary.materials.map((m) => `${m.label}: ${m.value}`))}`);
   if (summary.options.length) sections.push(`<h4>Options</h4><p>Added to the work above only when chosen at signing:</p>${bullets(summary.options.map((o) => `${o.label} (${money(o.price)})${o.items.length ? `: ${o.items.join('; ')}` : ''}`))}`);
   sections.push(`<h4>*Notes*</h4>${bullets([
-    full ? 'Final dimensions will be field verified' : 'Exact sizes are set on the shop drawings you approve after signing, from measurements taken on site',
+    full ? 'Final dimensions will be field verified' : 'Sizes shown are approximate; exact sizes are set on the shop drawings you approve after signing, from measurements taken on site',
     'Homeowner to approve door style, finish and hardware before ordering',
   ])}`);
 
@@ -68,7 +68,7 @@ export function printQuote(p: Project, opts: { terms: string; version?: number; 
 <tr><td colspan="2" class="small">The above <b>Estimated Start Date</b> is an approximation valid on the above listed <b>Agreement Date</b> and is used for planning purposes only. CJC Custom Carpentry, LLC cannot be held responsible for delays caused by weather or other unforeseen circumstances before or during the project. All pricing is valid for (14) days from Agreement date.</td></tr></table>
 <table class="grid prices">${lines.map((l) => `<tr><td class="lab">${esc(l.label)}</td><td class="amt">${money(l.price)}</td></tr>`).join('')}
 <tr class="tot"><td class="lab">Total Project Investment${summary.options.length ? ' (before options)' : ''}</td><td class="amt">${money(r.total)}</td></tr>${optRows}
-<tr><td colspan="2" class="sched"><u><b>Project Payment Schedule</b></u><br><b>Deposit Due at Agreement – ${money(deposit)}</b>${summary.options.length ? ' (plus 30% of options chosen)' : ''}<br><br><b>Final Payment Due Upon Completion – ${money(r.total - deposit)}</b>${summary.options.length ? ' (plus 70% of options chosen)' : ''}${summary.options.length ? '<br><br>Options chosen: ______________________________ &nbsp; Total with options: $____________' : ''}</td></tr></table>
+<tr><td colspan="2" class="sched"><u><b>Project Payment Schedule</b></u><br>${paymentSchedule(p, r.total).map((l) => `<b>${esc(l.label)} – ${money(l.amount)}</b>${summary.options.length ? ` (plus ${pctText(l.pct)} of options chosen)` : ''}`).join('<br><br>')}${summary.options.length ? '<br><br>Options chosen: ______________________________ &nbsp; Total with options: $____________' : ''}</td></tr></table>
 <p class="supersede">This agreement supersedes all conversations, statements, and agreements expressed or implied between the parties, their agents and representatives. The Terms and Conditions that follow are part of this agreement.</p>
 <div class="sign"><div>Owner</div><div>Date</div><div>CJC Custom Carpentry, LLC</div><div>Date</div></div>
 <p class="ver">Proposal${opts.version ? ` version ${opts.version}` : ''}, ${esc(longDate(when))}</p></section>`;
@@ -80,7 +80,7 @@ export function printQuote(p: Project, opts: { terms: string; version?: number; 
   const termsPage = `<section class="page terms">${head}<h2>Terms and Conditions</h2>${termsBody}</section>`;
   const noticeCopy = notice ? `<section class="page terms">${head}<p class="small"><b>Second copy of the Notice of Cancellation.</b> Keep one copy; to cancel, sign and send this one.</p>${notice}</section>` : '';
 
-  return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(clientName(c) || 'Quote')} - ${esc(p.name)} - Quote</title>
+  return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(proposalTitle(p))}</title>
 <style>
 @page{size:letter;margin:.5in .6in}
 *{box-sizing:border-box}

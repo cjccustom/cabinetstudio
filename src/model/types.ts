@@ -14,6 +14,8 @@ export interface FaceRow {
   shelves: number;
   /** Open rows: vertical dividers splitting it into equal cubbies (0 = none). */
   dividers?: number;
+  /** This section's shelves are fixed in dados (horizontal dividers), not adjustable on pins. */
+  fixedShelves?: boolean;
   /** Width of the mid rail above this row, when it isn't the cabinet's standard (e.g. a tall rail for a ladder rail). */
   railAbove?: number;
   /** Hanging and shoe rows: closed with doors (a wardrobe) instead of open; doors = how many. */
@@ -400,6 +402,8 @@ export interface Project {
   name: string;
   /** How the customer's proposal describes the work: plain (no sizes, the default) or full, cabinet by cabinet with sizes. */
   proposalDetail?: 'plain' | 'full';
+  /** The title the client sees on the proposal ("Cutler Living Room Proposal"); unset = made from the client's last name. */
+  proposalTitle?: string;
   room: Room;
   settings: ShopSettings;
   finishes: Finishes;
