@@ -558,6 +558,13 @@ function TopRunNote({ cab, set }: { cab: Cabinet; set: (p: Partial<Cabinet>) => 
     <div style={{ marginTop: 6 }}>
       {run && <p className="hint">One-piece top across {run.map((c) => c.name).join(', ')} ({fmt(run[run.length - 1].offset + run[run.length - 1].width - run[0].offset)}), built on {run[0].name}.</p>}
       {(left || cab.topSeam) && <label className="check-inline"><input type="checkbox" checked={!!cab.topSeam} onChange={(e) => set({ topSeam: e.target.checked || undefined })} /> Seam here: start a separate top at this cabinet</label>}
+      {(() => {
+        // The next cabinet to the right with a top at the same height, past an open space
+        const end = cab.offset + cab.width;
+        const next = cabinets.filter((o) => o.wall === cab.wall && o.kind === 'base' && o.countertop && !o.island && o.offset > end + 1 / 16 && Math.abs(o.elevation + o.height - cab.elevation - cab.height) < 1 / 16).sort((a, b) => a.offset - b.offset)[0];
+        if (!next && !cab.topBridge) return null;
+        return <label className="check-inline" style={{ display: 'block' }}><input type="checkbox" checked={!!cab.topBridge} onChange={(e) => set({ topBridge: e.target.checked || undefined })} /> Top runs over the open space to {next ? `${next.name} (${fmt(next.offset - end)} desk / knee space)` : 'the next cabinet'}</label>;
+      })()}
     </div>
   );
 }

@@ -151,7 +151,7 @@ export interface EndInfo {
    * across the run (lead), the others have none (joined). last: the run's right-hand cabinet and
    * whether its right end is exposed, for the top's right overhang and edging.
    */
-  topRun?: { lead: boolean; span: number; last: Cabinet; lastRight: boolean };
+  topRun?: { lead: boolean; span: number; last: Cabinet; lastRight: boolean; /** Open spaces the top crosses. */ gaps?: { at: number; width: number }[] };
 }
 
 /**
@@ -767,7 +767,10 @@ function caseParts(c: Cabinet, s: ShopSettings, ends: EndInfo): Part[] {
     const top = run && lastExt
       ? topPart({ ...c, topRight: run.last.topRight }, s, run.span, D + dt, { left: ext.left, right: lastExt.right })
       : topPart(c, s, W, D + dt, ext);
-    if (run) top.note = [top.note, `One piece across ${fmt(run.span)} of cabinets`].filter(Boolean).join(' · ');
+    if (run) {
+      const gaps = run.gaps ?? [];
+      top.note = [top.note, `One piece across ${fmt(run.span)}`, ...gaps.map((g) => `spans a ${fmt(g.width)} open space: support it with a cleat on the wall${g.width > 36 ? ' and a leg or bracket' : ''}`)].filter(Boolean).join(' · ');
+    }
     parts.push(top, ...topEdging(run ? { ...c, topRight: run.last.topRight } : c, s, top, run ? { ...ends, right: run.lastRight } : ends));
     // A seat cushion covers the top
     const cu = c.cushion;

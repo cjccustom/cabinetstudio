@@ -235,9 +235,19 @@ export function resolveEnds(room: Room, cabinets: Cabinet[], c: Cabinet): EndInf
   const run = topRun(cabinets, c);
   if (run) {
     const last = run[run.length - 1];
-    ends.topRun = { lead: run[0].id === c.id, span: last.offset + last.width - run[0].offset, last, lastRight: last.id === c.id ? ends.right : resolveEnds(room, cabinets, last).right };
+    ends.topRun = { lead: run[0].id === c.id, span: last.offset + last.width - run[0].offset, last, lastRight: last.id === c.id ? ends.right : resolveEnds(room, cabinets, last).right, gaps: topGaps(run) };
   }
   return ends;
+}
+
+/** The open spaces a run's top crosses (desk or knee space), left to right: where each starts and how wide. */
+export function topGaps(run: Cabinet[]): { at: number; width: number }[] {
+  const out: { at: number; width: number }[] = [];
+  for (let i = 1; i < run.length; i++) {
+    const end = run[i - 1].offset + run[i - 1].width;
+    if (run[i].offset - end > 1 / 16) out.push({ at: end, width: run[i].offset - end });
+  }
+  return out;
 }
 
 /** Can these two share a countertop: base cabinets with tops of the same kind and height, on the same wall, side by side? */
@@ -258,7 +268,10 @@ export function topRun(cabinets: Cabinet[], c: Cabinet): Cabinet[] | null {
   for (const o of row) {
     const cur = runs[runs.length - 1];
     const prev = cur?.[cur.length - 1];
-    if (prev && !o.topSeam && Math.abs(prev.offset + prev.width - o.offset) < 1 / 16) cur.push(o); else runs.push([o]);
+    // Touching, or bridged over an open space (a desk or knee space) by the cabinet on the left
+    const touching = prev && Math.abs(prev.offset + prev.width - o.offset) < 1 / 16;
+    const bridged = prev?.topBridge && o.offset > prev.offset + prev.width;
+    if (prev && !o.topSeam && (touching || bridged)) cur.push(o); else runs.push([o]);
   }
   const mine = runs.find((r) => r.some((o) => o.id === c.id));
   return mine && mine.length > 1 ? mine : null;

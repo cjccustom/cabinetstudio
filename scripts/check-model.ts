@@ -1513,6 +1513,17 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   eq('corbels: priced from Next Day', estimateMaterials(q, quoteOf(q)).some((m) => m.label === 'Corbels, Next Day CORBEL-7' && Math.abs(m.cost - 2 * k.price) < 0.01), true);
 }
 
+// A top over a desk or knee space: carried across the open space between two cabinets
+{
+  const back = p.cabinets.filter((c) => c.wall === 'back' && c.kind === 'base').sort((a, b) => a.offset - b.offset);
+  const [a, b] = [back[0], back[1]];
+  const desk = { ...p, cabinets: p.cabinets.filter((c) => !(c.wall === 'back' && c.kind === 'base') || c.id === a.id || c.id === b.id).map((c) => (c.id === b.id ? { ...c, offset: a.offset + a.width + 30 } : c.id === a.id ? { ...c, topBridge: true } : c)) };
+  const tops = desk.cabinets.flatMap((c) => buildParts(c, desk.settings, resolveEnds(desk.room, desk.cabinets, c)).filter((x) => x.role === 'counter' || x.role === 'woodTop'));
+  eq('desk top: one piece over the knee space', tops.length, 1);
+  eq('desk top: spans both cabinets and the 30" gap', tops[0].length >= a.width + 30 + b.width, true);
+  eq('desk top: notes the support', /open space/.test(tops[0].note ?? ''), true);
+}
+
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');
 
 console.log(failed ? `${failed} check(s) failed` : 'All model checks passed');

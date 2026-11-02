@@ -113,6 +113,8 @@ export interface Cabinet {
   build?: CaseBuild;
   /** End panels split into pieces that line up with the doors and openings on the front (tall cabinets). */
   splitEndPanels?: boolean;
+  /** Countertops: carry this top on across the open space to the next cabinet on the right (a desk or knee space). */
+  topBridge?: boolean;
   /** Countertops: start a new piece here instead of joining the top of the cabinet to the left (a seam). */
   topSeam?: boolean;
   /** Solid wood tops: the species (default: the job's wood species). */
