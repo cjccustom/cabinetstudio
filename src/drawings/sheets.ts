@@ -20,6 +20,9 @@ import { cofferScope } from '../model/quote';
 import { beginEdits, drawingCss, endEdits, inView, scaleName, takeViews, type DrawingEdits, type Frame, type ViewInfo } from './draw';
 import { cabinetCallouts, forAudience, jobCallouts, type Audience } from './notes';
 import { LOGO, LOGO_ASPECT } from './logo';
+import { tableViews } from './tableViews';
+import { tableParts } from '../model/tableParts';
+import { furnitureOf, tableChecks, tableFinishLabel, tableScope, type DiningTable } from '../model/furniture';
 import { detailOk, detailTitle, detailsOf, drawDetail, inSet, suggestedCut, type Detail } from './details';
 
 /** The details for a set, numbered, two to a sheet: 1/A5, 2/A5, 3/A6… */
@@ -176,7 +179,7 @@ function customerSheets(p: Project, s: DrawingSettings): Sheet[] {
   // The door style sheet goes last, after any details
   const doorNo = `A${first + walls.length + detailIdx.length}`;
   const doorStyle = styleById(eff({ overrides: undefined } as never, p.settings).doorStyleId).profile !== 'slab' && p.cabinets.some((c) => c.rows.some((r) => r.type === 'doors' || r.type === 'drawer'));
-  const index = [['A0', 'Cover'], ['A1', 'Floor plan'], ...(ceiling ? [['A2', 'Ceiling plan']] : []), ...walls.map((w, i) => [`A${i + first}`, `${wallNames[w]} elevation`]), ...detailIdx, ...(doorStyle ? [[doorNo, 'Door style']] : [])];
+  const index = [['A0', 'Cover'], ['A1', 'Floor plan'], ...(ceiling ? [['A2', 'Ceiling plan']] : []), ...walls.map((w, i) => [`A${i + first}`, `${wallNames[w]} elevation`]), ...detailIdx, ...(doorStyle ? [[doorNo, 'Door style']] : []), ...furnitureOf(p).map((t, i) => [`A${first + walls.length + detailIdx.length + (doorStyle ? 1 : 0) + i}`, t.name])];
   // Cover: the picture, the job, and what's in the set
   const c = clientOf(p);
   const imgW = A.w * 0.64;
@@ -214,7 +217,25 @@ function customerSheets(p: Project, s: DrawingSettings): Sheet[] {
       sheets.push(sheet(p, s, doorNo, 'Door style', 'As noted', dv.svg + label(A.x, A.w * 0.5, 'FRAMING BEAD, SECTION (FULL SIZE)') + label(A.x + A.w * 0.5, A.w * 0.24, 'DOOR (1-1/2" = 1\'-0")') + notes));
     }
   }
+  furnitureOf(p).forEach((t, i) => {
+    const no = `A${first + walls.length + detailIdx.length + (doorStyle ? 1 : 0) + i}`;
+    const fs = s.paper === 'tabloid' ? 0.11 : 0.09;
+    const v = tableSheetViews(t, A, 0.74);
+    const notes = html({ x: A.x + A.w * 0.76, y: A.y, w: A.w * 0.24, h: A.h }, `<h2>${esc(t.name)}</h2><p>${esc(tableScope(t).replace(/^[^:]*:\s*/, '').replace(/^./, (c) => c.toUpperCase()))}</p>${t.notes ? `<p>${esc(t.notes)}</p>` : ''}<p class="small">Drawings show design intent; final sizes are confirmed before the lumber is milled.</p>`, fs);
+    sheets.push(sheet(p, s, no, t.name, `${scaleName(v.scale)}; section ${scaleName(v.secScale)}`, v.svg + notes));
+  });
   return sheets;
+}
+
+/** The four table views laid out across the left part of a sheet (frac of its width). */
+function tableSheetViews(t: DiningTable, A: Frame, frac: number) {
+  const w = A.w * frac, top = A.h * 0.5;
+  return tableViews(t, {
+    plan: { x: A.x, y: A.y, w: w * 0.45, h: top },
+    side: { x: A.x + w * 0.45, y: A.y, w: w * 0.55, h: top },
+    end: { x: A.x, y: A.y + top, w: w * 0.5, h: A.h - top },
+    section: { x: A.x + w * 0.5, y: A.y + top, w: w * 0.5, h: A.h - top },
+  });
 }
 
 /* ---------- Shop set ---------- */
@@ -408,6 +429,14 @@ function shopSheets(p: Project, s: DrawingSettings): Sheet[] {
     const rows = partRows(cofferParts(p)).map(({ part, qty }) => `<tr><td>${qty}</td><td>${esc(part.name)}</td><td>${fmt(part.length)}</td><td>${fmt(part.width)}</td><td>${fmt(part.thickness)}</td><td>${esc(part.species ?? '')}</td><td>${esc(part.note ?? '')}</td></tr>`).join('');
     const table = html({ x: A.x, y: A.y + top + 0.2, w: A.w, h: A.h - top - 0.2 }, `<table class="parts"><thead><tr><th>Qty</th><th>Part</th><th>Length</th><th>Width</th><th>Thick</th><th>Stock</th><th>Notes</th></tr></thead><tbody>${rows}</tbody></table>`, s.paper === 'tabloid' ? 0.09 : 0.07);
     sheets.push(sheet(p, s, `S${sheets.length + 1}`, 'Coffered ceiling', `${scaleName(rcp.scale)}; section ${scaleName(sec.scale)}`, rcp.svg + sec.svg + table));
+  }
+  for (const t of furnitureOf(p)) {
+    const v = tableSheetViews(t, A, 0.62);
+    const rows = tableParts(t).map((x) => `<tr><td>${x.qty}</td><td>${esc(x.name)}</td><td>${fmt(x.length)}</td><td>${fmt(x.width)}</td><td>${fmt(x.thick)}</td><td>${esc(x.note ?? '')}</td></tr>`).join('');
+    const info = `<h2>${esc(t.name)}</h2><p>${esc(t.species)}, ${esc(tableFinishLabel[t.finish].toLowerCase())}. ${fmt(t.length)} L × ${fmt(t.width)} W × ${fmt(t.height)} H.</p>`
+      + `<h3>Cut list (finished sizes)</h3><table class="parts"><thead><tr><th>Qty</th><th>Part</th><th>Length</th><th>Width</th><th>Thick</th><th>Notes</th></tr></thead><tbody>${rows}</tbody></table>`
+      + `<h3>Notes</h3><ul>${tableChecks(t).map((c) => `<li>${esc(c)}</li>`).join('')}${t.notes ? `<li>${esc(t.notes)}</li>` : ''}</ul>`;
+    sheets.push(sheet(p, s, `S${sheets.length + 1}`, `${t.name} shop drawing`, `${scaleName(v.scale)}; section ${scaleName(v.secScale)}`, v.svg + html({ x: A.x + A.w * 0.64, y: A.y, w: A.w * 0.36, h: A.h }, info, s.paper === 'tabloid' ? 0.095 : 0.075)));
   }
   const elec = electricianHtml(p);
   if (elec) sheets.push(sheet(p, s, `S${sheets.length + 1}`, 'Cabinet lighting & electrical', 'No scale', html({ x: A.x, y: A.y, w: A.w, h: A.h }, elec, s.paper === 'tabloid' ? 0.11 : 0.09)));

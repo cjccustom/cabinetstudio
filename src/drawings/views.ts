@@ -1,5 +1,6 @@
 // The views on a drawing sheet, all drawn from the same parts the 3D view and cut list use:
 // wall elevations, the floor plan, and per-cabinet face frame elevations and side sections.
+import { tablesOf } from '../model/tableParts';
 import type { Cabinet, Part, Project, WallId } from '../model/types';
 import { buildParts, eff, topThick } from '../model/parts';
 import { footprint, resolveEnds, wallLength, wallNames, wallTransform } from '../model/layout';
@@ -227,6 +228,13 @@ export function floorPlan(p: Project, frame: Frame): { svg: string; scale: numbe
   const ordered = [...p.cabinets].sort((a, b) => Number(!isFloor(a)) - Number(!isFloor(b)));
   const prints = ordered.map((c) => ({ c, f: footprint(p.room, c) }));
   for (const { c, f } of prints) v.rect(f.x0, f.z0, f.x1 - f.x0, f.z1 - f.z0, isFloor(c) ? 'o' : 'hid');
+  // Free-standing tables: the top's outline (and the lip inside it), named
+  for (const { t, place } of tablesOf(p)) {
+    const [lx, lz] = place.turned ? [t.width, t.length] : [t.length, t.width];
+    v.rect(place.x - lx / 2, place.z - lz / 2, lx, lz, 'o');
+    if (t.lip) { const w = t.lipWidth ?? 0.75; v.rect(place.x - lx / 2 + w, place.z - lz / 2 + w, lx - 2 * w, lz - 2 * w, 'thin'); }
+    v.text(place.x, place.z + v.p(0.03), t.name, 0.075, 'middle', 'tagt');
+  }
   // Labels: an upper's in its outline; a base under one gets its label in the strip in front of it
   const overlap = (a: typeof prints[0]['f'], b: typeof prints[0]['f']) => a.x0 < b.x1 - 0.5 && b.x0 < a.x1 - 0.5 && a.z0 < b.z1 - 0.5 && b.z0 < a.z1 - 0.5;
   for (const { c, f } of prints) {

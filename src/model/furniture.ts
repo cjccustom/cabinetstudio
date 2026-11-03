@@ -36,12 +36,26 @@ export interface DiningTable {
   /** Turning (outsourced or not) per leg, when legs are turned. */
   turningEach: number;
   notes: string;
+  /** What it's for, as the proposal says it: "dining table", "puzzle table". */
+  use?: string;
+  /** A raised lip around the top (a puzzle or game table), so pieces stay on. */
+  lip?: boolean;
+  /** How far the lip stands above the playing surface, and its thickness. */
+  lipHeight?: number;
+  lipWidth?: number;
+  /** edge: rails applied around the top's edge, rising above it; onTop: rails glued on the top at its edge. */
+  lipStyle?: 'edge' | 'onTop';
+  /** Where it stands, its center from the left and back walls (unset = the middle of the room), and turned 90°. */
+  roomX?: number;
+  roomZ?: number;
+  turned?: boolean;
 }
 
 export const newTable = (): DiningTable => ({
   id: uid('tbl'), name: 'Dining table', length: 84, width: 40, height: 30, top: 1.25, species: 'White oak', pricePerBF: 0,
   base: 'legs', leg: 'tapered', legSize: 3, apron: 4, breadboard: false, leaves: 0, leafWidth: 18, edge: 'eased',
   finish: 'clear', finishPrice: 0, turningEach: 0, notes: '',
+  use: 'dining table', lip: false, lipHeight: 0.75, lipWidth: 0.75, lipStyle: 'edge',
 });
 
 export const tableBaseLabel: Record<TableBase, string> = { legs: 'Four legs and aprons', trestle: 'Trestle', pedestal: 'Single pedestal', 'double-pedestal': 'Double pedestal' };
@@ -52,6 +66,7 @@ export const tableStandards = {
   layout: 2, // drawings, cut list, stock selection
   topBase: 2, topPerSqFt: 0.15, // milling, glue-up, flattening
   breadboard: 5,
+  lipBase: 2, lipPerFt: 0.08, // mill, miter, fit and fasten the rails; ease the inside edge
   edgeProfile: 1.5, liveEdge: 3,
   leafEach: 3, slides: 3,
   legSquare: 1, legTapered: 1.5, legTurned: 1, // turned: plus the turning cost
@@ -72,6 +87,9 @@ const movement: Record<string, number> = {
 };
 export const movementCoef = (species: string) => movement[species.toLowerCase().replace(/^(rift|quartersawn|qs|flatsawn|plain sawn)\s+/, '')] ?? 0.0033;
 
+const perimeter = (t: DiningTable) => 2 * (t.length + t.width);
+/** The lip rails' finished section: height (top to bottom of the rail) by thickness. */
+export const lipStock = (t: DiningTable) => ({ h: (t.lipStyle ?? 'edge') === 'edge' ? t.top + (t.lipHeight ?? 0.75) : (t.lipHeight ?? 0.75), w: t.lipWidth ?? 0.75 });
 const sqft = (t: DiningTable) => (t.length * t.width) / 144;
 const leafSqft = (t: DiningTable) => (t.leaves * t.leafWidth * t.width) / 144;
 
@@ -91,9 +109,15 @@ export function tableChecks(t: DiningTable): string[] {
   const out: string[] = [];
   const knee = t.height - t.top - (t.base === 'legs' ? t.apron : 0);
   if (t.base === 'legs' && knee < 24.5) out.push(`Only ${knee.toFixed(2)}" from floor to apron: aim for 24 1/2" or more so knees clear (a narrower apron or thinner top helps).`);
-  if (t.height < 28.5 || t.height > 30.5) out.push(`Dining height is usually 29"–30"; this is ${t.height}".`);
-  if (t.width < 36) out.push('Under 36" wide gets tight with place settings on both sides and leaves no room for end seats.');
-  if (t.width > 48) out.push('Over 48" wide makes it hard to reach across and to pass dishes.');
+  const dining = /dining/i.test(t.use ?? 'dining table');
+  if (dining && (t.height < 28.5 || t.height > 30.5)) out.push(`Dining height is usually 29"–30"; this is ${t.height}".`);
+  if (dining && t.width < 36) out.push('Under 36" wide gets tight with place settings on both sides and leaves no room for end seats.');
+  if (t.width > 48) out.push(dining ? 'Over 48" wide makes it hard to reach across and to pass dishes.' : `Over 48" wide is a long reach to the middle from one side (about ${Math.round(t.width / 2)}").`);
+  if (t.lip) {
+    out.push(`The lip across the ends runs across the top's grain: ${t.lipStyle === 'onTop' ? 'glue only the middle few inches and screw through slotted holes toward the corners' : 'fasten the end rails through slotted holes (or glue only at the middle)'} so the ${topMovement(t).toFixed(2)}" of seasonal movement doesn't crack the top or open the miters.`);
+    if (t.leaves) out.push('A lip with extension leaves needs lip pieces on each leaf and breaks at every joint; most puzzle tables skip the leaves.');
+    if (t.breadboard) out.push('With a lip applied around the edge, the breadboard ends sit inside the lip; consider leaving them off.');
+  }
   if (t.base === 'trestle' && t.length < 60) out.push('A trestle base wants a table about 60" or longer so the feet stay out of the way.');
   if ((t.base === 'pedestal') && t.length > 60) out.push('A single pedestal is best up to about 60" long; use a double pedestal or trestle for longer tables.');
   if (t.leaves && t.breadboard) out.push('Breadboard ends and extension leaves don’t mix well: the leaves need their own breadboards to match, and the slides fight the breadboard movement.');
@@ -114,6 +138,7 @@ export function tableEstimate(t: DiningTable, p: Project): { hours: TableLine[];
     { label: `Top: mill, glue up and flatten (${area.toFixed(1)} sq ft)`, hours: s.topBase + s.topPerSqFt * area },
   ];
   if (t.breadboard) hours.push({ label: 'Breadboard ends', hours: s.breadboard });
+  if (t.lip) hours.push({ label: `Raised lip around the top, mitered corners (${Math.round(perimeter(t) / 12)} lf)`, hours: s.lipBase + s.lipPerFt * perimeter(t) / 12 });
   if (t.edge === 'profile') hours.push({ label: 'Edge profile', hours: s.edgeProfile });
   if (t.edge === 'live') hours.push({ label: 'Live edge cleanup', hours: s.liveEdge });
   if (t.leaves) hours.push({ label: `${t.leaves} ${t.leaves > 1 ? 'leaves' : 'leaf'} and table slides`, hours: s.leafEach * t.leaves + s.slides + s.topPerSqFt * leafSqft(t) });
@@ -138,10 +163,11 @@ export function tableEstimate(t: DiningTable, p: Project): { hours: TableLine[];
   const baseBF = t.base === 'legs'
     ? (4 * ((legLen + 2) * (t.legSize + 0.5) * (t.legSize + 0.5)) / 144 + bf(2 * (t.length + t.width), t.apron + 0.5, 0.875)) * 1.3
     : (t.base === 'trestle' ? 16 + (t.length / 12) * 1.5 : t.base === 'pedestal' ? 22 : 36) * 1.2;
-  const total = topBF + baseBF;
+  const lipBF = t.lip ? bf(perimeter(t) + 8, lipStock(t).h + 0.5, lipStock(t).w) * 1.25 : 0;
+  const total = topBF + baseBF + lipBF;
   const price = t.pricePerBF || p.speciesPrices?.[t.species] || 0;
   const materials: TableMaterial[] = [
-    { label: `${t.species} lumber`, cost: total * price, detail: `${Math.ceil(total)} BF rough (top ${Math.ceil(topBF)}, base ${Math.ceil(baseBF)})${price ? ` at $${price}/BF` : ' — enter a $/BF price'}` },
+    { label: `${t.species} lumber`, cost: total * price, detail: `${Math.ceil(total)} BF rough (top ${Math.ceil(topBF)}, base ${Math.ceil(baseBF)}${lipBF ? `, lip ${Math.ceil(lipBF)}` : ''})${price ? ` at $${price}/BF` : ' — enter a $/BF price'}` },
     { label: 'Glue, fasteners, abrasives', cost: 35 + area * 1.5, detail: 'Buttons or figure-8s, glue, sandpaper' },
   ];
   if (t.leaves) materials.push({ label: 'Table slides and leaf hardware', cost: 180, detail: 'Wooden or aluminum slides, alignment pins, leaf locks' });
@@ -160,10 +186,11 @@ const gcd = (a: number, b: number): number => (b ? gcd(b, a % b) : a);
 /** The scope line, in the wording of the quotes. */
 export function tableScope(t: DiningTable): string {
   const bits = [
-    `${t.name}: solid ${t.species.toLowerCase()} dining table, approx ${fmt(t.length)}L x ${fmt(t.width)}W x ${fmt(t.height)}H`,
+    `${t.name}: solid ${t.species.toLowerCase()} ${t.use || 'dining table'}, approx ${fmt(t.length)}L x ${fmt(t.width)}W x ${fmt(t.height)}H`,
     `${fmt(t.top)} thick top${t.breadboard ? ' with breadboard ends' : ''}${t.edge === 'profile' ? ', profiled edge' : t.edge === 'live' ? ', live edge' : ''}`,
+    ...(t.lip ? [`raised ${fmt(t.lipHeight ?? 0.75)} lip around the perimeter${t.lipStyle === 'onTop' ? '' : ' (applied to the edge of the top)'}, mitered corners`] : []),
     t.base === 'legs' ? `${t.leg} legs with aprons` : tableBaseLabel[t.base].toLowerCase() + ' base',
-    t.leaves ? `(${t.leaves}) ${fmt(t.leafWidth)} extension ${t.leaves > 1 ? 'leaves' : 'leaf'}; seats ${seats(t)}–${seats(t, true)}` : `seats ${seats(t)}`,
+    ...(/dining/i.test(t.use ?? 'dining table') ? [t.leaves ? `(${t.leaves}) ${fmt(t.leafWidth)} extension ${t.leaves > 1 ? 'leaves' : 'leaf'}; seats ${seats(t)}–${seats(t, true)}` : `seats ${seats(t)}`] : t.leaves ? [`(${t.leaves}) ${fmt(t.leafWidth)} extension ${t.leaves > 1 ? 'leaves' : 'leaf'}`] : []),
     t.finish === 'painter' ? 'finish by others' : tableFinishLabel[t.finish].replace(' (shop)', '').toLowerCase() + ' finish',
     'delivered and set in place',
   ];

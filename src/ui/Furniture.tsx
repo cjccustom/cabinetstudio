@@ -18,7 +18,7 @@ export function FurnitureSection() {
   const put = (id: string, patch: Partial<DiningTable>) => setAll(tables.map((t) => (t.id === id ? { ...t, ...patch } : t)));
   return (
     <Section title="Furniture" aside={<button className="mini" onClick={() => setAll([...tables, newTable()])}>Add table</button>}>
-      {!tables.length && <p className="hint">Dining tables: size and seating, top and base, leaves, species and finish, priced with your shop rate.</p>}
+      {!tables.length && <p className="hint">Tables (dining, puzzle, game and the like): size and seating, top and base, leaves, species and finish, priced with your shop rate.</p>}
       {tables.map((t) => <TableEditor key={t.id} t={t} put={(patch) => put(t.id, patch)} remove={() => setAll(tables.filter((x) => x.id !== t.id))} />)}
     </Section>
   );
@@ -47,7 +47,11 @@ function TableEditor({ t, put, remove }: { t: DiningTable; put: (p: Partial<Dini
       </div>
       <TableSketch t={t} />
       <div className="grid3">{len('length', 'Length')}{len('width', 'Width')}{len('height', 'Height')}</div>
-      <p className="hint">Seats {seats(t)}{t.leaves ? `, ${seats(t, true)} with the leaves in (${fmt(t.length + t.leaves * t.leafWidth)} long)` : ''}.</p>
+      <Field label="What it's for (as the proposal says it)" htmlFor={id('use')}>
+        <input id={id('use')} list="table-uses" value={t.use ?? 'dining table'} onChange={(e) => put({ use: e.target.value })} />
+        <datalist id="table-uses">{['dining table', 'puzzle table', 'game table', 'kitchen table', 'desk', 'work table', 'console table'].map((u) => <option key={u} value={u} />)}</datalist>
+      </Field>
+      {/dining/i.test(t.use ?? 'dining table') && <p className="hint">Seats {seats(t)}{t.leaves ? `, ${seats(t, true)} with the leaves in (${fmt(t.length + t.leaves * t.leafWidth)} long)` : ''}.</p>}
       <div className="grid3">
         {len('top', 'Top thickness')}
         <Field label="Species" htmlFor={id('sp')}>
@@ -85,12 +89,31 @@ function TableEditor({ t, put, remove }: { t: DiningTable; put: (p: Partial<Dini
         </Field>
       </div>
       <label className="chk-row"><input type="checkbox" checked={t.breadboard} onChange={(e) => put({ breadboard: e.target.checked })} /> Breadboard ends</label>
+      <label className="chk-row"><input type="checkbox" checked={!!t.lip} onChange={(e) => put({ lip: e.target.checked })} /> Raised lip around the top (puzzle or game table)</label>
+      {t.lip && (
+        <div className="grid3">
+          <Field label="Lip above the top" htmlFor={id('liph')}><LengthInput id={id('liph')} value={t.lipHeight ?? 0.75} onChange={(v) => v != null && put({ lipHeight: v })} /></Field>
+          <Field label="Lip thickness" htmlFor={id('lipw')}><LengthInput id={id('lipw')} value={t.lipWidth ?? 0.75} onChange={(v) => v != null && put({ lipWidth: v })} /></Field>
+          <Field label="Lip goes" htmlFor={id('lips')}>
+            <select id={id('lips')} value={t.lipStyle ?? 'edge'} onChange={(e) => put({ lipStyle: e.target.value as DiningTable['lipStyle'] })}>
+              <option value="edge">Around the edge of the top</option>
+              <option value="onTop">On the top, at the edge</option>
+            </select>
+          </Field>
+        </div>
+      )}
       <div className="grid2">
         <Field label="Finish" htmlFor={id('fin')}>
           <select id={id('fin')} value={t.finish} onChange={(e) => put({ finish: e.target.value as TableFinish })}>{Object.entries(tableFinishLabel).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>
         </Field>
         {t.finish === 'painter' && <Field label="Finisher’s price ($)" htmlFor={id('fp')}><input id={id('fp')} inputMode="decimal" value={t.finishPrice || ''} onChange={(e) => put({ finishPrice: parseFloat(e.target.value) || 0 })} /></Field>}
       </div>
+      <div className="grid3">
+        <Field label="In the room: from left wall" htmlFor={id('rx')}><LengthInput id={id('rx')} value={t.roomX ?? project.room.width / 2} onChange={(v) => v != null && put({ roomX: v })} /></Field>
+        <Field label="From back wall" htmlFor={id('rz')}><LengthInput id={id('rz')} value={t.roomZ ?? project.room.depth / 2} onChange={(v) => v != null && put({ roomZ: v })} /></Field>
+        <label className="chk-row"><input type="checkbox" checked={!!t.turned} onChange={(e) => put({ turned: e.target.checked })} /> Turned 90°</label>
+      </div>
+      <p className="hint">Measured to the middle of the table. It shows in the 3D view and floor plan, and gets its own sheet in the customer and shop drawings.</p>
       <ul className="table-checks">{tableChecks(t).map((c) => <li key={c}>{c}</li>)}</ul>
       <table className="totals">
         <tbody>
@@ -135,6 +158,8 @@ export function TableSketch({ t }: { t: DiningTable }) {
     <svg className="table-sketch" viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`Plan and side view, ${fmt(t.length)} by ${fmt(t.width)}`}>
       <g className="ts-chairs">{chairs.map((x, i) => <g key={i}><rect x={x - 9 * k} y={yPlan - 6 * k} width={18 * k} height={5 * k} rx={1} /><rect x={x - 9 * k} y={yPlan + planH + 1 * k} width={18 * k} height={5 * k} rx={1} /></g>)}</g>
       <rect className="ts-top" x={x0} y={yPlan} width={t.length * k} height={planH} rx={t.edge === 'live' ? 6 : 1} />
+      {t.lip && <rect className="ts-line" x={x0 + (t.lipWidth ?? 0.75) * k} y={yPlan + (t.lipWidth ?? 0.75) * k} width={(t.length - 2 * (t.lipWidth ?? 0.75)) * k} height={planH - 2 * (t.lipWidth ?? 0.75) * k} fill="none" />}
+      {t.lip && <rect className="ts-top" x={x0} y={ySide - (t.lipHeight ?? 0.75) * k} width={t.length * k} height={(t.lipHeight ?? 0.75) * k} />}
       {t.breadboard && <><line className="ts-line" x1={x0 + 3 * k} y1={yPlan} x2={x0 + 3 * k} y2={yPlan + planH} /><line className="ts-line" x1={x0 + (t.length - 3) * k} y1={yPlan} x2={x0 + (t.length - 3) * k} y2={yPlan + planH} /></>}
       {t.leaves > 0 && <line className="ts-line dash" x1={x0 + (t.length / 2) * k} y1={yPlan} x2={x0 + (t.length / 2) * k} y2={yPlan + planH} />}
       <g className="ts-base">{base}</g>

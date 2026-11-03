@@ -16,6 +16,7 @@ import { live, onWheel, useNav } from './navigation';
 import { RoomModel } from './RoomModel';
 import { CofferModel } from './CofferModel';
 import { LadderModel } from './LadderModel';
+import { TableModels } from './TableModel';
 import { opposite, underFascia } from '../model/coffer';
 import { buildParts } from '../model/parts';
 import { alongWall, footprint, resolveEnds, shiftInRoom, snapOffset, wallAxes, wallLength, wallTransform } from '../model/layout';
@@ -67,6 +68,8 @@ export function Scene({ issueIds }: { issueIds: Set<string> }) {
       {showCeiling && <CofferModel project={project} view={view} />}
       {/* Not in the elevation of the wall across from it, where it would stand in front of the view */}
       {(!elevWall || elevWall !== opposite[project.ladder?.wall ?? 'back']) && <LadderModel project={project} />}
+      {/* Tables stand in the room: shown in 3D and plan, left out of the wall elevations they'd block */}
+      {!elevWall && <TableModels project={project} hidden={hidden} />}
       {/* The ceiling, seen only from below, so the coffers and cans have something over them */}
       {showCeiling && view === '3d' && (
         <mesh position={[room.width / 2, room.height, room.depth / 2]} rotation-x={Math.PI / 2}>

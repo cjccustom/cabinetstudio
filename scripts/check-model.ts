@@ -21,6 +21,7 @@ import { newOpening } from "../src/model/room";
 import { cancelDeadline, holidays } from "../portal/src/cancel";
 import { expiring } from "../src/portal";
 import { newTable, seats, tableEstimate, tableScope } from "../src/model/furniture";
+import { tableParts } from "../src/model/tableParts";
 import { contractTotal, parseWordQuote, splitNames } from "../src/model/contract";
 import { mantelOf, shelfFor } from "../src/model/mantel";
 import { defaultPilaster } from "../src/model/pilaster";
@@ -1540,6 +1541,24 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   eq('stain job: open-section note', ps.some((x) => /stain and clear coat/.test(x.note ?? '') && x.look === 'wood'), true);
   const back = setJobFinish(ro, 'paint', 'Red oak', book, eagleDoorMaterials, moldSpeciesList);
   eq('paint job: door material back to paint grade', back.settings.doorMaterial, 'Paint-grade maple');
+}
+
+// A puzzle table: a raised lip around the top, in 3D, the drawings and the price
+{
+  const puzzle = { ...newTable(), id: 'pz', name: 'Puzzle table', use: 'puzzle table', length: 60, width: 40, lip: true, lipHeight: 0.75, lipWidth: 0.75 };
+  const parts = tableParts(puzzle);
+  const lips = parts.filter((x) => x.role === 'lip');
+  eq('puzzle: four lip rails', lips.reduce((n, x) => n + x.qty, 0), 4);
+  eq('puzzle: top sits inside the lip', parts.find((x) => x.role === 'top')!.length, 58.5);
+  eq('puzzle: lip rail is top + lip high', lips[0].width, 2);
+  eq('puzzle: scope names the lip', /raised 3\/4" lip/.test(tableScope(puzzle)) && /puzzle table/.test(tableScope(puzzle)), true);
+  eq('puzzle: no seat count', /seats/.test(tableScope(puzzle)), false);
+  eq('puzzle: lip hours', tableEstimate(puzzle, p).hours.some((h) => /lip/i.test(h.label)), true);
+  const pp = { ...p, furniture: [puzzle] };
+  const shop = shopSet(pp, drawingsOf(pp)), cust = customerSet(pp, drawingsOf(pp));
+  eq('puzzle: shop sheet', shop.some((x) => x.title === 'Puzzle table shop drawing' && /SECTION AT THE EDGE/.test(x.svg)), true);
+  eq('puzzle: customer sheet', cust.some((x) => x.title === 'Puzzle table'), true);
+  eq('puzzle: on the floor plan', /Puzzle table/.test(cust.find((x) => x.title === 'Floor plan')!.svg), true);
 }
 
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');
