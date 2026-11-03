@@ -721,3 +721,14 @@ textarea.text-input { resize: vertical; }
 .dw-tip { position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); background: #1f2937; color: #fff; padding: 6px 12px; border-radius: 6px; font-size: 13px; pointer-events: none; }
 .pic-strip { display: flex; gap: 6px; flex-wrap: wrap; margin: 6px 0 10px; }
 .pic-strip img { height: 64px; border-radius: 6px; border: 1px solid var(--line, #ddd); object-fit: cover; }
+
+/* Payment schedule editor: label on its own line, then how it's figured and the amount */
+.sched-edit{display:flex;flex-direction:column;gap:10px;margin-bottom:8px}
+.sched-row{border-bottom:1px solid var(--line,#e3e0da);padding-bottom:10px}
+.sched-top{display:flex;gap:6px;align-items:center}
+.sched-top input{flex:1;min-width:0}
+.sched-amt{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:8px;align-items:center;margin-top:6px}
+.sched-amt select{min-width:0}
+.sched-val{display:inline-flex;align-items:center;gap:3px}
+.sched-val input{width:5.5em;text-align:right}
+.sched-amt .num{min-width:5.5em;text-align:right}

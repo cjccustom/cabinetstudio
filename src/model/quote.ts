@@ -280,6 +280,32 @@ export function scopeItems(p: Project, withHidden = false): ScopeItem[] {
   return withHidden ? out : out.filter((x) => x.text.trim());
 }
 
+const andList = (xs: string[]) => (xs.length < 3 ? xs.join(' and ') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`);
+
+/**
+ * The scope lines as the full proposal lists them. With "list identical cabinets once" on, cabinets
+ * whose lines read the same apart from their names become one line: "B1, B2 and B3 (3 alike): …".
+ */
+export function proposalScope(p: Project): string[] {
+  const items = scopeItems(p);
+  if (!p.proposalCombine) return items.map((x) => x.text);
+  const cabIds = new Set(p.cabinets.map((c) => c.id));
+  const groups = new Map<string, { names: string[]; at: number }>();
+  const out: (string | { body: string })[] = [];
+  for (const it of items) {
+    const m = cabIds.has(it.key) ? /^([^:]{1,24}):\s*(.*)$/s.exec(it.text) : null;
+    if (!m) { out.push(it.text); continue; }
+    const g = groups.get(m[2]);
+    if (g) g.names.push(m[1].trim());
+    else { groups.set(m[2], { names: [m[1].trim()], at: out.length }); out.push({ body: m[2] }); }
+  }
+  return out.map((x) => {
+    if (typeof x === 'string') return x;
+    const g = groups.get(x.body)!;
+    return g.names.length > 1 ? `${andList(g.names)} (${g.names.length} alike): ${x.body}` : `${g.names[0]}: ${x.body}`;
+  });
+}
+
 /** What painting comes to before any price you set yourself: the painter's quote with markup, the estimate or the allowance. */
 export function paintCalculated(p: Project, q: QuoteSettings): number {
   if (q.paintWhen === 'none') return 0;

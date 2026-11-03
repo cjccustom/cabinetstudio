@@ -21,7 +21,7 @@ import { newOpening } from "../src/model/room";
 import { cancelDeadline, holidays } from "../portal/src/cancel";
 import { expiring } from "../src/portal";
 import { newTable, seats, tableEstimate, tableScope } from "../src/model/furniture";
-import { tableParts } from "../src/model/tableParts";
+import { tableParts, tableStock } from "../src/model/tableParts";
 import { contractTotal, parseWordQuote, splitNames } from "../src/model/contract";
 import { mantelOf, shelfFor } from "../src/model/mantel";
 import { defaultPilaster } from "../src/model/pilaster";
@@ -41,7 +41,7 @@ import { defaultFaceFrameStock, faceFrameNeeds, faceFramePieces, otherSpecies, r
 import { panelAbove, panelOrder } from "../src/model/panels";
 import { amCatalog } from "../src/model/andersonMcquaid";
 import { cabinetMoldings, moldingOrder, mountShape, priceOf, profileByNum, profileLabel, setCustomDrawings } from "../src/model/moldings";
-import { closetRods, estimateHours, estimateMaterials, paintEstimate, priceQuote, quoteOf, scopeLine } from "../src/model/quote";
+import { closetRods, estimateHours, estimateMaterials, paintEstimate, priceQuote, proposalScope, quoteOf, scopeLine } from "../src/model/quote";
 import { cutStock, defaultCutlist, optimizerParts } from "../src/model/cutlist";
 import { applyBook, choosePlywood, chooseSpecies, priceBook, setJobFinish, stalePrices } from "../src/model/pricebook";
 import { doorMaterials as eagleDoorMaterials } from "../src/model/eagle";
@@ -1550,7 +1550,7 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   const lips = parts.filter((x) => x.role === 'lip');
   eq('puzzle: four lip rails', lips.reduce((n, x) => n + x.qty, 0), 4);
   eq('puzzle: top sits inside the lip', parts.find((x) => x.role === 'top')!.length, 58.5);
-  eq('puzzle: lip rail is top + lip high', lips[0].width, 2);
+  eq('puzzle: lip rail is top + lip high', lips[0].width, 1.875);
   eq('puzzle: scope names the lip', /raised 3\/4" lip/.test(tableScope(puzzle)) && /puzzle table/.test(tableScope(puzzle)), true);
   eq('puzzle: no seat count', /seats/.test(tableScope(puzzle)), false);
   eq('puzzle: lip hours', tableEstimate(puzzle, p).hours.some((h) => /lip/i.test(h.label)), true);
@@ -1559,6 +1559,29 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   eq('puzzle: shop sheet', shop.some((x) => x.title === 'Puzzle table shop drawing' && /SECTION AT THE EDGE/.test(x.svg)), true);
   eq('puzzle: customer sheet', cust.some((x) => x.title === 'Puzzle table'), true);
   eq('puzzle: on the floor plan', /Puzzle table/.test(cust.find((x) => x.title === 'Floor plan')!.svg), true);
+}
+
+// Tables priced from A&M boards: the top from 1-1/4", legs glued up from 1-5/8"
+{
+  const cherry = { ...newTable(), id: 'tc', species: 'Cherry' };
+  const st = tableStock(cherry);
+  eq('table stock: cherry is on A&M', st.missing, false);
+  eq('table stock: top from 1-1/4 boards', st.lines.find((l) => l.part === 'Top')!.board, '1-1/4 x 5-1/2');
+  eq('table stock: legs from 1-5/8, two layers', /^1-5\/8/.test(st.lines.find((l) => /^Leg/.test(l.part))!.board) && /2 layers/.test(st.lines.find((l) => /^Leg/.test(l.part))!.how), true);
+  const e = tableEstimate(cherry, p);
+  eq('table stock: lumber line from A&M', e.materials[0].label, 'Cherry lumber (A&M)');
+  eq('table stock: default top 1-1/8', cherry.top, 1.125);
+  for (const sp of ['Red oak', 'Walnut', 'Sapele', 'White oak']) eq(`table stock: ${sp} priced`, tableStock({ ...cherry, species: sp }).missing, false);
+  eq('table scope: sapele reads as mahogany', /sapele mahogany/.test(tableScope({ ...cherry, species: 'Sapele' })), true);
+}
+
+// Identical cabinets listed once on the proposal
+{
+  const one = p.cabinets[0];
+  const twins = { ...p, proposalDetail: 'full' as const, proposalCombine: true, cabinets: [one, { ...one, id: 'tw2', name: 'Z8' }, { ...one, id: 'tw3', name: 'Z9' }] };
+  const lines = proposalScope(twins);
+  eq('combine: three alike on one line', lines.filter((l) => l.includes('(3 alike)')).length, 1);
+  eq('combine: off lists each', proposalScope({ ...twins, proposalCombine: false }).length >= 3, true);
 }
 
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');

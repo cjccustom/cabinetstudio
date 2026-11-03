@@ -4,6 +4,7 @@
 import type { Project } from './types';
 import { fmt } from '../units';
 import { furnitureOf, lipStock, type DiningTable } from './furniture';
+import { amSizes, boardSize } from './amLumber';
 
 export type TableRole = 'top' | 'breadboard' | 'lip' | 'leg' | 'apron' | 'post' | 'foot' | 'cleat' | 'stretcher' | 'column' | 'leaf';
 export interface TableBox { min: [number, number, number]; size: [number, number, number] }
@@ -82,3 +83,50 @@ export function tablePlace(p: Project, t: DiningTable): { x: number; z: number; 
 }
 
 export const tablesOf = (p: Project) => furnitureOf(p).map((t) => ({ t, parts: tableParts(t), place: tablePlace(p, t) }));
+
+/** The A&M species a table can be made from (they stock both 1-1/4" and 1-5/8"), with what to call each. */
+export const tableSpecies: { name: string; label: string }[] = [
+  { name: 'White oak', label: 'White oak' }, { name: 'Red oak', label: 'Red oak' }, { name: 'Cherry', label: 'Cherry' },
+  { name: 'Walnut', label: 'Walnut' }, { name: 'Sapele', label: 'Mahogany (A&M sapele)' }, { name: 'Hard maple', label: 'Hard maple' }, { name: 'Poplar', label: 'Poplar (paint grade)' },
+];
+
+export interface TableStock { part: string; board: string; lf: number; perLF: number; cost: number; how: string }
+
+/**
+ * What to buy from A&M for each part, by the lineal foot of their surfaced (D4S) boards: the top
+ * glued up from 1-1/4" (flattened to about 1-1/8"), legs glued up from 1-5/8", aprons and the
+ * like from the next thickness up, ripped or glued edge to edge as the width needs. Each length
+ * gets 2" to trim, and 15% is added for defects and grain matching.
+ */
+export function tableStock(t: DiningTable, waste = 0.15): { lines: TableStock[]; missing: boolean } {
+  const sizes = amSizes(t.species) ?? {};
+  const boards = Object.entries(sizes).map(([k, perLF]) => ({ k, perLF, ...boardSize(k)! })).filter((b) => b.t && b.w);
+  const thicks = [...new Set(boards.map((b) => b.t))].sort((a, b) => a - b);
+  const lines: TableStock[] = [];
+  let missing = !boards.length;
+  for (const part of tableParts(t)) {
+    // Thickness: the top from 1-1/4"; anything thicker than A&M's thickest is glued up in layers
+    const want = part.role === 'top' || part.role === 'breadboard' || part.role === 'leaf' ? Math.max(1.25, part.thick) : part.thick;
+    const thick = thicks.find((x) => x >= want - 1e-6 && x <= 1.625) ?? thicks.filter((x) => x <= 1.625).pop();
+    if (thick == null) { missing = true; continue; }
+    const layers = thick >= want - 1e-6 ? 1 : Math.ceil(want / (thick - 0.0625));
+    const ofT = boards.filter((b) => b.t === thick).sort((a, b) => a.w - b.w);
+    if (!ofT.length) { missing = true; continue; }
+    const need = part.width + 0.125;
+    let board = ofT.find((b) => b.w >= need), across = 1, perBoard = 1, how = '';
+    if (board) {
+      // Ripped: as many as fit across the board
+      perBoard = Math.max(1, Math.floor((board.w + 0.125) / need));
+      how = perBoard > 1 ? `${perBoard} ripped from each board` : 'ripped to width';
+    } else {
+      // Glued edge to edge from 5-1/2" boards (or the widest stocked), 1/4" lost to jointing each
+      board = ofT.find((b) => Math.abs(b.w - 5.5) < 0.01) ?? ofT[ofT.length - 1];
+      across = Math.ceil((part.width + 0.5) / (board.w - 0.25));
+      how = `${across} boards glued edge to edge`;
+    }
+    if (layers > 1) how = `${layers} layers face-glued, ${how}`;
+    const lf = (part.qty * layers * across * ((part.length + 2) / 12)) / perBoard * (1 + waste);
+    lines.push({ part: part.name, board: board.k, lf, perLF: board.perLF, cost: lf * board.perLF, how });
+  }
+  return { lines, missing };
+}

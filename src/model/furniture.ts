@@ -4,6 +4,7 @@
 import type { Project } from './types';
 import { uid } from './defaults';
 import { roughQuarters } from './faceframe';
+import { tableStock } from './tableParts';
 
 export type TableBase = 'legs' | 'trestle' | 'pedestal' | 'double-pedestal';
 export type TableLeg = 'square' | 'tapered' | 'turned';
@@ -52,7 +53,7 @@ export interface DiningTable {
 }
 
 export const newTable = (): DiningTable => ({
-  id: uid('tbl'), name: 'Dining table', length: 84, width: 40, height: 30, top: 1.25, species: 'White oak', pricePerBF: 0,
+  id: uid('tbl'), name: 'Dining table', length: 84, width: 40, height: 30, top: 1.125, species: 'White oak', pricePerBF: 0,
   base: 'legs', leg: 'tapered', legSize: 3, apron: 4, breadboard: false, leaves: 0, leafWidth: 18, edge: 'eased',
   finish: 'clear', finishPrice: 0, turningEach: 0, notes: '',
   use: 'dining table', lip: false, lipHeight: 0.75, lipWidth: 0.75, lipStyle: 'edge',
@@ -83,7 +84,7 @@ export const tableStandards = {
 /** Tangential shrinkage per 1% change in moisture content (flatsawn), from the USDA Wood Handbook. */
 const movement: Record<string, number> = {
   'white oak': 0.00365, 'red oak': 0.00369, 'hard maple': 0.00353, 'soft maple': 0.00289, cherry: 0.00248,
-  walnut: 0.00274, ash: 0.00274, hickory: 0.00411, poplar: 0.00289, 'white pine': 0.00212, mahogany: 0.00172, birch: 0.00338,
+  walnut: 0.00274, ash: 0.00274, hickory: 0.00411, poplar: 0.00289, 'white pine': 0.00212, mahogany: 0.00172, sapele: 0.00278, birch: 0.00338,
 };
 export const movementCoef = (species: string) => movement[species.toLowerCase().replace(/^(rift|quartersawn|qs|flatsawn|plain sawn)\s+/, '')] ?? 0.0033;
 
@@ -165,9 +166,15 @@ export function tableEstimate(t: DiningTable, p: Project): { hours: TableLine[];
     : (t.base === 'trestle' ? 16 + (t.length / 12) * 1.5 : t.base === 'pedestal' ? 22 : 36) * 1.2;
   const lipBF = t.lip ? bf(perimeter(t) + 8, lipStock(t).h + 0.5, lipStock(t).w) * 1.25 : 0;
   const total = topBF + baseBF + lipBF;
-  const price = t.pricePerBF || p.speciesPrices?.[t.species] || 0;
+  // A&M's surfaced boards by the lineal foot, part by part, unless a $/BF price is typed for the table
+  const stock = tableStock(t);
+  const own = t.pricePerBF || 0;
+  const amLine: TableMaterial | null = !own && !stock.missing
+    ? { label: `${t.species} lumber (A&M)`, cost: stock.lines.reduce((x, l) => x + l.cost, 0), detail: stock.lines.map((l) => `${l.part}: ${Math.ceil(l.lf)} lf of ${l.board} at $${l.perLF.toFixed(2)}`).join('; ') }
+    : null;
+  const price = own || p.speciesPrices?.[t.species] || 0;
   const materials: TableMaterial[] = [
-    { label: `${t.species} lumber`, cost: total * price, detail: `${Math.ceil(total)} BF rough (top ${Math.ceil(topBF)}, base ${Math.ceil(baseBF)}${lipBF ? `, lip ${Math.ceil(lipBF)}` : ''})${price ? ` at $${price}/BF` : ' — enter a $/BF price'}` },
+    amLine ?? { label: `${t.species} lumber`, cost: total * price, detail: `${Math.ceil(total)} BF rough (top ${Math.ceil(topBF)}, base ${Math.ceil(baseBF)}${lipBF ? `, lip ${Math.ceil(lipBF)}` : ''})${price ? ` at $${price}/BF` : ' — enter a $/BF price'}` },
     { label: 'Glue, fasteners, abrasives', cost: 35 + area * 1.5, detail: 'Buttons or figure-8s, glue, sandpaper' },
   ];
   if (t.leaves) materials.push({ label: 'Table slides and leaf hardware', cost: 180, detail: 'Wooden or aluminum slides, alignment pins, leaf locks' });
@@ -186,7 +193,7 @@ const gcd = (a: number, b: number): number => (b ? gcd(b, a % b) : a);
 /** The scope line, in the wording of the quotes. */
 export function tableScope(t: DiningTable): string {
   const bits = [
-    `${t.name}: solid ${t.species.toLowerCase()} ${t.use || 'dining table'}, approx ${fmt(t.length)}L x ${fmt(t.width)}W x ${fmt(t.height)}H`,
+    `${t.name}: solid ${/sapele/i.test(t.species) ? "sapele mahogany" : t.species.toLowerCase()} ${t.use || 'dining table'}, approx ${fmt(t.length)}L x ${fmt(t.width)}W x ${fmt(t.height)}H`,
     `${fmt(t.top)} thick top${t.breadboard ? ' with breadboard ends' : ''}${t.edge === 'profile' ? ', profiled edge' : t.edge === 'live' ? ', live edge' : ''}`,
     ...(t.lip ? [`raised ${fmt(t.lipHeight ?? 0.75)} lip around the perimeter${t.lipStyle === 'onTop' ? '' : ' (applied to the edge of the top)'}, mitered corners`] : []),
     t.base === 'legs' ? `${t.leg} legs with aprons` : tableBaseLabel[t.base].toLowerCase() + ' base',

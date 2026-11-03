@@ -227,6 +227,7 @@ export function ClientPortal() {
               <option value="full">Every cabinet with its sizes</option>
             </select>
           </Field>
+          <label className="chk-row" style={{ gridColumn: '1 / -1' }}><input type="checkbox" checked={!!project.proposalCombine} onChange={(e) => commit((p) => ({ ...p, proposalCombine: e.target.checked || undefined }))} /> List identical cabinets once ("B1, B2 and B3 (3 alike)"), even when they're on different walls</label>
           <p className="hint" style={{ alignSelf: 'end' }}>{(project.proposalDetail ?? 'plain') === 'plain' ? 'Each cabinet with its approximate size, in plain words. Exact sizes come with the drawings they approve after signing.' : 'Shows every cabinet’s size. Anyone they forward it to can quote from it.'}</p>
         </div>
       )}

@@ -413,29 +413,33 @@ function ScheduleSection() {
   void r;
   return (
     <Section title="Payment schedule" aside={<button className="mini" onClick={() => put([...steps, { id: `pay${Date.now().toString(36)}`, label: 'Progress payment due at cabinet installation', pct: 0.4 }])}>Add a payment</button>}>
-      <table className="totals sched-edit">
-        <tbody>
-          {steps.map((st, i) => (
-            <tr key={st.id}>
-              <td><input aria-label="Payment" value={st.label} onChange={(e) => upd(i, { label: e.target.value })} /></td>
-              <td className="num" style={{ whiteSpace: 'nowrap' }}>
-                <select aria-label="How it's figured" value={st.amount != null ? 'amt' : 'pct'} onChange={(e) => upd(i, e.target.value === 'amt' ? { amount: lines[i].amount, pct: undefined } : { pct: lines[i].pct, amount: undefined })}>
-                  <option value="pct">%</option><option value="amt">$</option>
-                </select>{' '}
-                <input aria-label={st.amount != null ? 'Amount' : 'Percent'} inputMode="decimal" style={{ width: 70 }} value={st.amount != null ? st.amount : +((st.pct ?? 0) * 100).toFixed(2)}
+      {/* Each payment on two lines (what it's called; how it's figured and what it comes to), so nothing crowds in a narrow panel */}
+      <div className="sched-edit">
+        {steps.map((st, i) => (
+          <div className="sched-row" key={st.id}>
+            <div className="sched-top">
+              <input aria-label="Payment" value={st.label} onChange={(e) => upd(i, { label: e.target.value })} />
+              {steps.length > 1 || i > 0 ? <button className="icon-btn" aria-label={`Remove ${st.label}`} onClick={() => put(steps.filter((_, k) => k !== i))}>×</button> : null}
+            </div>
+            <div className="sched-amt">
+              <select aria-label="How it's figured" value={st.amount != null ? 'amt' : 'pct'} onChange={(e) => upd(i, e.target.value === 'amt' ? { amount: lines[i].amount, pct: undefined } : { pct: lines[i].pct, amount: undefined })}>
+                <option value="pct">Percent</option><option value="amt">Set amount</option>
+              </select>
+              <span className="sched-val">
+                {st.amount != null && <span className="muted">$</span>}
+                <input aria-label={st.amount != null ? 'Amount' : 'Percent'} inputMode="decimal" value={st.amount != null ? st.amount : +((st.pct ?? 0) * 100).toFixed(2)}
                   onChange={(e) => { const v = parseFloat(e.target.value) || 0; upd(i, st.amount != null ? { amount: v } : { pct: v / 100 }); }} />
-              </td>
-              <td className="num">{money(lines[i].amount)}</td>
-              <td>{steps.length > 1 || i > 0 ? <button className="icon-btn" aria-label={`Remove ${st.label}`} onClick={() => put(steps.filter((_, k) => k !== i))}>×</button> : null}</td>
-            </tr>
-          ))}
-          <tr className="sum">
-            <td><input aria-label="Final payment" value={q.finalPaymentLabel ?? defaultFinalLabel} onChange={(e) => set({ finalPaymentLabel: e.target.value })} /></td>
-            <td className="num muted">the rest</td>
-            <td className="num">{money(lines[lines.length - 1].amount)}</td><td />
-          </tr>
-        </tbody>
-      </table>
+                {st.amount == null && <span className="muted">%</span>}
+              </span>
+              <b className="num">{money(lines[i].amount)}</b>
+            </div>
+          </div>
+        ))}
+        <div className="sched-row sum">
+          <div className="sched-top"><input aria-label="Final payment" value={q.finalPaymentLabel ?? defaultFinalLabel} onChange={(e) => set({ finalPaymentLabel: e.target.value })} /></div>
+          <div className="sched-amt"><span className="muted">The rest</span><span /><b className="num">{money(lines[lines.length - 1].amount)}</b></div>
+        </div>
+      </div>
       <p className="hint">The first payment is the deposit: it’s what the client portal asks for at signing and what the deposit invoice charges. {q.payments ? <button className="link-btn" onClick={() => set({ payments: undefined, finalPaymentLabel: undefined })}>Back to 30% / balance</button> : null}</p>
     </Section>
   );

@@ -77,8 +77,9 @@ export function plainItem(c: Cabinet, p: Project): string {
 function plainItems(p: Project, cabs: Cabinet[]): string[] {
   const counts = new Map<string, number>();
   for (const c of cabs) { const t = plainItem(c, p); if (t) counts.set(t, (counts.get(t) ?? 0) + 1); }
-  return [...counts].map(([t, n]) => (n > 1 ? `(${n}) ${t.replace(/^([^:]*?)\bcabinet\b/, '$1cabinets').replace(/^Pilaster\b/, 'Pilasters')}` : t));
+  return [...counts].map(([t, n]) => (n > 1 ? countItem(t, n) : t));
 }
+const countItem = (t: string, n: number) => `(${n}) ${t.replace(/^([^:]*?)\bcabinet\b/, '$1cabinets').replace(/^Pilaster\b/, 'Pilasters')}`;
 
 /** Where each cabinet is, as a customer would say it: by wall, with islands on their own. */
 function areaOf(c: Cabinet): string {
@@ -92,7 +93,34 @@ export function proposalSummary(p: Project): ProposalSummary {
   const base = withOptions(p);
   const groups = new Map<string, Cabinet[]>();
   for (const c of base.cabinets) groups.set(areaOf(c), [...(groups.get(areaOf(c)) ?? []), c]);
-  const areas = [...groups].map(([title, cabs]) => ({ title, items: plainItems(base, cabs) }));
+  let areas = [...groups].map(([title, cabs]) => ({ title, items: plainItems(base, cabs) }));
+  if (p.proposalCombine && groups.size > 1) {
+    // Built alike on more than one wall: said once, under the first, with how many go where
+    const where = new Map<string, { title: string; n: number }[]>();
+    for (const [title, cabs] of groups) for (const c of cabs) {
+      const t = plainItem(c, base); if (!t) continue;
+      const list = where.get(t) ?? []; const hit = list.find((x) => x.title === title);
+      if (hit) hit.n++; else list.push({ title, n: 1 });
+      where.set(t, list);
+    }
+    const said = new Set<string>();
+    areas = [...groups].map(([title, cabs]) => {
+      const items: string[] = [];
+      const seen = new Set<string>();
+      for (const c of cabs) {
+        const t = plainItem(c, base);
+        if (!t || seen.has(t)) continue;
+        seen.add(t);
+        const list = where.get(t)!;
+        const n = list.reduce((s, x) => s + x.n, 0);
+        if (list.length < 2) { items.push(n > 1 ? countItem(t, n) : t); continue; }
+        if (said.has(t)) continue;
+        said.add(t);
+        items.push(`${countItem(t, n)} (${list.map((x) => `${x.n} ${/wall$/i.test(x.title) ? `on the ${x.title.toLowerCase()}` : `in ${x.title}`}`).join(', ')})`);
+      }
+      return { title, items };
+    }).filter((a) => a.items.length);
+  }
   const extras = [...(base.quote?.extras ?? []).map((e) => e.label), ...(base.quote?.scopeExtra ?? [])].filter((x) => x?.trim());
   if (extras.length) areas.push({ title: 'Also included', items: extras });
   return { areas, materials: materialsOf(base), options: optionPrices(p) };

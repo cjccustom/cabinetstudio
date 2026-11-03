@@ -4,11 +4,11 @@ import { useMemo } from 'react';
 import { useStore } from '../store';
 import { furnitureOf, newTable, seats, tableBaseLabel, tableChecks, tableEstimate, tableFinishLabel, type DiningTable, type TableBase, type TableFinish, type TableLeg } from '../model/furniture';
 import { priceQuote, quoteOf } from '../model/quote';
+import { tableSpecies } from '../model/tableParts';
 import { Field, LengthInput, Section } from './fields';
 import { fmt } from '../units';
 
 const money = (v: number) => `$${Math.round(v).toLocaleString('en-US')}`;
-const species = ['White oak', 'Rift white oak', 'Red oak', 'Walnut', 'Cherry', 'Hard maple', 'Ash', 'Hickory', 'Mahogany', 'Poplar'];
 
 export function FurnitureSection() {
   const project = useStore((s) => s.project);
@@ -55,10 +55,12 @@ function TableEditor({ t, put, remove }: { t: DiningTable; put: (p: Partial<Dini
       <div className="grid3">
         {len('top', 'Top thickness')}
         <Field label="Species" htmlFor={id('sp')}>
-          <input id={id('sp')} list="table-species" value={t.species} onChange={(e) => put({ species: e.target.value })} />
-          <datalist id="table-species">{species.map((s) => <option key={s} value={s} />)}</datalist>
+          <select id={id('sp')} value={t.species} onChange={(e) => put({ species: e.target.value })}>
+            {!tableSpecies.some((x) => x.name === t.species) && <option value={t.species}>{t.species} (not on A&M's list)</option>}
+            {tableSpecies.map((x) => <option key={x.name} value={x.name}>{x.label}</option>)}
+          </select>
         </Field>
-        <Field label="Lumber $/BF" htmlFor={id('bf')}><input id={id('bf')} inputMode="decimal" value={t.pricePerBF || ''} placeholder={String(project.speciesPrices?.[t.species] ?? '')} onChange={(e) => put({ pricePerBF: parseFloat(e.target.value) || 0 })} /></Field>
+        <Field label="Your $/BF (blank = A&M list)" htmlFor={id('bf')}><input id={id('bf')} inputMode="decimal" value={t.pricePerBF || ''} placeholder="A&M" onChange={(e) => put({ pricePerBF: parseFloat(e.target.value) || 0 })} /></Field>
       </div>
       <div className="grid3">
         <Field label="Base" htmlFor={id('base')}>
@@ -122,7 +124,7 @@ function TableEditor({ t, put, remove }: { t: DiningTable; put: (p: Partial<Dini
           <tr className="sum"><td>{hours.toFixed(1)} h, {money(mats)} materials · price</td><td className="num">{money(price)}</td></tr>
         </tbody>
       </table>
-      <p className="hint">Hours are starting standards for a one-off table; adjust as you build them. The price uses your pricing method and goes on the proposal as Furniture.</p>
+      <p className="hint">Lumber is priced from A&amp;M's surfaced boards by the lineal foot: the top glued up from 1-1/4" (flattened to about 1-1/8"), legs glued up from 1-5/8", aprons from 1", plus 15% for defects and grain matching. Hours are starting standards for a one-off table; adjust as you build them. The price uses your pricing method and goes on the proposal as Furniture.</p>
       <Field label="Notes" htmlFor={id('notes')}><textarea id={id('notes')} rows={2} value={t.notes} onChange={(e) => put({ notes: e.target.value })} /></Field>
     </div>
   );

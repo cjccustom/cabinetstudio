@@ -6,7 +6,7 @@ import type { Project } from './types';
 import { clientName, clientOf, proposalLines, proposalTitle } from './client';
 import { paymentSchedule, pctText } from './schedule';
 import { proposalSummary, withOptions } from './proposal';
-import { cofferScope, priceQuote, scopeItems } from './quote';
+import { cofferScope, priceQuote, proposalScope } from './quote';
 import { furnitureOf, tableScope } from './furniture';
 import { LOGO } from '../drawings/logo';
 import { termsHtml } from '../../portal/src/pages';
@@ -38,7 +38,7 @@ export function printQuote(p: Project, opts: { terms: string; version?: number; 
   // Scope sections: setup, then the work by area (or cabinet by cabinet), materials, options
   const sections: string[] = [`<h4>Project Setup, Protection, &amp; Cleaning</h4>${SETUP.map((t) => `<p>${t}</p>`).join('')}`];
   if (c.scope) sections.push(`<p>${esc(c.scope).replace(/\n/g, '<br>')}</p>`);
-  if (full) sections.push(`<h4>${esc(proposalTitle(p))}</h4>${bullets(scopeItems(base).map((x) => x.text))}`);
+  if (full) sections.push(`<h4>${esc(proposalTitle(p))}</h4>${bullets(proposalScope(base))}`);
   else for (const a of summary.areas) sections.push(`<h4>${esc(a.title)}</h4>${bullets(a.items)}`);
   const more = [...furnitureOf(base).map((t) => tableScope(t).replace(/,?\s*approx[^;]*;/i, ';')), ...(cofferScope(base) ? [cofferScope(base)!] : [])];
   if (!full && more.length) sections.push(bullets(more));

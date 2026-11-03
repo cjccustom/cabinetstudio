@@ -428,6 +428,8 @@ export interface Project {
   name: string;
   /** How the customer's proposal describes the work: plain (no sizes, the default) or full, cabinet by cabinet with sizes. */
   proposalDetail?: 'plain' | 'full';
+  /** List cabinets built alike once on the proposal ("B1, B2 and B3 (3 alike): …"), across walls too. */
+  proposalCombine?: boolean;
   /** The title the client sees on the proposal ("Cutler Living Room Proposal"); unset = made from the client's last name. */
   proposalTitle?: string;
   room: Room;
