@@ -5,6 +5,8 @@ import type { FrameJoinery } from '../model/types';
 import { presets } from '../model/defaults';
 import { newPanel, panelAbove } from '../model/panels';
 import { amSpecies } from '../model/moldings';
+import { lumberNames, priceBook, setJobFinish } from '../model/pricebook';
+import { useShop } from '../shop/shop';
 import { wallNames, wallOrder } from '../model/layout';
 import type { PanelMode, ShopSettings, WallId } from '../model/types';
 import { RoomDetails } from './RoomDetails';
@@ -233,11 +235,18 @@ function ShopPanel() {
             </select>
           </Field>
           <Field label="Finish" htmlFor="shop-finish">
-            <select id="shop-finish" value={settings.finish ?? 'paint'} onChange={(e) => set({ finish: e.target.value === 'stain' ? 'stain' : undefined })}>
+            <select id="shop-finish" value={settings.finish ?? 'paint'} onChange={(e) => commit((p) => setJobFinish(p, e.target.value === 'stain' ? 'stain' : 'paint', p.settings.woodSpecies, priceBook(useShop.getState().prices), doorMaterials, amSpecies))}>
               <option value="paint">Paint grade</option>
               <option value="stain">Stain grade</option>
             </select>
           </Field>
+          {settings.finish === 'stain' && (
+            <Field label="Stain grade species" htmlFor="shop-stainsp" hint="Face frames, doors, mouldings, exposed plywood">
+              <select id="shop-stainsp" value={settings.woodSpecies} onChange={(e) => commit((p) => setJobFinish(p, 'stain', e.target.value, priceBook(useShop.getState().prices), doorMaterials, amSpecies))}>
+                {[...new Set([settings.woodSpecies, ...lumberNames()])].map((x) => <option key={x}>{x}</option>)}
+              </select>
+            </Field>
+          )}
           <Field label="Face frame joinery" htmlFor="shop-ffj">
             <select id="shop-ffj" value={settings.ffJoinery ?? 'pocket'} onChange={(e) => set({ ffJoinery: e.target.value === 'pocket' ? undefined : e.target.value as FrameJoinery })}>
               {(Object.keys(joineryLabel) as FrameJoinery[]).map((k) => <option key={k} value={k}>{joineryLabel[k]}</option>)}

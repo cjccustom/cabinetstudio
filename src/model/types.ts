@@ -42,7 +42,8 @@ export interface CaseBuild {
   joinery?: 'standard' | 'pocket' | 'staples' | 'confirmat';
   shelves?: 'adjustable' | 'fixed';
   /** The inside of the open sections: left prefinished, or scuffed, primed and painted with the millwork. */
-  interior?: 'prefinished' | 'paint';
+  /** Stain grade: stain and clear coat, or clear coat only, on the open sections (cut from the exposed plywood). */
+  interior?: 'prefinished' | 'paint' | 'stain' | 'clear';
 }
 
 export interface Cabinet {

@@ -664,9 +664,11 @@ function AssemblySection({ cab, set }: { cab: Cabinet; set: (p: Partial<Cabinet>
         )}
         {hasOpen && (
           <Field label="Inside the open sections" htmlFor="as-int">
-            <select id="as-int" value={b.interior ?? 'prefinished'} onChange={(e) => putBuild({ interior: e.target.value === 'paint' ? 'paint' : undefined })}>
+            <select id="as-int" value={b.interior ?? 'prefinished'} onChange={(e) => putBuild({ interior: e.target.value === 'prefinished' ? undefined : e.target.value as CaseBuild['interior'] })}>
               <option value="prefinished">Prefinished plywood, as is</option>
-              <option value="paint">Painted with the millwork (scuff & prime)</option>
+              {(s.finish !== 'stain' || b.interior === 'paint') && <option value="paint">Painted with the millwork (scuff & prime)</option>}
+              {(s.finish === 'stain' || b.interior === 'stain') && <option value="stain">Stain and clear coat, with the millwork</option>}
+              {(s.finish === 'stain' || b.interior === 'clear') && <option value="clear">Clear coat only, with the millwork</option>}
             </select>
           </Field>
         )}
@@ -688,6 +690,7 @@ function AssemblySection({ cab, set }: { cab: Cabinet; set: (p: Partial<Cabinet>
         <li>Back: {fmt(s.backThickness)} in a {fmt(Math.max(s.backRabbetWidth, s.backThickness))} rabbet.</li>
         {hasShelves && <li>Shelves: {b.shelves === 'fixed' ? 'fixed, in dados' : 'adjustable, on pins'}.</li>}
         {hasOpen && b.interior === 'paint' && <li>Open sections: prefinished plywood scuffed, primed with a bonding primer and painted with the millwork; on the painting estimate.</li>}
+        {hasOpen && (b.interior === 'stain' || b.interior === 'clear') && <li>Open sections: cut from {(settings.exposedPlywood || settings.plywood || 'the case plywood').toLowerCase()}{settings.exposedPlywood ? '' : ' (set an exposed plywood under Materials for veneer plywood)'}; {b.interior === 'stain' ? 'stained and clear coated' : 'clear coated'} with the millwork; on the finishing estimate.</li>}
         {panels.length > 0 && <li>End panel{panels.length > 1 ? 's' : ''}: {panels.join('; ')}.</li>}
       </ul>
       {panels.length > 0 && cab.rows.length > 1 && (

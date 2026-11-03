@@ -198,7 +198,7 @@ export function panelExtents(c: Cabinet, s: ShopSettings, ends: EndInfo) {
  */
 export function buildParts(c: Cabinet, s: ShopSettings, ends: EndInfo = { left: false, right: false }): Part[] {
   let parts = caseParts(c, s, ends);
-  if (c.build?.interior === 'paint') parts = paintOpenInterior(c, eff(c, s), parts);
+  if (c.build?.interior && c.build.interior !== 'prefinished') parts = paintOpenInterior(c, eff(c, s), parts);
   return frameJoinery(c, eff(c, s), parts);
 }
 
@@ -243,6 +243,13 @@ function paintOpenInterior(c: Cabinet, s: ShopSettings, parts: Part[]): Part[] {
   const roles = new Set(['side', 'back', 'top', 'bottom', 'shelf', 'stretcher', 'nailer', 'divider']);
   const shows = (p: Part) => (p.material === 'box' || p.material === 'back') && roles.has(p.role)
     && p.boxes.some((b) => spans.some((o) => b.min[1] < o.y1 + 1 && b.min[1] + b.size[1] > o.y0 - 1));
+  const mode = c.build?.interior;
+  if (mode === 'stain' || mode === 'clear') {
+    // Stain grade: what shows in an open section is cut from the exposed (veneer) plywood and finished with the millwork
+    const ply = s.exposedPlywood || s.plywood;
+    const note = `Open section: ${ply ? `${ply.toLowerCase()} plywood, ` : ''}${mode === 'stain' ? 'stain and clear coat' : 'clear coat only'} with the millwork`;
+    return parts.map((p) => (shows(p) ? { ...p, look: 'wood' as const, ...(s.exposedPlywood ? { sheet: /^mdf$/i.test(s.exposedPlywood) ? `${fmt(p.thickness)} MDF` : `${fmt(p.thickness)} ${s.exposedPlywood.toLowerCase()} plywood` } : {}), note: p.note ? `${p.note} · ${note}` : note } : p));
+  }
   const note = 'Open section: scuff, bonding primer, paint to match the millwork';
   return parts.map((p) => (shows(p) ? { ...p, look: 'paint' as const, note: p.note ? `${p.note} · ${note}` : note } : p));
 }

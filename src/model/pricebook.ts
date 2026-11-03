@@ -158,3 +158,28 @@ export function chooseSpecies(p: Project, name: string, book: PriceItem[], board
     },
   };
 }
+
+/** Eagle's wood door equivalent of each MDF style, for switching a job to stain grade. */
+const woodStyleFor: Record<string, string> = { jefferson: 'boston', monroe: 'barharbor', adams: 'hartford', franklin: 'portsmouth', washington: 'nantucket', hamilton: 'manchester', madison: 'newport' };
+
+/**
+ * The whole job to stain grade in one species: the face frames and solid wood, the doors and
+ * fronts (an MDF style moves to its wood twin), the mouldings, and the plywood that shows (exposed
+ * ends, open sections). Paint grade goes back to paint grade materials for the doors.
+ */
+export function setJobFinish(p: Project, finish: 'paint' | 'stain', species: string, book: PriceItem[], doorMaterials: string[], moldSpecies: string[]): Project {
+  const s = p.settings;
+  if (finish === 'paint') {
+    return { ...p, settings: { ...s, finish: undefined as never, doorMaterial: s.doorMaterial === 'MDF' ? 'MDF' : 'Paint-grade maple' } };
+  }
+  const q = chooseSpecies(p, species, book);
+  const word = species.toLowerCase().replace(/^hard\s+/, '').replace(/\s+/g, '');
+  const match = (list: string[]) => list.find((x) => x.toLowerCase().replace(/\s+/g, '') === species.toLowerCase().replace(/\s+/g, ''))
+    ?? list.find((x) => x.toLowerCase().replace(/\s+/g, '').includes(word) && !/paint/i.test(x));
+  const door = match(doorMaterials.filter((m) => m !== 'MDF'));
+  const mold = match(moldSpecies);
+  const ply = book.find((x) => x.kind === 'plywood' && same(x.name, species)) ?? book.find((x) => x.kind === 'plywood' && x.name.toLowerCase().replace(/\s+/g, '').includes(word));
+  const style = woodStyleFor[s.doorStyleId];
+  const next = { ...q, settings: { ...q.settings, finish: 'stain' as const, ...(door ? { doorMaterial: door } : {}), ...(mold ? { moldSpecies: mold } : {}), ...(style ? { doorStyleId: style } : {}) } };
+  return ply ? choosePlywood(next, 'exposedPlywood', ply.name, book) : next;
+}

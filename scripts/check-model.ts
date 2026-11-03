@@ -42,7 +42,9 @@ import { amCatalog } from "../src/model/andersonMcquaid";
 import { cabinetMoldings, moldingOrder, mountShape, priceOf, profileByNum, profileLabel, setCustomDrawings } from "../src/model/moldings";
 import { closetRods, estimateHours, estimateMaterials, paintEstimate, priceQuote, quoteOf, scopeLine } from "../src/model/quote";
 import { cutStock, defaultCutlist, optimizerParts } from "../src/model/cutlist";
-import { applyBook, choosePlywood, chooseSpecies, priceBook, stalePrices } from "../src/model/pricebook";
+import { applyBook, choosePlywood, chooseSpecies, priceBook, setJobFinish, stalePrices } from "../src/model/pricebook";
+import { doorMaterials as eagleDoorMaterials } from "../src/model/eagle";
+import { amSpecies as moldSpeciesList } from "../src/model/moldings";
 import { normalize, reachesCeiling } from "../src/store";
 import { fieldChecks, releaseStatus } from "../src/model/release";
 import { eagleFraction, eagleRequests, requestText } from "../src/model/eagleRequest";
@@ -1522,6 +1524,22 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   eq('desk top: one piece over the knee space', tops.length, 1);
   eq('desk top: spans both cabinets and the 30" gap', tops[0].length >= a.width + 30 + b.width, true);
   eq('desk top: notes the support', /open space/.test(tops[0].note ?? ''), true);
+}
+
+// Stain grade red oak, whole job: doors, mouldings, exposed plywood and open sections follow
+{
+  const book = priceBook([]);
+  const ro = setJobFinish(p, 'stain', 'Red oak', book, eagleDoorMaterials, moldSpeciesList);
+  eq('stain job: finish', ro.settings.finish, 'stain');
+  eq('stain job: species', ro.settings.woodSpecies, 'Red oak');
+  eq('stain job: door material', ro.settings.doorMaterial, 'Red oak');
+  eq('stain job: moulding species', /red\s*oak/i.test(ro.settings.moldSpecies ?? ''), true);
+  eq('stain job: exposed plywood', /red oak/i.test(String(ro.settings.exposedPlywood ?? '')), true);
+  const oc = { ...bookcase, build: { interior: 'stain' as const } };
+  const ps = buildParts(oc, ro.settings);
+  eq('stain job: open-section note', ps.some((x) => /stain and clear coat/.test(x.note ?? '') && x.look === 'wood'), true);
+  const back = setJobFinish(ro, 'paint', 'Red oak', book, eagleDoorMaterials, moldSpeciesList);
+  eq('paint job: door material back to paint grade', back.settings.doorMaterial, 'Paint-grade maple');
 }
 
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');
