@@ -35,15 +35,26 @@ export const newJobId = (p: Project) => {
   return `${base}-${Math.random().toString(36).slice(2, 8)}`;
 };
 
-/** The renderings that go to the client: the one picked for the quote first, at most six. */
-async function renderingsFor(p: Project) {
+/**
+ * The pictures that go to the client, at most six: renderings and saved 3D views (the one picked
+ * for the quote first). With none saved, the 3D views kept beside Gemini renderings and the
+ * drawings' cover picture stand in, so the proposal never goes out without the design.
+ */
+export function proposalPictures(p: Project): { name: string; url: string }[] {
   const r = renderOf(p);
-  const imgs = r.images.filter((i) => i.kind === 'rendering').sort((a, b) => Number(b.id === r.quoteId) - Number(a.id === r.quoteId)).slice(0, 6);
+  const chosen = r.images.filter((i) => i.kind === 'rendering').sort((a, b) => Number(b.id === r.quoteId) - Number(a.id === r.quoteId));
+  const fallback = [...r.images.filter((i) => i.kind === 'photo' && /design view/i.test(`${i.note ?? ''} ${i.name ?? ''}`)), ...(drawingsOf(p).cover ? [{ name: '3D view of the design', url: drawingsOf(p).cover! }] : [])];
+  return (chosen.length ? chosen : fallback).slice(0, 6).map((i) => ({ name: i.name || 'Rendering', url: i.url }));
+}
+
+async function renderingsFor(p: Project) {
   const out = [];
   const mark = `Design by CJC Custom Carpentry for ${clientName(clientOf(p)) || 'this proposal'} · not for reuse`;
-  for (const img of imgs) {
-    const blob = await watermark(await shrinkImage(await (await fetch(img.url)).blob(), 1800, 0.85), mark);
-    out.push({ name: img.name || 'Rendering', mimeType: 'image/jpeg', data: await blobToBase64(blob) });
+  for (const img of proposalPictures(p)) {
+    try {
+      const blob = await watermark(await shrinkImage(await (await fetch(img.url)).blob(), 1800, 0.85), mark);
+      out.push({ name: img.name, mimeType: 'image/jpeg', data: await blobToBase64(blob) });
+    } catch { /* a picture that can't be read is left out rather than stopping the proposal */ }
   }
   return out;
 }
@@ -114,7 +125,8 @@ export function ClientPortal() {
   const { total, deposit } = quoteTotals(project);
   // A sold job's price is its contract; the design's calculated quote never goes to the client
   const sold = project.contract;
-  const renderings = renderOf(project).images.filter((i) => i.kind === 'rendering').length;
+  const pics = useMemo(() => proposalPictures(project), [project]);
+  const renderings = pics.length;
   const options = useMemo(() => optionPrices(project), [project]);
 
   const run = async (label: string, fn: () => Promise<void>) => {
@@ -222,8 +234,11 @@ export function ClientPortal() {
       <p>
         {sold
           ? <>Sold: <b>{money(contractTotal(sold))}</b> under the contract above. Cabinet Studio’s calculated proposal ({money(total)}) stays off the portal for this job.</>
-          : <>Proposal: <b>{money(total)}</b>, deposit {money(deposit)} · {renderings ? `${Math.min(renderings, 6)} rendering${renderings === 1 ? '' : 's'}` : 'no renderings yet (Rendering tab)'}</>}
+          : <>Proposal: <b>{money(total)}</b>, deposit {money(deposit)} · {renderings ? `${renderings} picture${renderings === 1 ? '' : 's'} of the design` : 'no pictures of the design yet'}</>}
       </p>
+      {!sold && (pics.length
+        ? <div className="pic-strip">{pics.map((x, i) => <img key={i} src={x.url} alt={x.name} title={x.name} />)}</div>
+        : <p className="warn">No pictures of the design will go with the proposal. In <b>Design</b>, turn the 3D view the way you want it and click <b>Save view for proposal</b> (or make a rendering on the Rendering tab).</p>)}
       {portal?.url && (
         <div className="portal-link">
           <input aria-label="Client link" readOnly value={portal.url} onFocus={(e) => e.target.select()} />

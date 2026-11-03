@@ -719,3 +719,5 @@ textarea.text-input { resize: vertical; }
 .dw-pop input { width: 90px; }
 .dw-pop label { font-size: 12px; white-space: nowrap; }
 .dw-tip { position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); background: #1f2937; color: #fff; padding: 6px 12px; border-radius: 6px; font-size: 13px; pointer-events: none; }
+.pic-strip { display: flex; gap: 6px; flex-wrap: wrap; margin: 6px 0 10px; }
+.pic-strip img { height: 64px; border-radius: 6px; border: 1px solid var(--line, #ddd); object-fit: cover; }
