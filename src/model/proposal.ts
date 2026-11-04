@@ -9,6 +9,7 @@ import { styleById } from './eagle';
 import { profileByNum, profileLabel } from './moldings';
 import { fridgeBelow } from './cabinetBase';
 import { colorText } from './paintColors';
+import { accentFinishes } from './cabinetFinish';
 import { finishingItems, finishWord, paintGradeNote, stainCoatOf } from './finishing';
 
 export interface ProposalOption { id: string; label: string; price: number; items: string[] }
@@ -148,6 +149,7 @@ export function materialsOf(p: Project): { label: string; value: string }[] {
   const when = p.quote?.paintWhen === 'site' ? ', finished on site after install' : p.quote?.paintWhen === 'none' ? '; painting by others' : '';
   const pc = p.finishes.named?.paint;
   out.push({ label: 'Finish', value: (s.finish !== 'stain' && pc ? `Paint grade, painted ${colorText(pc)}${p.finishes.paintSheen ? `, ${p.finishes.paintSheen.toLowerCase()} finish` : ''} (proposed; the final color and sheen are your choice, confirmed before finishing)` : s.finish === 'stain' ? `Stain grade ${s.woodSpecies.toLowerCase()}, ${stainCoatOf(p) === 'clear' ? 'clear coated to keep its natural color' : 'stained in your choice of color and clear coated'}, sheen of your choice` : 'Paint grade, painted in your choice of color and sheen') + when });
+  for (const a of accentFinishes(p)) out.push({ label: `Accent finish: ${a.label}`, value: a.value });
   const pg = paintGradeNote(p);
   if (pg) out.push({ label: 'About paint grade', value: pg });
   out.push({ label: 'Construction', value: `${s.construction === 'frameless' ? 'Frameless' : 'Face frame'} cabinets with ${(s.plywood ?? 'Prefinished birch').toLowerCase()} plywood interiors${/prefinished/i.test(s.plywood ?? 'Prefinished birch') ? ' (clear factory finish inside)' : ''}` });

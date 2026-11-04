@@ -4,6 +4,7 @@ import { combine, combineAll, stackedPairs, upperOn } from '../model/onePiece';
 import { freeStanding, useStore } from '../store';
 import { useNav } from '../three/navigation';
 import type { CabinetNote, Cabinet, CaseBuild, FrameJoinery, CrownBuild, EndMode, FaceRow, PanelChoice, PanelMode, ShopSettings, WallId } from '../model/types';
+import { CabinetFinishSection } from './CabinetFinish';
 import { rowOpenings, buildParts, closetRod, isOpenRow, joineryLabel, PAINT_TOP, topThick, crownFit, crownLayout, crownRoom, layoutRows, noCrownBuild, panelOn } from '../model/parts';
 import { defaultPilaster, pilasterOf, pilasterSections } from '../model/pilaster';
 import { bracketCount, bracketGap, bracketLength, bracketProduct, finishedEnds, floatingOf, shelfPly } from '../model/floatingShelf';
@@ -105,6 +106,7 @@ export function Inspector({ cab, issues, tab }: { cab: Cabinet; issues: string[]
         <FitButtons cab={cab} />
       </Section>}
 
+      {show('size', true) && cab.kind !== 'pilaster' && cab.kind !== 'mantel' && cab.kind !== 'shelf' && <CabinetFinishSection cabs={[cab]} />}
       {show('proposal') && <Section title="On the proposal">
         <div className="grid2">
           <Field label="Area" htmlFor="cab-area">

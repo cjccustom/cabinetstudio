@@ -114,6 +114,8 @@ export interface Cabinet {
   build?: CaseBuild;
   /** End panels split into pieces that line up with the doors and openings on the front (tall cabinets). */
   splitEndPanels?: boolean;
+  /** Its own paint color (an accent island or a bank of cabinets in another color); unset = the job's paint. */
+  paint?: { hex: string; named?: { brand: string; code: string; name: string } };
   /** Leave Eagle's center rail off doors and panels over 50" (they aren't warranted without it). */
   noCenterRail?: boolean;
   /** Countertops: carry this top on across the open space to the next cabinet on the right (a desk or knee space). */

@@ -19,8 +19,10 @@ export function woodColor(name: string | undefined): string | undefined {
  * The colors a cabinet is drawn in: the job's paint, or on stain grade the face frame species
  * (unless a stain color was picked); the case interior in the job's plywood.
  */
-export function finishColors(s: ShopSettings, f: Finishes): { paint: string; box: string } {
+export function finishColors(s: ShopSettings, f: Finishes, own?: { hex: string }): { paint: string; box: string } {
   const stain = s.finish === 'stain' ? f.stain ?? woodColor(s.woodSpecies) ?? f.wood : undefined;
+  // A cabinet painted its own color (an accent island)
+  if (!stain && own) return { paint: own.hex, box: s.plywood && !/prefinished|paint-grade|mdf/i.test(s.plywood) ? woodColor(s.plywood) ?? f.box : f.box };
   const ply = s.plywood && !/prefinished|paint-grade|mdf/i.test(s.plywood) ? woodColor(s.plywood) : undefined;
   return { paint: stain ?? f.paint, box: ply ?? f.box };
 }

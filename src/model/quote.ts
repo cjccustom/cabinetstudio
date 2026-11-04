@@ -520,7 +520,7 @@ export function estimateMaterials(p: Project, q: QuoteSettings): MaterialLine[] 
     const pieces = faceFramePieces(p, sp, { ceiling: false });
     if (!pieces.length) continue;
     const need = faceFrameNeeds(pieces, st);
-    out.push({ group: 'cabinets', label: `${sp} stock (pilasters, mantels)`, cost: need.cost, detail: st.pricePerLF ? `${Math.ceil(need.buyLF)} lf ${st.board}` : `${Math.ceil(need.buyBF)} BF`, missing: st.pricePerLF || st.pricePerBF ? undefined : `Enter $/BF for ${sp.toLowerCase()} on the Solid wood tab` });
+    out.push({ group: 'cabinets', label: `${sp} stock (${p.cabinets.some((c) => c.overrides?.woodSpecies === sp) ? 'stain grade cabinets' : 'pilasters, mantels'})`, cost: need.cost, detail: st.pricePerLF ? `${Math.ceil(need.buyLF)} lf ${st.board}` : `${Math.ceil(need.buyBF)} BF`, missing: st.pricePerLF || st.pricePerBF ? undefined : `Enter $/BF for ${sp.toLowerCase()} on the Solid wood tab` });
   }
   // The coffered ceiling: stock bought prepped from the millwork supplier, by the foot of beam
   if (cofferOf(p).on) {
@@ -774,7 +774,7 @@ export function scopeLine(c: Cabinet, p: Project): string {
   if (bl) bits.push(bl);
   else if (c.baseMold) bits.push('baseboard');
   if (s.construction === 'frameless') bits.push('frameless construction with banded case edges');
-  bits.push(`${(s.plywood ?? 'Prefinished birch').toLowerCase()} plywood interior with ${s.finish === 'stain' ? `stain grade ${s.woodSpecies.toLowerCase()}` : 'paint grade'} exterior`);
+  bits.push(`${(s.plywood ?? 'Prefinished birch').toLowerCase()} plywood interior with ${s.finish === 'stain' ? `stain grade ${s.woodSpecies.toLowerCase()}` : 'paint grade'} exterior${s.finish !== 'stain' && c.paint ? `, painted ${c.paint.named ? `${c.paint.named.brand} ${c.paint.named.name} ${c.paint.named.code}` : 'an accent color'}` : ''}`);
   if (c.build?.interior === 'paint' && c.rows.some((r) => isOpenRow(r.type, r.covered))) bits.push('open shelving painted inside to match');
   if ((c.build?.interior === 'stain' || c.build?.interior === 'clear') && c.rows.some((r) => isOpenRow(r.type, r.covered))) bits.push(`open shelving in ${(p.settings.exposedPlywood || p.settings.woodSpecies).toLowerCase()}, ${c.build.interior === 'stain' ? 'stained and clear coated' : 'clear coated'} inside to match`);
   return `${c.name}: ${bits.join('; ')}`;

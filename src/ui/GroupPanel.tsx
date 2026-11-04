@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { picked, takesCrown, useStore } from '../store';
 import type { Cabinet } from '../model/types';
 import { MoldSlot } from './ProfilePicker';
+import { CabinetFinishSection } from './CabinetFinish';
 import { wallNames, wallLength } from '../model/layout';
 import { fmt } from '../units';
 import { Field, LengthInput, Section } from './fields';
@@ -31,6 +32,7 @@ export function GroupPanel() {
         <button className="mini" onClick={() => select(null)}>Clear</button>
       </div>
       <p className="hint">{cabs.map((c) => c.name).join(', ')}{one ? ` · ${wallNames[one].toLowerCase()}, ${fmt(start)} to ${fmt(end)} from the left` : ''}. Shift- or ⌘-click a cabinet to add or drop it. Drag any of them, or use the arrow keys (shift for 1"), to move them all.</p>
+      <CabinetFinishSection cabs={cabs.filter((c) => c.kind !== 'pilaster' && c.kind !== 'mantel' && c.kind !== 'shelf')} />
       <Section title="Move together">
         <div className="grid3">
           <Field label="Step" htmlFor="grp-step"><LengthInput id="grp-step" value={step} min={0.0625} onChange={(v) => setStep(v ?? 1)} /></Field>

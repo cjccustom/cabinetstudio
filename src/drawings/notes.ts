@@ -3,6 +3,7 @@
 // customer, the shop, or both.
 import { lightingJobOf } from '../model/cabinetLighting';
 import { colorText } from '../model/paintColors';
+import { cabinetFinishOf } from '../model/cabinetFinish';
 import type { Cabinet, CabinetNote, Project } from '../model/types';
 import { applianceNotes } from '../model/appliances';
 import { cofferOf, fasciaBacking } from '../model/coffer';
@@ -36,6 +37,8 @@ export function cabinetCallouts(p: Project, c: Cabinet): Callout[] {
   if (c.countertop && c.kind === 'base') out.push({ text: c.topKind === 'wood' ? `${fmt(c.topThickness ?? 1.25)} solid wood top` : c.topKind === 'paint' ? `3/4" paint-grade plywood top, ${(c.topEdge ?? 'poplar').toLowerCase()} edging 3/4" × 1 1/4" dropping 1/2" over the top rail` : 'Stone countertop by others', for: c.topKind === 'stone' || !c.topKind ? 'customer' : 'both' });
   if (c.crown) out.push({ text: `Crown: ${mold(c.crown)}${c.crownBuild?.subCrown ? ` on a ${fmt(c.crownBuild.subCrown)} flat sub-crown` : ''}`, for: 'both' });
   if (c.lightRail) out.push({ text: `Light rail: ${mold(c.lightRail)}`, for: 'both' });
+  const fin = cabinetFinishOf(p, c);
+  if (fin.accent && c.kind !== 'pilaster' && c.kind !== 'mantel' && c.kind !== 'shelf') out.push({ text: `Finish: ${fin.text}${fin.finish === 'stain' ? ` (doors ${eff(c, p.settings).doorMaterial.toLowerCase()})` : ''}`, for: 'both' });
   if (c.lighting?.length) {
     const route = lightingJobOf(p).wireRoute ?? 'dado';
     out.push({ text: route === 'dado'

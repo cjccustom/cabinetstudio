@@ -266,7 +266,7 @@ function CabinetModel(props: {
   const hit = useMemo(() => new THREE.Vector3(), []);
 
   // Stain grade shows the species; the case interior shows the plywood
-  const fc = finishColors(eff(cab, settings), finishes);
+  const fc = finishColors(eff(cab, settings), finishes, cab.paint);
   const colorFor = (material: string, shade: number) => {
     const base = material === 'hardware' ? '#c9ccd1' : material === 'upholstery' ? '#9aa3ad' : material === 'box' || material === 'back' ? fc.box : material === 'counter' ? finishes.counter : material === 'solidWood' ? woodColor(cab.topSpecies) ?? finishes.wood ?? '#b9875a' : fc.paint;
     return new THREE.Color(base).multiplyScalar(shade);
@@ -278,7 +278,7 @@ function CabinetModel(props: {
     if (material === 'hardware' || material === 'upholstery' || material === 'counter') return null;
     if (material === 'solidWood') { const sp = cab.topSpecies ?? settings.woodSpecies; return woodTexture(sp, woodColor(cab.topSpecies) ?? finishes.wood ?? '#b9875a'); }
     if (material === 'box' || material === 'back') return ply ? woodTexture(ply, fc.box) : null;
-    return s.finish === 'stain' ? woodTexture(settings.woodSpecies, fc.paint) : null;
+    return s.finish === 'stain' ? woodTexture(s.woodSpecies, fc.paint) : null;
   };
 
   const onDown = (e: ThreeEvent<PointerEvent>) => {

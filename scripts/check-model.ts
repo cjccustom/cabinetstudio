@@ -1,7 +1,9 @@
 import { readFileSync } from "node:fs";
 import { proposalSummary } from "../src/model/proposal";
+import { finishColors } from "../src/model/woodColors";
 import { cabinetFavorites, colorByCode, favorites, searchColors, withNamed } from "../src/model/paintColors";
 import { bmColors } from "../src/model/benjaminMoore";
+import { cabinetFinishPatch } from "../src/model/cabinetFinish";
 import { canSpots } from "../src/model/lighting";
 import { corbelCatalog } from "../src/model/corbels";
 import { roomMoldings as roomMolds, wallAccentBoxes } from "../src/model/room";
@@ -1667,6 +1669,27 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   eq('bm: on the proposal', /Benjamin Moore White Dove OC-17, satin finish \(proposed/.test(fin), true);
   eq('bm: in the drawing notes', jobCallouts(pp, 'customer').some((x) => /^Paint: Benjamin Moore White Dove OC-17, satin/.test(x)), true);
   eq('bm: cleared', withNamed(pp, 'paint', null).finishes.named?.paint, undefined);
+}
+
+// A cabinet finished apart from the job: an accent color, or a stained island on a painted job
+{
+  const hale = colorByCode('HC-154')!;
+  const b = p.cabinets.find((c) => c.kind === 'base')!;
+  const accent = { ...p, cabinets: p.cabinets.map((c) => (c.id === b.id ? { ...c, island: true, paint: { hex: hale.hex, named: { brand: hale.brand, code: hale.code, name: hale.name } } } : c)) };
+  eq('accent: 3D color', finishColors(eff(accent.cabinets.find((c) => c.id === b.id)!, s), accent.finishes, accent.cabinets.find((c) => c.id === b.id)!.paint).paint, hale.hex);
+  const am = proposalSummary(accent).materials.find((m) => m.label === 'Accent finish: Island');
+  eq('accent: on the proposal', am?.value, 'Painted Benjamin Moore Hale Navy HC-154');
+  eq('accent: on the cabinet line', proposalSummary(accent).areas.some((a) => a.items.some((i) => /^Island, painted Benjamin Moore Hale Navy HC-154/.test(i))), true);
+  const book = priceBook([]);
+  const patch = cabinetFinishPatch(p, b, 'stain', 'White oak', book, eagleDoorMaterials, moldSpeciesList);
+  const stained = { ...p, cabinets: p.cabinets.map((c) => (c.id === b.id ? { ...c, ...patch, island: true } : c)) };
+  const sb = stained.cabinets.find((c) => c.id === b.id)!;
+  eq('stained island: stain grade white oak', eff(sb, s).finish === 'stain' && eff(sb, s).woodSpecies === 'White oak' && eff(sb, s).doorMaterial === 'White oak', true);
+  eq('stained island: frame off its own stock', buildParts(sb, s).filter((x) => x.material === 'faceframe' && x.cut).every((x) => x.species === 'White oak'), true);
+  eq('stained island: priced as white oak stock', estimateMaterials(stained, quoteOf(stained)).some((m) => /^White oak stock \(stain grade cabinets\)/.test(m.label)), true);
+  eq('stained island: own Eagle request', eagleRequests(stained).filter((r) => r.kind === 'doors').length >= 2, true);
+  eq('stained island: proposal says so', proposalSummary(stained).materials.some((m) => m.label === 'Accent finish: Island' && /^Stain grade white oak, stained and clear coated/.test(m.value)), true);
+  eq('stained island: back to the job', cabinetFinishPatch(stained, sb, 'job', 'White oak', book, eagleDoorMaterials, moldSpeciesList).overrides, undefined);
 }
 
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');

@@ -14,7 +14,15 @@ export function finishWord(p: Project, c: Cabinet): string {
   if (c.kind === 'mantel' || c.kind === 'pilaster') return 'painted';
   if (c.kind === 'shelf') return (c.floating?.grade ?? 'paint') === 'paint' ? 'painted' : stainCoatOf(p) === 'clear' ? 'clear coated' : 'stained and clear coated';
   const s = eff(c, p.settings);
-  return s.finish === 'stain' ? (stainCoatOf(p) === 'clear' ? 'clear coated' : 'stained and clear coated') : 'painted';
+  const coat = stainCoatOf(p) === 'clear' ? 'clear coated' : 'stained and clear coated';
+  if (s.finish === 'stain') {
+    // Stain grade apart from the job (a stained island on a painted job, or another species): say which wood
+    const own = p.settings.finish !== 'stain' || s.woodSpecies !== p.settings.woodSpecies;
+    return own ? `stain grade ${s.woodSpecies.toLowerCase()}, ${coat}` : coat;
+  }
+  // An accent color names itself; the job's color is said once under Materials & finishes
+  if (c.paint) return c.paint.named ? `painted ${colorText(c.paint.named)}` : 'painted an accent color';
+  return 'painted';
 }
 
 /** Cabinet Studio's starting wording for the Finishing section, from the job's finish and when it's done. */
