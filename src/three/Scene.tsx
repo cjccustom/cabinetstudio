@@ -21,6 +21,7 @@ import { opposite, underFascia } from '../model/coffer';
 import { buildParts } from '../model/parts';
 import { alongWall, footprint, resolveEnds, shiftInRoom, snapOffset, wallAxes, wallLength, wallTransform } from '../model/layout';
 import { buildCabinetGeometry } from './cabinetGeometry';
+import { woodTexture } from './woodTexture';
 import { fmt, fmtFeet } from '../units';
 
 const ACCENT = '#2f62d6';
@@ -49,6 +50,8 @@ export function Scene({ issueIds }: { issueIds: Set<string> }) {
       dpr={[1, 2]}
       gl={{ antialias: true, preserveDrawingBuffer: true }}
       onPointerMissed={(e) => e.button === 0 && select(null)}
+      // Neutral tone mapping keeps wood and paint colors true in the light (the default curve bleaches bright tops)
+      onCreated={({ gl }) => { gl.toneMapping = THREE.NeutralToneMapping; gl.toneMappingExposure = 0.92; }}
     >
       <Cameras view={view} room={room} />
       <NavBridge />
@@ -268,6 +271,15 @@ function CabinetModel(props: {
     const base = material === 'hardware' ? '#c9ccd1' : material === 'upholstery' ? '#9aa3ad' : material === 'box' || material === 'back' ? fc.box : material === 'counter' ? finishes.counter : material === 'solidWood' ? woodColor(cab.topSpecies) ?? finishes.wood ?? '#b9875a' : fc.paint;
     return new THREE.Color(base).multiplyScalar(shade);
   };
+  // Natural wood gets its grain: stain grade fronts and frames, solid wood tops, and veneer plywood that shows
+  const s = eff(cab, settings);
+  const ply = settings.plywood && !/prefinished|paint-grade|mdf/i.test(settings.plywood) ? settings.plywood : undefined;
+  const grainFor = (material: string) => {
+    if (material === 'hardware' || material === 'upholstery' || material === 'counter') return null;
+    if (material === 'solidWood') { const sp = cab.topSpecies ?? settings.woodSpecies; return woodTexture(sp, woodColor(cab.topSpecies) ?? finishes.wood ?? '#b9875a'); }
+    if (material === 'box' || material === 'back') return ply ? woodTexture(ply, fc.box) : null;
+    return s.finish === 'stain' ? woodTexture(settings.woodSpecies, fc.paint) : null;
+  };
 
   const onDown = (e: ThreeEvent<PointerEvent>) => {
     if (e.button !== 0) return;
@@ -372,8 +384,10 @@ function CabinetModel(props: {
       {geo.meshes.map((m) => (
         <mesh key={m.key} geometry={m.geometry} castShadow receiveShadow>
           <meshStandardMaterial
-            color={colorFor(m.material, m.shade)}
-            roughness={m.material === 'counter' ? 0.35 : 0.75}
+            key={grainFor(m.material) ? 'grain' : 'flat'}
+            map={grainFor(m.material)}
+            color={grainFor(m.material) ? new THREE.Color(1, 1, 1).multiplyScalar(m.shade) : colorFor(m.material, m.shade)}
+            roughness={m.material === 'counter' ? 0.35 : grainFor(m.material) ? 0.62 : 0.75}
             emissive={selected ? ACCENT : '#000000'}
             emissiveIntensity={selected ? 0.08 : 0}
             polygonOffset

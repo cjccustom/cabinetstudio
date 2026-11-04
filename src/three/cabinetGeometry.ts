@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { CutShape, Part } from '../model/types';
+import { grainUVs, longAxis } from './woodTexture';
 
 export interface CabinetGeometry {
   /** One merged mesh per material/shade, so a whole kitchen stays cheap to draw. */
@@ -24,6 +25,8 @@ export function buildCabinetGeometry(parts: Part[]): CabinetGeometry {
       if (!g) groups.set(key, (g = { material, shade, geos: [] }));
       const geo = new THREE.BoxGeometry(sx, sy, sz);
       geo.translate(x + sx / 2, y + sy / 2, z + sz / 2);
+      // Grain the long way of each piece, each piece at its own spot on the texture
+      grainUVs(geo, longAxis([sx, sy, sz]), x * 0.37 + y * 0.11 + z * 0.23);
       g.geos.push(geo);
       pushBoxEdges(edgePts, x, y, z, x + sx, y + sy, z + sz);
     }
@@ -33,6 +36,9 @@ export function buildCabinetGeometry(parts: Part[]): CabinetGeometry {
       let g = groups.get(key);
       if (!g) groups.set(key, (g = { material, shade: 1, geos: [] }));
       const geo = shapeGeometry(c);
+      geo.computeBoundingBox();
+      const bb = geo.boundingBox!;
+      grainUVs(geo, longAxis([bb.max.x - bb.min.x, bb.max.y - bb.min.y, bb.max.z - bb.min.z]));
       g.geos.push(geo);
       // Edges only where faces meet at a real corner, so the curve reads smooth
       const e = new THREE.EdgesGeometry(geo, 30);
