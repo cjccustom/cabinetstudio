@@ -1,3 +1,4 @@
+import { defaultFinishing } from '../model/finishing';
 import { useMemo, useState } from 'react';
 import { useStore } from '../store';
 import { ballpark, categoryLabel, categoryOf, comparableQuote, featureLabel, rateCardOf, type Band, type BallparkCategory, type BallparkFeature } from '../model/ballpark';
@@ -140,6 +141,14 @@ export function QuoteInputs() {
             ))}
           </div>
           <p className="hint">{q.paintWhen === 'none' ? 'Painting is left off the agreement: the customer’s painter, or by others.' : q.paintWhen === 'site' ? 'Painted on site after install. ' : 'Sprayed before install. '}{q.paintWhen !== 'none' && <>On the agreement as “{paintLineLabel(q)}”; click the line or its price on the right to change either.</>}</p>
+          {project.settings.finish === 'stain' && (
+            <div className="seg" role="group" aria-label="Stain or clear" style={{ marginTop: 6 }}>
+              {([['stain', 'Stained and clear coated'], ['clear', 'Clear coat only (natural)']] as const).map(([k, label]) => (
+                <button key={k} className={(q.stainCoat ?? 'stain') === k ? 'on' : ''} aria-pressed={(q.stainCoat ?? 'stain') === k} onClick={() => set({ stainCoat: k === 'stain' ? undefined : k })}>{label}</button>
+              ))}
+            </div>
+          )}
+          <FinishingText />
           {q.paintWhen !== 'none' && <div className="seg" role="group" aria-label="How painting is priced" style={{ marginTop: 6 }}>
             {([['quote', 'Painter’s quote'], ['estimate', 'Estimate'], ['allowance', 'Allowance']] as const).map(([k, label]) => (
               <button key={k} className={(q.paintMode ?? 'quote') === k ? 'on' : ''} aria-pressed={(q.paintMode ?? 'quote') === k} onClick={() => set({ paintMode: k === 'quote' ? undefined : k })}>{label}</button>
@@ -400,6 +409,19 @@ function SuppliesEditor() {
         </div>
       </details>
     </Section>
+  );
+}
+
+/** The Finishing section the customer reads: Cabinet Studio's wording for the job, or yours. */
+function FinishingText() {
+  const { project, q, set } = useQuote();
+  const auto = defaultFinishing(project).join('\n');
+  const mine = q.finishingText;
+  return (
+    <Field label="What the proposal says about finishing (one point per line)" htmlFor="q-finishing">
+      <textarea id="q-finishing" rows={4} value={mine ?? auto} onChange={(e) => set({ finishingText: e.target.value === auto ? undefined : e.target.value })} />
+      <p className="hint">{mine != null ? <>Your wording. <button className="link-btn" onClick={() => set({ finishingText: undefined })}>Back to Cabinet Studio’s</button> (it follows the finish and when it’s done).</> : 'Follows the job’s finish and when it’s done; edit it to match how you work. Each cabinet’s line also says painted, stained and clear coated, or clear coated.'}</p>
+    </Field>
   );
 }
 

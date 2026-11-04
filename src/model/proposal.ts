@@ -7,6 +7,7 @@ import { wallNames } from './layout';
 import { styleById } from './eagle';
 import { profileByNum, profileLabel } from './moldings';
 import { fridgeBelow } from './cabinetBase';
+import { finishingItems, finishWord, paintGradeNote, stainCoatOf } from './finishing';
 
 export interface ProposalOption { id: string; label: string; price: number; items: string[] }
 export interface ProposalArea { title: string; items: string[] }
@@ -69,7 +70,9 @@ export function plainItem(c: Cabinet, p: Project): string {
   const n = noun(c);
   // Pilasters, shelves and mantels name themselves in their first phrase
   const [first, ...rest] = n ? [n, ...bits] : bits;
-  const head = first && size ? `${first}, approx. ${size}` : first;
+  // The finish said on every line, so no one reads "maple" and pictures it natural
+  const fin = finishWord(p, c);
+  const head = first ? `${first}, ${fin}${size ? `, approx. ${size}` : ''}` : first;
   return rest.length ? `${head}: ${rest.join('; ')}` : head ?? '';
 }
 
@@ -122,6 +125,7 @@ export function proposalSummary(p: Project): ProposalSummary {
     }).filter((a) => a.items.length);
   }
   const extras = [...(base.quote?.extras ?? []).map((e) => e.label), ...(base.quote?.scopeExtra ?? [])].filter((x) => x?.trim());
+  if (base.cabinets.length) areas.push({ title: 'Finishing', items: finishingItems(base) });
   if (extras.length) areas.push({ title: 'Also included', items: extras });
   return { areas, materials: materialsOf(base), options: optionPrices(p) };
 }
@@ -135,8 +139,10 @@ export function materialsOf(p: Project): { label: string; value: string }[] {
   const doors = p.cabinets.some((c) => c.rows.some((r) => r.type === 'doors' || r.type === 'drawer' || r.covered));
   if (doors) out.push({ label: 'Doors & drawer fronts', value: `${style.name}${style.bead ? ` (${style.bead.toLowerCase()})` : ''}, ${material.toLowerCase()}, ${s.doorMount === 'inset' ? 'inset' : 'overlay'}` });
   const when = p.quote?.paintWhen === 'site' ? ', finished on site after install' : p.quote?.paintWhen === 'none' ? '; painting by others' : '';
-  out.push({ label: 'Finish', value: (s.finish === 'stain' ? `Stain grade ${s.woodSpecies.toLowerCase()}, stained in your choice of color` : 'Painted in your choice of color') + when });
-  out.push({ label: 'Construction', value: `${s.construction === 'frameless' ? 'Frameless' : 'Face frame'} cabinets with ${(s.plywood ?? 'Prefinished birch').toLowerCase()} plywood interiors` });
+  out.push({ label: 'Finish', value: (s.finish === 'stain' ? `Stain grade ${s.woodSpecies.toLowerCase()}, ${stainCoatOf(p) === 'clear' ? 'clear coated to keep its natural color' : 'stained in your choice of color and clear coated'}, sheen of your choice` : 'Paint grade, painted in your choice of color and sheen') + when });
+  const pg = paintGradeNote(p);
+  if (pg) out.push({ label: 'About paint grade', value: pg });
+  out.push({ label: 'Construction', value: `${s.construction === 'frameless' ? 'Frameless' : 'Face frame'} cabinets with ${(s.plywood ?? 'Prefinished birch').toLowerCase()} plywood interiors${/prefinished/i.test(s.plywood ?? 'Prefinished birch') ? ' (clear factory finish inside)' : ''}` });
   if (p.cabinets.some((c) => c.rows.some((r) => r.type === 'drawer'))) out.push({ label: 'Drawers', value: 'Dovetail drawer boxes on soft-close, full-extension slides' });
   if (doors) out.push({ label: 'Hinges', value: 'Soft-close, adjustable' });
   const crown = p.cabinets.map((c) => profileByNum(c.crown)).find(Boolean);

@@ -9,6 +9,7 @@ import { proposalSummary, withOptions } from './proposal';
 import { cofferScope, priceQuote, proposalScope } from './quote';
 import { furnitureOf, tableScope } from './furniture';
 import { LOGO } from '../drawings/logo';
+import { finishingItems } from './finishing';
 import { termsHtml } from '../../portal/src/pages';
 
 const esc = (s: string) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -42,6 +43,7 @@ export function printQuote(p: Project, opts: { terms: string; version?: number; 
   else for (const a of summary.areas) sections.push(`<h4>${esc(a.title)}</h4>${bullets(a.items)}`);
   const more = [...furnitureOf(base).map((t) => tableScope(t).replace(/,?\s*approx[^;]*;/i, ';')), ...(cofferScope(base) ? [cofferScope(base)!] : [])];
   if (!full && more.length) sections.push(bullets(more));
+  if (full && base.cabinets.length) sections.push(`<h4>Finishing</h4>${bullets(finishingItems(base))}`);
   if (full && r.extras.length) sections.push(`<h4>Additional Work</h4>${bullets(r.extras.map((e) => e.label))}`);
   if (!full && summary.materials.length) sections.push(`<h4>Materials &amp; Finishes</h4>${bullets(summary.materials.map((m) => `${m.label}: ${m.value}`))}`);
   if (summary.options.length) sections.push(`<h4>Options</h4><p>Added to the work above only when chosen at signing:</p>${bullets(summary.options.map((o) => `${o.label} (${money(o.price)})${o.items.length ? `: ${o.items.join('; ')}` : ''}`))}`);

@@ -3,6 +3,7 @@
 // into that folder are built here as plain text so they read well in the Dropbox app.
 import { furnitureOf, tableScope } from './furniture';
 import type { Project } from './types';
+import { finishingItems } from './finishing';
 import { cofferScope, priceQuote, quoteOf, groupLabel, paintLineLabel, proposalScope } from './quote';
 import { eagleRequests, requestText } from './eagleRequest';
 import { hardwareOrder, hardwareText } from './hardware';
@@ -174,7 +175,7 @@ h3{font-size:12pt;margin:16px 0 4px}ul{margin:4px 0 8px;padding-left:20px}ul li{
 <section class="page">${head}<h1>PROJECT SCOPE OF WORK</h1>${who}${c.phone ? `<tr><th>Cell Phone</th><td>${esc(c.phone)}</td></tr>` : ''}${c.email ? `<tr><th>E-Mail</th><td>${esc(c.email)}</td></tr>` : ''}</table>
 <h2>${esc(proposalTitle(p))}</h2>
 ${c.scope ? `<p>${esc(c.scope).replace(/\n/g, '<br>')}</p>` : ''}
-${full ? `<ol>${proposalScope(base).map((x) => `<li>${esc(x)}</li>`).join('')}</ol>`
+${full ? `<ol>${proposalScope(base).map((x) => `<li>${esc(x)}</li>`).join('')}</ol>${base.cabinets.length ? `<h3>Finishing</h3><ul>${finishingItems(base).map((x) => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}`
     : summary.areas.map((a) => `<h3>${esc(a.title)}</h3><ul>${a.items.map((i) => `<li>${esc(i)}</li>`).join('')}</ul>`).join('') + `${furnitureOf(base).length || cofferScope(base) ? `<ul>${furnitureOf(base).map((t) => `<li>${esc(tableScope(t).replace(/,?\s*approx[^;]*;/i, ';'))}</li>`).join('')}${cofferScope(base) ? `<li>${esc(cofferScope(base)!)}</li>` : ''}</ul>` : ''}`}
 ${!full && summary.materials.length ? `<h3>Materials &amp; finishes</h3><table class="mat">${summary.materials.map((m) => `<tr><th>${esc(m.label)}</th><td>${esc(m.value)}</td></tr>`).join('')}</table>` : ''}
 ${!full ? '' : r.extras.length ? `<p><b>Additional work:</b> ${r.extras.map((e) => esc(e.label)).join('; ')}</p>` : ''}

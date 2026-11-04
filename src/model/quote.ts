@@ -198,6 +198,10 @@ export interface QuoteSettings {
   paintAllowance?: number;
   /** When the cabinets are painted: sprayed before install (prefinished), on site after install, or not in this contract. Unset = prefinished. */
   paintWhen?: 'prefinish' | 'site' | 'none';
+  /** On stain grade: stained and clear coated (unset), or clear coat only to keep the wood's natural color. */
+  stainCoat?: 'stain' | 'clear';
+  /** The Finishing section on the proposal, one point per line; unset = Cabinet Studio's wording for the job. */
+  finishingText?: string;
   /** The painting line's wording on the agreement; unset = by when it's done. */
   paintLabel?: string;
   /**

@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { proposalSummary } from "../src/model/proposal";
 import { canSpots } from "../src/model/lighting";
 import { corbelCatalog } from "../src/model/corbels";
 import { roomMoldings as roomMolds, wallAccentBoxes } from "../src/model/room";
@@ -1582,6 +1583,17 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   const lines = proposalScope(twins);
   eq('combine: three alike on one line', lines.filter((l) => l.includes('(3 alike)')).length, 1);
   eq('combine: off lists each', proposalScope({ ...twins, proposalCombine: false }).length >= 3, true);
+}
+
+// The finish is said on the proposal: on each cabinet and in its own section
+{
+  const sum = proposalSummary(p);
+  eq('finish: each cabinet says painted', sum.areas.filter((a) => a.title !== 'Finishing').every((a) => a.items.every((i) => /painted/.test(i))), true);
+  eq('finish: finishing section', sum.areas.some((a) => a.title === 'Finishing' && /color and sheen/.test(a.items.join(' '))), true);
+  eq('finish: paint grade explained', sum.materials.some((m) => m.label === 'About paint grade'), true);
+  const nat = { ...p, settings: { ...p.settings, finish: 'stain' as const, woodSpecies: 'Hard maple' }, quote: { ...p.quote, stainCoat: 'clear' as const } } as typeof p;
+  const ns = proposalSummary(nat);
+  eq('finish: natural maple reads clear coated', ns.areas[0].items[0].includes('clear coated') && /natural color/.test(ns.materials.find((m) => m.label === 'Finish')!.value), true);
 }
 
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');
