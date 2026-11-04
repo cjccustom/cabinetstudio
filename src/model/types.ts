@@ -356,6 +356,10 @@ export interface Finishes {
   trim?: string;
   /** The ceiling. */
   ceiling?: string;
+  /** Named paint colors picked for the cabinets, walls and trim (Benjamin Moore), by finish. */
+  named?: Partial<Record<'paint' | 'wall' | 'trim', { brand: string; code: string; name: string }>>;
+  /** Sheen proposed for painted cabinetry. */
+  paintSheen?: string;
 }
 
 /** A door, window or cased opening cut into a wall. Offset and sill are to the rough opening's edge, like a cabinet. */

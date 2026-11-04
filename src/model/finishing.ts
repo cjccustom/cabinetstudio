@@ -4,6 +4,7 @@
 import type { Cabinet, Project } from './types';
 import { eff } from './parts';
 import { quoteOf } from './quote';
+import { colorText } from './paintColors';
 
 export type StainCoat = 'stain' | 'clear';
 export const stainCoatOf = (p: Project): StainCoat => (p.quote?.stainCoat === 'clear' ? 'clear' : 'stain');
@@ -38,8 +39,9 @@ export function defaultFinishing(p: Project): string[] {
       site ? 'Finished on site after installation, with the area protected' : 'Finished in the shop before installation; touch-up after install',
     ];
   }
+  const pc = p.finishes.named?.paint;
   return [
-    'Painted in your choice of color and sheen (matte, satin or semi-gloss)',
+    pc ? `Painted ${colorText(pc)}${p.finishes.paintSheen ? ` in a ${p.finishes.paintSheen.toLowerCase()} finish` : ''} as proposed; the color and sheen can be changed to your choice before finishing` : 'Painted in your choice of color and sheen (matte, satin or semi-gloss)',
     site
       ? 'Painted on site after installation: filled, caulked, sanded, primed and finished with two coats of cabinet-grade paint'
       : 'Sprayed before installation: sanded, primed and finished with two coats of cabinet-grade paint; nail holes, caulk and touch-up after install',

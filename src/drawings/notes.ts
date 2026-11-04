@@ -2,6 +2,7 @@
 // panels, scribes, decorative bases, mouldings, tops) plus Cody's own notes, each marked for the
 // customer, the shop, or both.
 import { lightingJobOf } from '../model/cabinetLighting';
+import { colorText } from '../model/paintColors';
 import type { Cabinet, CabinetNote, Project } from '../model/types';
 import { applianceNotes } from '../model/appliances';
 import { cofferOf, fasciaBacking } from '../model/coffer';
@@ -68,13 +69,15 @@ export function jobCallouts(p: Project, a: Audience): string[] {
   // Only jobs with face frame cabinets get the door style and hardware lines
   const boxes = p.cabinets.some((c) => c.kind === 'base' || c.kind === 'wall' || c.kind === 'tall');
   if (!boxes) return [];
+  const pc = s.finish !== 'stain' ? p.finishes.named?.paint : undefined;
+  const paint = pc ? [`Paint: ${colorText(pc)}${p.finishes.paintSheen ? `, ${p.finishes.paintSheen.toLowerCase()}` : ''}${a === 'customer' ? ' (confirmed from a sample before finishing)' : ''}`] : [];
   if (a === 'customer') {
-    return [
+    return [...paint,
       `${style.name} style doors and drawer fronts, ${s.doorMount === 'inset' ? 'inset' : 'overlay'}`,
       'Hardware shown at typical locations; final hardware and placement to be selected',
     ];
   }
-  return [
+  return [...paint,
     `Face frames ${fmt(s.ffThickness)} ${s.woodSpecies}; doors ${style.name} ${s.doorMount}`,
     'Hardware locations shown are assumed until the customer selects hardware',
   ];

@@ -735,3 +735,18 @@ textarea.text-input { resize: vertical; }
 
 /* Opening size under each face frame row, like Chief's cabinet dialog */
 .row-open{grid-column:1/-1;font-size:12px;color:var(--muted);margin:2px 0 4px}
+
+/* Benjamin Moore color picker */
+.bm-pick{margin-top:8px}
+.bm-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.bm-chip{width:22px;height:22px;border-radius:4px;border:1px solid var(--line);flex:none}
+.bm-name{flex:1;min-width:0;font-size:13px}
+.bm-sheen{display:block;font-size:12px;margin:4px 0 0 30px}
+.bm-panel{margin-top:6px;padding:8px;border:1px solid var(--line);border-radius:6px;background:var(--surface)}
+.bm-panel input{width:100%}
+.bm-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:6px;max-height:320px;overflow:auto;margin-top:6px}
+.bm-swatch{display:flex;flex-direction:column;align-items:stretch;text-align:left;padding:4px;border:1px solid var(--line);border-radius:6px;background:var(--bg);cursor:pointer;font:inherit;color:inherit}
+.bm-swatch span{height:40px;border-radius:4px;border:1px solid rgba(0,0,0,.08);margin-bottom:3px}
+.bm-swatch b{font-size:11px;font-weight:600;line-height:1.2}
+.bm-swatch small{font-size:10px;color:var(--muted)}
+.bm-swatch.on{outline:2px solid #2f62d6}

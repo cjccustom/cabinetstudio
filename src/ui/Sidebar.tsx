@@ -3,6 +3,7 @@ import { useStore } from '../store';
 import { joineryLabel } from '../model/parts';
 import type { FrameJoinery } from '../model/types';
 import { presets } from '../model/defaults';
+import { PaintColorPicker } from './PaintColorPicker';
 import { newPanel, panelAbove, panelBetween } from '../model/panels';
 import { amSpecies } from '../model/moldings';
 import { lumberNames, priceBook, setJobFinish } from '../model/pricebook';
@@ -180,11 +181,19 @@ function RoomPanel() {
         <div className="swatches">
           {([['paint', 'Paint'], ...(stain ? [['stain', 'Stain']] as const : []), ['box', 'Case interior'], ['counter', 'Stone top'], ['wood', 'Solid wood'], ['wall', 'Walls'], ['trim', 'Room trim']] as const).map(([k, label]) => (
             <label key={k} className="swatch" htmlFor={`fin-${k}`}>
-              <input id={`fin-${k}`} type="color" value={finishes[k] ?? (k === 'stain' ? colors.paint : k === 'box' ? colors.box : k === 'wall' ? '#f1efea' : k === 'trim' ? '#f7f5ef' : '#b9875a')} onChange={(e) => commit((p) => ({ ...p, finishes: { ...p.finishes, [k]: e.target.value } }))} />
+              <input id={`fin-${k}`} type="color" value={finishes[k] ?? (k === 'stain' ? colors.paint : k === 'box' ? colors.box : k === 'wall' ? '#f1efea' : k === 'trim' ? '#f7f5ef' : '#b9875a')} onChange={(e) => commit((p) => {
+                // A color picked by hand isn't the named color any more
+                const named = { ...p.finishes.named };
+                if (k === 'paint' || k === 'wall' || k === 'trim') delete named[k];
+                return { ...p, finishes: { ...p.finishes, [k]: e.target.value, named } };
+              })} />
               <span>{label}</span>
             </label>
           ))}
         </div>
+        {!stain && <PaintColorPicker k="paint" />}
+        <PaintColorPicker k="wall" />
+        <PaintColorPicker k="trim" />
         {stain && (
           <p className="hint">
             Stain grade: cabinets show {settings.woodSpecies.toLowerCase()}{finishes.stain ? ' in the stain color picked' : ' in its natural tone'}{settings.plywood && colors.box !== finishes.box ? `, interiors in ${settings.plywood.toLowerCase()}` : ''}.{' '}
