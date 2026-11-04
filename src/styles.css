@@ -732,3 +732,6 @@ textarea.text-input { resize: vertical; }
 .sched-val{display:inline-flex;align-items:center;gap:3px}
 .sched-val input{width:5.5em;text-align:right}
 .sched-amt .num{min-width:5.5em;text-align:right}
+
+/* Opening size under each face frame row, like Chief's cabinet dialog */
+.row-open{grid-column:1/-1;font-size:12px;color:var(--muted);margin:2px 0 4px}

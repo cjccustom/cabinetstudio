@@ -3,7 +3,7 @@ import { useStore } from '../store';
 import { joineryLabel } from '../model/parts';
 import type { FrameJoinery } from '../model/types';
 import { presets } from '../model/defaults';
-import { newPanel, panelAbove } from '../model/panels';
+import { newPanel, panelAbove, panelBetween } from '../model/panels';
 import { amSpecies } from '../model/moldings';
 import { lumberNames, priceBook, setJobFinish } from '../model/pricebook';
 import { useShop } from '../shop/shop';
@@ -45,7 +45,9 @@ function Library() {
   const addBeadboard = () => {
     const st = useStore.getState();
     const cab = st.project.cabinets.find((c) => c.id === st.selectedId);
-    st.addPanel(cab ? panelAbove(st.project, cab) : newPanel(wall, 0, 48, 18.5, 30, st.project.panels ?? []));
+    // Between what's picked and the cabinets above or below it (a bench and its cubbies), else over the one cabinet
+    const picked = st.project.cabinets.filter((c) => c.id === st.selectedId || st.group.includes(c.id));
+    st.addPanel((picked.length ? panelBetween(st.project, picked) : null) ?? (cab ? panelAbove(st.project, cab) : newPanel(wall, 0, 48, 18.5, 30, st.project.panels ?? [])));
   };
   const [wall, setWall] = useState<WallId>(view.startsWith('elev-') ? (view.slice(5) as WallId) : 'back');
   const groups = [

@@ -3,7 +3,7 @@
 // lighting, sections for the drawings), each added or turned on in one click and opened in the editor.
 import { useStore } from '../store';
 import type { Opening, WallId } from '../model/types';
-import { newPanel } from '../model/panels';
+import { newPanel, panelBetween } from '../model/panels';
 import { newOpening } from '../model/room';
 import { defaultBase } from '../model/cabinetBase';
 import { cofferOf } from '../model/coffer';
@@ -39,7 +39,10 @@ const tools: { id: string; label: string; icon: string; title: string; run: () =
   { id: 'fridge', label: 'Fridge surround', icon: '▥', title: 'A refrigerator surround with a cabinet above', run: () => addPreset('tall-fridge') },
   { id: 'panel', label: 'Beadboard', icon: '▤', title: 'Beadboard paneling on the wall', run: () => {
     const st = useStore.getState();
-    st.addPanel(newPanel(targetWall(), 0, 48, 18.5, 30, st.project.panels ?? []));
+    // With cabinets picked, it fills the wall between them and the cabinets above or below (a mudroom
+    // bench and its cubbies, an entertainment center's bases and uppers)
+    const picked = st.project.cabinets.filter((c) => c.id === st.selectedId || st.group.includes(c.id));
+    st.addPanel((picked.length ? panelBetween(st.project, picked) : null) ?? newPanel(targetWall(), 0, 48, 18.5, 30, st.project.panels ?? []));
     const id = useStore.getState().selectedId;
     if (id) st.edit({ kind: 'panel', id });
   } },

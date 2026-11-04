@@ -248,8 +248,20 @@ export function cabinetMoldings(c: Cabinet, s: ShopSettings, ends: EndInfo, opts
     // Beside a proud pilaster with a wrapped base, the base cap stops at the wrap's return, inside-mitered
     const wrapL = r.kind === 'baseMold' && !ends.left ? ends.wrapBeside?.('left') ?? null : null;
     const wrapR = r.kind === 'baseMold' && !ends.right ? ends.wrapBeside?.('right') ?? null : null;
-    const corner = (side: 'left' | 'right'): MiterCut => (ends[side] ? 'out' : (side === 'left' ? wrapL : wrapR) != null ? 'in' : 'square');
-    const sx0 = x0, sx1 = x1;
+    // Crown turning a room's inside corner with the cabinet on the next wall: both runs end where
+    // their backs meet, inside-mitered, instead of crossing
+    const inCorner = (side: 'left' | 'right') => {
+      if (r.kind !== 'crown' || ends[side]) return null;
+      const k = ends.corner?.(side);
+      if (!k || k.other.crown !== r.num) return null;
+      const Lo = crownLayout(k.other, s);
+      if (Math.abs((k.other.elevation + Lo.crownTop) - (c.elevation + crownLayout(c, s).crownTop)) > 0.5) return null;
+      const back = (k.other.wallInset ?? 0) + Lo.face;
+      return side === 'right' ? k.wallX - back : k.wallX + back;
+    };
+    const cl = inCorner('left'), cr = inCorner('right');
+    const corner = (side: 'left' | 'right'): MiterCut => (ends[side] ? 'out' : (side === 'left' ? cl : cr) != null || (side === 'left' ? wrapL : wrapR) != null ? 'in' : 'square');
+    const sx0 = cl ?? x0, sx1 = cr ?? x1;
     out.push({ kind: r.kind, num: p.num, along: 'x', facing: 'front', x: sx0, y, z: r.z, length: sx1 - sx0, hang: r.hang, cut: [corner('left'), corner('right')] });
     // An island's base wraps its finished back too
     const zb = !c.island || r.kind !== 'baseMold' ? null : c.islandSides === 2 ? -r.z - m.depth : -s.endPanelThickness - o - m.depth;

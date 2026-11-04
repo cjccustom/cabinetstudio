@@ -30,7 +30,7 @@ export function eagleFraction(v: number): string {
   return whole ? `${whole}-${num}/${den}"` : `${num}/${den}"`;
 }
 
-interface Piece { kind: RequestKind; type: string; w: number; h: number; d?: number; rail?: number; stile?: number; config: [string, string][]; check: string[] }
+interface Piece { kind: RequestKind; type: string; w: number; h: number; d?: number; rail?: number; stile?: number; center?: string; config: [string, string][]; check: string[] }
 
 function frontConfig(p: Project, cabId: string, kind: 'doors' | 'fronts', slab: boolean): { config: [string, string][]; check: string[] } {
   const c = p.cabinets.find((x) => x.id === cabId)!;
@@ -79,7 +79,13 @@ function pieces(p: Project): Piece[] {
       }
       const kind = o.item === 'drawerFront' ? 'fronts' : 'doors';
       const { config, check } = frontConfig(p, c.id, kind, o.rail == null);
-      out.push({ kind, type: o.item === 'door' ? 'Door' : o.item === 'endPanel' ? 'Panel' : 'Drawer Front', w: o.w, h: o.h, rail: o.rail, stile: o.stile, config, check });
+      const center = o.centerRail && o.centerStile ? 'Center rail & stile' : o.centerRail ? 'Center rail' : o.centerStile ? 'Center stile' : undefined;
+      const big = Math.max(o.w, o.h);
+      const warn = big > 95 ? [`A ${dec(o.w)} x ${dec(o.h)} piece is over Eagle's 95" maximum`]
+        : big > 84 ? [`A ${dec(o.w)} x ${dec(o.h)} piece is over 84": Eagle doesn't warrant it`]
+        : o.rail == null && big > 44 && /mdf/i.test(config.find((x) => x[0] === 'Wood Type')?.[1] ?? '') ? [`A ${dec(o.w)} x ${dec(o.h)} one-piece MDF piece is over 44": Eagle doesn't warrant it`]
+        : o.rail != null && big > 50 && !center ? [`A ${dec(o.w)} x ${dec(o.h)} piece is over 50" without a center rail: Eagle doesn't warrant it`] : [];
+      out.push({ kind, type: o.item === 'door' ? 'Door' : o.item === 'endPanel' ? 'Panel' : 'Drawer Front', w: o.w, h: o.h, rail: o.rail, stile: o.stile, center, config, check: [...check, ...warn, ...(center ? ['Eagle only adds a center rail or stile when it\'s asked for: note it on each line marked below'] : [])] });
     }
   }
   return out;
@@ -99,7 +105,7 @@ export function eagleRequests(p: Project): EagleRequest[] {
       const kind = list[0].kind;
       const counts = new Map<string, { pc: Piece; qty: number }>();
       for (const pc of list) {
-        const key = [pc.type, dec(pc.w), dec(pc.h), pc.d ?? '', pc.rail ?? '', pc.stile ?? ''].join('|');
+        const key = [pc.type, dec(pc.w), dec(pc.h), pc.d ?? '', pc.rail ?? '', pc.stile ?? '', pc.center ?? ''].join('|');
         const row = counts.get(key);
         if (row) row.qty++; else counts.set(key, { pc, qty: 1 });
       }
@@ -116,12 +122,13 @@ export function eagleRequests(p: Project): EagleRequest[] {
       }
       rows.sort((a, b) => (a.pc.type === b.pc.type ? 0 : a.pc.type === 'Door' ? -1 : 1) || b.pc.h - a.pc.h || b.pc.w - a.pc.w);
       const slab = list[0].rail == null;
+      const notes = rows.some((r) => r.pc.center);
       return {
         kind, config: list[0].config, check,
-        columns: slab ? ['Line', 'Type', 'Qty', 'Width', 'Height'] : ['Line', 'Type', 'Qty', 'Width', 'Height', 'Rails', 'Stiles'],
+        columns: [...(slab ? ['Line', 'Type', 'Qty', 'Width', 'Height'] : ['Line', 'Type', 'Qty', 'Width', 'Height', 'Rails', 'Stiles']), ...(notes ? ['Notes'] : [])],
         lines: rows.map((r, i) => {
           const base: (string | number)[] = [i + 1, r.pc.type, r.qty, dec(r.pc.w), dec(r.pc.h)];
-          return slab ? base : [...base, eagleFraction(r.pc.rail!), eagleFraction(r.pc.stile!)];
+          return [...(slab ? base : [...base, eagleFraction(r.pc.rail!), eagleFraction(r.pc.stile!)]), ...(notes ? [r.pc.center ?? ''] : [])];
         }),
       };
     });

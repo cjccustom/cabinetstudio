@@ -192,6 +192,12 @@ function toRoom(room: Room, c: Cabinet, lx: number, lz: number): [number, number
  * another cabinet (on any wall, so corners count), the side is hidden; otherwise it's a
  * finished end, unless the cabinet says otherwise.
  */
+/** The wall that meets each wall at its left and right ends, facing it from inside the room. */
+const nextWall: Record<WallId, { left: WallId; right: WallId }> = {
+  back: { left: 'left', right: 'right' }, right: { left: 'back', right: 'front' },
+  front: { left: 'right', right: 'left' }, left: { left: 'front', right: 'back' },
+};
+
 export function resolveEnds(room: Room, cabinets: Cabinet[], c: Cabinet): EndInfo {
   const probe = 0.0625;
   if (c.kind === 'pilaster') {
@@ -231,7 +237,18 @@ export function resolveEnds(room: Room, cabinets: Cabinet[], c: Cabinet): EndInf
   const autoLeft = !covered(toRoom(room, c, ...leftPt)) || (!c.corner && !covered(toRoom(room, c, ...front(leftPt))));
   const autoRight = !covered(toRoom(room, c, ...rightPt)) || (!c.corner && !covered(toRoom(room, c, ...front(rightPt))));
   const pick = (mode: Cabinet['leftEnd'], auto: boolean) => (mode === 'exposed' ? true : mode === 'hidden' ? false : auto);
-  const ends: EndInfo = { left: pick(c.leftEnd, autoLeft), right: pick(c.rightEnd, autoRight), wrapBeside };
+  // The cabinet on the next wall that meets this one in the room's corner (uppers to uppers, talls to talls)
+  const corner = (side: 'left' | 'right') => {
+    const next = nextWall[c.wall][side];
+    const L = wallLength(room, c.wall), Ln = wallLength(room, next);
+    const inC = (c.wallInset ?? 0) + c.depth + 8;
+    const atCorner = side === 'right' ? c.offset + c.width >= L - 30 : c.offset <= 30;
+    if (!atCorner) return null;
+    const other = cabinets.find((o) => o.id !== c.id && o.wall === next && o.kind !== 'base' && o.elevation < c.elevation + c.height && c.elevation < o.elevation + o.height
+      && (side === 'right' ? o.offset <= inC : o.offset + o.width >= Ln - inC));
+    return other ? { other, wallX: side === 'right' ? L - c.offset : -c.offset } : null;
+  };
+  const ends: EndInfo = { left: pick(c.leftEnd, autoLeft), right: pick(c.rightEnd, autoRight), wrapBeside, corner };
   const run = topRun(cabinets, c);
   if (run) {
     const last = run[run.length - 1];

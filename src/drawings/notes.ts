@@ -1,6 +1,7 @@
 // What a drawing should point out about each cabinet: things the design already knows (end
 // panels, scribes, decorative bases, mouldings, tops) plus Cody's own notes, each marked for the
 // customer, the shop, or both.
+import { lightingJobOf } from '../model/cabinetLighting';
 import type { Cabinet, CabinetNote, Project } from '../model/types';
 import { applianceNotes } from '../model/appliances';
 import { cofferOf, fasciaBacking } from '../model/coffer';
@@ -34,6 +35,12 @@ export function cabinetCallouts(p: Project, c: Cabinet): Callout[] {
   if (c.countertop && c.kind === 'base') out.push({ text: c.topKind === 'wood' ? `${fmt(c.topThickness ?? 1.25)} solid wood top` : c.topKind === 'paint' ? `3/4" paint-grade plywood top, ${(c.topEdge ?? 'poplar').toLowerCase()} edging 3/4" × 1 1/4" dropping 1/2" over the top rail` : 'Stone countertop by others', for: c.topKind === 'stone' || !c.topKind ? 'customer' : 'both' });
   if (c.crown) out.push({ text: `Crown: ${mold(c.crown)}${c.crownBuild?.subCrown ? ` on a ${fmt(c.crownBuild.subCrown)} flat sub-crown` : ''}`, for: 'both' });
   if (c.lightRail) out.push({ text: `Light rail: ${mold(c.lightRail)}`, for: 'both' });
+  if (c.lighting?.length) {
+    const route = lightingJobOf(p).wireRoute ?? 'dado';
+    out.push({ text: route === 'dado'
+      ? 'LED leads: rout a 3/8" x 3/8" wire dado up the inside of the case back (or side) to the lights, and drill a pass-through down to the driver in the base cabinet'
+      : 'LED leads run behind the case: drill pass-throughs at each light and down to the driver in the base cabinet', for: 'shop' });
+  }
   if (c.baseMold) out.push({ text: `Base moulding: ${mold(c.baseMold)}`, for: 'both' });
   if (c.shelfFront) out.push({ text: `Shelves with ${fmt(c.shelfFront.height)} × ${fmt(c.shelfFront.thickness)} solid fronts`, for: 'both' });
   if (c.noBottom) out.push({ text: c.bottomRail ? 'No case bottom: sides stand on the top below' : 'No case bottom or bottom rail: sides stand on the top below', for: 'shop' });

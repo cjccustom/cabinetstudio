@@ -97,6 +97,43 @@ export function layoutRows(c: Cabinet, s: ShopSettings): { rows: RowLayout[]; le
   return { rows, leftover: autos ? 0 : leftover };
 }
 
+/**
+ * Each face frame row's opening, as Chief's cabinet dialog shows them: the clear width and height
+ * inside the frame (each side of a center stile, or each cubby between dividers), and the doors
+ * or fronts that cover it.
+ */
+export function rowOpenings(c: Cabinet, s0: ShopSettings, parts?: Part[]): { rowId: string; w: number; h: number; n: number; fronts: { kind: string; w: number; h: number; n: number }[] }[] {
+  const s = eff(c, s0);
+  const { rows } = layoutRows(c, s0);
+  const sw = s.stileWidth;
+  const swL = c.stileLeftWidth ?? sw, swR = c.stileRightWidth ?? sw;
+  let ox0 = (c.scribeLeft ?? 0) + swL, ox1 = c.width - (c.scribeRight ?? 0) - swR;
+  if (c.blind) {
+    const open = c.blind.dead + sw + (c.blind.clearance ?? s.blindClearance);
+    if (c.blind.side === 'left') ox0 = Math.max(ox0, open); else ox1 = Math.min(ox1, c.width - open);
+  }
+  const fl = s.construction === 'frameless';
+  return c.rows.map((r, i) => {
+    const L = rows[i];
+    let w = ox1 - ox0, n = 1;
+    if (hasDoors(r) && r.doors === 2 && c.centerStile) { n = 2; w = (w - sw) / 2; }
+    else if (r.type === 'open' && (r.dividers ?? 0) > 0) { n = r.dividers! + 1; w = bayEdges(ox0, ox1, r.dividers!, fl ? s.boxActualThickness : sw).bay; }
+    const fronts = new Map<string, { kind: string; w: number; h: number; n: number }>();
+    for (const p of parts ?? []) {
+      if (!p.order || (p.role !== 'door' && p.role !== 'drawerFront')) continue;
+      const b = p.boxes[0];
+      if (!b) continue;
+      const mid = b.min[1] + b.size[1] / 2;
+      if (mid < L.y0 - 0.01 || mid > L.y1 + 0.01) continue;
+      const kind = p.role === 'door' ? 'Door' : 'Drawer front';
+      const key = `${kind}|${p.order.w}|${p.order.h}`;
+      const f = fronts.get(key);
+      if (f) f.n++; else fronts.set(key, { kind, w: p.order.w, h: p.order.h, n: 1 });
+    }
+    return { rowId: r.id, w, h: L.height, n, fronts: [...fronts.values()] };
+  });
+}
+
 /** A frame ring of four boxes, used for profiles on the inside edge of 5-piece doors. */
 function ring(x: number, y: number, w: number, h: number, width: number, depth: number, shade: number): VisualBox[] {
   return [
@@ -108,7 +145,26 @@ function ring(x: number, y: number, w: number, h: number, width: number, depth: 
 }
 
 /** A door or drawer front, drawn close enough to its Eagle style to read correctly in elevation. */
-export function frontBoxes(x: number, y: number, z: number, w: number, h: number, t: number, profile: DoorProfile, stile: number, raised: boolean, flatFront = false): VisualBox[] {
+/** Eagle's limit: 5-piece doors and panels over 50" tall get a center rail (over 50" wide, a center stile) for their warranty. */
+export const EAGLE_CENTER_OVER = 50;
+export interface CenterSplit { rail?: boolean; stile?: boolean }
+/** Whether a 5-piece front this size gets Eagle's center rail or stile (unless the cabinet says to leave it off). */
+export const centerSplit = (w: number, h: number, profile: DoorProfile, off?: boolean): CenterSplit =>
+  off || profile === 'slab' ? {} : { ...(h > EAGLE_CENTER_OVER ? { rail: true } : {}), ...(w > EAGLE_CENTER_OVER ? { stile: true } : {}) };
+
+const centerText = (cs: CenterSplit) => (cs.rail && cs.stile ? ', center rail and stile' : cs.rail ? ', center rail' : cs.stile ? ', center stile' : '');
+const centerOrder = (cs: CenterSplit) => ({ ...(cs.rail ? { centerRail: true } : {}), ...(cs.stile ? { centerStile: true } : {}) });
+/** What to watch on a big front: Eagle's warranty limits. */
+function centerNote(cs: CenterSplit, w: number, h: number, profile: DoorProfile, off?: boolean): string {
+  const big = Math.max(w, h);
+  if (big > 95) return 'Over 95": larger than Eagle makes';
+  if (big > 84) return 'Over 84": not warranted by Eagle';
+  if (profile === 'slab' && big > 44) return 'One-piece slab over 44": not warranted by Eagle';
+  if (off && profile !== 'slab' && big > EAGLE_CENTER_OVER) return 'Over 50" without a center rail: not warranted by Eagle';
+  return cs.rail || cs.stile ? `Eagle center ${cs.rail && cs.stile ? 'rail and stile' : cs.rail ? 'rail' : 'stile'} (over 50")` : '';
+}
+
+export function frontBoxes(x: number, y: number, z: number, w: number, h: number, t: number, profile: DoorProfile, stile: number, raised: boolean, flatFront = false, split: CenterSplit = {}): VisualBox[] {
   if (profile === 'slab') return [vb(x, y, z, w, h, t)];
   const f = Math.min(stile, h * 0.3, w * 0.3);
   const ix = x + f, iy = y + f, iw = w - 2 * f, ih = h - 2 * f;
@@ -118,19 +174,33 @@ export function frontBoxes(x: number, y: number, z: number, w: number, h: number
     vb(ix, y + h - f, z, iw, f, t),
     vb(ix, y, z, iw, f, t),
   ];
+  // A center rail and/or stile, the panel split around them
+  let panels: [number, number, number, number][] = [[ix, iy, iw, ih]];
+  if (split.stile && iw > 3 * f) {
+    const sx = x + w / 2 - f / 2;
+    out.push(vb(sx, iy, z, f, ih, t));
+    panels = panels.flatMap(([px, py, pw, ph]) => [[px, py, sx - px, ph], [sx + f, py, px + pw - sx - f, ph]] as [number, number, number, number][]);
+  }
+  if (split.rail && ih > 3 * f) {
+    const ry = y + h / 2 - f / 2;
+    for (const [px, , pw] of [...new Map(panels.map((q) => [q[0], q])).values()]) out.push(vb(px, ry, z, pw, f, t));
+    panels = panels.flatMap(([px, py, pw, ph]) => [[px, py, pw, ry - py], [px, ry + f, pw, py + ph - ry - f]] as [number, number, number, number][]);
+  }
   const inner: VisualBox[] = [];
-  let px = ix, py = iy, pw = iw, ph = ih;
-  const addRing = (width: number, depth: number, shade: number) => {
-    if (pw <= 2 * width || ph <= 2 * width) return;
-    inner.push(...ring(px, py, pw, ph, width, depth, shade));
-    px += width; py += width; pw -= 2 * width; ph -= 2 * width;
-  };
-  if (profile === 'step') addRing(0.375, t - 0.1875, 0.97);
-  if (profile === 'bevel') addRing(0.5, t - 0.25, 0.96);
-  if (profile === 'ogee') { addRing(0.3, t - 0.12, 0.98); addRing(0.3, t - 0.28, 0.95); }
-  // Flat front panels sit flush with the frame face; the rest are recessed
-  inner.push(vb(px, py, 0, pw, ph, flatFront ? t : t - 0.375, flatFront ? 0.97 : 0.93));
-  if (raised && pw > 3 && ph > 3) inner.push(vb(px + 1.25, py + 1.25, 0, pw - 2.5, ph - 2.5, t - 0.125, 0.99));
+  for (const [qx, qy, qw, qh] of panels) {
+    let px = qx, py = qy, pw = qw, ph = qh;
+    const addRing = (width: number, depth: number, shade: number) => {
+      if (pw <= 2 * width || ph <= 2 * width) return;
+      inner.push(...ring(px, py, pw, ph, width, depth, shade));
+      px += width; py += width; pw -= 2 * width; ph -= 2 * width;
+    };
+    if (profile === 'step') addRing(0.375, t - 0.1875, 0.97);
+    if (profile === 'bevel') addRing(0.5, t - 0.25, 0.96);
+    if (profile === 'ogee') { addRing(0.3, t - 0.12, 0.98); addRing(0.3, t - 0.28, 0.95); }
+    // Flat front panels sit flush with the frame face; the rest are recessed
+    inner.push(vb(px, py, 0, pw, ph, flatFront ? t : t - 0.375, flatFront ? 0.97 : 0.93));
+    if (raised && pw > 3 && ph > 3) inner.push(vb(px + 1.25, py + 1.25, 0, pw - 2.5, ph - 2.5, t - 0.125, 0.99));
+  }
   for (const b of inner) out.push({ ...b, min: [b.min[0], b.min[1], z] });
   return out;
 }
@@ -151,6 +221,11 @@ export interface EndInfo {
    * across the run (lead), the others have none (joined). last: the run's right-hand cabinet and
    * whether its right end is exposed, for the top's right overhang and edging.
    */
+  /**
+   * A room's inside corner at this end: the cabinet on the next wall that turns the corner with it,
+   * and where that wall is in this cabinet's own x (so crown can meet it at an inside miter).
+   */
+  corner?: (side: 'left' | 'right') => { other: Cabinet; wallX: number } | null;
   topRun?: { lead: boolean; span: number; last: Cabinet; lastRight: boolean; /** Open spaces the top crosses. */ gaps?: { at: number; width: number }[] };
 }
 
@@ -571,13 +646,14 @@ function caseParts(c: Cabinet, s: ShopSettings, ends: EndInfo): Part[] {
     const tooShort = style.profile !== 'slab' && h < 2 * rail + 1.5;
     const slab = role === 'drawerFront' && (s.drawerFronts === 'slab' || tooShort);
     const profile: DoorProfile = slab ? 'slab' : style.profile;
-    const spec = (slab ? `Slab, ${material}` : doorSpec) + (inset ? ', inset' : '');
+    const cs = centerSplit(w, h, profile, c.noCenterRail);
+    const spec = (slab ? `Slab, ${material}` : doorSpec) + (inset ? ', inset' : '') + centerText(cs);
     parts.push({
-      name, role, material: 'door', length: h, width: w, thickness: dt, cut: false, note,
-      order: { item: role, w, h, spec, ...(profile === 'slab' ? {} : { rail, stile: doorStile }) },
+      name, role, material: 'door', length: h, width: w, thickness: dt, cut: false, note: [note, centerNote(cs, w, h, profile, c.noCenterRail)].filter(Boolean).join(' · ') || undefined,
+      order: { item: role, w, h, spec, ...(profile === 'slab' ? {} : { rail, stile: doorStile }), ...centerOrder(cs) },
       boxes: role === 'drawerFront'
-        ? frontBoxes(x, y, zFront, w, h, dt, profile, Math.min(rail, doorStile), !!style.panelChoice && !!frontPanel.raised, !!frontPanel.flatFront)
-        : frontBoxes(x, y, zFront, w, h, dt, profile, doorStile, raised),
+        ? frontBoxes(x, y, zFront, w, h, dt, profile, Math.min(rail, doorStile), !!style.panelChoice && !!frontPanel.raised, !!frontPanel.flatFront, cs)
+        : frontBoxes(x, y, zFront, w, h, dt, profile, doorStile, raised, false, cs),
     });
   };
   c.rows.forEach((row, i) => {
@@ -727,7 +803,8 @@ function caseParts(c: Cabinet, s: ShopSettings, ends: EndInfo): Part[] {
     const pieces = c.splitEndPanels ? endPanelPieces(rows, parts, py0, py1, s) : [[py0, py1] as [number, number]];
     pieces.forEach(([a, b], i) => {
       const ph = b - a;
-      const flat = frontBoxes(0, a, 0, depth, ph, pt, style.profile, doorStile, raised);
+      const cs = centerSplit(depth, ph, style.profile, c.noCenterRail);
+      const flat = frontBoxes(0, a, 0, depth, ph, pt, style.profile, doorStile, raised, false, cs);
       const boxes = flat.map((bx) => {
         const [u, v, w0] = bx.min;
         const [su, sv, sw0] = bx.size;
@@ -736,8 +813,8 @@ function caseParts(c: Cabinet, s: ShopSettings, ends: EndInfo): Part[] {
       });
       parts.push({
         name: pieces.length > 1 ? `End panel ${i + 1} of ${pieces.length}` : 'End panel', role: 'endPanel', material: 'door', length: ph, width: depth, thickness: pt, cut: false,
-        note: `${side === 'left' ? 'Left' : 'Right'}, ${label}, ${fmtShort(a)} off cabinet bottom${pieces.length > 1 ? ', lined up with the front' : ''}`,
-        order: { item: 'endPanel', w: depth, h: ph, spec: `${doorSpec}, end panel`, ...(style.profile === 'slab' ? {} : { rail: doorStile, stile: doorStile }) },
+        note: [`${side === 'left' ? 'Left' : 'Right'}, ${label}, ${fmtShort(a)} off cabinet bottom${pieces.length > 1 ? ', lined up with the front' : ''}`, centerNote(cs, depth, ph, style.profile, c.noCenterRail)].filter(Boolean).join(' · '),
+        order: { item: 'endPanel', w: depth, h: ph, spec: `${doorSpec}, end panel${centerText(cs)}`, ...(style.profile === 'slab' ? {} : { rail: doorStile, stile: doorStile }), ...centerOrder(cs) },
         boxes,
       });
     });
@@ -760,8 +837,8 @@ function caseParts(c: Cabinet, s: ShopSettings, ends: EndInfo): Part[] {
     parts.push({
       name: 'Back panel, finished', role: 'endPanel', material: 'door', length: py1 - py0, width: len, thickness: pt, cut: false,
       note: `Island back, over the case back; ${BL.applied ? 'down to the floor, the baseboard over it' : `${fmtShort(py0)} off cabinet bottom, lined up with the fronts`}`,
-      order: { item: 'endPanel', w: len, h: py1 - py0, spec: `${doorSpec}, end panel`, ...(style.profile === 'slab' ? {} : { rail: doorStile, stile: doorStile }) },
-      boxes: frontBoxes(-ext.left, py0, -pt, len, py1 - py0, pt, style.profile, doorStile, raised),
+      order: { item: 'endPanel', w: len, h: py1 - py0, spec: `${doorSpec}, end panel${centerText(centerSplit(len, py1 - py0, style.profile, c.noCenterRail))}`, ...(style.profile === 'slab' ? {} : { rail: doorStile, stile: doorStile }), ...centerOrder(centerSplit(len, py1 - py0, style.profile, c.noCenterRail)) },
+      boxes: frontBoxes(-ext.left, py0, -pt, len, py1 - py0, pt, style.profile, doorStile, raised, false, centerSplit(len, py1 - py0, style.profile, c.noCenterRail)),
     });
   }
   // Joined into the top of the cabinet to its left: no top of its own

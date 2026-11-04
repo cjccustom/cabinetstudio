@@ -52,6 +52,52 @@ export function panelAbove(p: Project, cab: Cabinet): WallPanel {
   return { ...newPanel(cab.wall, cab.offset, cab.width, bottom, Math.max(6, height), p.panels ?? []), cap: !upper };
 }
 
+/** The top of a cabinet as the wall sees it: its countertop or bench seat included. */
+const topOf = (p: Project, c: Cabinet) => c.elevation + c.height + (c.countertop ? topThick(c, p.settings.counterThickness) : 0);
+const overlaps = (a0: number, a1: number, b0: number, b1: number) => a0 < b1 - 0.5 && b0 < a1 - 0.5;
+
+/**
+ * The wall between cabinets below and cabinets above on the same wall, over a span: a mudroom
+ * bench and the cubbies over it, or the base cabinets and uppers of an entertainment center.
+ * Bottom at the highest top below (seat or countertop included), top at the lowest upper above.
+ */
+export function gapBetween(p: Project, wall: WallId, x0: number, x1: number, near: number): { bottom: number; top: number | null; x0: number; x1: number } | null {
+  const on = p.cabinets.filter((c) => c.wall === wall && c.kind !== 'mantel' && overlaps(c.offset, c.offset + c.width, x0, x1));
+  const below = on.filter((c) => topOf(p, c) <= near + 0.5);
+  const above = on.filter((c) => c.elevation >= near - 0.5);
+  if (!below.length) return null;
+  const bottom = Math.max(...below.map((c) => topOf(p, c)));
+  const up = above.filter((c) => c.elevation >= bottom - 0.01);
+  const top = up.length ? Math.min(...up.map((c) => c.elevation)) : null;
+  // Across the cabinets below, kept within the uppers' span when they're narrower
+  let a = Math.min(...below.map((c) => c.offset)), b = Math.max(...below.map((c) => c.offset + c.width));
+  if (up.length) { a = Math.max(a, Math.min(...up.map((c) => c.offset))); b = Math.min(b, Math.max(...up.map((c) => c.offset + c.width))); }
+  return b - a > 1 ? { bottom, top, x0: a, x1: b } : null;
+}
+
+/** Beadboard filling the wall between the picked cabinets and what's above (or below) them. */
+export function panelBetween(p: Project, picked: Cabinet[]): WallPanel | null {
+  if (!picked.length) return null;
+  const wall = picked[0].wall;
+  const same = picked.filter((c) => c.wall === wall);
+  const x0 = Math.min(...same.map((c) => c.offset)), x1 = Math.max(...same.map((c) => c.offset + c.width));
+  // Picked the uppers (cubbies)? Look down from their bottom; else up from the tops of the lowers
+  const uppers = same.every((c) => c.kind === 'wall' || c.elevation > 12);
+  const near = uppers ? Math.min(...same.map((c) => c.elevation)) : Math.max(...same.map((c) => topOf(p, c)));
+  const g = gapBetween(p, wall, x0, x1, near);
+  if (!g) return null;
+  const height = g.top != null ? g.top - g.bottom : 30;
+  if (height < 2) return null;
+  return { ...newPanel(wall, g.x0, g.x1 - g.x0, g.bottom, height, p.panels ?? []), cap: g.top == null };
+}
+
+/** Refit a panel to the cabinets below and above it where it is now. */
+export function fitPanel(p: Project, w: WallPanel): Partial<WallPanel> | null {
+  const g = gapBetween(p, w.wall, w.offset, w.offset + w.width, w.bottom + 1);
+  if (!g) return null;
+  return { offset: g.x0, width: g.x1 - g.x0, bottom: g.bottom, ...(g.top != null ? { height: g.top - g.bottom, cap: false } : {}) };
+}
+
 export interface PanelOrderLine { panel: WallPanel; item: string; qty: number; detail: string }
 
 /** Sheets or strips to order for one panel. Short panels are cut from sheets in rows. */

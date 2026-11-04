@@ -13,7 +13,7 @@ import { ceilingKinds, moldLabel, moldingOrder, profileByNum, profileLabel, room
 import { chimneysOn, cofferFeet, cofferLayout, cofferMoldings, cofferOf, cofferParts, perimOf } from './coffer';
 import { panelOrder } from './panels';
 import { uid } from './defaults';
-import { eaglePrice, eagleWood, hingeTypes } from './eagle';
+import { eaglePrice, centersOf, eagleWood, hingeTypes } from './eagle';
 import { hardwareOrder } from './hardware';
 import { bracketCount, bracketLength, bracketProduct, finishedEnds, floatingOf } from './floatingShelf';
 import { doorOrder } from './doorOrder';
@@ -557,7 +557,7 @@ export function estimateMaterials(p: Project, q: QuoteSettings): MaterialLine[] 
       } else {
         fronts++;
         frontArea += sqft(o.w, o.h);
-        est[o.item === 'drawerFront' ? 'fronts' : 'doors'] += eaglePrice(o.item, o.w, o.h) * k;
+        est[o.item === 'drawerFront' ? 'fronts' : 'doors'] += eaglePrice(o.item, o.w, o.h, 0, centersOf(o)) * k;
         if (o.item === 'door') {
           doors++;
           hingeKinds.add(hingeTypes[eff(c, p.settings).hingeType].name);

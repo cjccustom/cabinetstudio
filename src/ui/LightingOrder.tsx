@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useStore } from '../store';
-import { controlLabel, electricianHtml, lightingJobOf, lightingParts, type Control, type LightingJob, type PartKey } from '../model/cabinetLighting';
+import { controlLabel, electricianHtml, lightingJobOf, lightingParts, type Control, type LightingJob, type PartKey , wireRouteLabel, type WireRoute } from '../model/cabinetLighting';
 import { capability, type Downloads } from '../runtime';
 import { asciiHtml } from '../dropbox';
 import { clientName, clientOf, COMPANY } from '../model/client';
@@ -57,6 +57,11 @@ export function LightingOrder() {
         <Field label="Each puck (W)" htmlFor="cl-p"><input id="cl-p" inputMode="decimal" value={job.puckWatts} onChange={(e) => put({ puckWatts: parseFloat(e.target.value) || 0 })} /></Field>
       </div>
       <Field label="Where the drivers go (for the electrician)" htmlFor="cl-at"><input id="cl-at" value={job.driverAt} onChange={(e) => put({ driverAt: e.target.value })} /></Field>
+      <Field label="How the wires run to the drivers" htmlFor="cl-route">
+        <select id="cl-route" value={job.wireRoute ?? 'dado'} onChange={(e) => put({ wireRoute: e.target.value as WireRoute })}>
+          {(Object.keys(wireRouteLabel) as WireRoute[]).map((k) => <option key={k} value={k}>{wireRouteLabel[k]}</option>)}
+        </select>
+      </Field>
       <div className="table-wrap">
         <table>
           <thead><tr><th>Part</th><th>Spec to match</th><th className="num">Qty</th><th className="num">Your price</th><th className="num">Total</th></tr></thead>

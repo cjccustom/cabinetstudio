@@ -4,7 +4,7 @@ import type { Cabinet, MaterialKey } from '../model/types';
 import { buildParts } from '../model/parts';
 import { resolveEnds } from '../model/layout';
 import { fmt } from '../units';
-import { eaglePrice } from '../model/eagle';
+import { eaglePrice, centersOf } from '../model/eagle';
 
 const materialLabel: Record<MaterialKey, string> = {
   box: '3/4" case plywood',
@@ -121,7 +121,7 @@ export function useOrderRows(cabinets: Cabinet[]) {
         if (row) {
           row.qty++;
           if (!row.cabs.includes(c.name)) row.cabs.push(c.name);
-        } else map.set(key, { key, item: o.item, w: o.w, h: o.h, d: o.d, spec: o.spec, qty: 1, cabs: [c.name], each: eaglePrice(o.item, o.w, o.h, o.d ?? 0) });
+        } else map.set(key, { key, item: o.item, w: o.w, h: o.h, d: o.d, spec: o.spec, qty: 1, cabs: [c.name], each: eaglePrice(o.item, o.w, o.h, o.d ?? 0, centersOf(o)) });
       }
     }
     const rows = [...map.values()].sort((a, b) => b.h - a.h || b.w - a.w);

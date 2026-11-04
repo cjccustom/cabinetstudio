@@ -114,6 +114,8 @@ export interface Cabinet {
   build?: CaseBuild;
   /** End panels split into pieces that line up with the doors and openings on the front (tall cabinets). */
   splitEndPanels?: boolean;
+  /** Leave Eagle's center rail off doors and panels over 50" (they aren't warranted without it). */
+  noCenterRail?: boolean;
   /** Countertops: carry this top on across the open space to the next cabinet on the right (a desk or knee space). */
   topBridge?: boolean;
   /** Countertops: start a new piece here instead of joining the top of the cabinet to the left (a seam). */
@@ -552,7 +554,7 @@ export interface Part {
   /** false for anything not cut in the shop (bought doors, drawer boxes, countertops). */
   cut: boolean;
   /** Ordered from Eagle. Sizes are finished W × H (× D for drawer boxes). */
-  order?: { item: 'door' | 'drawerFront' | 'drawerBox' | 'endPanel'; w: number; h: number; d?: number; spec: string; /** 5-piece rail and stile widths; absent on slabs. */ rail?: number; stile?: number };
+  order?: { item: 'door' | 'drawerFront' | 'drawerBox' | 'endPanel'; w: number; h: number; d?: number; spec: string; /** 5-piece rail and stile widths; absent on slabs. */ rail?: number; stile?: number; /** Eagle's center rail (over 50" tall) or center stile (over 50" wide). */ centerRail?: boolean; centerStile?: boolean };
   /** Geometry in cabinet-local inches: x = left→right, y = up, z = wall→front. */
   boxes: VisualBox[];
   shapes?: CutShape[];

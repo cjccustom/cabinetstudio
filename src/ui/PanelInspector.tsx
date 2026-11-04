@@ -1,11 +1,24 @@
 import { useStore } from '../store';
 import type { WallId, WallPanel } from '../model/types';
 import { optionOf, panelMaterials, panelOrder, productOf } from '../model/panels';
+import { fitPanel } from '../model/panels';
 import { beadboardCatalog, type BeadboardProduct } from '../model/nantucket';
 import { fmt } from '../units';
 import { MoldSlot } from './ProfilePicker';
 import { wallNames, wallOrder } from '../model/layout';
 import { Field, LengthInput, Section } from './fields';
+
+/** Snap the panel to the wall between the cabinets below and above it (seat or countertop to the uppers' bottom). */
+function FitButton({ w, set }: { w: WallPanel; set: (p: Partial<WallPanel>) => void }) {
+  const project = useStore((s) => s.project);
+  const fit = fitPanel(project, w);
+  return (
+    <p className="hint">
+      <button className="mini" disabled={!fit} onClick={() => fit && set(fit)}>Fit between the cabinets below and above</button>{' '}
+      {fit ? 'From the top of the cabinets below (seat or countertop included) up to the bottom of the cabinets above, across their width.' : 'No cabinets below this panel on this wall to fit to.'} Tip: pick the bench or base cabinets (shift-click for several), then Beadboard, and it starts out fitted.
+    </p>
+  );
+}
 
 export function PanelInspector({ panel: w }: { panel: WallPanel }) {
   const update = useStore((s) => s.updatePanel);
@@ -35,6 +48,7 @@ export function PanelInspector({ panel: w }: { panel: WallPanel }) {
           <Field label="Bottom off floor" htmlFor="pn-b"><LengthInput id="pn-b" value={w.bottom} onChange={(v) => set({ bottom: v! })} /></Field>
           <Field label="Height" htmlFor="pn-h"><LengthInput id="pn-h" value={w.height} min={1} onChange={(v) => set({ height: v! })} /></Field>
         </div>
+        <FitButton w={w} set={set} />
       </Section>
       <Section title="Nantucket Beadboard">
         <Field label="Product" htmlFor="pn-prof">

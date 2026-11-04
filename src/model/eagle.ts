@@ -189,9 +189,10 @@ export const hingeHoles = (h: number) => (h < 9 ? 0 : h <= 39 ? 2 : h <= 60 ? 3 
 /** Eagle adds a center rail on tall 5-piece doors and panels. */
 export const needsCenterRail = (h: number) => h > 50;
 
-export function eagleFrontPrice(item: EagleItem, w: number, h: number): number {
+/** centers: how many center rails/stiles the piece has (unset: one when it's over 50" tall). */
+export function eagleFrontPrice(item: EagleItem, w: number, h: number, centers?: number): number {
   const r = eagleRates.front;
-  return r.base + (r.perSqFt * w * h) / 144 + (item === 'door' ? r.perHingeHole * hingeHoles(h) : 0) + (needsCenterRail(h) ? r.centerRail : 0);
+  return r.base + (r.perSqFt * w * h) / 144 + (item === 'door' ? r.perHingeHole * hingeHoles(h) : 0) + (centers ?? (needsCenterRail(h) ? 1 : 0)) * r.centerRail;
 }
 
 export function eagleBoxPrice(w: number, h: number, d: number): number {
@@ -202,4 +203,6 @@ export function eagleBoxPrice(w: number, h: number, d: number): number {
 }
 
 /** Estimated Eagle price for one piece. */
-export const eaglePrice = (item: EagleItem, w: number, h: number, d = 0) => (item === 'drawerBox' ? eagleBoxPrice(w, h, d) : eagleFrontPrice(item, w, h));
+export const eaglePrice = (item: EagleItem, w: number, h: number, d = 0, centers?: number) => (item === 'drawerBox' ? eagleBoxPrice(w, h, d) : eagleFrontPrice(item, w, h, centers));
+/** A front's center rails and stiles, from its order line. */
+export const centersOf = (o: { rail?: number; centerRail?: boolean; centerStile?: boolean }) => (o.rail == null ? 0 : (o.centerRail ? 1 : 0) + (o.centerStile ? 1 : 0));

@@ -28,6 +28,7 @@ import { mantelOf, shelfFor } from "../src/model/mantel";
 import { defaultPilaster } from "../src/model/pilaster";
 import { combineAll } from "../src/model/onePiece";
 // Sanity checks on the cabinet model: run with `npm test`.
+import { rowOpenings, topThick } from "../src/model/parts";
 import { buildParts, eff, crownFit, crownLayout, crownRoom, layoutRows, panelExtents, realOverhang } from "../src/model/parts";
 import { placedAppliances } from "../src/model/appliances";
 import { legWidth, mantelClearances } from "../src/model/mantel";
@@ -39,7 +40,7 @@ import { fmt, parseLength } from "../src/units";
 import { drawerBoxSize, eaglePrice, hingeHoles } from "../src/model/eagle";
 import { optimize } from "../src/model/optimizer";
 import { defaultFaceFrameStock, faceFrameNeeds, faceFramePieces, otherSpecies, roughQuarters, woodPieces } from "../src/model/faceframe";
-import { panelAbove, panelOrder } from "../src/model/panels";
+import { panelAbove, panelBetween, panelOrder } from "../src/model/panels";
 import { amCatalog } from "../src/model/andersonMcquaid";
 import { cabinetMoldings, moldingOrder, mountShape, priceOf, profileByNum, profileLabel, setCustomDrawings } from "../src/model/moldings";
 import { closetRods, estimateHours, estimateMaterials, paintEstimate, priceQuote, proposalScope, quoteOf, scopeLine } from "../src/model/quote";
@@ -1601,6 +1602,54 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   const tp = { ...p, furniture: [{ ...newTable(), id: 'tw', name: 'Puzzle table', use: 'puzzle table', lip: true }] };
   const a = proposalSummary(tp).areas.find((x) => x.title === 'Puzzle table');
   eq('proposal: table under its own heading', !!a && /^Solid white oak puzzle table, approx 84"L/.test(a.items[0]) && /raised 3\/4" lip/.test(a.items[0]), true);
+}
+
+// Eagle's center rail on doors and panels over 50"
+{
+  const tall0 = p.cabinets.find((c) => c.kind === 'tall')!;
+  const tall = { ...tall0, rows: [{ ...tall0.rows[0], type: 'doors' as const, height: null, doors: 2 as const }] };
+  const doors = buildParts(tall, s).filter((x) => x.role === 'door');
+  eq('center rail: tall door marked for Eagle', doors.length > 0 && doors.every((d) => d.order?.centerRail === true && /center rail/.test(d.order.spec)), true);
+  eq('center rail: drawn (two panels)', doors[0].boxes.length > buildParts({ ...tall, noCenterRail: true }, s).find((x) => x.role === 'door')!.boxes.length, true);
+  eq('center rail: off is flagged', /not warranted/.test(buildParts({ ...tall, noCenterRail: true }, s).find((x) => x.role === 'door')!.note ?? ''), true);
+  const short = buildParts(p.cabinets.find((c) => c.kind === 'base')!, s).filter((x) => x.role === 'door');
+  eq('center rail: short doors none', short.every((d) => !d.order?.centerRail), true);
+}
+
+// Crown turning a room corner meets at an inside miter instead of crossing
+{
+  const crown = amCatalog.find((x) => x.category.toLowerCase().includes('crown') && x.shape)!.num;
+  const backs = p.cabinets.filter((c) => c.wall === 'back' && c.kind === 'wall').map((c) => ({ ...c, crown }));
+  const w5 = backs.reduce((a, b) => (a.offset > b.offset ? a : b));
+  const r1 = { ...cabinetFromPreset(presets.find((x) => x.id === 'wall-2')!, 'right', w5.depth, backs), crown };
+  const cabs = [...p.cabinets.filter((c) => !(c.wall === 'back' && c.kind === 'wall')), ...backs, r1];
+  const front = (c: typeof w5) => cabinetMoldings(c, eff(c, s), resolveEnds(p.room, cabs, c)).find((m) => m.kind === 'crown' && m.facing === 'front')!;
+  const a = front(w5), b = front(r1);
+  eq('corner crown: back run inside-mitered at the right', a.cut?.[1], 'in');
+  eq('corner crown: right run inside-mitered at the left', b.cut?.[0], 'in');
+  eq('corner crown: the backs meet', Math.abs((w5.offset + a.x + a.length) - (p.room.width - b.z)) < 0.01 && Math.abs(r1.offset + b.x - a.z) < 0.01, true);
+}
+
+// Opening sizes per row, like Chief's cabinet dialog
+{
+  const b = p.cabinets.find((c) => c.kind === 'base' && c.rows.length > 1)!;
+  const ops = rowOpenings(b, s, buildParts(b, s));
+  eq('openings: one per row', ops.length, b.rows.length);
+  eq('openings: width inside the stiles', Math.abs(ops[0].w - (b.width - 2 * eff(b, s).stileWidth)) < 0.001, true);
+  eq('openings: fronts listed', ops.some((o) => o.fronts.length > 0), true);
+}
+
+// Beadboard between the cabinets below and above (a bench and its cubbies)
+{
+  const lows = p.cabinets.filter((c) => c.wall === 'back' && c.kind === 'base').slice(0, 2);
+  const w = panelBetween(p, lows)!;
+  const up = p.cabinets.filter((c) => c.wall === 'back' && c.kind === 'wall' && c.offset < lows[1].offset + lows[1].width);
+  eq('beadboard between: starts at the countertop', Math.abs(w.bottom - (lows[0].elevation + lows[0].height + topThick(lows[0], p.settings.counterThickness))) < 0.01, true);
+  eq('beadboard between: up to the uppers', Math.abs(w.bottom + w.height - Math.min(...up.map((c) => c.elevation))) < 0.01, true);
+  eq('beadboard between: across the bases', w.offset === lows[0].offset && w.width === lows[1].offset + lows[1].width - lows[0].offset, true);
+  eq('beadboard between: no cap under uppers', w.cap, false);
+  const fromUppers = panelBetween(p, up)!;
+  eq('beadboard between: picked from the uppers too', Math.abs(fromUppers.bottom - w.bottom) < 0.01, true);
 }
 
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');

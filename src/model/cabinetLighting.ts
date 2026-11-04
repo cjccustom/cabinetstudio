@@ -33,13 +33,20 @@ export interface LightingJob {
   control: Control;
   /** Where the drivers go, in words for the electrician. */
   driverAt: string;
+  /** How the low-voltage leads get from the lights to the drivers: behind the cabinets, or in a dado routed inside the case. */
+  wireRoute?: WireRoute;
   /** LED tape draw, watts per foot, and each puck's watts: from the product picked. */
   wattsPerFt: number;
   puckWatts: number;
   /** Your prices: tape, channel and cable per foot; the rest each. */
   prices: Partial<Record<PartKey, number>>;
 }
-export const defaultLightingJob: LightingJob = { kelvin: 3000, control: 'wall', driverAt: 'In the base cabinet below, behind a removable back panel', wattsPerFt: 3, puckWatts: 2, prices: {} };
+export type WireRoute = 'dado' | 'behind';
+export const wireRouteLabel: Record<WireRoute, string> = {
+  dado: 'In a dado routed inside the case (back or side), down to the base cabinet',
+  behind: 'Behind the cabinets, in the space between the case back and the wall',
+};
+export const defaultLightingJob: LightingJob = { kelvin: 3000, control: 'wall', driverAt: 'In the base cabinet below, behind a removable back panel', wireRoute: 'dado', wattsPerFt: 3, puckWatts: 2, prices: {} };
 export const lightingJobOf = (p: Project): LightingJob => ({ ...defaultLightingJob, ...p.cabLighting, prices: { ...p.cabLighting?.prices } });
 
 export interface Fixture { cab: Cabinet; kind: CabLightKind; count: number; /** Strip length each, inches (0 for pucks). */ length: number; watts: number; leads: number; where: string }
@@ -154,6 +161,8 @@ export function electricianHtml(p: Project): string {
 <li>A 120 V receptacle or junction box at each driver location (below): ${esc(job.driverAt)}. Confirm the exact spot with CJC before the cabinets go in.</li>
 ${job.control === 'wall' ? '<li>A wall dimmer for each driver run, matched to the driver type CJC orders (ELV/MLV or TRIAC); we’ll send the driver model.</li>' : `<li>Switching is in the cabinet (${esc(controlLabel[job.control].toLowerCase())}): constant power to the driver, no wall switch needed unless wanted.</li>`}
 <li>Any wall penetrations for low-voltage cable that leaves the cabinets.</li></ul>
+<h3>Wiring inside the cabinetry</h3><ul><li>Drivers hidden in the base cabinets, out of sight behind a removable panel, with the 120 V feed brought into that cabinet.</li>
+<li>Low-voltage leads from the lights to the drivers: ${esc(wireRouteLabel[job.wireRoute ?? 'dado']).toLowerCase()}${(job.wireRoute ?? 'dado') === 'dado' ? '; CJC routes the dados and drills the pass-throughs in the shop' : '; CJC leaves pass-throughs in the case backs and tops'}.</li></ul>
 <h3>What CJC provides</h3><ul><li>Drivers, LED fixtures, channel, low-voltage wiring from the drivers to the fixtures, and testing.</li></ul>
 <h3>Drivers</h3><table class="parts"><thead><tr><th>#</th><th>Wall</th><th>Driver</th><th>Serves</th><th>Location</th></tr></thead><tbody>${rows}</tbody></table>
 <h3>Fixtures</h3><table class="parts"><thead><tr><th>Cabinet</th><th>Light</th><th>Size</th><th>Load</th><th>Where</th></tr></thead><tbody>${fx}</tbody></table>`;

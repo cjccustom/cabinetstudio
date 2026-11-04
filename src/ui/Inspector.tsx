@@ -4,7 +4,7 @@ import { combine, combineAll, stackedPairs, upperOn } from '../model/onePiece';
 import { freeStanding, useStore } from '../store';
 import { useNav } from '../three/navigation';
 import type { CabinetNote, Cabinet, CaseBuild, FrameJoinery, CrownBuild, EndMode, FaceRow, PanelChoice, PanelMode, ShopSettings, WallId } from '../model/types';
-import { buildParts, closetRod, isOpenRow, joineryLabel, PAINT_TOP, topThick, crownFit, crownLayout, crownRoom, layoutRows, noCrownBuild, panelOn } from '../model/parts';
+import { rowOpenings, buildParts, closetRod, isOpenRow, joineryLabel, PAINT_TOP, topThick, crownFit, crownLayout, crownRoom, layoutRows, noCrownBuild, panelOn } from '../model/parts';
 import { defaultPilaster, pilasterOf, pilasterSections } from '../model/pilaster';
 import { bracketCount, bracketGap, bracketLength, bracketProduct, finishedEnds, floatingOf, shelfPly } from '../model/floatingShelf';
 import { topRun } from '../model/layout';
@@ -71,6 +71,8 @@ export function Inspector({ cab, issues, tab }: { cab: Cabinet; issues: string[]
   const set = (patch: Partial<Cabinet>) => update(cab.id, patch);
   const setRow = (id: string, patch: Partial<FaceRow>) => set({ rows: cab.rows.map((r) => (r.id === id ? { ...r, ...patch } : r)) });
   const { rows: layout, leftover } = layoutRows(cab, settings);
+  // Each opening's clear size and the fronts that cover it (like Chief's cabinet dialog)
+  const openings = rowOpenings(cab, settings, buildParts(cab, settings, ends));
   const [shrunk, setShrunk] = useState(0);
   const free = freeStanding(cab) && !cab.corner;
   const cased = cab.kind === 'base' || cab.kind === 'wall' || cab.kind === 'tall';
@@ -258,6 +260,12 @@ export function Inspector({ cab, issues, tab }: { cab: Cabinet; issues: string[]
                 disabled={cab.rows.length <= 1}
                 onClick={() => set({ rows: cab.rows.filter((x) => x.id !== r.id) })}
               >×</button>
+              {openings[i] && (
+                <div className="row-open">
+                  Opening {fmt(openings[i].w)} W × {fmt(openings[i].h)} H{openings[i].n > 1 ? ` (${openings[i].n}${r.type === 'open' ? ' cubbies' : ', each side of the center stile'})` : ''}
+                  {openings[i].fronts.map((f) => <span key={`${f.kind}${f.w}${f.h}`}> · {f.n > 1 ? `${f.n} ` : ''}{f.kind.toLowerCase()}{f.n > 1 ? 's' : ''} {fmt(f.w)} × {fmt(f.h)}</span>)}
+                </div>
+              )}
               {r.type === 'open' && (
                 <div className="row-ledge">
                   <span>Vertical dividers</span>
@@ -695,6 +703,12 @@ function AssemblySection({ cab, set }: { cab: Cabinet; set: (p: Partial<Cabinet>
       </ul>
       {panels.length > 0 && cab.rows.length > 1 && (
         <label className="check-inline" style={{ display: 'flex', gap: 6, margin: '6px 0' }}><input type="checkbox" checked={!!cab.splitEndPanels} onChange={(e) => set({ splitEndPanels: e.target.checked || undefined })} /> Divide the end panels to line up with the doors on the front</label>
+      )}
+      {(cab.height > 50 || cab.width > 50) && (
+        <>
+          <label className="check-inline" style={{ display: 'flex', gap: 6, margin: '6px 0' }}><input type="checkbox" checked={!cab.noCenterRail} onChange={(e) => set({ noCenterRail: e.target.checked ? undefined : true })} /> Eagle center rail on doors and panels over 50" (center stile over 50" wide)</label>
+          {cab.noCenterRail && <p className="warn">Left off: Eagle doesn’t warrant 5-piece doors or panels over 50" without it. Fastened end panels are less of a worry than doors.</p>}
+        </>
       )}
       <p className="hint">These change the cut list and the parts notes for this cabinet only. Shop standards set the usual way for every job.</p>
       {hasOpen && (
