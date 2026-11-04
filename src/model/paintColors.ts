@@ -5,7 +5,7 @@
 import type { Finishes, Project } from './types';
 import { bmColors, bmPulled } from './benjaminMoore';
 
-export interface PaintColor { brand: 'Benjamin Moore'; code: string; name: string; hex: string; collection?: string }
+export interface PaintColor { brand: 'Benjamin Moore'; code: string; name: string; hex: string; /** Light reflectance value, 0–100. */ lrv?: number }
 export interface NamedColor { brand: string; code: string; name: string }
 export type NamedKey = 'paint' | 'wall' | 'trim';
 
@@ -15,15 +15,15 @@ export type NamedKey = 'paint' | 'wall' | 'trim';
  */
 export const cabinetFavorites: string[] = [
   // Whites and off-whites
-  'OC-17', 'OC-65', 'OC-117', 'OC-45', 'OC-130', 'OC-151', 'OC-152', 'OC-149', 'OC-20',
+  'OC-17', 'OC-65', 'OC-117', 'OC-45', 'OC-130', 'OC-151', 'OC-152', 'OC-149', 'OC-20', 'OC-27',
   // Greiges and grays
   'HC-172', 'HC-173', 'HC-170', 'OC-52', 'OC-23', 'HC-171', 'HC-168', 'HC-167', 'HC-166', 'AF-685',
   // Blues
-  'HC-154', 'HC-155', 'HC-156', '2062-10', '2063-10', '2062-20',
+  'HC-154', 'HC-155', 'HC-156', '2062-20', '2136-40',
   // Greens
   'HC-114', 'HC-134', 'HC-188', 'HC-124', 'HC-116', 'HC-157', '2050-10', '1495', '2041-10',
   // Darks
-  '2124-10', '2128-10', '2133-10', '2134-30', '2126-20',
+  '2124-10', '2128-10', '2133-10', '2133-20', '2134-30', '2126-20', '1631',
 ];
 
 const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');

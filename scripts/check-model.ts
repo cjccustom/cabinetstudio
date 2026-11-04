@@ -1,5 +1,7 @@
 import { readFileSync } from "node:fs";
 import { proposalSummary } from "../src/model/proposal";
+import { cabinetFavorites, colorByCode, favorites, searchColors, withNamed } from "../src/model/paintColors";
+import { bmColors } from "../src/model/benjaminMoore";
 import { canSpots } from "../src/model/lighting";
 import { corbelCatalog } from "../src/model/corbels";
 import { roomMoldings as roomMolds, wallAccentBoxes } from "../src/model/room";
@@ -62,7 +64,7 @@ import { applyDraft, cleanDraft, closestProfile, draftRequest } from "../src/mod
 import { clientInfoDoc, folderName, ordersDoc, parseFolderName, proposalLines, quoteDoc, stageByFolder } from "../src/model/client";
 import { readScan, scanToDraft } from "../src/model/roomScan";
 import { customerSet, drawingsOf, setDocument, sheetCss, shopSet } from "../src/drawings/sheets";
-import { cabinetCallouts, forAudience } from "../src/drawings/notes";
+import { cabinetCallouts, forAudience, jobCallouts } from "../src/drawings/notes";
 import { hardwareItems, partsOf } from "../src/drawings/views";
 import { cabinetLine, cofferFeet, cofferLayout, cofferMoldings, cofferParts, coffers as cofferList, fasciaBacking } from "../src/model/coffer";
 import { blockedAlong, casingReach, freeRuns, newOpening, openingIssues, openingTrim, roomMoldings } from "../src/model/room";
@@ -1650,6 +1652,21 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   eq('beadboard between: no cap under uppers', w.cap, false);
   const fromUppers = panelBetween(p, up)!;
   eq('beadboard between: picked from the uppers too', Math.abs(fromUppers.bottom - w.bottom) < 0.01, true);
+}
+
+// Benjamin Moore colors: the pick sets the 3D color and names itself on the proposal and drawings
+{
+  const wd = colorByCode('oc17')!;
+  eq('bm: catalog loaded', bmColors.length > 3500, true);
+  eq('bm: White Dove by number', wd.name, 'White Dove');
+  eq('bm: search by name', searchColors('hale navy')[0].code, 'HC-154');
+  eq('bm: favorites all found', favorites().length, cabinetFavorites.length);
+  const pp = { ...withNamed(p, 'paint', wd), finishes: { ...withNamed(p, 'paint', wd).finishes, paintSheen: 'Satin' } };
+  eq('bm: sets the cabinet color', pp.finishes.paint, wd.hex);
+  const fin = proposalSummary(pp).materials.find((m) => m.label === 'Finish')!.value;
+  eq('bm: on the proposal', /Benjamin Moore White Dove OC-17, satin finish \(proposed/.test(fin), true);
+  eq('bm: in the drawing notes', jobCallouts(pp, 'customer').some((x) => /^Paint: Benjamin Moore White Dove OC-17, satin/.test(x)), true);
+  eq('bm: cleared', withNamed(pp, 'paint', null).finishes.named?.paint, undefined);
 }
 
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');
