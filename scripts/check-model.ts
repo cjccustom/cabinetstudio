@@ -1596,6 +1596,13 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   eq('finish: natural maple reads clear coated', ns.areas[0].items[0].includes('clear coated') && /natural color/.test(ns.materials.find((m) => m.label === 'Finish')!.value), true);
 }
 
+// A table and the ceiling are in "What we'll build" too
+{
+  const tp = { ...p, furniture: [{ ...newTable(), id: 'tw', name: 'Puzzle table', use: 'puzzle table', lip: true }] };
+  const a = proposalSummary(tp).areas.find((x) => x.title === 'Puzzle table');
+  eq('proposal: table under its own heading', !!a && /^Solid white oak puzzle table, approx 84"L/.test(a.items[0]) && /raised 3\/4" lip/.test(a.items[0]), true);
+}
+
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');
 
 console.log(failed ? `${failed} check(s) failed` : 'All model checks passed');

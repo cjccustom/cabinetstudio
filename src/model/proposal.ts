@@ -2,7 +2,8 @@
 // and finishes, the price in sections, and options they can add. No dimensioned drawings and no
 // cabinet-by-cabinet sizes until the job is sold, so the design can't be shopped to another builder.
 import type { Cabinet, Project, WallId } from './types';
-import { priceQuote, scopeLine } from './quote';
+import { cofferScope, priceQuote, scopeLine } from './quote';
+import { furnitureOf, tableScope } from './furniture';
 import { wallNames } from './layout';
 import { styleById } from './eagle';
 import { profileByNum, profileLabel } from './moldings';
@@ -125,6 +126,11 @@ export function proposalSummary(p: Project): ProposalSummary {
     }).filter((a) => a.items.length);
   }
   const extras = [...(base.quote?.extras ?? []).map((e) => e.label), ...(base.quote?.scopeExtra ?? [])].filter((x) => x?.trim());
+  // Tables and the ceiling, each under its own heading, in the same words as the scope of work
+  const tables = furnitureOf(base).map((t) => { const x = tableScope(t).replace(/^[^:]*:\s*/, ''); return x.charAt(0).toUpperCase() + x.slice(1); });
+  if (tables.length) areas.push({ title: furnitureOf(base).length === 1 ? furnitureOf(base)[0].name || 'Furniture' : 'Furniture', items: tables });
+  const ceiling = cofferScope(base);
+  if (ceiling) areas.push({ title: 'Coffered ceiling', items: [ceiling.charAt(0).toUpperCase() + ceiling.slice(1)] });
   if (base.cabinets.length) areas.push({ title: 'Finishing', items: finishingItems(base) });
   if (extras.length) areas.push({ title: 'Also included', items: extras });
   return { areas, materials: materialsOf(base), options: optionPrices(p) };

@@ -1,10 +1,9 @@
 // The customer side of a job: who they are, what they want, what was measured on site, and where
 // their folder lives in Dropbox (/CJC/Jobs/<stage>/<Last, First - Location>). The documents written
 // into that folder are built here as plain text so they read well in the Dropbox app.
-import { furnitureOf, tableScope } from './furniture';
 import type { Project } from './types';
 import { finishingItems } from './finishing';
-import { cofferScope, priceQuote, quoteOf, groupLabel, paintLineLabel, proposalScope } from './quote';
+import { priceQuote, quoteOf, groupLabel, paintLineLabel, proposalScope } from './quote';
 import { eagleRequests, requestText } from './eagleRequest';
 import { hardwareOrder, hardwareText } from './hardware';
 import { releaseOf } from './release';
@@ -176,7 +175,7 @@ h3{font-size:12pt;margin:16px 0 4px}ul{margin:4px 0 8px;padding-left:20px}ul li{
 <h2>${esc(proposalTitle(p))}</h2>
 ${c.scope ? `<p>${esc(c.scope).replace(/\n/g, '<br>')}</p>` : ''}
 ${full ? `<ol>${proposalScope(base).map((x) => `<li>${esc(x)}</li>`).join('')}</ol>${base.cabinets.length ? `<h3>Finishing</h3><ul>${finishingItems(base).map((x) => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}`
-    : summary.areas.map((a) => `<h3>${esc(a.title)}</h3><ul>${a.items.map((i) => `<li>${esc(i)}</li>`).join('')}</ul>`).join('') + `${furnitureOf(base).length || cofferScope(base) ? `<ul>${furnitureOf(base).map((t) => `<li>${esc(tableScope(t).replace(/,?\s*approx[^;]*;/i, ';'))}</li>`).join('')}${cofferScope(base) ? `<li>${esc(cofferScope(base)!)}</li>` : ''}</ul>` : ''}`}
+    : summary.areas.map((a) => `<h3>${esc(a.title)}</h3><ul>${a.items.map((i) => `<li>${esc(i)}</li>`).join('')}</ul>`).join('')}
 ${!full && summary.materials.length ? `<h3>Materials &amp; finishes</h3><table class="mat">${summary.materials.map((m) => `<tr><th>${esc(m.label)}</th><td>${esc(m.value)}</td></tr>`).join('')}</table>` : ''}
 ${!full ? '' : r.extras.length ? `<p><b>Additional work:</b> ${r.extras.map((e) => esc(e.label)).join('; ')}</p>` : ''}
 ${summary.options.length ? `<h3>Options</h3><p>Added to the work above only when chosen at signing:</p><ul>${summary.options.map((o) => `<li><b>${esc(o.label)}</b> (${money(o.price)})${o.items.length ? `: ${o.items.map(esc).join('; ')}` : ''}</li>`).join('')}</ul>` : ''}
