@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { proposalSummary } from "../src/model/proposal";
 import { finishColors } from "../src/model/woodColors";
 import { newTV, tvSize } from "../src/model/tv";
+import { quoteStates } from "../src/model/quoteQueue";
 import { cabinetFavorites, colorByCode, favorites, searchColors, withNamed } from "../src/model/paintColors";
 import { bmColors } from "../src/model/benjaminMoore";
 import { cabinetFinishPatch } from "../src/model/cabinetFinish";
@@ -1780,6 +1781,33 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   eq('tv: spec sheet size wins', tvSize({ ...tv, w: 61.5, h: 35 }).w, 61.5);
   const tp = { ...p, tvs: [tv] };
   eq('tv: on the elevation', /70" TV \(62" × 35 5\/8"\)/.test(wallElevation(tp, 'back', { x: 0, y: 0, w: 15, h: 9 }, 'customer').svg), true);
+}
+
+// To quote, split by where each job stands (made-up clients, named the way Cody's folders and files are)
+{
+  const day = 86400000, now = Date.parse('2026-11-05T12:00:00Z');
+  const folders = ['Abbot, Ann - Holden', 'Baker', 'Carver', 'Dunn', 'Ellis, Eve - Bolton', 'Foster, Fay - Berlin', 'Grant, Gus', 'Hale, Hope - Clinton'].map((name, i) => ({ id: `f${i}`, name }));
+  const files = new Map<string, { name: string; modified: number }[]>([
+    ['Baker', [{ name: 'Baker.docx', modified: Date.parse('2026-05-11') }, { name: 'Baker.plan', modified: 0 }]],
+    ['Carver', [{ name: 'Carol_Carver_Buffet_Quote.docx', modified: Date.parse('2026-10-22') }, { name: 'carver - buffet.pdf', modified: 0 }]],
+    ['Dunn', [{ name: 'Dunn - demo.docx', modified: Date.parse('2026-09-27') }]],
+    ['Grant, Gus', [{ name: 'Grant layout for cabinet order.pdf', modified: Date.parse('2026-11-01') }]],
+    ['Hale, Hope - Clinton', [{ name: 'Proposal sent 2026-11-04.txt', modified: Date.parse('2026-11-04') }]],
+  ]);
+  const jobs = [
+    { job_id: 'ellis-ab12cd', project: 'Ellis, Eve - Bolton', publishedAt: now - 5 * day, views: 10, lastViewed: now - 4 * day, signed: { name: 'Eve Ellis', at: now - 5 * day, version: 1, current: true }, cancelled: null },
+    { job_id: 'foster-ef34gh', project: 'Foster Project Proposal', publishedAt: now - 2 * day, views: 8, lastViewed: now - day, signed: null, cancelled: null },
+  ] as unknown as import('../src/portal').JobStatus[];
+  const st = quoteStates(folders, jobs, files, now);
+  const k = (n: string) => st.get(folders.find((f) => f.name === n)!.id)!;
+  eq('queue: nothing yet, to build', k('Abbot, Ann - Holden').kind, 'build');
+  eq('queue: Word quote named for the client counts as sent', k('Baker').kind, 'sent');
+  eq('queue: underscored quote file counts', k('Carver').kind, 'sent');
+  eq('queue: a drawing PDF alone does not', k('Grant, Gus').kind, 'build');
+  eq('queue: marked sent', k('Hale, Hope - Clinton').kind, 'sent');
+  eq('queue: on the portal, matched by last name', k('Foster, Fay - Berlin').kind, 'sent');
+  eq('queue: signed on the portal', k('Ellis, Eve - Bolton').kind, 'signed');
+  eq('queue: old quote flagged to follow up', (k('Baker') as { followUp: boolean }).followUp, true);
 }
 
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');

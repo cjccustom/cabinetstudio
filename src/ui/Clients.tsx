@@ -6,12 +6,14 @@ import type { Project } from '../model/types';
 import { uid, sampleProject } from '../model/defaults';
 import { clientInfoDoc, clientName, clientOf, emptyClient, folderName, JOBS_ROOT, ordersDoc, parseFolderName, quoteDoc, stageById, stageByFolder, stages, type ClientInfo, type Measurement, type StageId } from '../model/client';
 import { releaseOf } from '../model/release';
-import { createClientFolder, listClients, listFolder, moveFolder, readFile, whereIs, writeFile, DropboxError, type DbxEntry } from '../dropbox';
+import { filesByClient, createClientFolder, listClients, listFolder, moveFolder, readFile, whereIs, writeFile, DropboxError, type DbxEntry } from '../dropbox';
 import { Field, Section } from './fields';
 import { ClientPortal } from './Portal';
 import { ContractSection } from './Contract';
 import { ClientAppointments, ComingUp } from './Schedule';
 import { ClientPhotos } from './Photos';
+import { listJobs, type JobStatus } from '../portal';
+import { quoteStates, sentText, FOLLOW_UP_DAYS, MARK_PREFIX } from '../model/quoteQueue';
 
 const DESIGN_FILE = 'Cabinet Studio design.json';
 const INFO_FILE = 'Client info.md';
@@ -144,6 +146,18 @@ export function ClientsSide() {
   const [draft, setDraft] = useState<ClientInfo>(emptyClient);
   const [open, setOpen] = useState<Record<string, boolean>>({ quote: true, sold: true, progress: true });
   useEffect(() => { if (!folders) refresh(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // Proposals on the portal, to split To quote into to build / sent, waiting / signed
+  const [jobs, setJobs] = useState<JobStatus[] | null>(null);
+  const [files, setFiles] = useState<Map<string, { name: string; modified: number }[]>>(new Map());
+  const [scan, setScan] = useState(0);
+  useEffect(() => { if (folders) listJobs().then(setJobs, () => setJobs([])); }, [folders]);
+  useEffect(() => { if (folders) filesByClient('quote').then(setFiles, () => setFiles(new Map())); }, [folders, scan]);
+  // A proposal sent outside the portal (emailed, printed): leave a note in the folder so it sorts as sent
+  const markSent = async (f: DbxEntry) => {
+    const day = new Date().toISOString().slice(0, 10);
+    try { await writeFile(f.path, `${MARK_PREFIX}${day}.txt`, `Proposal sent to the client on ${day}, outside the client portal. Cabinet Studio uses this note to sort the To quote folder.`); setScan((n) => n + 1); }
+    catch (e) { alert((e as Error).message); }
+  };
   const match = (n: string) => !q.trim() || n.toLowerCase().includes(q.trim().toLowerCase());
   return (
     <aside className="sidebar">
@@ -177,12 +191,44 @@ export function ClientsSide() {
           return (
             <details key={s.id} className="stage-group" open={!!open[s.id] || !!q} onToggle={(e) => setOpen({ ...open, [s.id]: (e.target as HTMLDetailsElement).open })}>
               <summary>{s.folder} <span className="muted">{(folders[s.id] ?? []).length}</span></summary>
+              {s.id === 'quote' && jobs ? (() => {
+                // To quote, split by where each stands: still to build, sent and waiting (oldest first), signed
+                const st = quoteStates(folders[s.id] ?? [], jobs, files);
+                const item = (f: DbxEntry) => {
+                  const q = st.get(f.id)!;
+                  return (
+                    <li key={f.id}>
+                      <button className={project.dropbox?.id === f.id ? 'on' : ''} onClick={() => openFolder(f, s.id)} disabled={!!busy}>{f.name}</button>
+                      {q.kind !== 'build' && <span className={`queue-note${q.kind === 'signed' || (q.kind === 'sent' && q.followUp) ? ' due' : ''}`}>{sentText(q)}</span>}
+                      {q.kind === 'build' && <button className="link-btn queue-mark" onClick={() => markSent(f)} disabled={!!busy}>Mark as sent</button>}
+                    </li>
+                  );
+                };
+                const groups = [
+                  { title: 'Proposal to build', items: list.filter((f) => st.get(f.id)?.kind === 'build') },
+                  { title: 'Sent, waiting on the customer', items: list.filter((f) => st.get(f.id)?.kind === 'sent').sort((a, b) => (st.get(b.id) as { days: number }).days - (st.get(a.id) as { days: number }).days) },
+                  { title: 'Signed: move to Sold Jobs', items: list.filter((f) => st.get(f.id)?.kind === 'signed') },
+                ].filter((g) => g.items.length);
+                return (
+                  <>
+                    {groups.map((g) => (
+                      <div key={g.title} className="queue-group">
+                        <div className="queue-head">{g.title} <span className="muted">{g.items.length}</span></div>
+                        <ul className="client-list">{g.items.map(item)}</ul>
+                      </div>
+                    ))}
+                    {!list.length && <p className="muted">None</p>}
+                    <p className="hint">Sent means on the client portal, a Word or PDF quote in the folder, or marked sent. Sent {FOLLOW_UP_DAYS}+ days ago and not signed: follow up.</p>
+                  </>
+                );
+              })() : (
               <ul className="client-list">
                 {list.map((f) => (
                   <li key={f.id}><button className={project.dropbox?.id === f.id ? 'on' : ''} onClick={() => openFolder(f, s.id)} disabled={!!busy}>{f.name}</button></li>
                 ))}
                 {!list.length && <li className="muted">None</li>}
               </ul>
+              )}
             </details>
           );
         })}

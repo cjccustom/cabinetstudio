@@ -750,3 +750,10 @@ textarea.text-input { resize: vertical; }
 .bm-swatch b{font-size:11px;font-weight:600;line-height:1.2}
 .bm-swatch small{font-size:10px;color:var(--muted)}
 .bm-swatch.on{outline:2px solid #2f62d6}
+
+/* To quote, split by where each job stands */
+.queue-group{margin:4px 0 8px}
+.queue-head{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin:6px 0 2px}
+.queue-note{display:block;font-size:11px;color:var(--muted);padding:0 8px 4px}
+.queue-note.due{color:#b26a00;font-weight:600}
+.queue-mark{font-size:11px;padding:0 8px 4px}

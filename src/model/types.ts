@@ -445,7 +445,7 @@ export interface Project {
   tvs?: import('./tv').WallTV[];
   proposalStart?: string;
   proposalDuration?: string;
-  /** The title the client sees on the proposal ("Cutler Living Room Proposal"); unset = made from the client's last name. */
+  /** The title the client sees on the proposal ("Smith Living Room Proposal"); unset = made from the client's last name. */
   proposalTitle?: string;
   room: Room;
   settings: ShopSettings;

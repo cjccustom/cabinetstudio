@@ -49,6 +49,33 @@ export async function listFolder(path: string): Promise<DbxEntry[]> {
   return out;
 }
 
+/**
+ * The files in each client folder of a stage, in one recursive listing: client folder name →
+ * its files (name and when last changed). For telling what's been done without opening each job.
+ */
+export async function filesByClient(stage: StageId): Promise<Map<string, { name: string; modified: number }[]>> {
+  const root = `${JOBS_ROOT}/${stageById(stage).folder}/`.toLowerCase();
+  const out = new Map<string, { name: string; modified: number }[]>();
+  let res = await call('list_folder', { path: `${JOBS_ROOT}/${stageById(stage).folder}`, recursive: true, max_results: 600 });
+  const take = (rows: Raw[]) => {
+    for (const e of rows) {
+      if (e.object_type !== 'file') continue;
+      const p = String(e.path_display || e.path || '').replace(/^ns:\d+\/\//, '/');
+      const i = p.toLowerCase().indexOf(root);
+      if (i < 0) continue;
+      const rest = p.slice(i + root.length).split('/');
+      if (rest.length < 2) continue;
+      const list = out.get(rest[0]) ?? [];
+      // When the file was saved on the computer: Dropbox's own date moves when a folder is moved
+      list.push({ name: e.name, modified: Date.parse(e.client_modified || e.modified_time || '') || 0 });
+      out.set(rest[0], list);
+    }
+  };
+  take(res.entries ?? []);
+  for (let n = 0; res.has_more && res.cursor && n < 20; n++) { res = await call('list_folder', { cursor: res.cursor }); take(res.entries ?? []); }
+  return out;
+}
+
 /** Every client folder, by stage. */
 export async function listClients(): Promise<Record<StageId, DbxEntry[]>> {
   const out = {} as Record<StageId, DbxEntry[]>;

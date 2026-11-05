@@ -137,7 +137,7 @@ export function proposalLines(full: Project): { key: string; label: string; pric
   return rounded;
 }
 
-/** What the client sees as the proposal's title: yours, or "Cutler Project Proposal" from their last name. */
+/** What the client sees as the proposal's title: yours, or "Smith Project Proposal" from their last name. */
 export function proposalTitle(p: Project): string {
   if (p.proposalTitle?.trim()) return p.proposalTitle.trim();
   const last = clientOf(p).last?.trim();
