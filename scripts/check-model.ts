@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { proposalSummary } from "../src/model/proposal";
 import { finishColors } from "../src/model/woodColors";
+import { newTV, tvSize } from "../src/model/tv";
 import { cabinetFavorites, colorByCode, favorites, searchColors, withNamed } from "../src/model/paintColors";
 import { bmColors } from "../src/model/benjaminMoore";
 import { cabinetFinishPatch } from "../src/model/cabinetFinish";
@@ -12,7 +13,7 @@ import { asciiHtml } from "../src/dropbox";
 import { cabinetFixtures, lightingCost, lightingParts, electricianHtml } from "../src/model/cabinetLighting";
 import { printQuote } from "../src/model/printQuote";
 import { shopGroups } from "../src/drawings/sheets";
-import { sidePanelLayout } from "../src/drawings/views";
+import { sidePanelLayout, wallElevation } from "../src/drawings/views";
 import { crc32, writeXlsx } from "../src/export/xlsx";
 import { pricingWorkbook } from "../src/export/pricingWorkbook";
 import { ballpark, categoriesOf, categoryOf, comparableQuote, defaultRateCard } from "../src/model/ballpark";
@@ -1769,6 +1770,16 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   eq('top below: gap found', /1\/4" above the top of B1 \(top surface at 29 3\/4"\)/.test(iss), true);
   eq('top below: none once it sits on the top', findIssues(p.room, [base, { ...up, elevation: 29.75 }], s).filter((i) => i.cabinetId === 'lu').length, 0);
   eq('top below: 1-1/2" top meets at 30"', findIssues(p.room, [{ ...base, topThickness: 1.5 }, up], s).filter((i) => i.cabinetId === 'lu').length, 0);
+}
+
+// A TV on the wall, sized from its screen
+{
+  const tv = { ...newTV(p, 'back', 78, 40), size: 70 };
+  const sz = tvSize(tv);
+  eq('tv: 70" about 62" x 35-5/8"', [Math.abs(sz.w - 62) < 0.5, Math.abs(sz.h - 35.6) < 0.5].join(), 'true,true');
+  eq('tv: spec sheet size wins', tvSize({ ...tv, w: 61.5, h: 35 }).w, 61.5);
+  const tp = { ...p, tvs: [tv] };
+  eq('tv: on the elevation', /70" TV \(62" × 35 5\/8"\)/.test(wallElevation(tp, 'back', { x: 0, y: 0, w: 15, h: 9 }, 'customer').svg), true);
 }
 
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');

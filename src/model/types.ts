@@ -441,6 +441,8 @@ export interface Project {
   /** List cabinets built alike once on the proposal ("B1, B2 and B3 (3 alike): …"), across walls too. */
   proposalCombine?: boolean;
   /** On the purchase agreement: when work is expected to start ("Week of March 8, 2027", "Early spring"), and how long it runs ("3 to 4 weeks"). */
+  /** TVs hung on the walls (shown in 3D and the elevations, not priced). */
+  tvs?: import('./tv').WallTV[];
   proposalStart?: string;
   proposalDuration?: string;
   /** The title the client sees on the proposal ("Cutler Living Room Proposal"); unset = made from the client's last name. */

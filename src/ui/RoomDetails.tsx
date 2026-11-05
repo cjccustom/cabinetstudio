@@ -1,3 +1,5 @@
+import { newTV, tvSize, tvSizes, tvsOf, type WallTV } from '../model/tv';
+import { topThick } from '../model/parts';
 import { PhotoRoomButton, ScanImportButton } from './PhotoRoom';
 import { PlanImportButton } from './PlanImport';
 import { CofferSection } from './CofferSection';
@@ -44,6 +46,7 @@ export function RoomDetails() {
         <div className="order-actions"><PhotoRoomButton className="primary" /><ScanImportButton /><PlanImportButton /></div>
         <p className="hint">Room scan: from the CJC Room Scan app on your iPhone Pro (LiDAR), saved to Dropbox or AirDropped here. Chief plan: File → Export → Export DWG/DXF from the floor plan view.</p>
       </Section>
+      <TVSection />
       <CofferSection />
       <LadderSection />
       <Section title="Doors & windows">
@@ -100,6 +103,71 @@ export function RoomDetails() {
 }
 
 /** How the 3D view is lit: recessed cans the way the room will be, or plain daylight. */
+/** TVs on the wall: size by the screen, centered over a cabinet or the space between, hung at a height. */
+function TVSection() {
+  const project = useStore((s) => s.project);
+  const commit = useStore((s) => s.commit);
+  const tvs = tvsOf(project);
+  const put = (id: string, patch: Partial<WallTV>) => commit((p) => ({ ...p, tvs: tvsOf(p).map((t) => (t.id === id ? { ...t, ...patch } : t)) }));
+  const add = () => {
+    // Over the widest gap between uppers on the back wall, else the middle of the wall, 48" up (or 8" over the tallest base there)
+    const wall: WallId = 'back';
+    const len = wallLength(project.room, wall);
+    const bases = project.cabinets.filter((c) => c.wall === wall && c.kind === 'base');
+    const top = bases.length ? Math.max(...bases.map((c) => c.elevation + c.height + (c.countertop ? topThick(c, project.settings.counterThickness) : 0))) : 0;
+    commit((p) => ({ ...p, tvs: [...tvsOf(p), newTV(p, wall, len / 2, top ? top + 8 : 48)] }));
+  };
+  return (
+    <Section title="TVs on the wall" aside={<button className="mini" onClick={add}>Add a TV</button>}>
+      {!tvs.length && <p className="hint">Show the customer how a TV sits with the built-in: pick the screen size and it's drawn at about that set's real size, in 3D and on the elevations.</p>}
+      {tvs.map((t) => {
+        const { w, h } = tvSize(t);
+        const cabs = project.cabinets.filter((c) => c.wall === t.wall).sort((a, b) => a.offset - b.offset);
+        return (
+          <div key={t.id} className="stock-row">
+            <div className="sr-head">
+              <input aria-label="Name" value={t.name} onChange={(e) => put(t.id, { name: e.target.value })} />
+              <button className="icon-btn" aria-label={`Remove ${t.name}`} onClick={() => commit((p) => ({ ...p, tvs: tvsOf(p).filter((x) => x.id !== t.id) }))}>×</button>
+            </div>
+            <div className="grid3">
+              <Field label="Screen size" htmlFor={`tv-s-${t.id}`}>
+                <select id={`tv-s-${t.id}`} value={t.size} onChange={(e) => put(t.id, { size: Number(e.target.value), w: undefined, h: undefined })}>
+                  {[...new Set([...tvSizes, t.size])].sort((a, b) => a - b).map((n) => <option key={n} value={n}>{n}"</option>)}
+                </select>
+              </Field>
+              <Field label="Wall" htmlFor={`tv-w-${t.id}`}>
+                <select id={`tv-w-${t.id}`} value={t.wall} onChange={(e) => put(t.id, { wall: e.target.value as WallId, center: wallLength(project.room, e.target.value as WallId) / 2 })}>
+                  {wallOrder.map((x) => <option key={x} value={x}>{wallNames[x].replace(' wall', '')}</option>)}
+                </select>
+              </Field>
+              <Field label="Bottom off floor" htmlFor={`tv-b-${t.id}`}><LengthInput id={`tv-b-${t.id}`} value={t.bottom} onChange={(v) => v != null && put(t.id, { bottom: v })} /></Field>
+            </div>
+            <div className="grid3">
+              <Field label="Center from left" htmlFor={`tv-c-${t.id}`}><LengthInput id={`tv-c-${t.id}`} value={t.center} min={-1000} onChange={(v) => v != null && put(t.id, { center: v })} /></Field>
+              <Field label="Center over" htmlFor={`tv-o-${t.id}`}>
+                <select id={`tv-o-${t.id}`} value="" onChange={(e) => { const c = cabs.find((x) => x.id === e.target.value); if (c) put(t.id, { center: c.offset + c.width / 2 }); else if (e.target.value === 'wall') put(t.id, { center: wallLength(project.room, t.wall) / 2 }); }}>
+                  <option value="">Pick…</option>
+                  <option value="wall">Middle of the wall</option>
+                  {cabs.map((c) => <option key={c.id} value={c.id}>{c.name} ({fmt(c.width)})</option>)}
+                </select>
+              </Field>
+              <Field label="Off the wall" htmlFor={`tv-d-${t.id}`}><LengthInput id={`tv-d-${t.id}`} value={t.depth} onChange={(v) => v != null && put(t.id, { depth: v })} /></Field>
+            </div>
+            <details className="supplies">
+              <summary>Size: {fmt(w)} × {fmt(h)}{t.w || t.h ? ' (from the spec sheet)' : ' (typical for the size)'}</summary>
+              <div className="grid3">
+                <Field label="Width, no stand" htmlFor={`tv-mw-${t.id}`}><LengthInput id={`tv-mw-${t.id}`} value={t.w ?? null} allowAuto placeholder={fmt(tvSize({ size: t.size }).w)} onChange={(v) => put(t.id, { w: v ?? undefined })} /></Field>
+                <Field label="Height, no stand" htmlFor={`tv-mh-${t.id}`}><LengthInput id={`tv-mh-${t.id}`} value={t.h ?? null} allowAuto placeholder={fmt(tvSize({ size: t.size }).h)} onChange={(v) => put(t.id, { h: v ?? undefined })} /></Field>
+              </div>
+              <p className="hint">Sizes vary a little by brand. For the customer's actual set, type the width and height without the stand from its spec sheet.</p>
+            </details>
+          </div>
+        );
+      })}
+    </Section>
+  );
+}
+
 export function LightingSection() {
   const project = useStore((s) => s.project);
   const commit = useStore((s) => s.commit);

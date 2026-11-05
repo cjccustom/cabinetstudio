@@ -93,6 +93,7 @@ export const appliancePresets: AppliancePreset[] = [
   { kind: 'beverage', label: '24" undercounter (typical)', size: { w: 23.875, h: 34, d: 23.5, side: 0.125, top: 0.25, back: 1, mount: 'flush' }, note: 'Typical 24" beverage or wine fridge' },
   { kind: 'tv', label: '55" TV (typical)', size: { w: 48.5, h: 28, d: 3, side: 1, top: 1, back: 0, mount: 'shelf' }, note: 'Typical 55" set without the stand' },
   { kind: 'tv', label: '65" TV (typical)', size: { w: 57.25, h: 33, d: 3, side: 1, top: 1, back: 0, mount: 'shelf' }, note: 'Typical 65" set without the stand' },
+  { kind: 'tv', label: '70" TV (typical)', size: { w: 62, h: 35.625, d: 3, side: 1, top: 1, back: 0, mount: 'shelf' }, note: 'Typical 70" set without the stand' },
   { kind: 'tv', label: '75" TV (typical)', size: { w: 66.25, h: 38, d: 3, side: 1, top: 1, back: 0, mount: 'shelf' }, note: 'Typical 75" set without the stand' },
 ];
 export const applianceName = (a: Appliance) => applianceKinds[a.kind].short + (a.model ? ` (${a.model})` : '');

@@ -1,5 +1,6 @@
 // The views on a drawing sheet, all drawn from the same parts the 3D view and cut list use:
 // wall elevations, the floor plan, and per-cabinet face frame elevations and side sections.
+import { tvSize, tvsOf } from '../model/tv';
 import { tablesOf } from '../model/tableParts';
 import type { Cabinet, Part, Project, WallId } from '../model/types';
 import { buildParts, eff, topThick } from '../model/parts';
@@ -168,6 +169,15 @@ export function wallElevation(p: Project, wall: WallId, frame: Frame, mode: 'cus
   for (const o of p.openings ?? []) {
     if (o.wall !== wall) continue;
     v.text(o.offset + o.width / 2, o.sill + o.height + casingReach(o).head + v.p(0.08), `${o.name}: ${dimText(o.width)} × ${dimText(o.height)}`, 0.08);
+  }
+  // TVs on this wall: the set's outline, its size, and how high it hangs
+  for (const t of tvsOf(p)) {
+    if (t.wall !== wall) continue;
+    const { w, h } = tvSize(t);
+    v.rect(t.center - w / 2, t.bottom, w, h, 'appl');
+    v.rect(t.center - w / 2 + 0.45, t.bottom + 0.55, w - 0.9, h - 1.1, 'glass');
+    v.text(t.center, t.bottom + h / 2, `${t.size}" TV (${dimText(w)} × ${dimText(h)})`, 0.09);
+    v.dimV(0, t.bottom, t.center + w / 2, 0.25, `${dimText(t.bottom)} to bottom of TV`);
   }
   if (mode === 'shop') {
     // Set height for the uppers, from the floor, once per height, outside the left wall

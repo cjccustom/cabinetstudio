@@ -17,6 +17,7 @@ import { RoomModel } from './RoomModel';
 import { CofferModel } from './CofferModel';
 import { LadderModel } from './LadderModel';
 import { TableModels } from './TableModel';
+import { tvSize, tvsOf, type WallTV } from '../model/tv';
 import { opposite, underFascia } from '../model/coffer';
 import { buildParts } from '../model/parts';
 import { alongWall, footprint, resolveEnds, shiftInRoom, snapOffset, wallAxes, wallLength, wallTransform } from '../model/layout';
@@ -73,6 +74,7 @@ export function Scene({ issueIds }: { issueIds: Set<string> }) {
       {(!elevWall || elevWall !== opposite[project.ladder?.wall ?? 'back']) && <LadderModel project={project} />}
       {/* Tables stand in the room: shown in 3D and plan, left out of the wall elevations they'd block */}
       {!elevWall && <TableModels project={project} hidden={hidden} />}
+      {tvsOf(project).filter((t) => !elevWall || t.wall === elevWall).map((t) => <WallTVModel key={t.id} t={t} room={room} />)}
       {/* The ceiling, seen only from below, so the coffers and cans have something over them */}
       {showCeiling && view === '3d' && (
         <mesh position={[room.width / 2, room.height, room.depth / 2]} rotation-x={Math.PI / 2}>
@@ -98,6 +100,26 @@ export function Scene({ issueIds }: { issueIds: Set<string> }) {
       {elevWall && <ElevationDims room={room} wall={elevWall} cabinets={visible} />}
       {view === 'plan' && <PlanLabels room={room} cabinets={project.cabinets} />}
     </Canvas>
+  );
+}
+
+/** A TV on the wall: the set in black with its screen, on a mount off the wall. */
+function WallTVModel({ t, room }: { t: WallTV; room: Room }) {
+  const { w, h } = tvSize(t);
+  const { pos, rotY } = wallTransform(room, t.wall, t.center - w / 2);
+  const body = Math.min(1.25, t.depth * 0.5);
+  return (
+    <group position={pos} rotation-y={rotY}>
+      <mesh position={[w / 2, t.bottom + h / 2, t.depth - body / 2]} castShadow>
+        <boxGeometry args={[w, h, body]} /><meshStandardMaterial color="#141518" roughness={0.4} />
+      </mesh>
+      <mesh position={[w / 2, t.bottom + h / 2, t.depth + 0.01]}>
+        <planeGeometry args={[w - 0.9, h - 1.1]} /><meshStandardMaterial color="#0b0d12" roughness={0.15} metalness={0.2} />
+      </mesh>
+      <mesh position={[w / 2, t.bottom + h / 2, (t.depth - body) / 2]}>
+        <boxGeometry args={[Math.min(16, w * 0.4), Math.min(12, h * 0.4), Math.max(0.25, t.depth - body)]} /><meshStandardMaterial color="#2a2c30" />
+      </mesh>
+    </group>
   );
 }
 
