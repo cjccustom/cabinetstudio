@@ -1729,9 +1729,18 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   eq('light rail: hangs under the upper', lr.length > 0 && lr.every((m) => m.hang && m.y === 0), true);
 }
 
+// Brosco B688: a square-topped board; its relief kerf goes to the wall and the eased edge to the room
+{
+  const m = mountShape(profileByNum('BR-B688')!);
+  const mid = m.pts.filter(([, y]) => y > m.height * 0.2 && y < m.height * 0.8);
+  eq('B688: relief kerf against the wall', Math.max(...mid.filter(([x]) => x < m.depth / 2).map(([x]) => x)) > 0.03 && Math.min(...mid.filter(([x]) => x >= m.depth / 2).map(([x]) => x)) > m.depth - 0.03, true);
+  const top = m.pts.filter(([, y]) => y > m.height - 0.01);
+  eq('B688: eased edge on the room side at the top', Math.min(...top.map(([x]) => x)) < 0.01 && Math.max(...top.map(([x]) => x)) < m.depth - 0.05, true);
+}
+
 // Baseboards mount with their back to the wall and the moulded top edge on the room side (Next Day draws theirs mirrored)
 {
-  for (const num of ['1827', 'ND-622', 'ND-660', 'ND-235']) {
+  for (const num of ['1827', 'ND-622', 'ND-660', 'ND-235', 'ND-620', 'BR-8712', 'BR-8721']) {
     const pr = profileByNum(num);
     if (!pr) continue;
     const m = mountShape(pr);

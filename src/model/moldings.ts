@@ -93,6 +93,56 @@ export function priceOf(p: AMProfile, species: string): { species: string; price
  * with u running out into the room and v up. Profiles without a traced shape fall back to a rectangle.
  */
 export function mountShape(p: Profile): { pts: [number, number][]; depth: number; height: number } {
+  const m = rawMount(p);
+  return p.category === 'Base Board and Base Cap' && p.shape && !p.custom ? baseUpright(m) : m;
+}
+
+/**
+ * Stand a baseboard or base cap the way it goes on, whatever way its supplier drew it: the full
+ * thickness flat edge at the bottom (on the floor, or on the board it caps), and the back as the
+ * side that runs straight up to the top edge against the wall, the moulding on the room side.
+ */
+function baseUpright(m: { pts: [number, number][]; depth: number; height: number }) {
+  const { depth: d, height: h } = m;
+  let pts = m.pts;
+  const run = (y: number) => {
+    let len = 0;
+    for (let i = 0; i < pts.length; i++) {
+      const a = pts[i], b = pts[(i + 1) % pts.length];
+      if (Math.abs(a[1] - y) < 0.03 && Math.abs(b[1] - y) < 0.03) len += Math.abs(b[0] - a[0]);
+    }
+    return len;
+  };
+  // Only a full baseboard is turned over by its flat foot; caps that hook over the board keep their drawing's way up
+  if (h >= 2.5 && run(h) > run(0) + 0.02) pts = pts.map(([x, y]) => [x, h - y]);
+  const mirror = () => { pts = pts.map(([x, y]) => [d - x, y]); };
+  // The surest sign of the back: a relief kerf, a shallow recess down the middle of one side with that
+  // side back at the edge above and below it
+  const kerf = (atRight: boolean) => {
+    const edge = (x: number) => (atRight ? d - x : x);
+    // Up-and-down edges set in from this side by a kerf's depth, at least 30% of the height between them
+    let len = 0;
+    for (let i = 0; i < pts.length; i++) {
+      const a = pts[i], b = pts[(i + 1) % pts.length];
+      const ea = edge(a[0]), eb = edge(b[0]);
+      if (ea >= 0.03 && ea <= 0.2 && eb >= 0.03 && eb <= 0.2 && Math.abs(ea - eb) < 0.02 && Math.abs(b[1] - a[1]) > Math.abs(b[0] - a[0]) * 4) len += Math.abs(b[1] - a[1]);
+    }
+    const lo = pts.some(([x, y]) => y < h * 0.25 && edge(x) < 0.03), hi = pts.some(([x, y]) => y > h * 0.75 && edge(x) < 0.03);
+    return lo && hi && len >= h * 0.3 ? len : 0;
+  };
+  const kl = kerf(false), kr = kerf(true);
+  if (kr > 0 && !kl) { mirror(); return { pts, depth: d, height: h }; }
+  if (kl > 0 && !kr) return { pts, depth: d, height: h };
+  // No kerf to go by: the back runs up to the top edge against the wall, the moulding falls away from it
+  const top = pts.filter(([, y]) => y > h * 0.9);
+  if (top.length) {
+    const lo = Math.min(...top.map(([x]) => x)), hi = Math.max(...top.map(([x]) => x));
+    if (lo > d * 0.15 && hi > d * 0.85) mirror();
+  }
+  return { pts, depth: d, height: h };
+}
+
+function rawMount(p: Profile): { pts: [number, number][]; depth: number; height: number } {
   // Milled to match: its size as installed, height down the wall (a crown's drop) by projection
   if (p.custom) {
     const { height: h, projection: d } = p.custom;
@@ -134,13 +184,7 @@ export function mountShape(p: Profile): { pts: [number, number][]; depth: number
     }
     return len;
   };
-  // A baseboard or base cap's back runs right up to its top edge, against the wall, with the
-  // moulded detail on the room side; its face is flat too, and the back's relief kerfs break up
-  // the back's straight run, so go by where the top is (Next Day draws theirs facing the other way)
-  const base = p.category === 'Base Board and Base Cap';
-  const top = p.shape.filter(([, y]) => y > sh - Math.max(0.03, sh * 0.01));
-  const topX = top.length ? top.reduce((t, [x]) => t + x, 0) / top.length : sw / 2;
-  const backRight = base && top.length ? topX > sw / 2 : flat(sw) > flat(0);
+  const backRight = flat(sw) > flat(0);
   return { pts: p.shape.map(([x, y]) => [backRight ? sw - x : x, y]), depth: sw, height: sh };
 }
 
