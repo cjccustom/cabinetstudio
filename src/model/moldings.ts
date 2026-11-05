@@ -22,10 +22,13 @@ export const moldLabel: Record<MoldKind, string> = {
   roomCrown: 'Crown', roomBase: 'Baseboard', chairRail: 'Chair rail', casing: 'Casing', backBand: 'Back band', headCap: 'Header cap', stool: 'Stool', apron: 'Apron', cofferCrown: 'Coffer crown', cofferBead: 'Coffer bead', picture: 'Picture moulding',
 };
 
+/** Cabinets that can take a light rail under them: uppers, and any cabinet hung off the floor (a tall upper section, a raised bookcase). */
+export const takesLightRail = (c: Cabinet) => c.kind === 'wall' || (c.kind === 'tall' && c.elevation > 6);
+
 /** Catalog categories that make sense for each spot, listed first in the picker. */
 export const moldCategories: Record<MoldKind, string[]> = {
   crown: ['Crown', 'Scotia', 'Header Cap', 'Band'],
-  lightRail: ['Base Board and Base Cap', 'Panel', 'Scotia', 'Crown', 'Band'],
+  lightRail: ['Back Band', 'Base Board and Base Cap', 'Panel', 'Scotia', 'Band', 'Crown'],
   baseMold: ['Base Board and Base Cap', 'Shoe Moulding'],
   cap: ['Chair Rail', 'Panel', 'Base Board and Base Cap', 'Header Cap'],
   panel: ['Panel', 'Base Board and Base Cap', 'Band'],
@@ -251,12 +254,25 @@ export function cabinetMoldings(c: Cabinet, s: ShopSettings, ends: EndInfo, opts
     // Crown turning a room's inside corner with the cabinet on the next wall: both runs end where
     // their backs meet, inside-mitered, instead of crossing
     const inCorner = (side: 'left' | 'right') => {
-      if (r.kind !== 'crown' || ends[side]) return null;
+      if ((r.kind !== 'crown' && r.kind !== 'lightRail' && r.kind !== 'baseMold') || ends[side]) return null;
       const k = ends.corner?.(side);
-      if (!k || k.other.crown !== r.num) return null;
-      const Lo = crownLayout(k.other, s);
-      if (Math.abs((k.other.elevation + Lo.crownTop) - (c.elevation + crownLayout(c, s).crownTop)) > 0.5) return null;
-      const back = (k.other.wallInset ?? 0) + Lo.face;
+      if (!k) return null;
+      const o = k.other;
+      // Where the other cabinet's run of the same moulding sits: off its wall, and its height in the room
+      let back: number, oy: number, my: number;
+      if (r.kind === 'crown') {
+        if (o.crown !== r.num) return null;
+        const Lo = crownLayout(o, s);
+        back = Lo.face; oy = o.elevation + Lo.crownTop; my = c.elevation + crownLayout(c, s).crownTop;
+      } else if (r.kind === 'lightRail') {
+        if (o.lightRail !== r.num) return null;
+        back = o.depth; oy = o.elevation; my = c.elevation;
+      } else {
+        if (o.baseMold !== r.num || baseLayout(o, s).style !== 'baseboard' || bl.style !== 'baseboard') return null;
+        back = o.depth; oy = o.elevation + baseLayout(o, s).flat; my = c.elevation + bl.flat;
+      }
+      if (Math.abs(oy - my) > 0.5) return null;
+      back += o.wallInset ?? 0;
       return side === 'right' ? k.wallX - back : k.wallX + back;
     };
     const cl = inCorner('left'), cr = inCorner('right');

@@ -221,6 +221,17 @@ export function ClientPortal() {
       )}
       {!sold && (
         <div className="grid2">
+          <Field label="Estimated start date" htmlFor="pp-start">
+            <input id="pp-start" value={project.proposalStart ?? ''} placeholder="Week of March 8, 2027 · Early spring" onChange={(e) => commit((p) => ({ ...p, proposalStart: e.target.value || undefined }))} />
+          </Field>
+          <Field label="Project duration" htmlFor="pp-dur">
+            <input id="pp-dur" value={project.proposalDuration ?? ''} placeholder="3 to 4 weeks · 5 days on site" onChange={(e) => commit((p) => ({ ...p, proposalDuration: e.target.value || undefined }))} />
+          </Field>
+          <p className="hint" style={{ gridColumn: '1 / -1' }}>On the purchase agreement, the portal and the print copy. The agreement already says the start date is an estimate for planning only.</p>
+        </div>
+      )}
+      {!sold && (
+        <div className="grid2">
           <Field label="Scope on the proposal" htmlFor="pp-detail">
             <select id="pp-detail" value={project.proposalDetail ?? 'plain'} onChange={(e) => commit((p) => ({ ...p, proposalDetail: e.target.value === 'full' ? 'full' : undefined }))}>
               <option value="plain">Plain words by area, with approximate sizes</option>

@@ -2,7 +2,7 @@ import { defaultFinishing } from '../model/finishing';
 import { useMemo, useState } from 'react';
 import { useStore } from '../store';
 import { ballpark, categoryLabel, categoryOf, comparableQuote, featureLabel, rateCardOf, type Band, type BallparkCategory, type BallparkFeature } from '../model/ballpark';
-import { defaultStandards, groupLabel, lineKey, newExtra, paintEstimate, paintLineLabel, paintRates, type Group, priceQuote, quoteOf, scopeItems, type LaborStandards, type QuoteSettings, type Workload } from '../model/quote';
+import { defaultStandards, groupLabel, lineKey, newExtra, paintEstimate, paintLineLabel, paintRates, type Group, priceQuote, quoteOf, scopeItems, type LaborStandards, type QuoteSettings, type Workload, extraFinishes } from '../model/quote';
 import { Field, Section } from './fields';
 import { QuoteRendering } from './Rendering';
 import { FurnitureSection } from './Furniture';
@@ -182,6 +182,7 @@ export function QuoteInputs() {
               <p className="hint">A flat amount on the agreement as an allowance. The estimate for this job is {money(pe.amount)}.</p>
             </>
           )}
+          {q.paintWhen !== 'none' && <ExtraColors />}
         </Section>
 
         <details className="overrides">
@@ -409,6 +410,21 @@ function SuppliesEditor() {
         </div>
       </details>
     </Section>
+  );
+}
+
+/** A charge for each finish past the first: an accent color, or a stained island on a painted job. */
+function ExtraColors() {
+  const { project, q, set } = useQuote();
+  const extra = extraFinishes(project);
+  const each = q.paintPerExtraColor ?? 250;
+  return (
+    <div style={{ marginTop: 8 }}>
+      <div className="grid2">
+        <Num id="q-pxc" label="Each extra color or finish" suffix="$" value={each} onChange={(v) => set({ paintPerExtraColor: v })} />
+      </div>
+      <p className="hint">{extra.length ? `${extra.length} on this job (${extra.join(', ')}): ${money(extra.length * each)} added to the painting line.` : 'One finish on this job. An accent color on some cabinets, or a stained island with painted cabinets, adds this to the painting line for each extra finish.'}</p>
+    </div>
   );
 }
 

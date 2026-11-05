@@ -20,7 +20,7 @@ import { termsHtml } from "../portal/src/pages";
 import { CJC_TERMS } from "../src/model/terms";
 import { cutCabinets, newDetail } from "../src/drawings/details";
 import { fittedDrop, moldHeight, pictureRuns, underFascia } from "../src/model/coffer";
-import { cabinetMoldings } from "../src/model/moldings";
+import { cabinetMoldings, moldCategories } from "../src/model/moldings";
 import { ladderIssues, ladderOf } from "../src/model/ladder";
 import { newOpening } from "../src/model/room";
 import { cancelDeadline, holidays } from "../portal/src/cancel";
@@ -47,7 +47,7 @@ import { defaultFaceFrameStock, faceFrameNeeds, faceFramePieces, otherSpecies, r
 import { panelAbove, panelBetween, panelOrder } from "../src/model/panels";
 import { amCatalog } from "../src/model/andersonMcquaid";
 import { cabinetMoldings, moldingOrder, mountShape, priceOf, profileByNum, profileLabel, setCustomDrawings } from "../src/model/moldings";
-import { closetRods, estimateHours, estimateMaterials, paintEstimate, priceQuote, proposalScope, quoteOf, scopeLine } from "../src/model/quote";
+import { closetRods, estimateHours, estimateMaterials, extraFinishes, paintCalculated, paintEstimate, priceQuote, proposalScope, quoteOf, scopeLine } from "../src/model/quote";
 import { cutStock, defaultCutlist, optimizerParts } from "../src/model/cutlist";
 import { applyBook, choosePlywood, chooseSpecies, priceBook, setJobFinish, stalePrices } from "../src/model/pricebook";
 import { doorMaterials as eagleDoorMaterials } from "../src/model/eagle";
@@ -1690,6 +1690,34 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   eq('stained island: own Eagle request', eagleRequests(stained).filter((r) => r.kind === 'doors').length >= 2, true);
   eq('stained island: proposal says so', proposalSummary(stained).materials.some((m) => m.label === 'Accent finish: Island' && /^Stain grade white oak, stained and clear coated/.test(m.value)), true);
   eq('stained island: back to the job', cabinetFinishPatch(stained, sb, 'job', 'White oak', book, eagleDoorMaterials, moldSpeciesList).overrides, undefined);
+}
+
+// An extra paint color (or a stained island) adds to the painting line
+{
+  const hale = colorByCode('HC-154')!;
+  const b = p.cabinets.find((c) => c.kind === 'base')!;
+  const one = { ...p, quote: { ...p.quote, paintMode: 'allowance' as const, paintAllowance: 1000 } } as typeof p;
+  const two = { ...one, cabinets: one.cabinets.map((c) => (c.id === b.id ? { ...c, paint: { hex: hale.hex, named: { brand: hale.brand, code: hale.code, name: hale.name } } } : c)) };
+  eq('extra color: none on a one-color job', extraFinishes(one).length, 0);
+  eq('extra color: the accent counts', extraFinishes(two).join(), 'Hale Navy HC-154');
+  eq('extra color: $250 added', paintCalculated(two, quoteOf(two)) - paintCalculated(one, quoteOf(one)), 250);
+}
+
+// Start date and duration on the agreement
+{
+  const sp = { ...p, proposalStart: 'Week of March 8, 2027', proposalDuration: '3 to 4 weeks' };
+  eq('agreement: start date', /Estimated Start Date<\/th><td>Week of March 8, 2027/.test(quoteDoc(sp)), true);
+  eq('agreement: duration', /Project Duration<\/th><td>3 to 4 weeks/.test(quoteDoc(sp)), true);
+  eq('print copy: start and duration', /Week of March 8, 2027/.test(printQuote(sp, { terms: CJC_TERMS })) && /3 to 4 weeks/.test(printQuote(sp, { terms: CJC_TERMS })), true);
+}
+
+// Light rail: back bands first, on uppers
+{
+  eq('light rail: back bands listed first', moldCategories.lightRail[0], 'Back Band');
+  const w = p.cabinets.find((c) => c.kind === 'wall')!;
+  const bb = amCatalog.find((x) => x.category === 'Back Band' && x.shape)!;
+  const lr = cabinetMoldings({ ...w, lightRail: bb.num }, eff(w, s), resolveEnds(p.room, p.cabinets, w)).filter((m) => m.kind === 'lightRail');
+  eq('light rail: hangs under the upper', lr.length > 0 && lr.every((m) => m.hang && m.y === 0), true);
 }
 
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');

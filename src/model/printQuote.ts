@@ -62,8 +62,8 @@ export function printQuote(p: Project, opts: { terms: string; version?: number; 
 <tr><th>Client Name</th><td>${esc(clientName(c))}</td></tr>
 <tr><th>Project Address</th><td>${esc(c.address)}</td></tr>
 <tr><th>Agreement Date</th><td></td></tr>
-<tr><th>Estimated Start Date</th><td></td></tr>
-<tr><th>Project Duration</th><td></td></tr>
+<tr><th>Estimated Start Date</th><td>${esc(p.proposalStart ?? '')}</td></tr>
+<tr><th>Project Duration</th><td>${esc(p.proposalDuration ?? '')}</td></tr>
 <tr><td colspan="2" class="small">The above <b>Estimated Start Date</b> is an approximation valid on the above listed <b>Agreement Date</b> and is used for planning purposes only. CJC Custom Carpentry, LLC cannot be held responsible for delays caused by weather or other unforeseen circumstances before or during the project. All pricing is valid for (14) days from Agreement date.</td></tr></table>
 <table class="grid prices">${lines.map((l) => `<tr><td class="lab">${esc(l.label)}</td><td class="amt">${money(l.price)}</td></tr>`).join('')}
 <tr class="tot"><td class="lab">Total Project Investment${summary.options.length ? ' (before options)' : ''}</td><td class="amt">${money(r.total)}</td></tr>${optRows}

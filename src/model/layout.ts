@@ -244,7 +244,7 @@ export function resolveEnds(room: Room, cabinets: Cabinet[], c: Cabinet): EndInf
     const inC = (c.wallInset ?? 0) + c.depth + 8;
     const atCorner = side === 'right' ? c.offset + c.width >= L - 30 : c.offset <= 30;
     if (!atCorner) return null;
-    const other = cabinets.find((o) => o.id !== c.id && o.wall === next && o.kind !== 'base' && o.elevation < c.elevation + c.height && c.elevation < o.elevation + o.height
+    const other = cabinets.find((o) => o.id !== c.id && o.wall === next && o.kind !== 'pilaster' && o.kind !== 'mantel' && o.kind !== 'shelf' && o.elevation < c.elevation + c.height && c.elevation < o.elevation + o.height
       && (side === 'right' ? o.offset <= inC : o.offset + o.width >= Ln - inC));
     return other ? { other, wallX: side === 'right' ? L - c.offset : -c.offset } : null;
   };

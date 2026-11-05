@@ -196,6 +196,8 @@ export interface QuoteSettings {
   /** Painting the inside of open sections (prefinished ply scuffed, primed and painted), per sq ft of opening. */
   paintPerInteriorSqFt?: number;
   paintAllowance?: number;
+  /** Charged for each finish beyond the first (an accent color, a stained island on a painted job): masking, a second setup and cleanup. Unset = $250. */
+  paintPerExtraColor?: number;
   /** When the cabinets are painted: sprayed before install (prefinished), on site after install, or not in this contract. Unset = prefinished. */
   paintWhen?: 'prefinish' | 'site' | 'none';
   /** On stain grade: stained and clear coated (unset), or clear coat only to keep the wood's natural color. */
@@ -313,7 +315,25 @@ export function proposalScope(p: Project): string[] {
 /** What painting comes to before any price you set yourself: the painter's quote with markup, the estimate or the allowance. */
 export function paintCalculated(p: Project, q: QuoteSettings): number {
   if (q.paintWhen === 'none') return 0;
-  return q.paintMode === 'estimate' ? paintEstimate(p, q).amount : q.paintMode === 'allowance' ? q.paintAllowance ?? 0 : q.painter * (1 + q.painterMarkup);
+  const base = q.paintMode === 'estimate' ? paintEstimate(p, q).amount : q.paintMode === 'allowance' ? q.paintAllowance ?? 0 : q.painter * (1 + q.painterMarkup);
+  return base + extraFinishes(p).length * (q.paintPerExtraColor ?? 250);
+}
+
+/**
+ * Finishes on the job beyond the first: each accent paint color, and stain grade cabinets on a
+ * painted job (or painted ones on a stain-grade job). Each is a separate setup for the finisher.
+ */
+export function extraFinishes(p: Project): string[] {
+  const seen = new Map<string, string>();
+  for (const c of p.cabinets) {
+    if (c.kind === 'shelf' || c.kind === 'mantel' || c.kind === 'pilaster') continue;
+    const s = eff(c, p.settings);
+    const key = s.finish === 'stain' ? `stain:${s.woodSpecies}` : c.paint ? `paint:${c.paint.named?.code ?? c.paint.hex}` : 'job';
+    if (!seen.has(key)) seen.set(key, s.finish === 'stain' ? `stain grade ${s.woodSpecies.toLowerCase()}` : c.paint?.named ? `${c.paint.named.name} ${c.paint.named.code}` : c.paint ? 'an accent color' : 'the job color');
+  }
+  // The job's own finish is the first; anything else is extra
+  const job = p.settings.finish === 'stain' ? `stain:${p.settings.woodSpecies}` : 'job';
+  return [...seen].filter(([k]) => k !== job).map(([, v]) => v);
 }
 export const groupLabel: Record<Group, string> = { cabinets: 'Cabinets', tops: 'Solid wood tops & seats', paneling: 'Wall paneling', room: 'Room trim', ceiling: 'Coffered ceiling', furniture: 'Furniture' };
 const moldGroup = (kinds: MoldKind[]): Group => (kinds.includes('cap') ? 'paneling' : kinds.every((k) => ceilingKinds.includes(k)) ? 'ceiling' : kinds.every((k) => roomKinds.includes(k)) ? 'room' : 'cabinets');

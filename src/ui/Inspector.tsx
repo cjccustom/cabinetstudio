@@ -5,6 +5,7 @@ import { freeStanding, useStore } from '../store';
 import { useNav } from '../three/navigation';
 import type { CabinetNote, Cabinet, CaseBuild, FrameJoinery, CrownBuild, EndMode, FaceRow, PanelChoice, PanelMode, ShopSettings, WallId } from '../model/types';
 import { CabinetFinishSection } from './CabinetFinish';
+import { takesLightRail } from '../model/moldings';
 import { rowOpenings, buildParts, closetRod, isOpenRow, joineryLabel, PAINT_TOP, topThick, crownFit, crownLayout, crownRoom, layoutRows, noCrownBuild, panelOn } from '../model/parts';
 import { defaultPilaster, pilasterOf, pilasterSections } from '../model/pilaster';
 import { bracketCount, bracketGap, bracketLength, bracketProduct, finishedEnds, floatingOf, shelfPly } from '../model/floatingShelf';
@@ -334,6 +335,7 @@ export function Inspector({ cab, issues, tab }: { cab: Cabinet; issues: string[]
         )}
       </Section>
       {show('top') && floorStanding(cab) && <BaseSection cab={cab} set={set} />}
+      {show('top') && cab.corner && cab.kind === 'base' && <Section title="Base"><p className="hint">L-shaped corner cabinets keep a recessed toe kick for now; a baseboard wrap or decorative base isn’t built for them yet.</p></Section>}
 
       </>
       )}
@@ -439,7 +441,7 @@ export function Inspector({ cab, issues, tab }: { cab: Cabinet; issues: string[]
       <>
       {show('top') && <Section title="Mouldings (Anderson & McQuaid)">
         {(['crown', 'lightRail', 'baseMold'] as const)
-          .filter((k) => (k === 'crown' ? cab.kind !== 'base' : k === 'lightRail' ? cab.kind === 'wall' : cab.kind !== 'wall'))
+          .filter((k) => (k === 'crown' ? cab.kind !== 'base' : k === 'lightRail' ? takesLightRail(cab) : cab.kind !== 'wall'))
           .filter((k) => cab.kind !== 'pilaster' || k !== 'lightRail')
           .map((k) => (
             <MoldSlot
@@ -1030,7 +1032,8 @@ function BaseSection({ cab, set }: { cab: Cabinet; set: (patch: Partial<Cabinet>
   const put = (patch: Partial<typeof b>) => set({ base: { ...b, ...patch } });
   const cap = profileByNum(cab.baseMold);
   const commit = useStore((st) => st.commit);
-  const others = useStore((st) => st.project.cabinets).filter((c) => c.id !== cab.id && c.wall === cab.wall && (c.kind === 'base' || c.kind === 'tall'));
+  const others = useStore((st) => st.project.cabinets).filter((c) => c.id !== cab.id && c.wall === cab.wall && floorStanding(c));
+  const allFloor = useStore((st) => st.project.cabinets).filter(floorStanding);
   return (
     <Section title="Base">
       <div className="grid3">
@@ -1053,7 +1056,10 @@ function BaseSection({ cab, set }: { cab: Cabinet; set: (patch: Partial<Cabinet>
           </Field>
         )}
       </div>
-      {others.length > 0 && <div className="order-actions"><button className="mini" onClick={() => commit((p) => ({ ...p, cabinets: p.cabinets.map((c) => (others.some((o) => o.id === c.id) ? { ...c, base: { ...b }, baseMold: cab.baseMold } : c)) }))}>Same base on the other {others.length} on this wall</button></div>}
+      <div className="order-actions">
+        {others.length > 0 && <button className="mini" onClick={() => commit((p) => ({ ...p, cabinets: p.cabinets.map((c) => (others.some((o) => o.id === c.id) ? { ...c, base: { ...b }, baseMold: cab.baseMold } : c)) }))}>Same base on the other {others.length} on this wall</button>}
+        {allFloor.length > 1 && <button className="mini" onClick={() => commit((p) => ({ ...p, cabinets: p.cabinets.map((c) => (c.id !== cab.id && floorStanding(c) ? { ...c, base: { ...b }, baseMold: cab.baseMold } : c)) }))}>Same base on every floor cabinet in the job ({allFloor.length})</button>}
+      </div>
       {b.style === 'arch' && (
         <div className="grid3">
           <Field label="Shape" htmlFor="base-shape">

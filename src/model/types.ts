@@ -438,6 +438,9 @@ export interface Project {
   proposalDetail?: 'plain' | 'full';
   /** List cabinets built alike once on the proposal ("B1, B2 and B3 (3 alike): …"), across walls too. */
   proposalCombine?: boolean;
+  /** On the purchase agreement: when work is expected to start ("Week of March 8, 2027", "Early spring"), and how long it runs ("3 to 4 weeks"). */
+  proposalStart?: string;
+  proposalDuration?: string;
   /** The title the client sees on the proposal ("Cutler Living Room Proposal"); unset = made from the client's last name. */
   proposalTitle?: string;
   room: Room;

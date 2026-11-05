@@ -2,9 +2,11 @@
 // their wall, move them to a new start point, or raise and lower them, keeping their spacing.
 import { useState } from 'react';
 import { picked, takesCrown, useStore } from '../store';
-import type { Cabinet } from '../model/types';
+import type { Cabinet, CabinetBase } from '../model/types';
 import { MoldSlot } from './ProfilePicker';
 import { CabinetFinishSection } from './CabinetFinish';
+import { takesLightRail } from '../model/moldings';
+import { baseOf, baseStyles, floorStanding } from '../model/cabinetBase';
 import { wallNames, wallLength } from '../model/layout';
 import { fmt } from '../units';
 import { Field, LengthInput, Section } from './fields';
@@ -53,15 +55,68 @@ export function GroupPanel() {
         </div>
       </Section>
       <GroupCrown cabs={cabs} />
+      <GroupLightRail cabs={cabs} />
+      <GroupBase cabs={cabs} />
       <Section title="Pick">
         <div className="order-actions">
           <button className="mini" onClick={() => useStore.getState().selectCeiling()}>Everything that reaches the ceiling</button>
+          <button className="mini" onClick={() => { const ids = project.cabinets.filter(floorStanding).map((c) => c.id); if (ids.length) useStore.setState({ selectedId: ids[0], group: ids }); }}>Every floor cabinet (for the base)</button>
+          <button className="mini" onClick={() => { const ids = project.cabinets.filter(takesLightRail).map((c) => c.id); if (ids.length) useStore.setState({ selectedId: ids[0], group: ids }); }}>Every upper (for a light rail)</button>
           {(['back', 'left', 'right', 'front'] as const).filter((w) => project.cabinets.some((c) => c.wall === w)).map((w) => (
             <button key={w} className="mini" onClick={() => selectWall(w)}>Everything on the {wallNames[w].toLowerCase()}</button>
           ))}
         </div>
       </Section>
     </div>
+  );
+}
+
+/** One light rail under every upper picked. */
+function GroupLightRail({ cabs }: { cabs: Cabinet[] }) {
+  const species = useStore((s) => s.project.settings.moldSpecies);
+  const commit = useStore((s) => s.commit);
+  const takers = cabs.filter(takesLightRail);
+  if (!takers.length) return null;
+  const nums = [...new Set(takers.map((c) => c.lightRail ?? ''))];
+  const current = nums.length === 1 && nums[0] ? nums[0] : undefined;
+  return (
+    <Section title="Light rail on all of them">
+      <MoldSlot kind="lightRail" label={nums.length > 1 ? 'Light rail (mixed now)' : 'Light rail'} num={current} species={species}
+        onChange={(n) => commit((p) => ({ ...p, cabinets: p.cabinets.map((c) => (takers.some((t) => t.id === c.id) ? { ...c, lightRail: n } : c)) }))} />
+      <p className="hint">Under {takers.length} upper{takers.length === 1 ? '' : 's'}, on the face frame, returning around exposed ends. Back bands work well; they're listed first.</p>
+    </Section>
+  );
+}
+
+/** One base for every floor cabinet picked: the toe kick, a baseboard wrapped around them, or a decorative skirt. */
+function GroupBase({ cabs }: { cabs: Cabinet[] }) {
+  const species = useStore((s) => s.project.settings.moldSpecies);
+  const commit = useStore((s) => s.commit);
+  const floor = cabs.filter(floorStanding);
+  if (!floor.length) return null;
+  const styles = [...new Set(floor.map((c) => baseOf(c).style))];
+  const caps = [...new Set(floor.map((c) => c.baseMold ?? ''))];
+  const h = baseOf(floor[0]).height;
+  const put = (fn: (c: Cabinet) => Partial<Cabinet>) => commit((p) => ({ ...p, cabinets: p.cabinets.map((c) => (floor.some((t) => t.id === c.id) ? { ...c, ...fn(c) } : c)) }));
+  return (
+    <Section title="Base on all of them">
+      <div className="grid3">
+        <Field label="Base" htmlFor="grp-base">
+          <select id="grp-base" value={styles.length === 1 ? styles[0] : ''} onChange={(e) => e.target.value && put((c) => ({ base: { ...baseOf(c), style: e.target.value as CabinetBase['style'] } }))}>
+            {styles.length > 1 && <option value="">Mixed now</option>}
+            {Object.entries(baseStyles).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+          </select>
+        </Field>
+        {styles.length === 1 && styles[0] !== 'kick' && (
+          <Field label="Board height" htmlFor="grp-bh"><LengthInput id="grp-bh" value={h} onChange={(v) => put((c) => ({ base: { ...baseOf(c), height: v ?? 4.5 } }))} /></Field>
+        )}
+      </div>
+      {styles.length === 1 && styles[0] !== 'kick' && (
+        <MoldSlot kind="baseMold" label={caps.length > 1 ? 'Base cap (mixed now)' : 'Base cap'} num={caps.length === 1 && caps[0] ? caps[0] : undefined} species={species}
+          onChange={(n) => put(() => ({ baseMold: n }))} />
+      )}
+      <p className="hint">{floor.length} floor cabinet{floor.length === 1 ? '' : 's'}. A baseboard wrap runs across their fronts as one board and wraps exposed ends back to the wall, furniture style; the toe kick goes away and the cabinets keep their height.</p>
+    </Section>
   );
 }
 
