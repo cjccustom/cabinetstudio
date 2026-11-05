@@ -134,7 +134,13 @@ export function mountShape(p: Profile): { pts: [number, number][]; depth: number
     }
     return len;
   };
-  const backRight = flat(sw) > flat(0);
+  // A baseboard or base cap's back runs right up to its top edge, against the wall, with the
+  // moulded detail on the room side; its face is flat too, and the back's relief kerfs break up
+  // the back's straight run, so go by where the top is (Next Day draws theirs facing the other way)
+  const base = p.category === 'Base Board and Base Cap';
+  const top = p.shape.filter(([, y]) => y > sh - Math.max(0.03, sh * 0.01));
+  const topX = top.length ? top.reduce((t, [x]) => t + x, 0) / top.length : sw / 2;
+  const backRight = base && top.length ? topX > sw / 2 : flat(sw) > flat(0);
   return { pts: p.shape.map(([x, y]) => [backRight ? sw - x : x, y]), depth: sw, height: sh };
 }
 

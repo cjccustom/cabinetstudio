@@ -1729,6 +1729,17 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   eq('light rail: hangs under the upper', lr.length > 0 && lr.every((m) => m.hang && m.y === 0), true);
 }
 
+// Baseboards mount with their back to the wall and the moulded top edge on the room side (Next Day draws theirs mirrored)
+{
+  for (const num of ['1827', 'ND-622', 'ND-660', 'ND-235']) {
+    const pr = profileByNum(num);
+    if (!pr) continue;
+    const m = mountShape(pr);
+    const top = m.pts.filter(([, y]) => y > m.height - 0.05);
+    eq(`baseboard ${num}: back to the wall, top edge at the back`, top.length > 0 && Math.min(...top.map(([x]) => x)) < m.depth * 0.25, true);
+  }
+}
+
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');
 
 console.log(failed ? `${failed} check(s) failed` : 'All model checks passed');
