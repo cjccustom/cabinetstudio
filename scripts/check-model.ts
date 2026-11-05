@@ -723,7 +723,16 @@ eq('panel sticks out past frame', panelExtents(b21, s, { left: true, right: fals
   eq('baseboard: cabinet height unchanged, opening shorter', [Math.max(...bb.flatMap((x) => x.boxes.map((b) => b.min[1] + b.size[1]))) >= bc.height, bbRows[0].height < kRows[0].height].join(), 'true,true');
   eq('baseboard: no toe kick', bb.some((x) => x.role === 'toekick'), false);
   eq('baseboard: front and two returns', bb.filter((x) => x.name.startsWith('Baseboard')).length, 3);
-  eq('baseboard: stiles run to the floor', bb.find((x) => x.name === 'Stile')!.length, bc.height);
+  eq('baseboard: stiles stop 1/2" off the floor', bb.find((x) => x.name === 'Stile')!.length, bc.height - 0.5);
+  eq('baseboard: bottom rail runs down to 1/2" off the floor', (() => { const r = bb.find((x) => x.name.startsWith('Bottom rail'))!; return [r.boxes[0].min[1], r.width].join(); })(), [0.5, 4.5 + 1.5 - 0.5].join());
+  eq('baseboard: case sides stand 1/2" up', bb.filter((x) => x.role === 'side').every((x) => x.boxes[0].min[1] === 0.5), true);
+  // A molded baseboard (3" or taller) is the whole baseboard, from the floor, with no flat board under it
+  const tallBB = amCatalog.find((x) => x.num === '1827')!;
+  const molded = { ...bbCab, baseMold: tallBB.num };
+  const mH = mountShape(tallBB).height;
+  eq('molded baseboard: from the floor', cabinetMoldings(molded, defaultSettings, both).find((m) => m.kind === 'baseMold' && m.facing === 'front')!.y, 0);
+  eq('molded baseboard: no flat board', buildParts(molded, defaultSettings, both).some((x) => x.name.startsWith('Baseboard')), false);
+  eq('molded baseboard: 1-1/2" rail shows above it', Math.abs(layoutRows(molded, defaultSettings).rows.slice(-1)[0].y0 - (mH + 1.5)) < 1e-6, true);
   const capped = { ...bbCab, baseMold: amCatalog.find((x) => x.category === 'Base Board and Base Cap')!.num };
   const capH = mountShape(amCatalog.find((x) => x.num === capped.baseMold)!).height;
   eq('cap moulding sits on the board, rail above it', layoutRows(capped, defaultSettings).rows.slice(-1)[0].y0, 4.5 + capH + 1.5);

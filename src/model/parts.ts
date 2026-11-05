@@ -377,7 +377,7 @@ function caseParts(c: Cabinet, s: ShopSettings, ends: EndInfo): Part[] {
     if (kick > 0 && c.island) return [vb(x, kick, 0, ta, H - kick, boxD), vb(x, 0, notch, ta, kick, boxD - 2 * notch)];
     return kick > 0
       ? [vb(x, kick, 0, ta, H - kick, boxD), vb(x, 0, 0, ta, kick, boxD - notch)]
-      : [vb(x, 0, 0, ta, H, boxD)];
+      : [vb(x, BL.lift, 0, ta, H - BL.lift, boxD)];
   };
   ([['Left', xi0 - ta, ends.left, pL], ['Right', xi1, ends.right, pR]] as const).forEach(([, x, exposed, panel]) => {
     const notes = [];
@@ -387,10 +387,11 @@ function caseParts(c: Cabinet, s: ShopSettings, ends: EndInfo): Part[] {
     const bare = exposed && panel === 'none';
     notes.push(sideFastening(c, bare, exposed));
     if (fridge) notes.push('Runs to the floor as the fridge panel');
+    if (BL.lift > 0) notes.push(`Stands ${fmtShort(BL.lift)} off the floor behind the baseboard, room to level`);
     if (bare) notes.push('Finished outside: paint (or stain) with the face frame');
     if (fl) notes.push('Band the front edge');
     parts.push({
-      name: bare ? 'Side, exposed' : 'Side', role: 'side', material: 'box', length: H, width: boxD, thickness: tn, cut: true, banded: fl || undefined,
+      name: bare ? 'Side, exposed' : 'Side', role: 'side', material: 'box', length: H - BL.lift, width: boxD, thickness: tn, cut: true, banded: fl || undefined,
       // A bare exposed side gets the finish (painted, or stained to match), not left as case plywood
       ...(bare ? { look: 'paint' as const } : {}),
       note: notes.join(' · '),
@@ -524,7 +525,7 @@ function caseParts(c: Cabinet, s: ShopSettings, ends: EndInfo): Part[] {
     if (BL.railW > 0) parts.push({
       name: 'Bottom rail', role: 'rail', material: 'faceframe', length: railLen, width: BL.railW, thickness: ft, cut: true,
       note: shaped ? `Cut ${archShapes[BL.b.shape].toLowerCase()}, ${fmtShort(BL.rise)} high, feet ${fmtShort(BL.b.foot)} from the ends`
-        : BL.applied ? `${fmtShort(s.bottomRailWidth)} shows above the ${BL.style === 'baseboard' ? 'baseboard' : 'skirt'}` : undefined,
+        : BL.applied ? `${fmtShort(s.bottomRailWidth)} shows above the ${BL.style === 'baseboard' ? 'baseboard' : 'skirt'}${BL.lift > 0 ? `; runs down to ${fmtShort(BL.lift)} off the floor as the baseboard nailer` : ''}` : undefined,
       boxes: shaped ? [] : [vb(x0, BL.railY, zF, railLen, BL.railW, ft)],
       shapes: shaped ? [cutShape('x', [x0, BL.railY, zF], railLen, BL.railW, ft, a, b, BL.b.shape, BL.rise)] : undefined,
     });
@@ -802,7 +803,7 @@ function caseParts(c: Cabinet, s: ShopSettings, ends: EndInfo): Part[] {
     // Draw the panel face-on, then turn it to face out from the side of the cabinet
     // A baseboard or skirt wraps over the panel down to the floor; a shaped base has its own end skirt under the panel
     const shapedEnd = BL.style === 'arch' && !BL.applied;
-    const [py0, py1] = BL.applied ? [0, mode === 'inset' ? H : doorTop] : shapedEnd ? [BL.top, mode === 'inset' ? H : doorTop] : mode === 'inset' ? [kick, H] : [doorBottom, doorTop];
+    const [py0, py1] = BL.applied ? [BL.lift, mode === 'inset' ? H : doorTop] : shapedEnd ? [BL.top, mode === 'inset' ? H : doorTop] : mode === 'inset' ? [kick, H] : [doorBottom, doorTop];
     // Divided to match the front: a piece for each row's doors or opening, with the same gaps between
     const pieces = c.splitEndPanels ? endPanelPieces(rows, parts, py0, py1, s) : [[py0, py1] as [number, number]];
     pieces.forEach(([a, b], i) => {
@@ -837,7 +838,7 @@ function caseParts(c: Cabinet, s: ShopSettings, ends: EndInfo): Part[] {
     const ext = panelExtents(c, s, ends);
     const len = W + ext.left + ext.right;
     // Down to the floor behind a baseboard, which then wraps over it; else lined up with the fronts
-    const [py0, py1] = [BL.applied ? 0 : doorBottom, doorTop];
+    const [py0, py1] = [BL.applied ? BL.lift : doorBottom, doorTop];
     parts.push({
       name: 'Back panel, finished', role: 'endPanel', material: 'door', length: py1 - py0, width: len, thickness: pt, cut: false,
       note: `Island back, over the case back; ${BL.applied ? 'down to the floor, the baseboard over it' : `${fmtShort(py0)} off cabinet bottom, lined up with the fronts`}`,

@@ -215,7 +215,7 @@ const shopFields: { title: string; fields: [NumKey, string][] }[] = [
     ['stretcherWidth', 'Stretcher width'], ['ffOverhang', 'Extra overhang per side'],
   ] },
   { title: 'Face frame', fields: [['ffThickness', 'Thickness'], ['stileWidth', 'Stile width'], ['topRailWidth', 'Top rail'], ['bottomRailWidth', 'Bottom rail'], ['midRailWidth', 'Mid rail']] },
-  { title: 'Toe kick', fields: [['toeKickHeight', 'Height'], ['toeKickDepth', 'Finished depth'], ['toeKickSkin', 'Skin (applied at install)']] },
+  { title: 'Toe kick', fields: [['toeKickHeight', 'Height'], ['toeKickDepth', 'Finished depth'], ['toeKickSkin', 'Skin (applied at install)'], ['baseboardGap', 'Baseboard wrap: case off the floor']] },
   { title: 'Shelves & counters', fields: [['shelfClearance', 'Shelf clearance (total)'], ['shelfSetback', 'Shelf setback'], ['counterThickness', 'Counter thickness'], ['counterOverhang', 'Counter overhang']] },
 ];
 

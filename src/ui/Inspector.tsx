@@ -1042,7 +1042,7 @@ function BaseSection({ cab, set }: { cab: Cabinet; set: (patch: Partial<Cabinet>
             {Object.entries(baseStyles).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
           </select>
         </Field>
-        {b.style !== 'kick' && (
+        {b.style !== 'kick' && !L.molded && (
           <Field label={b.style === 'arch' ? 'Skirt height' : 'Board height'} htmlFor="base-h"><LengthInput id="base-h" value={b.height} onChange={(v) => put({ height: v ?? 4.5 })} /></Field>
         )}
         {b.style === 'baseboard' && !cab.baseMold && (
@@ -1076,7 +1076,9 @@ function BaseSection({ cab, set }: { cab: Cabinet; set: (patch: Partial<Cabinet>
         {b.style === 'kick'
           ? `Recessed ${fmt(s.toeKickHeight)} toe kick.`
           : `Cabinet height stays ${fmt(cab.height)}: the base takes ${fmt(L.top)}${cap ? ` (with the ${profileLabel(cap)} cap)` : ''}, a ${fmt(s.bottomRailWidth)} rail shows above it, and the openings shorten to suit.`}
-        {b.style === 'baseboard' && (cab.island ? ' The board wraps all four sides of the island; pick a cap under Mouldings → Base.' : ' The board wraps exposed ends back to the wall; pick a cap under Mouldings → Base.')}
+        {b.style === 'baseboard' && (L.molded
+          ? ` Baseboard ${cap ? profileLabel(cap) : ''}, ${fmt(L.top)} from the floor${cab.island ? ', all four sides' : ', wrapping exposed ends back to the wall'}. The case and face frame stand ${fmt(L.lift)} off the floor to level; the bottom rail runs down to there as the nailer, ${fmt(s.bottomRailWidth)} showing above the baseboard.`
+          : (cab.island ? ' The board wraps all four sides of the island.' : ' The board wraps exposed ends back to the wall.') + ' Pick a baseboard (3" or taller, used from the floor) or a cap for the flat board under Mouldings → Base.')}
         {b.style === 'arch' && (b.build === 'applied'
           ? ' The skirt is applied to the face frame and wraps exposed ends; a recessed toe kick sits behind the cutout.'
           : ' The stiles run to the floor as feet and the cutout comes out of a wide bottom rail. Exposed ends get a matching cut.')}

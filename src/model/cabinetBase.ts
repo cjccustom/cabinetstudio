@@ -33,6 +33,10 @@ export interface BaseLayout {
   top: number;
   /** Height cut out of the skirt or rail (decorative base). */
   rise: number;
+  /** How far the case and face frame stand off the floor (a baseboard wrap: 1/2", room to level). */
+  lift: number;
+  /** The baseboard is a molded profile from the floor (A&M 1827), not a flat board with a cap on it. */
+  molded: boolean;
   /** Applied board in front of the face frame, and how far it stands out. */
   applied: boolean;
   out: number;
@@ -46,27 +50,35 @@ export function baseLayout(c: Cabinet, s: ShopSettings): BaseLayout {
   const R = s.bottomRailWidth;
   const b = baseOf(c);
   // A fridge surround has no toe kick, case bottom or bottom rail: the fridge stands on the floor
-  if (fridgeBelow(c)) return { style: 'kick', kick: 0, stileY: 0, railY: 0, railW: 0, flat: 0, top: 0, rise: 0, applied: false, out: 0, b };
+  if (fridgeBelow(c)) return { style: 'kick', kick: 0, stileY: 0, railY: 0, railW: 0, flat: 0, top: 0, rise: 0, applied: false, out: 0, b, lift: 0, molded: false };
   if (!floorStanding(c) || b.style === 'kick') {
     const k = c.kind === 'wall' || c.kind === 'shelf' || c.kind === 'pilaster' || c.kind === 'mantel' ? 0 : s.toeKickHeight;
     // A bookcase standing on a countertop has no case bottom, and by default no bottom rail either
     const rail = c.kind !== 'base' && c.noBottom ? c.bottomRail ?? false : true;
-    return { style: 'kick', kick: k, stileY: k, railY: k, railW: rail ? R : 0, flat: 0, top: k, rise: 0, applied: false, out: 0, b };
+    return { style: 'kick', kick: k, stileY: k, railY: k, railW: rail ? R : 0, flat: 0, top: k, rise: 0, applied: false, out: 0, b, lift: 0, molded: false };
   }
   const cap = profileByNum(c.baseMold);
-  const flat = Math.max(0, b.height);
-  const top = flat + (cap ? mountShape(cap).height : Math.max(0, b.cap ?? 0));
+  const capH = cap ? mountShape(cap).height : 0;
   if (b.style === 'baseboard') {
-    return { style: 'baseboard', kick: 0, stileY: 0, railY: 0, railW: top + R, flat, top, rise: 0, applied: true, out: boardT, b };
+    // A baseboard profile (3" or taller) is the whole baseboard, from the floor; a shorter one caps a flat board.
+    // The face frame and case stand off the floor (1/2" by default) so the cabinets can be leveled; the bottom rail
+    // runs down to there as the baseboard's nailer, with the usual rail showing above the baseboard.
+    const molded = capH >= 3;
+    const flat = molded ? 0 : Math.max(0, b.height);
+    const top = molded ? capH : flat + (cap ? capH : Math.max(0, b.cap ?? 0));
+    const lift = Math.min(Math.max(0, s.baseboardGap ?? 0.5), top);
+    return { style: 'baseboard', kick: 0, stileY: lift, railY: lift, railW: top + R - lift, flat, top, rise: 0, applied: true, out: molded ? 0 : boardT, b, lift, molded };
   }
+  const flat = Math.max(0, b.height);
+  const top = flat + (cap ? capH : Math.max(0, b.cap ?? 0));
   if (b.build === 'applied') {
     // The skirt laps the face frame by what's left above the cutout; behind the cutout, a recessed toe kick
     const rise = Math.max(0.5, Math.min(b.rise, flat - 0.75));
-    return { style: 'arch', kick: rise, stileY: rise, railY: rise, railW: top - rise + R, flat, top, rise, applied: true, out: boardT, b };
+    return { style: 'arch', kick: rise, stileY: rise, railY: rise, railW: top - rise + R, flat, top, rise, applied: true, out: boardT, b, lift: 0, molded: false };
   }
   // Shaped face frame: stiles run to the floor as feet, and the arch is cut into a wide bottom rail
   const rise = Math.max(0.5, Math.min(b.rise, top + R - 1.5));
-  return { style: 'arch', kick: rise, stileY: 0, railY: 0, railW: top + R, flat, top, rise, applied: false, out: 0, b };
+  return { style: 'arch', kick: rise, stileY: 0, railY: 0, railW: top + R, flat, top, rise, applied: false, out: 0, b, lift: 0, molded: false };
 }
 
 /**

@@ -273,6 +273,8 @@ export interface ShopSettings {
   ffJoinery?: FrameJoinery;
   bottomRailWidth: number;
   midRailWidth: number;
+  /** Baseboard-wrapped cabinets stand this far off the floor (room to level), the bottom rail running down to it as the baseboard's nailer. Unset = 1/2". */
+  baseboardGap: number;
   /** Planned overhang of the face frame past each case side, on top of what thin plywood gives. */
   ffOverhang: number;
   toeKickHeight: number;

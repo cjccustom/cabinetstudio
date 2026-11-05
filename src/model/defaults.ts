@@ -15,6 +15,7 @@ export const defaultSettings: ShopSettings = {
   topRailWidth: 1.5,
   bottomRailWidth: 1.5,
   midRailWidth: 1.5,
+  baseboardGap: 0.5,
   ffOverhang: 0,
   toeKickHeight: 4,
   toeKickDepth: 3,
