@@ -1,6 +1,6 @@
 import type { EndInfo } from './parts';
 import type { Cabinet, Room, ShopSettings, WallId } from './types';
-import { crownFit, panelExtents } from './parts';
+import { crownFit, panelExtents, topThick } from './parts';
 import { fmt } from '../units';
 
 export const wallNames: Record<WallId, string> = { back: 'Back wall', left: 'Left wall', right: 'Right wall', front: 'Front wall' };
@@ -103,6 +103,17 @@ const overlaps = (a: Footprint, b: Footprint) =>
 export interface Issue { cabinetId: string; message: string; echo?: boolean }
 
 /** Layout problems worth flagging before anything gets built. */
+/** The countertop or wood top just under a raised cabinet on the same wall, and how high its surface is. */
+export function topBelow(cabinets: Cabinet[], c: Cabinet, s: ShopSettings): { cab: Cabinet; top: number } | null {
+  if (c.elevation < 6 || (c.kind !== 'wall' && c.kind !== 'tall')) return null;
+  const under = cabinets
+    .filter((o) => o.id !== c.id && o.wall === c.wall && o.kind === 'base' && o.countertop && o.offset < c.offset + c.width - 0.5 && c.offset < o.offset + o.width - 0.5)
+    .map((o) => ({ cab: o, top: o.elevation + o.height + topThick(o, s.counterThickness) }))
+    .filter((x) => x.top <= c.elevation + 3 && x.top >= c.elevation - 3)
+    .sort((a, b) => b.top - a.top);
+  return under[0] ?? null;
+}
+
 export function findIssues(room: Room, cabinets: Cabinet[], s: ShopSettings): Issue[] {
   const issues: Issue[] = [];
   const exts = cabinets.map((c) => extentsOf(room, cabinets, c, s));
@@ -118,6 +129,13 @@ export function findIssues(room: Room, cabinets: Cabinet[], s: ShopSettings): Is
     else {
       const cf = crownFit(c, s, room.height);
       if (cf && cf.over > EPS) issues.push({ cabinetId: c.id, message: `${c.name}'s crown is ${fmt(cf.over)} too tall: case top at ${fmt(cf.caseTop)}, crown drop ${fmt(cf.drop)} puts its top at ${fmt(cf.top)}, ceiling ${fmt(room.height)}. Shorten the cabinet ${fmt(cf.over)} or pick a crown with a drop under ${fmt(Math.max(0, cf.drop - cf.over))}.` });
+    }
+    // An upper or bookcase meant to sit on the top below it, but hovering just above it (or into it)
+    const below = topBelow(cabinets, c, s);
+    if (below) {
+      const gap = c.elevation - below.top;
+      if (gap > 1 / 32 && gap <= 3) issues.push({ cabinetId: c.id, message: `${c.name} is ${fmt(gap)} above the top of ${below.cab.name} (top surface at ${fmt(below.top)}). To sit it on the top, set it ${fmt(below.top)} off the floor.` });
+      else if (gap < -1 / 32 && c.elevation > below.cab.elevation + below.cab.height - 0.01) issues.push({ cabinetId: c.id, message: `${c.name} runs ${fmt(-gap)} into the top of ${below.cab.name} (top surface at ${fmt(below.top)}).` });
     }
     for (let j = i + 1; j < cabinets.length; j++) {
       if (overlaps(fps[i], fps[j])) issues.push({ cabinetId: c.id, message: `${c.name} overlaps ${cabinets[j].name}` }, { cabinetId: cabinets[j].id, message: `${cabinets[j].name} overlaps ${c.name}`, echo: true });

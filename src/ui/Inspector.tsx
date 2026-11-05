@@ -10,7 +10,7 @@ import { rowOpenings, buildParts, closetRod, isOpenRow, joineryLabel, PAINT_TOP,
 import { defaultPilaster, pilasterOf, pilasterSections } from '../model/pilaster';
 import { bracketCount, bracketGap, bracketLength, bracketProduct, finishedEnds, floatingOf, shelfPly } from '../model/floatingShelf';
 import { topRun } from '../model/layout';
-import { evenRun, facesFrom, fillSpan, footprint, gapBeside, placeOn, resolveEnds, runOf, shiftInRoom, wallLength, wallNames, wallOrder } from '../model/layout';
+import { topBelow, evenRun, facesFrom, fillSpan, footprint, gapBeside, placeOn, resolveEnds, runOf, shiftInRoom, wallLength, wallNames, wallOrder } from '../model/layout';
 import { panelLabel } from '../model/eagle';
 import { nextName, uid } from '../model/defaults';
 import { fmt } from '../units';
@@ -168,6 +168,12 @@ export function Inspector({ cab, issues, tab }: { cab: Cabinet; issues: string[]
           <Field label="Off floor" htmlFor="cab-elev"><LengthInput id="cab-elev" value={cab.elevation} onChange={(v) => set({ elevation: v! })} /></Field>
         </div>
         )}
+        {(() => {
+          // Sitting on the top below it: offer to set it right on the surface
+          const b = topBelow(all, cab, settings);
+          if (!b || Math.abs(b.top - cab.elevation) < 1 / 32) return b ? <p className="hint">Sits on the top of {b.cab.name}, its surface {fmt(b.top)} off the floor.</p> : null;
+          return <p className="warn">The top of {b.cab.name} is {fmt(b.top)} off the floor ({fmt(b.cab.height)} cabinet + {fmt(b.top - b.cab.elevation - b.cab.height)} top), so this sits {fmt(Math.abs(cab.elevation - b.top))} {cab.elevation > b.top ? 'above' : 'into'} it. <button className="mini" onClick={() => set({ elevation: b.top })}>Sit it on the top ({fmt(b.top)})</button></p>;
+        })()}
         {(cab.kind === 'base' || cab.kind === 'tall') && !cab.corner && (
           <div className="grid3">
             {!free ? <Field label="Off the wall" htmlFor="cab-inset"><LengthInput id="cab-inset" value={cab.wallInset ?? 0} onChange={(v) => set({ wallInset: v || undefined })} /></Field> : <span />}
@@ -380,6 +386,7 @@ export function Inspector({ cab, issues, tab }: { cab: Cabinet; issues: string[]
                 </select>
               </Field>
             )}
+            {cab.countertop && <p className="hint" style={{ gridColumn: '1 / -1' }}>Top {fmt(topThick(cab, settings.counterThickness))} thick{cab.topKind === 'paint' ? ' (3/4" plywood; the edging drops below it in front)' : cab.topThickness == null && cab.topKind === 'wood' ? ' (the usual for a wood top; change it below)' : ''}: its surface is {fmt(cab.elevation + cab.height + topThick(cab, settings.counterThickness))} off the floor.</p>}
             {cab.countertop && cab.topKind !== 'paint' && (
               <Field label="Thickness" htmlFor="cab-topt">
                 <LengthInput id="cab-topt" value={cab.topThickness ?? null} allowAuto placeholder={fmt(cab.topKind === 'wood' ? 1.25 : settings.counterThickness)} onChange={(v) => set({ topThickness: v ?? undefined })} />

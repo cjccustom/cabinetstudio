@@ -1761,6 +1761,16 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   eq('baseboard: cabinet keeps its height', Math.max(...buildParts(a, s, resolveEnds(p.room, cabs, a)).filter((x) => x.role === 'stile').flatMap((x) => x.boxes.map((b) => b.min[1] + b.size[1]))), a.height);
 }
 
+// An upper set on the top below it: a 28-1/2" base with a wood top (1-1/4" unless set) is 29-3/4", not 30"
+{
+  const base = { ...cabinetFromPreset(presets.find((x) => x.id === 'library-base')!, 'back', 0, []), id: 'lb', name: 'B1', height: 28.5, topThickness: undefined };
+  const up = { ...cabinetFromPreset(presets.find((x) => x.id === 'library-upper')!, 'back', 0, []), id: 'lu', name: 'W1', elevation: 30 };
+  const iss = findIssues(p.room, [base, up], s).filter((i) => i.cabinetId === 'lu').map((i) => i.message).join(' ');
+  eq('top below: gap found', /1\/4" above the top of B1 \(top surface at 29 3\/4"\)/.test(iss), true);
+  eq('top below: none once it sits on the top', findIssues(p.room, [base, { ...up, elevation: 29.75 }], s).filter((i) => i.cabinetId === 'lu').length, 0);
+  eq('top below: 1-1/2" top meets at 30"', findIssues(p.room, [{ ...base, topThickness: 1.5 }, up], s).filter((i) => i.cabinetId === 'lu').length, 0);
+}
+
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');
 
 console.log(failed ? `${failed} check(s) failed` : 'All model checks passed');
