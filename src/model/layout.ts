@@ -248,7 +248,10 @@ export function resolveEnds(room: Room, cabinets: Cabinet[], c: Cabinet): EndInf
       && (side === 'right' ? o.offset <= inC : o.offset + o.width >= Ln - inC));
     return other ? { other, wallX: side === 'right' ? L - c.offset : -c.offset } : null;
   };
-  const ends: EndInfo = { left: pick(c.leftEnd, autoLeft), right: pick(c.rightEnd, autoRight), wrapBeside, corner };
+  const beside = (side: 'left' | 'right') => cabinets.find((o) => o.id !== c.id && o.wall === c.wall && (o.wallInset ?? 0) === (c.wallInset ?? 0)
+    && (side === 'left' ? Math.abs(o.offset + o.width - c.offset) <= 0.125 : Math.abs(o.offset - (c.offset + c.width)) <= 0.125)
+    && o.elevation < c.elevation + c.height && c.elevation < o.elevation + o.height) ?? null;
+  const ends: EndInfo = { left: pick(c.leftEnd, autoLeft), right: pick(c.rightEnd, autoRight), wrapBeside, corner, beside };
   const run = topRun(cabinets, c);
   if (run) {
     const last = run[run.length - 1];

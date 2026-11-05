@@ -228,6 +228,8 @@ export interface MoldPiece {
    * length is measured on its back, its face shorter). Unset = square.
    */
   cut?: [MiterCut, MiterCut];
+  /** Ends that butt the same moulding on the next cabinet: drawn without an end line, so the run reads as one piece. */
+  joined?: [boolean, boolean];
   /** Run straight up from (x, y) instead of along x: a casing leg, its face widening to the left or right. */
   vertical?: 'left' | 'right';
 }
@@ -328,7 +330,17 @@ export function cabinetMoldings(c: Cabinet, s: ShopSettings, ends: EndInfo, opts
     const cl = inCorner('left'), cr = inCorner('right');
     const corner = (side: 'left' | 'right'): MiterCut => (ends[side] ? 'out' : (side === 'left' ? cl : cr) != null || (side === 'left' ? wrapL : wrapR) != null ? 'in' : 'square');
     const sx0 = cl ?? x0, sx1 = cr ?? x1;
-    out.push({ kind: r.kind, num: p.num, along: 'x', facing: 'front', x: sx0, y, z: r.z, length: sx1 - sx0, hang: r.hang, cut: [corner('left'), corner('right')] });
+    // The same moulding carrying on into the cabinet beside it, at the same height and depth: one continuous run
+    const carries = (side: 'left' | 'right') => {
+      if (ends[side] || (side === 'left' ? cl : cr) != null) return false;
+      const o = ends.beside?.(side);
+      if (!o || o.depth !== c.depth || o.elevation !== c.elevation) return false;
+      if (r.kind === 'baseMold') return o.baseMold === r.num && baseLayout(o, s).flat === bl.flat && baseLayout(o, s).style === bl.style;
+      if (r.kind === 'lightRail') return o.lightRail === r.num;
+      if (r.kind === 'crown') return o.crown === r.num && o.height === c.height && JSON.stringify(o.crownBuild ?? null) === JSON.stringify(c.crownBuild ?? null);
+      return false;
+    };
+    out.push({ kind: r.kind, num: p.num, along: 'x', facing: 'front', x: sx0, y, z: r.z, length: sx1 - sx0, hang: r.hang, cut: [corner('left'), corner('right')], joined: [carries('left'), carries('right')] });
     // An island's base wraps its finished back too
     const zb = !c.island || r.kind !== 'baseMold' ? null : c.islandSides === 2 ? -r.z - m.depth : -s.endPanelThickness - o - m.depth;
     if (zb != null) out.push({ kind: r.kind, num: p.num, along: 'x', facing: 'back', x: x1, y, z: zb + m.depth, length: x1 - x0, cut: [corner('right'), corner('left')] });

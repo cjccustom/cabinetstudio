@@ -6,6 +6,7 @@ import { mountShape, profileByNum, type MoldPiece } from '../model/moldings';
 /** Extrude each moulding profile along its run and merge them into one mesh. */
 function buildGeometry(pieces: MoldPiece[]) {
   const geos: THREE.BufferGeometry[] = [];
+  const edgePts: number[] = [];
   for (const pc of pieces) {
     const p = profileByNum(pc.num);
     if (!p || pc.length <= 0) continue;
@@ -38,6 +39,18 @@ function buildGeometry(pieces: MoldPiece[]) {
     else if (pc.facing === 'back') mat.set(0, 0, -1, pc.x, 0, 1, 0, pc.y, -1, 0, 0, pc.z, 0, 0, 0, 1);
     else if (pc.facing === 'left') mat.set(-1, 0, 0, pc.x, 0, 1, 0, pc.y, 0, 0, 1, pc.z, 0, 0, 0, 1);
     else mat.set(1, 0, 0, pc.x, 0, 1, 0, pc.y, 0, 0, 1, pc.z, 0, 0, 0, 1);
+    // Edge lines, leaving out the end outline where the run carries on into the next cabinet's
+    const e = new THREE.EdgesGeometry(g, 35);
+    const ep = e.getAttribute('position');
+    const atEnd = (z: number, k: 0 | 1) => !!pc.joined?.[k] && Math.abs(z - (k ? pc.length : 0)) < 1e-3;
+    const v = new THREE.Vector3(), w = new THREE.Vector3();
+    for (let i = 0; i < ep.count; i += 2) {
+      v.fromBufferAttribute(ep, i); w.fromBufferAttribute(ep, i + 1);
+      if ((atEnd(v.z, 0) && atEnd(w.z, 0)) || (atEnd(v.z, 1) && atEnd(w.z, 1))) continue;
+      v.applyMatrix4(mat); w.applyMatrix4(mat);
+      edgePts.push(v.x, v.y, v.z, w.x, w.y, w.z);
+    }
+    e.dispose();
     g.applyMatrix4(mat);
     const flat = g.index ? g.toNonIndexed() : g;
     // Turning the profile to its run swaps two axes, a mirror: wind the triangles back the other way
@@ -59,7 +72,9 @@ function buildGeometry(pieces: MoldPiece[]) {
   if (!geos.length) return null;
   const merged = mergeGeometries(geos)!;
   geos.forEach((g) => g.dispose());
-  return { mesh: merged, edges: new THREE.EdgesGeometry(merged, 35) };
+  const edges = new THREE.BufferGeometry();
+  edges.setAttribute('position', new THREE.Float32BufferAttribute(edgePts, 3));
+  return { mesh: merged, edges };
 }
 
 export function MoldingModel({ pieces, color, edgeColor }: { pieces: MoldPiece[]; color: string; edgeColor: string }) {

@@ -1749,6 +1749,18 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   }
 }
 
+// A baseboard across touching cabinets is one run: no seam at the joint, and the cabinet keeps its height
+{
+  const bases = p.cabinets.filter((c) => c.wall === 'back' && c.kind === 'base').sort((a, b) => a.offset - b.offset);
+  const pair = bases.find((c, i) => bases[i + 1] && Math.abs(c.offset + c.width - bases[i + 1].offset) < 0.01)!;
+  const bb = { style: 'baseboard' as const, height: 4.5, build: 'faceframe' as const, shape: 'bracket' as const, rise: 3, foot: 2.25 };
+  const cabs = p.cabinets.map((c) => (c.wall === 'back' && c.kind === 'base' ? { ...c, base: bb, baseMold: 'BR-B688' } : c));
+  const a = cabs.find((c) => c.id === pair.id)!;
+  const run = cabinetMoldings(a, eff(a, s), resolveEnds(p.room, cabs, a)).find((m) => m.kind === 'baseMold' && m.facing === 'front')!;
+  eq('baseboard run: joined to the next cabinet', run.joined?.[1], true);
+  eq('baseboard: cabinet keeps its height', Math.max(...buildParts(a, s, resolveEnds(p.room, cabs, a)).filter((x) => x.role === 'stile').flatMap((x) => x.boxes.map((b) => b.min[1] + b.size[1]))), a.height);
+}
+
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');
 
 console.log(failed ? `${failed} check(s) failed` : 'All model checks passed');

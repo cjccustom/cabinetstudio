@@ -226,6 +226,8 @@ export interface EndInfo {
    * and where that wall is in this cabinet's own x (so crown can meet it at an inside miter).
    */
   corner?: (side: 'left' | 'right') => { other: Cabinet; wallX: number } | null;
+  /** The cabinet touching this end on the same wall, if any (a run's mouldings carry on into it). */
+  beside?: (side: 'left' | 'right') => Cabinet | null;
   topRun?: { lead: boolean; span: number; last: Cabinet; lastRight: boolean; /** Open spaces the top crosses. */ gaps?: { at: number; width: number }[] };
 }
 
