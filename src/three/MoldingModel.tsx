@@ -12,7 +12,11 @@ function buildGeometry(pieces: MoldPiece[]) {
     const m = mountShape(p);
     // Casing turns its thicker edge (drawn at the bottom) out, away from the opening
     const flip = pc.kind === 'casing';
-    const shape = new THREE.Shape(m.pts.map(([u, v]) => new THREE.Vector2(u, pc.hang ? -v : flip ? m.height - v : v)));
+    // Wind the outline the same way every time: a profile mirrored to stand it up (or hung upside
+    // down) would otherwise extrude inside out and light dark, not matching the cabinet's color
+    let outline = m.pts.map(([u, v]) => new THREE.Vector2(u, pc.hang ? -v : flip ? m.height - v : v));
+    if (THREE.ShapeUtils.isClockWise(outline)) outline = outline.reverse();
+    const shape = new THREE.Shape(outline);
     const g = new THREE.ExtrudeGeometry(shape, { depth: pc.length, bevelEnabled: false, curveSegments: 1 });
     // Mitered ends: each point moves along the run by how far it stands out from the face
     if (pc.cut && (pc.cut[0] !== 'square' || pc.cut[1] !== 'square')) {
@@ -35,7 +39,22 @@ function buildGeometry(pieces: MoldPiece[]) {
     else if (pc.facing === 'left') mat.set(-1, 0, 0, pc.x, 0, 1, 0, pc.y, 0, 0, 1, pc.z, 0, 0, 0, 1);
     else mat.set(1, 0, 0, pc.x, 0, 1, 0, pc.y, 0, 0, 1, pc.z, 0, 0, 0, 1);
     g.applyMatrix4(mat);
-    geos.push(g.index ? g.toNonIndexed() : g);
+    const flat = g.index ? g.toNonIndexed() : g;
+    // Turning the profile to its run swaps two axes, a mirror: wind the triangles back the other way
+    // so the faces point out and light like the cabinet beside them (not lit from behind, darker)
+    if (mat.determinant() < 0) {
+      for (const name of ['position', 'normal', 'uv'] as const) {
+        const a = flat.getAttribute(name) as THREE.BufferAttribute | undefined;
+        if (!a) continue;
+        const n = a.itemSize, arr = a.array as Float32Array;
+        for (let t = 0; t < a.count; t += 3) for (let k = 0; k < n; k++) {
+          const i1 = (t + 1) * n + k, i2 = (t + 2) * n + k;
+          const tmp = arr[i1]; arr[i1] = arr[i2]; arr[i2] = tmp;
+        }
+        a.needsUpdate = true;
+      }
+    }
+    geos.push(flat);
   }
   if (!geos.length) return null;
   const merged = mergeGeometries(geos)!;
