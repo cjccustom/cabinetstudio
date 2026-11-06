@@ -60,6 +60,9 @@ export interface LaborStandards {
   divider?: number;
   /** Cabinet lighting: each strip routed and fitted, each puck, each driver wired on site. */
   lightStrip?: number;
+  /** Häfele shelf lighting: each section's side channels, and each shelf's drop edge. */
+  lightRail?: number;
+  lightDropEdge?: number;
   lightPuck?: number;
   lightDriver?: number;
   /** Paint-grade plywood tops with applied edging: per top, and per sq ft. */
@@ -510,6 +513,10 @@ export function estimateHours(p: Project, q: QuoteSettings): HourLine[] {
     const pucks = lit.fixtures.filter((f) => f.kind === 'puck').reduce((t, f) => t + f.count, 0);
     add('Lighting: rout & fit channel and tape (each strip)', strips, st.lightStrip ?? 0.5);
     add('Lighting: bore & fit puck lights (each)', pucks, st.lightPuck ?? 0.3);
+    // Häfele shelf lighting: a power channel down each side of every lit section, and a solid drop edge milled and applied to each shelf
+    const hf = lit.fixtures.filter((f) => f.kind === 'shelves');
+    add('Lighting: rout power channels down the case sides (each section)', hf.length, st.lightRail ?? 0.75);
+    add('Lighting: mill & apply shelf drop edges (each shelf)', hf.reduce((t, f) => t + Math.max(0, f.count - 1), 0), st.lightDropEdge ?? 0.25);
     add('Lighting: wire, mount drivers & test (each driver)', lit.drivers.length, st.lightDriver ?? 1, 'cabinets', true);
     installHours += lit.drivers.length * (st.lightDriver ?? 1);
   }
@@ -789,7 +796,7 @@ export function scopeLine(c: Cabinet, p: Project): string {
   if (c.countertop && c.cushion) bits.push(`custom ${fmtIn(c.cushion.thickness)} ${c.cushion.edge === 'boxed' ? 'boxed and welted' : 'knife edge'} seat cushion, ${c.cushion.fabric?.trim() ? c.cushion.fabric.trim() : "fabric to be selected by owner"}`);
   if (c.crown) bits.push('crown molding');
   if (c.lightRail) bits.push('light rail');
-  if (c.lighting?.length) bits.push(`LED lighting: ${c.lighting.map((k) => ({ puck: 'recessed puck lights', stile: 'vertical strips lighting the shelves', shelfFront: 'strip under the front of the open section', under: 'under-cabinet strip' })[k]).join(', ')}`);
+  if (c.lighting?.length) bits.push(`LED lighting: ${c.lighting.map((k) => ({ puck: 'recessed puck lights', stile: 'vertical strips lighting the shelves', shelfFront: 'strip under the front of the open section', under: 'under-cabinet strip', shelves: 'Häfele adjustable shelf lighting under every shelf', topAccent: `accent uplight on top${(p.cabLighting?.accent ?? 'white') === 'rgbw' ? ', color changing' : (p.cabLighting?.accent ?? 'white') === 'tunable' ? ', tunable white' : ''}, dimmable` } as Record<string, string>)[k]).join(', ')}`);
   const bl = baseLabel(c);
   if (bl) bits.push(bl);
   else if (c.baseMold) bits.push('baseboard');

@@ -1447,6 +1447,27 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   eq('lighting: scope mentions it', scopeLine(bc, lp).includes('LED lighting'), true);
 }
 
+// Häfele adjustable shelf lighting: a profile under every shelf behind a drop edge, power channels in the sides; accent uplight on top
+{
+  const hc = { ...cabinetFromPreset(presets.find((x) => x.id === 'tall-pantry')!, 'back', 0, []), id: 'HC', name: 'HC', width: 36, depth: 12, height: 84, rows: [{ id: 'r1', type: 'open', count: 1, shelves: 3 }, { id: 'r2', type: 'doors', height: 30, count: 2, shelves: 1 }], lighting: ['shelves', 'topAccent'] } as any;
+  const hp = { ...p, room: { ...p.room, height: 108 }, cabinets: [hc], cabLighting: { accent: 'rgbw', driverSpot: 'top' } } as any;
+  const fx = cabinetFixtures(hc, hp);
+  eq('hafele: a profile under each of 3 shelves and the top, plus the accent', fx.map((f) => `${f.kind}:${f.count}`).join(','), 'shelves:4,topAccent:1');
+  const keys = lightingParts(hp).parts.map((x) => x.key);
+  eq('hafele: profile, rail, connectors and RGBW accent bought', ['hProfile', 'hRail', 'hConnector', 'accentTape', 'accentControl'].every((k) => keys.includes(k as any)), true);
+  const parts = buildParts(hc, hp.settings);
+  eq('hafele: a drop edge on each adjustable shelf in the open section', parts.filter((x) => x.name === 'Shelf drop edge').length, 3);
+  eq('hafele: the door section shelf stays plain', parts.filter((x) => x.name === 'Adjustable shelf' && !/Häfele/.test(x.note ?? '')).length, 1);
+  eq('hafele: the sides get the power channel', parts.filter((x) => x.role === 'side').every((x) => /power channel/.test(x.note ?? '')), true);
+  eq('hafele: labor for channels and drop edges', estimateHours(hp, quoteOf(hp)).some((h) => h.label.startsWith('Lighting: mill & apply shelf drop edges')), true);
+  eq('hafele: drivers on top for the electrician', /on top of the bookcases/i.test(electricianHtml(hp)), true);
+  const low = { ...hp, room: { ...hp.room, height: 86 } };
+  eq('accent: no uplight with no room above', cabinetFixtures(hc, low).some((f) => f.kind === 'topAccent'), false);
+  const cs = customerSet(hp, drawingsOf(hp));
+  eq('hafele: the customer drawings get a lighting spec sheet', cs.some((x) => /Cabinet lighting/.test(x.svg ?? JSON.stringify(x)) && /Häfele adjustable shelf lighting/.test(JSON.stringify(x))), true);
+  eq('hafele: the shop notes carry the groove and channel', forAudience(cabinetCallouts(hp, hc), 'shop').filter((n) => /Häfele (shelf lighting: groove|power channel)/.test(n.text)).length, 2);
+}
+
 // Next Day Moulding: profiles priced per foot by material; crowns drawn from projection and drop
 {
   const cap = profileByNum('ND-163')!;

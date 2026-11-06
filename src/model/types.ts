@@ -335,6 +335,8 @@ export interface ShopSettings {
   rodDrop?: number;
   /** Plywood for exposed case sides and toe kick skins when it differs from the cases; empty = the same. */
   exposedPlywood?: string;
+  /** Häfele adjustable shelf lighting machining for the job (groove and channel sizes, drop edge, article numbers). */
+  hafele?: Partial<import('./cabinetLighting').HafeleSpec>;
   /** Species for Anderson & McQuaid mouldings, as they list it (Maple, Poplar…). */
   moldSpecies: string;
   /** Extra moulding for miters and defects. 0.15 = 15%. */

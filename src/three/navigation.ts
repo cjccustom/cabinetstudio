@@ -19,6 +19,9 @@ export const useNav = create<{
   /** Draw the coffered ceiling (it can hide the room from above). */
   ceiling: boolean;
   setCeiling: (on: boolean) => void;
+  /** Show the cabinet lighting lit in the 3D view. */
+  lights: boolean;
+  setLights: (on: boolean) => void;
   /** Hidden in the 3D view to see past them (this browser session only): items by id, and the walls. */
   hidden: string[];
   walls: boolean;
@@ -35,6 +38,8 @@ export const useNav = create<{
   resetKey: 0,
   ceiling: load('cabinet-studio.ceiling', ['on', 'off'], 'on') === 'on',
   setCeiling: (on) => { save('cabinet-studio.ceiling', on ? 'on' : 'off'); set({ ceiling: on }); },
+  lights: load('cabinet-studio.lights', ['on', 'off'], 'on') === 'on',
+  setLights: (on) => { save('cabinet-studio.lights', on ? 'on' : 'off'); set({ lights: on }); },
   hidden: [],
   walls: true,
   hide: (id) => set((s) => ({ hidden: s.hidden.includes(id) ? s.hidden : [...s.hidden, id] })),

@@ -6,6 +6,7 @@ export function ViewTools() {
   const view = useStore((s) => s.view);
   const nav = useNav();
   const hasCeiling = useStore((s) => !!s.project.ceiling?.on);
+  const hasLights = useStore((s) => s.project.cabinets.some((c) => c.lighting?.length));
   const flat = view !== '3d';
   return (
     <div className="view-tools" role="toolbar" aria-label="View">
@@ -20,6 +21,7 @@ export function ViewTools() {
       <button onClick={nav.reset} title="Back to the starting view">Reset view</button>
       {hasCeiling && <label className="check-inline" style={{ marginTop: 0 }}><input type="checkbox" checked={nav.ceiling} onChange={(e) => nav.setCeiling(e.target.checked)} /> Ceiling</label>}
       {!flat && <label className="check-inline" style={{ marginTop: 0 }} title="Hide the room's walls to see the work from any side"><input type="checkbox" checked={nav.walls} onChange={(e) => nav.setWalls(e.target.checked)} /> Walls</label>}
+      {!flat && hasLights && <label className="check-inline" style={{ marginTop: 0 }} title="Show the cabinet lighting turned on"><input type="checkbox" checked={nav.lights} onChange={(e) => nav.setLights(e.target.checked)} /> Lights</label>}
       {nav.hidden.length > 0 && <button onClick={nav.showAll} title="Show everything hidden in this view">Show {nav.hidden.length} hidden</button>}
       <select aria-label="Pointing device" value={nav.pointer} onChange={(e) => nav.setPointer(e.target.value as 'mouse' | 'trackpad', true)}
         title="Trackpad: two-finger swipe pans and pinch zooms. Mouse: the wheel zooms toward the cursor.">

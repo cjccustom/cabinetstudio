@@ -12,7 +12,7 @@ import { fmt } from '../units';
 import { beamSection, cabinetsOn, ceilingPlan, faceFrameView, floorPlan, mantelViews, partRows, partsOf, sidePanelLayout, sideSection, wallElevation } from './views';
 import { joineryLabel } from '../model/parts';
 import { hardwareOrder } from '../model/hardware';
-import { electricianHtml } from '../model/cabinetLighting';
+import { electricianHtml, lightingSpecHtml } from '../model/cabinetLighting';
 import { hingeTypes } from '../model/eagle';
 import { cofferOf, cofferParts } from '../model/coffer';
 import { fuelLabel, mantelOf } from '../model/mantel';
@@ -224,6 +224,9 @@ function customerSheets(p: Project, s: DrawingSettings): Sheet[] {
     const notes = html({ x: A.x + A.w * 0.76, y: A.y, w: A.w * 0.24, h: A.h }, `<h2>${esc(t.name)}</h2><p>${esc(tableScope(t).replace(/^[^:]*:\s*/, '').replace(/^./, (c) => c.toUpperCase()))}</p>${t.notes ? `<p>${esc(t.notes)}</p>` : ''}<p class="small">Drawings show design intent; final sizes are confirmed before the lumber is milled.</p>`, fs);
     sheets.push(sheet(p, s, no, t.name, `${scaleName(v.scale)}; section ${scaleName(v.secScale)}`, v.svg + notes));
   });
+  // Lighting chosen on any cabinet brings its spec sheet along
+  const spec = lightingSpecHtml(p);
+  if (spec) sheets.push(sheet(p, s, `A${first + walls.length + detailIdx.length + (doorStyle ? 1 : 0) + furnitureOf(p).length}`, 'Cabinet lighting', 'No scale', html({ x: A.x, y: A.y, w: A.w, h: A.h }, spec, s.paper === 'tabloid' ? 0.11 : 0.09)));
   return sheets;
 }
 

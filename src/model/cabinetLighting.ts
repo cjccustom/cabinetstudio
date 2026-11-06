@@ -7,19 +7,21 @@
 // From the choices come the parts to buy (with the specs to match when pricing them), drivers sized
 // by wall, labor, and a sheet for the electrician: where the drivers go, what feeds them, switching.
 import type { Cabinet, Project, WallId } from './types';
-import { eff, openSpans } from './parts';
+import { eff, layoutRows, openSpans } from './parts';
 import { wallNames } from './layout';
 import { fmt } from '../units';
 
-export type CabLightKind = 'puck' | 'stile' | 'shelfFront' | 'under';
+export type CabLightKind = 'puck' | 'stile' | 'shelfFront' | 'under' | 'shelves' | 'topAccent';
 export const cabLightLabel: Record<CabLightKind, string> = {
   puck: 'Puck lights in the top of each open section',
   stile: 'Vertical strips behind the face frame stiles',
   shelfFront: 'Strip across the front of each open section’s top',
   under: 'Under-cabinet strip (front of the bottom)',
+  shelves: 'Häfele adjustable shelf lighting (under every shelf)',
+  topAccent: 'Accent uplight on top (dimmable, color optional)',
 };
 
-export type PartKey = 'tape' | 'channel' | 'puck' | 'driver30' | 'driver60' | 'driver96' | 'lead' | 'cable' | 'control';
+export type PartKey = 'tape' | 'channel' | 'puck' | 'driver30' | 'driver60' | 'driver96' | 'lead' | 'cable' | 'control' | 'hProfile' | 'hRail' | 'hConnector' | 'accentTape' | 'accentControl';
 export type Control = 'wall' | 'door' | 'touch' | 'remote';
 export const controlLabel: Record<Control, string> = {
   wall: 'Wall dimmer (electrician), dimmable driver',
@@ -40,16 +42,46 @@ export interface LightingJob {
   puckWatts: number;
   /** Your prices: tape, channel and cable per foot; the rest each. */
   prices: Partial<Record<PartKey, number>>;
+  /** Where the drivers sit: in the base cabinets below, or on top of the bookcases (behind the crown). */
+  driverSpot?: 'below' | 'top';
+  /** Häfele adjustable shelf lighting: the machining, from Häfele's spec sheet, and their article numbers. */
+  hafele?: Partial<HafeleSpec>;
+  /** Accent uplight on top of the bookcases: plain white, tunable white, or color (RGBW), and the color shown in 3D. */
+  accent?: 'white' | 'tunable' | 'rgbw';
+  accentHex?: string;
 }
+
+/**
+ * Häfele adjustable shelf lighting, as Cody builds it: an LED profile in a groove under the front
+ * of every adjustable shelf, hidden behind a solid wood edge that drops below the shelf; power in a
+ * channel routed down the inside of each case side. The sizes start as placeholders: set them from
+ * Häfele's spec sheet for the profile and power rail you order.
+ */
+export interface HafeleSpec {
+  profileW: number; profileD: number; profileBack: number;
+  railW: number; railD: number; railBack: number;
+  /** How far the solid wood edge drops below the shelf, to hide the profile. */
+  drop: number;
+  /** Häfele article numbers, for the spec sheet and the order. */
+  profileNo: string; railNo: string; connectorNo: string; driverNo: string;
+}
+export const defaultHafele: HafeleSpec = { profileW: 0.625, profileD: 0.3125, profileBack: 0.375, railW: 0.375, railD: 0.25, railBack: 1, drop: 0.75, profileNo: '', railNo: '', connectorNo: '', driverNo: '' };
+export const hafeleOf = (p: Project): HafeleSpec => ({ ...defaultHafele, ...p.cabLighting?.hafele, ...p.settings.hafele });
+export const accentLabel = { white: 'White, dimmable', tunable: 'Tunable white (warm to cool), dimmable', rgbw: 'Color (RGBW) with white, dimmable' } as const;
 export type WireRoute = 'dado' | 'behind';
 export const wireRouteLabel: Record<WireRoute, string> = {
   dado: 'In a dado routed inside the case (back or side), down to the base cabinet',
   behind: 'Behind the cabinets, in the space between the case back and the wall',
 };
 export const defaultLightingJob: LightingJob = { kelvin: 3000, control: 'wall', driverAt: 'In the base cabinet below, behind a removable back panel', wireRoute: 'dado', wattsPerFt: 3, puckWatts: 2, prices: {} };
-export const lightingJobOf = (p: Project): LightingJob => ({ ...defaultLightingJob, ...p.cabLighting, prices: { ...p.cabLighting?.prices } });
+export const lightingJobOf = (p: Project): LightingJob => {
+  const j = { ...defaultLightingJob, ...p.cabLighting, prices: { ...p.cabLighting?.prices } };
+  // Drivers on top of the bookcases unless the location was written out by hand
+  if (j.driverSpot === 'top' && !p.cabLighting?.driverAt) j.driverAt = 'On top of the bookcases, behind the crown, with an access panel or reachable from above';
+  return j;
+};
 
-export interface Fixture { cab: Cabinet; kind: CabLightKind; count: number; /** Strip length each, inches (0 for pucks). */ length: number; watts: number; leads: number; where: string }
+export interface Fixture { cab: Cabinet; kind: CabLightKind; count: number; /** Strip length each, inches (0 for pucks). */ length: number; watts: number; leads: number; where: string; /** Häfele shelves: the open section's height, for the power rail down each side. */ span?: number }
 
 /** The light fixtures a cabinet gets from its choices. */
 export function cabinetFixtures(c: Cabinet, p: Project, job = lightingJobOf(p)): Fixture[] {
@@ -64,6 +96,24 @@ export function cabinetFixtures(c: Cabinet, p: Project, job = lightingJobOf(p)):
       if (c.kind !== 'wall') continue;
       const L = inner - 1;
       out.push({ cab: c, kind: k, count: 1, length: L, watts: (L / 12) * job.wattsPerFt, leads: 1, where: 'Under the bottom, behind the bottom rail' });
+      continue;
+    }
+    if (k === 'topAccent') {
+      // A strip set back on top of the case, shining up the wall: only where there's room above it
+      const room = p.room.height - (c.elevation + c.height);
+      if (room < 6) continue;
+      const L = Math.max(6, c.width - 2);
+      out.push({ cab: c, kind: k, count: 1, length: L, watts: (L / 12) * job.wattsPerFt, leads: 1, where: `On top of the case, set back behind the crown, shining up the wall (${Math.round(room)}" to the ceiling)` });
+      continue;
+    }
+    if (k === 'shelves') {
+      // One profile under each adjustable shelf and under the top of each open section
+      spans.forEach((o, i) => {
+        const shelves = c.rows.filter((r, ri) => ri < c.rows.length && openRowAt(c, s, ri, o)).reduce((t, r) => t + (r.fixedShelves ? 0 : r.shelves), 0);
+        const n = shelves + 1, L = inner - 1;
+        const which = spans.length > 1 ? `open section ${i + 1} (from the bottom)` : 'open section';
+        out.push({ cab: c, kind: k, count: n, length: L, watts: n * (L / 12) * job.wattsPerFt, leads: n, span: o.y1 - o.y0, where: `Under the front of each shelf and the top of the ${which}, in a groove behind the drop edge; power in a channel down each side` });
+      });
       continue;
     }
     spans.forEach((o, i) => {
@@ -82,6 +132,12 @@ export function cabinetFixtures(c: Cabinet, p: Project, job = lightingJobOf(p)):
     });
   }
   return out;
+}
+
+/** Whether face frame row ri is the open section spanning o. */
+function openRowAt(c: Cabinet, s: ReturnType<typeof eff>, ri: number, o: { y0: number; y1: number }): boolean {
+  const L = layoutRows(c, s).rows[ri];
+  return !!L && Math.abs(L.y0 - o.y0) < 0.01 && Math.abs(L.y1 - o.y1) < 0.01;
 }
 
 export const DRIVERS = [30, 60, 96] as const;
@@ -117,7 +173,7 @@ export function lightingParts(p: Project): { parts: LightingPart[]; fixtures: Fi
   const job = lightingJobOf(p);
   const fixtures = p.cabinets.flatMap((c) => cabinetFixtures(c, p, job));
   const drivers = lightingDrivers(fixtures);
-  const strips = fixtures.filter((f) => f.length > 0);
+  const strips = fixtures.filter((f) => f.length > 0 && !(f.kind === 'topAccent' && (job.accent ?? 'white') !== 'white'));
   const stripFt = strips.reduce((t, f) => t + (f.count * f.length) / 12, 0);
   const pucks = fixtures.filter((f) => f.kind === 'puck').reduce((t, f) => t + f.count, 0);
   const leads = fixtures.reduce((t, f) => t + f.leads, 0);
@@ -128,6 +184,21 @@ export function lightingParts(p: Project): { parts: LightingPart[]; fixtures: Fi
   if (stripFt) {
     parts.push({ key: 'tape', label: 'LED tape', spec: `24 V DC, ${k}K, CRI 90+, about ${job.wattsPerFt} W/ft, high-density (no dots) for use in diffused channel; 8–10 mm wide`, qty: Math.ceil(stripFt * 1.1), unit: 'ft', search: google(`24V LED tape ${k}K CRI 95 cabinet high density`) });
     parts.push({ key: 'channel', label: 'Aluminum channel with frosted diffuser', spec: 'Recessed (flanged) profile for 8–10 mm tape, end caps; note the routing width and depth', qty: Math.ceil(stripFt * 1.1), unit: 'ft', search: google('recessed aluminum LED channel flange frosted diffuser cabinet') });
+  }
+  const hf = fixtures.filter((f) => f.kind === 'shelves');
+  if (hf.length) {
+    const H = hafeleOf(p);
+    const profFt = hf.reduce((t, f) => t + (f.count * f.length) / 12, 0);
+    const railFt = hf.reduce((t, f) => t + (2 * (f.span ?? 0)) / 12, 0);
+    parts.push({ key: 'hProfile', label: 'Häfele shelf LED profile', spec: `${H.profileNo ? `Häfele ${H.profileNo}; ` : ''}in a ${fmt(H.profileW)} × ${fmt(H.profileD)} groove under each shelf front; ${k}K`, qty: Math.ceil(profFt * 1.1), unit: 'ft', search: google(`Hafele Loox5 shelf lighting profile ${k}K`) });
+    parts.push({ key: 'hRail', label: 'Häfele power rail for the case sides', spec: `${H.railNo ? `Häfele ${H.railNo}; ` : ''}in a ${fmt(H.railW)} × ${fmt(H.railD)} channel down each side, ${fmt(H.railBack)} from the front`, qty: Math.ceil(railFt * 1.1), unit: 'ft', search: google('Hafele Loox5 adjustable shelf lighting power rail') });
+    parts.push({ key: 'hConnector', label: 'Häfele shelf connectors', spec: `${H.connectorNo ? `Häfele ${H.connectorNo}; ` : ''}one per lit shelf, so shelves can be moved`, qty: hf.reduce((t, f) => t + f.count, 0), unit: 'ea', search: google('Hafele Loox5 shelf connector adjustable shelf') });
+  }
+  const acc = fixtures.filter((f) => f.kind === 'topAccent');
+  if (acc.length && (job.accent ?? 'white') !== 'white') {
+    const ft = acc.reduce((t, f) => t + f.length / 12, 0);
+    parts.push({ key: 'accentTape', label: job.accent === 'rgbw' ? 'RGBW LED tape (accent)' : 'Tunable white LED tape (accent)', spec: `24 V DC, ${job.accent === 'rgbw' ? 'RGB + white' : '2700–6500K'}, for the uplight on top`, qty: Math.ceil(ft * 1.1), unit: 'ft', search: google(`24V ${job.accent === 'rgbw' ? 'RGBW' : 'tunable white'} LED tape`) });
+    parts.push({ key: 'accentControl', label: job.accent === 'rgbw' ? 'RGBW controller and remote' : 'Tunable white controller and remote', spec: '24 V DC, rated for the accent run; app or remote dimming', qty: 1, unit: 'ea', search: google(`24V ${job.accent === 'rgbw' ? 'RGBW' : 'CCT'} LED controller remote`) });
   }
   if (pucks) parts.push({ key: 'puck', label: 'Recessed LED puck lights', spec: `24 V DC, ${k}K, CRI 90+, about ${job.puckWatts} W each; note the cutout diameter and depth (must fit the part thickness)`, qty: pucks, unit: 'ea', search: google(`24V recessed LED puck light ${k}K CRI 90 cabinet`) });
   for (const size of DRIVERS) {
@@ -161,9 +232,34 @@ export function electricianHtml(p: Project): string {
 <li>A 120 V receptacle or junction box at each driver location (below): ${esc(job.driverAt)}. Confirm the exact spot with CJC before the cabinets go in.</li>
 ${job.control === 'wall' ? '<li>A wall dimmer for each driver run, matched to the driver type CJC orders (ELV/MLV or TRIAC); we’ll send the driver model.</li>' : `<li>Switching is in the cabinet (${esc(controlLabel[job.control].toLowerCase())}): constant power to the driver, no wall switch needed unless wanted.</li>`}
 <li>Any wall penetrations for low-voltage cable that leaves the cabinets.</li></ul>
-<h3>Wiring inside the cabinetry</h3><ul><li>Drivers hidden in the base cabinets, out of sight behind a removable panel, with the 120 V feed brought into that cabinet.</li>
+<h3>Wiring inside the cabinetry</h3><ul><li>${job.driverSpot === 'top' ? 'Drivers on top of the bookcases, out of sight behind the crown, with the 120 V feed brought up to them.' : 'Drivers hidden in the base cabinets, out of sight behind a removable panel, with the 120 V feed brought into that cabinet.'}</li>
 <li>Low-voltage leads from the lights to the drivers: ${esc(wireRouteLabel[job.wireRoute ?? 'dado']).toLowerCase()}${(job.wireRoute ?? 'dado') === 'dado' ? '; CJC routes the dados and drills the pass-throughs in the shop' : '; CJC leaves pass-throughs in the case backs and tops'}.</li></ul>
 <h3>What CJC provides</h3><ul><li>Drivers, LED fixtures, channel, low-voltage wiring from the drivers to the fixtures, and testing.</li></ul>
 <h3>Drivers</h3><table class="parts"><thead><tr><th>#</th><th>Wall</th><th>Driver</th><th>Serves</th><th>Location</th></tr></thead><tbody>${rows}</tbody></table>
 <h3>Fixtures</h3><table class="parts"><thead><tr><th>Cabinet</th><th>Light</th><th>Size</th><th>Load</th><th>Where</th></tr></thead><tbody>${fx}</tbody></table>`;
+}
+
+/** The customer's spec sheet for the drawings: what lights go where, the light color, and how they're switched. No prices. */
+export function lightingSpecHtml(p: Project): string {
+  const job = lightingJobOf(p);
+  const { fixtures, drivers } = lightingParts(p);
+  if (!fixtures.length) return '';
+  const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+  const H = hafeleOf(p);
+  const kinds = new Set(fixtures.map((f) => f.kind));
+  const warm = job.kelvin <= 2700 ? 'warm, like an incandescent bulb' : job.kelvin <= 3000 ? 'warm white' : job.kelvin <= 3500 ? 'neutral warm white' : 'neutral white';
+  const what: string[] = [];
+  if (kinds.has('shelves')) what.push(`<li><b>Häfele adjustable shelf lighting.</b> An LED light strip set into the underside of every adjustable shelf, hidden behind a solid wood edge that drops ${esc(fmt(H.drop))} below the shelf, so you see the light on the shelf below and not the strip. Power runs in a channel inside the case sides; the shelves stay adjustable and plug in wherever they're set.${H.profileNo ? ` Häfele ${esc(H.profileNo)}.` : ''}</li>`);
+  if (kinds.has('topAccent')) what.push(`<li><b>Accent uplight on top of the bookcases.</b> A light strip set back behind the crown, washing up the wall to the ceiling: ${esc(accentLabel[job.accent ?? 'white'].toLowerCase())}${job.accent === 'rgbw' ? ', with any color you pick from the remote or app' : ''}.</li>`);
+  if (kinds.has('stile')) what.push('<li><b>Vertical light strips</b> just behind the face frame on both sides of each open section, lighting every shelf wherever it is set.</li>');
+  if (kinds.has('puck')) what.push('<li><b>Recessed puck lights</b> in the top of each open section.</li>');
+  if (kinds.has('shelfFront')) what.push('<li><b>A light strip across the front</b> of the top of each open section.</li>');
+  if (kinds.has('under')) what.push('<li><b>Under-cabinet light strips</b> at the front of the wall cabinets, lighting the counter.</li>');
+  const rows = fixtures.map((f) => `<tr><td>${esc(f.cab.name)}</td><td>${esc(cabLightLabel[f.kind])}</td><td>${f.length ? `${f.count} × ${esc(fmt(f.length))}` : `${f.count}`}</td><td>${esc(f.where)}</td></tr>`).join('');
+  return `<h2>Cabinet lighting</h2>
+<p>Low-voltage LED (24 V), ${job.kelvin}K (${warm}), high color rendering so wood and paint colors look true. Dimmable.</p>
+<h3>What's lit</h3><ul>${what.join('')}</ul>
+<h3>Switching</h3><p>${esc(controlLabel[job.control])}.${kinds.has('topAccent') && (job.accent ?? 'white') !== 'white' ? ' The accent uplight has its own controller and remote.' : ''}</p>
+<h3>Power</h3><p>${drivers.length} hidden driver${drivers.length === 1 ? '' : 's'}: ${esc(job.driverAt.charAt(0).toLowerCase() + job.driverAt.slice(1))}. Your electrician brings a 120 V outlet or box to ${drivers.length === 1 ? 'it' : 'each one'}${job.control === 'wall' ? ' and installs the wall dimmer' : ''}; we supply and wire the lights, drivers and low-voltage wiring.</p>
+<h3>By cabinet</h3><table class="parts"><thead><tr><th>Cabinet</th><th>Light</th><th>Lights</th><th>Where</th></tr></thead><tbody>${rows}</tbody></table>`;
 }

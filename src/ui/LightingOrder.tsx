@@ -1,12 +1,15 @@
 import { useMemo, useState } from 'react';
 import { useStore } from '../store';
-import { controlLabel, electricianHtml, lightingJobOf, lightingParts, type Control, type LightingJob, type PartKey , wireRouteLabel, type WireRoute } from '../model/cabinetLighting';
+import { accentLabel, controlLabel, electricianHtml, hafeleOf, type HafeleSpec, lightingJobOf, lightingParts, type Control, type LightingJob, type PartKey , wireRouteLabel, type WireRoute } from '../model/cabinetLighting';
 import { capability, type Downloads } from '../runtime';
 import { asciiHtml } from '../dropbox';
 import { clientName, clientOf, COMPANY } from '../model/client';
 import { Field } from './fields';
+import { fmt, parseLength } from '../units';
 
 const money = (v: number) => `$${v.toFixed(2)}`;
+const hfLen: [keyof HafeleSpec, string][] = [['profileW', 'Shelf groove width'], ['profileD', 'Shelf groove depth'], ['profileBack', 'Groove back from the drop edge'], ['drop', 'Drop edge below the shelf'], ['railW', 'Side channel width'], ['railD', 'Side channel depth'], ['railBack', 'Side channel from the front edge']];
+const hfNo: [keyof HafeleSpec, string][] = [['profileNo', 'Profile article no.'], ['railNo', 'Power rail article no.'], ['connectorNo', 'Shelf connector article no.'], ['driverNo', 'Driver article no.']];
 
 /** Cabinet lighting for the job: the parts to price, your prices, and the electrician's sheet. */
 export function LightingOrder() {
@@ -23,6 +26,10 @@ export function LightingOrder() {
     if (Number.isFinite(n)) prices[k] = n; else delete prices[k];
     put({ prices });
   };
+  const H = hafeleOf(project);
+  const putH = (patch: Partial<HafeleSpec>) => commit((p) => ({ ...p, settings: { ...p.settings, hafele: { ...p.settings.hafele, ...patch } } }));
+  const hasShelves = L.fixtures.some((f) => f.kind === 'shelves');
+  const hasAccent = L.fixtures.some((f) => f.kind === 'topAccent');
   const total = L.parts.reduce((t, x) => t + x.qty * (job.prices[x.key] ?? 0), 0);
   const sheet = async () => {
     setMsg('');
@@ -56,12 +63,44 @@ export function LightingOrder() {
         <Field label="Tape draw (W per ft, from the product)" htmlFor="cl-w"><input id="cl-w" inputMode="decimal" value={job.wattsPerFt} onChange={(e) => put({ wattsPerFt: parseFloat(e.target.value) || 0 })} /></Field>
         <Field label="Each puck (W)" htmlFor="cl-p"><input id="cl-p" inputMode="decimal" value={job.puckWatts} onChange={(e) => put({ puckWatts: parseFloat(e.target.value) || 0 })} /></Field>
       </div>
+      <Field label="Drivers sit" htmlFor="cl-spot">
+        <select id="cl-spot" value={job.driverSpot ?? 'below'} onChange={(e) => commit((p) => { const { driverAt: _d, ...rest } = p.cabLighting ?? {}; void _d; return { ...p, cabLighting: { ...rest, driverSpot: e.target.value as 'below' | 'top' } }; })}>
+          <option value="below">In the base cabinets below</option>
+          <option value="top">On top of the bookcases, behind the crown</option>
+        </select>
+      </Field>
       <Field label="Where the drivers go (for the electrician)" htmlFor="cl-at"><input id="cl-at" value={job.driverAt} onChange={(e) => put({ driverAt: e.target.value })} /></Field>
       <Field label="How the wires run to the drivers" htmlFor="cl-route">
         <select id="cl-route" value={job.wireRoute ?? 'dado'} onChange={(e) => put({ wireRoute: e.target.value as WireRoute })}>
           {(Object.keys(wireRouteLabel) as WireRoute[]).map((k) => <option key={k} value={k}>{wireRouteLabel[k]}</option>)}
         </select>
       </Field>
+      {hasAccent && (
+        <div className="grid2">
+          <Field label="Accent uplight on top" htmlFor="cl-acc">
+            <select id="cl-acc" value={job.accent ?? 'white'} onChange={(e) => put({ accent: e.target.value as LightingJob['accent'] })}>
+              {(Object.keys(accentLabel) as (keyof typeof accentLabel)[]).map((k) => <option key={k} value={k}>{accentLabel[k]}</option>)}
+            </select>
+          </Field>
+          {job.accent === 'rgbw' && <Field label="Color shown in 3D" htmlFor="cl-hex"><input id="cl-hex" type="color" value={job.accentHex ?? '#ffb060'} onChange={(e) => put({ accentHex: e.target.value })} /></Field>}
+        </div>
+      )}
+      {hasShelves && (
+        <details>
+          <summary>Häfele shelf lighting: machining and article numbers</summary>
+          <p className="hint">Placeholders until you have Häfele’s spec sheet for the profile and power rail: set them from it. They go on the cut list, the shop drawings and the customer’s spec sheet.</p>
+          <div className="grid2">
+            {hfLen.map(([k, label]) => (
+              <Field key={`${k}-${H[k]}`} label={label} htmlFor={`hf-${k}`}>
+                <input id={`hf-${k}`} defaultValue={fmt(H[k] as number)} onBlur={(e) => { const v = parseLength(e.target.value); if (v != null && v >= 0) putH({ [k]: v }); }} />
+              </Field>
+            ))}
+            {hfNo.map(([k, label]) => (
+              <Field key={k} label={label} htmlFor={`hf-${k}`}><input id={`hf-${k}`} value={H[k] as string} placeholder="Häfele no." onChange={(e) => putH({ [k]: e.target.value })} /></Field>
+            ))}
+          </div>
+        </details>
+      )}
       <div className="table-wrap">
         <table>
           <thead><tr><th>Part</th><th>Spec to match</th><th className="num">Qty</th><th className="num">Your price</th><th className="num">Total</th></tr></thead>

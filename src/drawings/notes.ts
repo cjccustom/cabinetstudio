@@ -1,7 +1,7 @@
 // What a drawing should point out about each cabinet: things the design already knows (end
 // panels, scribes, decorative bases, mouldings, tops) plus Cody's own notes, each marked for the
 // customer, the shop, or both.
-import { lightingJobOf } from '../model/cabinetLighting';
+import { accentLabel, cabinetFixtures, hafeleOf, lightingJobOf } from '../model/cabinetLighting';
 import { colorText } from '../model/paintColors';
 import { cabinetFinishOf } from '../model/cabinetFinish';
 import type { Cabinet, CabinetNote, Project } from '../model/types';
@@ -40,10 +40,21 @@ export function cabinetCallouts(p: Project, c: Cabinet): Callout[] {
   const fin = cabinetFinishOf(p, c);
   if (fin.accent && c.kind !== 'pilaster' && c.kind !== 'mantel' && c.kind !== 'shelf') out.push({ text: `Finish: ${fin.text}${fin.finish === 'stain' ? ` (doors ${eff(c, p.settings).doorMaterial.toLowerCase()})` : ''}`, for: 'both' });
   if (c.lighting?.length) {
-    const route = lightingJobOf(p).wireRoute ?? 'dado';
+    const job = lightingJobOf(p);
+    const route = job.wireRoute ?? 'dado';
+    const to = job.driverSpot === 'top' ? 'up to the driver on top of the bookcase' : 'down to the driver in the base cabinet';
     out.push({ text: route === 'dado'
-      ? 'LED leads: rout a 3/8" x 3/8" wire dado up the inside of the case back (or side) to the lights, and drill a pass-through down to the driver in the base cabinet'
-      : 'LED leads run behind the case: drill pass-throughs at each light and down to the driver in the base cabinet', for: 'shop' });
+      ? `LED leads: rout a 3/8" x 3/8" wire dado up the inside of the case back (or side) to the lights, and drill a pass-through ${to}`
+      : `LED leads run behind the case: drill pass-throughs at each light and ${to}`, for: 'shop' });
+    const fx = cabinetFixtures(c, p, job);
+    const H = hafeleOf(p);
+    const hf = fx.filter((f) => f.kind === 'shelves');
+    if (hf.length) {
+      out.push({ text: `Häfele shelf lighting: groove each adjustable shelf underneath ${fmt(H.profileW)} W × ${fmt(H.profileD)} D, ${fmt(H.profileBack)} behind the drop edge, stopped 1/2" from the ends; solid drop edge, top flush, ${fmt(H.drop)} below the shelf`, for: 'shop' });
+      out.push({ text: `Häfele power channel ${fmt(H.railW)} W × ${fmt(H.railD)} D in each case side (and divider) of the open section, ${fmt(H.railBack)} from the front edge, top to bottom of the opening; shelf pin holes as usual`, for: 'shop' });
+      out.push({ text: `Häfele LED lighting under every shelf (${hf.reduce((t, f) => t + f.count, 0)} lights, ${job.kelvin}K): shelves stay adjustable`, for: 'customer' });
+    }
+    if (fx.some((f) => f.kind === 'topAccent')) out.push({ text: `Accent uplight on top of the case: ${accentLabel[job.accent ?? 'white'].toLowerCase()}`, for: 'both' });
   }
   if (c.baseMold) out.push({ text: `Base moulding: ${mold(c.baseMold)}`, for: 'both' });
   if (c.shelfFront) out.push({ text: `Shelves with ${fmt(c.shelfFront.height)} × ${fmt(c.shelfFront.thickness)} solid fronts`, for: 'both' });

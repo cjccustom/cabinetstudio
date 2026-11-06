@@ -11,6 +11,7 @@ import { spacingOf } from '../model/panels';
 import { cabinetMoldings, panelMoldings } from '../model/moldings';
 import { eff } from '../model/parts';
 import { MoldingModel } from './MoldingModel';
+import { CabinetLights } from './CabinetLights';
 import { ApplianceModel } from './ApplianceModel';
 import { live, onWheel, useNav } from './navigation';
 import { RoomModel } from './RoomModel';
@@ -273,11 +274,15 @@ function CabinetModel(props: {
   // Under a coffer's perimeter fascia the fascia carries the crown, not the cabinet
   const noCrown = useStore((st) => underFascia(st.project, cab));
   const ends = resolveEnds(room, allCabs, cab);
-  const geo = useMemo(
-    () => buildCabinetGeometry(buildParts(cab, settings, ends)),
+  const parts = useMemo(
+    () => buildParts(cab, settings, ends),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [cab, settings, ends.left, ends.right],
   );
+  const geo = useMemo(() => buildCabinetGeometry(parts), [parts]);
+  // The cabinet's lighting, lit, in the 3D view (the Lights switch over the view turns it off)
+  const lightsOn = useNav((n) => n.lights) && view === '3d' && !!cab.lighting?.length;
+  const project = useStore((st) => st.project);
   useEffect(() => () => {
     geo.meshes.forEach((m) => m.geometry.dispose());
     geo.edges.dispose();
@@ -425,6 +430,7 @@ function CabinetModel(props: {
         <MoldingModel pieces={cabinetMoldings(cab, eff(cab, settings), ends, { noCrown })} color={fc.paint} edgeColor={edgeColor} />
       )}
       <ApplianceModel cab={cab} settings={settings} />
+      {lightsOn && <CabinetLights cab={cab} project={project} parts={parts} />}
     </group>
   );
 }

@@ -8,6 +8,7 @@ import { fmt as fmtShort, fmt } from '../units';
 import { baseLayout, boardT, cutShape, archShapes, fridgeBelow } from './cabinetBase';
 import { mountShape, profileByNum } from './moldings';
 import type { CutShape } from './types';
+import { defaultHafele, type HafeleSpec } from './cabinetLighting';
 
 export const vb = (x: number, y: number, z: number, sx: number, sy: number, sz: number, shade?: number): VisualBox => ({
   min: [x, y, z], size: [sx, sy, sz], shade,
@@ -339,6 +340,9 @@ function caseParts(c: Cabinet, s: ShopSettings, ends: EndInfo): Part[] {
   if (c.island && c.islandSides === 2) return twoSidedIsland(c, s, ends);
   s = eff(c, s);
   if (c.corner) return buildCornerParts(c, s);
+  const HF: HafeleSpec = { ...defaultHafele, ...s.hafele };
+  const hfSpans = c.lighting?.includes('shelves') ? openSpans(c, s) : [];
+  const hafeleSideNote = (spans: { y0: number; y1: number }[], both: boolean) => `Häfele power channel ${fmtShort(HF.railW)} wide × ${fmtShort(HF.railD)} deep${both ? ' each face' : ' on the inside face'}, ${fmtShort(HF.railBack)} from the front edge, ${spans.map((o) => `${fmtShort(o.y0)} to ${fmtShort(o.y1)}`).join(' and ')} up from the bottom of the cabinet; drill through for the lead to the driver`;
   if (c.kind === 'pilaster') return [...pilasterParts(c, s, ends), ...crownParts(c, s, ends)];
   if (c.kind === 'shelf') return floatingShelfParts(c, s, ends);
   if (c.kind === 'mantel') return mantelParts(c, s);
@@ -393,6 +397,7 @@ function caseParts(c: Cabinet, s: ShopSettings, ends: EndInfo): Part[] {
     else if (BL.lift > 0) notes.push(`Stands ${fmtShort(BL.lift)} off the floor behind the baseboard, room to level`);
     if (bare) notes.push('Finished outside: paint (or stain) with the face frame');
     if (fl) notes.push('Band the front edge');
+    if (hfSpans.length) notes.push(hafeleSideNote(hfSpans, false));
     parts.push({
       name: bare ? 'Side, exposed' : 'Side', role: 'side', material: 'box', length: H - BL.lift, width: boxD, thickness: tn, cut: true, banded: fl || undefined,
       // A bare exposed side gets the finish (painted, or stained to match), not left as case plywood
@@ -687,7 +692,7 @@ function caseParts(c: Cabinet, s: ShopSettings, ends: EndInfo): Part[] {
       const lo = Math.max(r.y0, botTop), hi = Math.min(r.y1, topUnder);
       for (const x of bayEdges(ox0, ox1, n, fl ? ta : sw).stiles) {
         parts.push({ name: 'Divider', role: 'divider', material: 'box', length: hi - lo + 2 * dd, width: boxD - rw, thickness: tn, cut: true, banded: fl || undefined,
-          note: `In ${dados} dados top and bottom${fl ? ', front edge banded' : ', behind a mid stile'}`, boxes: [vb(x - ta / 2, lo, rw, ta, hi - lo, boxD - rw)] });
+          note: [`In ${dados} dados top and bottom${fl ? ', front edge banded' : ', behind a mid stile'}`, c.lighting?.includes('shelves') ? hafeleSideNote([{ y0: lo, y1: hi }], true) : ''].filter(Boolean).join(' · '), boxes: [vb(x - ta / 2, lo, rw, ta, hi - lo, boxD - rw)] });
         if (!fl) parts.push({ name: 'Mid stile', role: 'stile', material: 'faceframe', length: r.height, width: sw, thickness: ft, cut: true,
           note: 'Over the divider', boxes: [vb(x - sw / 2, r.y0, zF, sw, r.height, ft)] });
       }
@@ -780,7 +785,10 @@ function caseParts(c: Cabinet, s: ShopSettings, ends: EndInfo): Part[] {
     }
     if ((row.type === 'doors' || row.type === 'open') && row.shelves > 0) {
       const shelfW = innerW - s.shelfClearance;
-      const sf = c.shelfFront && c.shelfFront.thickness > 0 && c.shelfFront.height > 0 ? c.shelfFront : null;
+      const fixed0 = c.build?.shelves === 'fixed' || !!row.fixedShelves;
+      // Häfele shelf lighting: every adjustable shelf in an open section gets a drop edge, and a groove for the profile behind it
+      const lit = !fixed0 && isOpenRow(row.type, row.covered) && !!c.lighting?.includes('shelves');
+      const sf = lit ? { thickness: 0.75, height: ta + HF.drop } : c.shelfFront && c.shelfFront.thickness > 0 && c.shelfFront.height > 0 ? c.shelfFront : null;
       const fullD = boxD - rw - s.shelfSetback;
       const shelfD = fullD - (sf?.thickness ?? 0);
       const lo = Math.max(r.y0, botTop);
@@ -794,10 +802,10 @@ function caseParts(c: Cabinet, s: ShopSettings, ends: EndInfo): Part[] {
         const fixed = c.build?.shelves === 'fixed' || !!row.fixedShelves;
         const bw = b1 - b0, sW = bays.length > 1 ? bw - s.shelfClearance : shelfW;
         parts.push({ name: fixed ? 'Fixed shelf' : 'Adjustable shelf', role: 'shelf', material: 'box', length: fixed ? bw + 2 * dd : sW, width: shelfD, thickness: tn, cut: true,
-          note: [fixed ? `In ${dados} dados` : '', sf ? 'Solid front applied, no banding' : ''].filter(Boolean).join(' · ') || undefined, banded: !sf,
+          note: [fixed ? `In ${dados} dados` : '', lit ? `Häfele LED groove ${fmtShort(HF.profileW)} wide × ${fmtShort(HF.profileD)} deep in the underside, ${fmtShort(HF.profileBack)} behind the drop edge, stopped 1/2" short of the ends; notch the back corners for the connectors` : '', sf ? (lit ? 'Solid drop edge applied, no banding' : 'Solid front applied, no banding') : ''].filter(Boolean).join(' · ') || undefined, banded: !sf,
           boxes: [fixed ? vb(b0, y, rw, bw, ta, shelfD) : vb(b0 + s.shelfClearance / 2, y, rw, sW, ta, shelfD)] });
-        if (sf) parts.push({ name: 'Shelf front', role: 'trim', material: 'faceframe', length: sW, width: sf.height, thickness: sf.thickness, cut: true,
-          note: 'Glued and nailed to the shelf edge, top flush',
+        if (sf) parts.push({ name: lit ? 'Shelf drop edge' : 'Shelf front', role: 'trim', material: 'faceframe', length: sW, width: sf.height, thickness: sf.thickness, cut: true,
+          note: lit ? `Solid wood, top flush with the shelf, drops ${fmtShort(HF.drop)} below it to hide the LED profile; glued and nailed` : 'Glued and nailed to the shelf edge, top flush',
           boxes: [vb(b0 + s.shelfClearance / 2, y + ta - sf.height, rw + shelfD, sW, sf.height, sf.thickness)] });
       }
     }
