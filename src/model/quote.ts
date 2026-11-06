@@ -1,6 +1,6 @@
 // Quoting: material cost from the design, labor hours from standard times, and the shop's two
 // pricing methods side by side. Every number traces back to the design or a setting.
-import { lightingCost, lightingParts } from './cabinetLighting';
+import { lightingCost, lightingJobOf, lightingParts } from './cabinetLighting';
 import { corbelByCode } from './corbels';
 import { furnitureOf, tableEstimate, tableScope } from './furniture';
 import type { Cabinet, Project, WallId } from './types';
@@ -60,6 +60,9 @@ export interface LaborStandards {
   divider?: number;
   /** Cabinet lighting: each strip routed and fitted, each puck, each driver wired on site. */
   lightStrip?: number;
+  /** Lighting layout and test fit (each job), and programming a Mesh control. */
+  lightLayout?: number;
+  lightProgram?: number;
   /** Häfele shelf lighting: each section's side channels, and each shelf's drop edge. */
   lightRail?: number;
   lightDropEdge?: number;
@@ -509,16 +512,19 @@ export function estimateHours(p: Project, q: QuoteSettings): HourLine[] {
   // Cabinet lighting: routing and fitting channel or pucks in the shop, wiring and drivers on site
   const lit = lightingParts(p);
   if (lit.fixtures.length) {
-    const strips = lit.fixtures.filter((f) => f.length > 0 && f.kind !== 'shelves').reduce((t, f) => t + f.count, 0);
-    const pucks = lit.fixtures.filter((f) => f.kind === 'puck').reduce((t, f) => t + f.count, 0);
-    add('Lighting: rout & fit channel and tape (each strip)', strips, st.lightStrip ?? 0.5);
+    const ours = lit.fixtures.filter((f) => !f.byOthers);
+    const strips = ours.filter((f) => f.length > 0 && f.kind !== 'shelves').reduce((t, f) => t + f.count, 0);
+    const pucks = ours.filter((f) => f.kind === 'puck').reduce((t, f) => t + f.count, 0);
+    add('Lighting: layout & test fit', 1, st.lightLayout ?? 1);
+    add('Lighting: rout recess, cut & assemble fixed lights (each)', strips, st.lightStrip ?? 0.5);
     add('Lighting: bore & fit puck lights (each)', pucks, st.lightPuck ?? 0.3);
-    // Häfele shelf lighting: a power channel down each side of every lit section, and a solid drop edge milled and applied to each shelf
-    const hf = lit.fixtures.filter((f) => f.kind === 'shelves');
-    add('Lighting: rout power channels down the case sides (each section)', hf.length, st.lightRail ?? 0.75);
-    add('Lighting: mill & apply shelf drop edges (each shelf)', hf.reduce((t, f) => t + Math.max(0, f.count - 1), 0), st.lightDropEdge ?? 0.25);
-    add('Lighting: wire, mount drivers & test (each driver)', lit.drivers.length, st.lightDriver ?? 1, 'cabinets', true);
+    // Häfele shelf lighting: a bus bar groove down each side of every lit bay, and each shelf grooved for its bar with a solid drop edge
+    const hf = ours.filter((f) => f.kind === 'shelves');
+    add('Lighting: rout bus bar grooves (each)', hf.reduce((t, f) => t + 2 * (f.bays ?? 1), 0), st.lightRail ?? 0.35);
+    add('Lighting: groove shelf for its bar, mill & apply drop edge (each shelf)', hf.reduce((t, f) => t + f.count, 0), st.lightDropEdge ?? 0.35);
+    add('Lighting: route cables, mount drivers & controllers, test (each driver)', lit.drivers.length, st.lightDriver ?? 1, 'cabinets', true);
     installHours += lit.drivers.length * (st.lightDriver ?? 1);
+    if (lightingJobOf(p).control === 'mesh' && lit.drivers.length) { add('Lighting: program the Mesh wall control', 1, st.lightProgram ?? 0.75, 'cabinets', true); installHours += st.lightProgram ?? 0.75; }
   }
   // Load-in, protection and cleanup for each install day
   const days = Math.max(installHours > 0 ? 1 : 0, Math.ceil(installHours / 7));
@@ -654,7 +660,11 @@ export function estimateMaterials(p: Project, q: QuoteSettings): MaterialLine[] 
   const lit = lightingParts(p);
   if (lit.parts.length) {
     const lc = lightingCost(p);
-    out.push({ group: 'cabinets', label: 'Cabinet lighting (LED, channel, drivers)', cost: lc.cost, detail: lit.parts.map((x) => `${x.qty} ${x.unit === 'ft' ? 'ft ' : '× '}${x.label.toLowerCase()}`).join(', '), missing: lc.missing.length ? `Enter lighting prices on the Orders tab (${lc.missing.join(', ')})` : undefined });
+    const list = lit.parts.filter((x) => !x.tooling).map((x) => `${x.qty} ${x.unit === 'ft' ? 'ft ' : '× '}${x.label.toLowerCase()}`).join(', ');
+    out.push({ group: 'cabinets', label: 'Interior cabinet lighting materials', cost: lc.cost,
+      detail: lc.allowance != null ? `Working allowance $${lc.allowance.toFixed(2)} until supplier quotes are in (parts priced so far $${lc.parts.toFixed(2)}): ${list}` : list,
+      missing: lc.missing.length ? `Enter lighting prices on the Orders tab (${lc.missing.join(', ')})` : undefined });
+    if (lc.tooling > 0) out.push({ group: 'cabinets', label: 'Lighting tooling', cost: lc.tooling, detail: lit.parts.filter((x) => x.tooling).map((x) => x.label).join(', ') });
   }
   const groups: [SupplyGroup, string][] = [['cabinets', 'Shop supplies: screws, glue, banding, abrasives'], ['tops', 'Shop supplies for tops'], ['paneling', 'Shop supplies for paneling']];
   const sup = supplyLines(p, q.supplies);

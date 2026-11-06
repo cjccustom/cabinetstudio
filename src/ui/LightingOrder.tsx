@@ -9,7 +9,7 @@ import { fmt, parseLength } from '../units';
 
 const money = (v: number) => `$${v.toFixed(2)}`;
 const hfLen: [keyof HafeleSpec, string][] = [['profileW', 'Shelf groove width'], ['profileD', 'Shelf groove depth'], ['profileBack', 'Groove back from the drop edge'], ['drop', 'Drop edge below the shelf'], ['railW', 'Bus bar channel width'], ['railD', 'Bus bar channel depth'], ['railBack', 'Bus bar channel from the front edge']];
-const hfNo: [keyof HafeleSpec, string][] = [['profileNo', 'Light bar profile'], ['railNo', 'Bus bar article no.'], ['connectorNo', 'Power supply kit article no.'], ['driverNo', 'Loox 12 V driver article no.']];
+const hfNo: [keyof HafeleSpec, string][] = [['profileNo', 'Light bar profile (blank: Profile 1103)'], ['railNo', 'Bus bar article no.'], ['connectorNo', 'Power supply kit article no.'], ['driverNo', 'Loox 12 V driver article no.']];
 
 /** Cabinet lighting for the job: the parts to price, your prices, and the electrician's sheet. */
 export function LightingOrder() {
@@ -31,6 +31,7 @@ export function LightingOrder() {
   const hasShelves = L.fixtures.some((f) => f.kind === 'shelves');
   const hasAccent = L.fixtures.some((f) => f.kind === 'topAccent');
   const total = L.parts.reduce((t, x) => t + x.qty * (job.prices[x.key] ?? 0), 0);
+  const partsTotal = L.parts.filter((x) => !x.tooling).reduce((t, x) => t + x.qty * (job.prices[x.key] ?? 0), 0);
   const sheet = async () => {
     setMsg('');
     const c = clientOf(project);
@@ -75,6 +76,18 @@ export function LightingOrder() {
           {(Object.keys(wireRouteLabel) as WireRoute[]).map((k) => <option key={k} value={k}>{wireRouteLabel[k]}</option>)}
         </select>
       </Field>
+      <div className="grid2">
+        <Field label="Fixed strips (section tops, cubbies) built from" htmlFor="cl-fixed">
+          <select id="cl-fixed" value={job.fixed} onChange={(e) => put({ fixed: e.target.value as LightingJob['fixed'] })}>
+            <option value="loox">Häfele Loox5: 24 V tape in 1103 profiles, same drivers</option>
+            <option value="generic">Generic 24 V tape and channel</option>
+          </select>
+        </Field>
+        <Field label="Material allowance until quotes are in ($, blank = the parts priced)" htmlFor="cl-allow">
+          <input id="cl-allow" inputMode="decimal" value={job.allowance ?? ''} placeholder={money(partsTotal)} onChange={(e) => { const n = parseFloat(e.target.value); put({ allowance: Number.isFinite(n) && n > 0 ? n : undefined }); }} />
+        </Field>
+      </div>
+      {job.allowance != null && <p className="hint">The quote uses the {money(job.allowance)} allowance for lighting materials in place of the parts ({money(partsTotal)} priced so far), not on top of them. Tax, freight, tooling, labor and markup are apart.</p>}
       {hasAccent && (
         <div className="grid2">
           <Field label="Accent uplight on top" htmlFor="cl-acc">
@@ -88,14 +101,22 @@ export function LightingOrder() {
       {hasShelves && (
         <details>
           <summary>Häfele shelf lighting: machining and article numbers</summary>
-          <p className="hint">From Häfele’s tech doc (Wireless Adjustable Shelf Lighting System, 2/23); groove sizes read off its drawing, so check them against the parts before cutting. They go on the cut list, the shop drawings and the customer’s spec sheet. Bars run the full shelf length: standard 18/24/30/36", anything else custom from Häfele Service+ (888.437.7477), about 10 days.</p>
+          <p className="hint">From Häfele’s tech doc (Wireless Adjustable Shelf Lighting System, 2/23); groove sizes read off its drawing, so check them against the parts before cutting. They go on the cut list, the shop drawings and the customer’s spec sheet. Each bar fits its shelf: stock 18/24/30/36" (the cabinet editor offers the case width that fits one), anything else custom from Häfele Service+ (888.437.7477), about 10 days. Blank article numbers use the usual ones for the voltage.</p>
           <div className="grid2">
-            <Field label="Light bar intensity" htmlFor="hf-int">
-              <select id="hf-int" value={H.intensity} onChange={(e) => putH({ intensity: e.target.value as HafeleSpec['intensity'] })}>
-                <option value="medium">Medium, LED 2065 (4.8 W/m)</option>
-                <option value="high">High, LED 2068 (9.6 W/m)</option>
+            <Field label="System voltage" htmlFor="hf-v">
+              <select id="hf-v" value={H.volts} onChange={(e) => putH({ volts: Number(e.target.value) as 12 | 24 })}>
+                <option value={24}>24 V, LED 3045 (matches Loox5 tape and drivers)</option>
+                <option value={12}>12 V, LED 2065 / 2068</option>
               </select>
             </Field>
+            {H.volts === 12 && (
+              <Field label="Light bar intensity" htmlFor="hf-int">
+                <select id="hf-int" value={H.intensity} onChange={(e) => putH({ intensity: e.target.value as HafeleSpec['intensity'] })}>
+                  <option value="medium">Medium, LED 2065 (4.8 W/m)</option>
+                  <option value="high">High, LED 2068 (9.6 W/m)</option>
+                </select>
+              </Field>
+            )}
             {hfLen.map(([k, label]) => (
               <Field key={`${k}-${H[k]}`} label={label} htmlFor={`hf-${k}`}>
                 <input id={`hf-${k}`} defaultValue={fmt(H[k] as number)} onBlur={(e) => { const v = parseLength(e.target.value); if (v != null && v >= 0) putH({ [k]: v }); }} />
@@ -105,14 +126,15 @@ export function LightingOrder() {
               <Field key={k} label={label} htmlFor={`hf-${k}`}><input id={`hf-${k}`} value={H[k] as string} placeholder="Häfele no." onChange={(e) => putH({ [k]: e.target.value })} /></Field>
             ))}
           </div>
+          <label className="check-inline"><input type="checkbox" checked={!!job.ownBit} onChange={(e) => put({ ownBit: e.target.checked || undefined })} /> The shop already has the bus bar router bit (001.25.921)</label>
         </details>
       )}
       <div className="table-wrap">
         <table>
           <thead><tr><th>Part</th><th>Spec to match</th><th className="num">Qty</th><th className="num">Your price</th><th className="num">Total</th></tr></thead>
           <tbody>
-            {L.parts.map((x) => (
-              <tr key={x.key}>
+            {L.parts.map((x, i) => (
+              <tr key={`${x.key}-${i}`}>
                 <td>{x.label}<div className="check-hint"><a href={x.search} target="_blank" rel="noreferrer">Find it</a></div></td>
                 <td className="spec">{x.spec}</td>
                 <td className="num">{x.qty} {x.unit}</td>

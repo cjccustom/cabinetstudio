@@ -63,7 +63,7 @@ export function CabinetLights({ cab, project, parts }: { cab: Cabinet; project: 
         if (w <= 2) continue;
         // Lights under things in this cubby, top down: the section's top, then each lit shelf
         const under: { y: number; z: number }[] = [];
-        if (kinds.has('shelves') || kinds.has('shelfFront')) under.push({ y: o.y1 - 0.15, z: cab.depth - 2.5 });
+        if (kinds.has('shelfFront')) under.push({ y: o.y1 - 0.15, z: cab.depth - 2.5 });
         const shelfYs = edges.filter((e) => e.min[0] + e.size[0] / 2 > b0 && e.min[0] + e.size[0] / 2 < b1 && e.min[1] > o.y0 && e.min[1] < o.y1)
           .map((e) => ({ top: e.min[1] + e.size[1], z: e.min[2] - H.profileBack - 0.3 })).sort((a, b) => b.top - a.top);
         if (kinds.has('shelves')) for (const e of shelfYs) under.push({ y: e.top - 0.85, z: e.z });

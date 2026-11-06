@@ -27,7 +27,7 @@ import { archBuilds, archShapes, baseLayout, baseOf, baseStyles, cutOutline, def
 import { profileLabel, profileByNum } from '../model/moldings';
 import { lumberNames } from '../model/pricebook';
 import { corbelByCode, corbelCatalog, corbelLabel } from '../model/corbels';
-import { cabinetFixtures, cabLightLabel, type CabLightKind } from '../model/cabinetLighting';
+import { cabinetFixtures, cabLightLabel, hafeleFit, type CabLightKind } from '../model/cabinetLighting';
 
 const kindLabel = { base: 'Base cabinet', wall: 'Wall cabinet', tall: 'Tall cabinet', pilaster: 'Pilaster', shelf: 'Floating shelf', mantel: 'Fireplace mantel' };
 const rowTypes: { v: FaceRow['type']; label: string }[] = [
@@ -601,13 +601,20 @@ function LightingSection({ cab, set }: { cab: Cabinet; set: (p: Partial<Cabinet>
     set({ lighting: next.length ? next : undefined });
   };
   const fx = cabinetFixtures(cab, project);
+  const fit = on.includes('shelves') ? hafeleFit(cab, project) : [];
   return (
     <Section title="Lighting">
       {kinds.map((k) => (
         <label key={k} className="check-inline" style={{ display: "flex", gap: 6, margin: "4px 0" }}><input type="checkbox" checked={on.includes(k)} onChange={() => toggle(k)} /> {cabLightLabel[k]}</label>
       ))}
       {fx.length > 0 && <p className="hint">{fx.map((f) => (f.length ? `${f.count} × ${fmt(f.length)} strip` : `${f.count} puck${f.count > 1 ? 's' : ''}`)).join(', ')} · about {Math.round(fx.reduce((t, f) => t + f.watts, 0))} W. Parts, prices and the electrician’s sheet are on the Orders tab.</p>}
-      {on.includes('shelves') && <p className="hint">Each adjustable shelf in the open sections gets a solid drop edge with the LED groove behind it, and the case sides get the bus bar channels: on the cut list and shop drawings. Bars run each shelf’s full length (standard 18/24/30/36" or custom from Häfele). Groove sizes, intensity and article numbers are on the Orders tab.</p>}
+      {on.includes('shelves') && <p className="hint">Each adjustable shelf in the open sections gets a solid drop edge with the LED groove behind it, and the case sides get the bus bar channels: on the cut list and shop drawings. Tick the strip in the top of each section too for a fixed light there. Groove sizes, intensity and article numbers are on the Orders tab.</p>}
+      {fit.map((f, i) => (
+        <p key={i} className={f.stock ? 'hint' : 'warn'}>
+          Shelves {fmt(f.length)} long: {f.stock ? `a stock ${f.bar}" Häfele bar.` : f.bar ? `custom bars, or make this cabinet ${fmt(f.widthFor!)} wide for stock ${f.bar}" bars.` : 'custom bars.'}
+          {!f.stock && f.widthFor != null && <> <button onClick={() => set({ width: f.widthFor! })}>Make it {fmt(f.widthFor!)} wide</button></>}
+        </p>
+      ))}
       {on.includes('topAccent') && !fx.some((f) => f.kind === 'topAccent') && <p className="warn">No accent uplight: less than 6" from the top of this cabinet to the ceiling.</p>}
       {on.includes('stile') && <p className="hint">Vertical strips light every shelf wherever adjustable shelves end up. Strips under a shelf front only suit fixed shelves.</p>}
     </Section>
