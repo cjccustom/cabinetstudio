@@ -1065,6 +1065,12 @@ function BaseSection({ cab, set }: { cab: Cabinet; set: (patch: Partial<Cabinet>
           </Field>
         )}
       </div>
+      {b.style === 'baseboard' && (
+        <div className="grid3">
+          <label className="check-inline" style={{ display: 'flex', gap: 6, alignItems: 'center', gridColumn: 'span 2' }}><input type="checkbox" checked={(b.platform ?? 0) > 0} onChange={(e) => put({ platform: e.target.checked ? Math.min(3.5, Math.max(1, L.top + s.bottomRailWidth - 1.5)) : undefined })} /> Sit the cases on a leveled platform</label>
+          {(b.platform ?? 0) > 0 && <Field label="Platform height" htmlFor="base-plat"><LengthInput id="base-plat" value={b.platform ?? 3.5} onChange={(v) => put({ platform: v ?? undefined })} /></Field>}
+        </div>
+      )}
       <div className="order-actions">
         {others.length > 0 && <button className="mini" onClick={() => commit((p) => ({ ...p, cabinets: p.cabinets.map((c) => (others.some((o) => o.id === c.id) ? { ...c, base: { ...b }, baseMold: cab.baseMold } : c)) }))}>Same base on the other {others.length} on this wall</button>}
         {allFloor.length > 1 && <button className="mini" onClick={() => commit((p) => ({ ...p, cabinets: p.cabinets.map((c) => (c.id !== cab.id && floorStanding(c) ? { ...c, base: { ...b }, baseMold: cab.baseMold } : c)) }))}>Same base on every floor cabinet in the job ({allFloor.length})</button>}
@@ -1086,7 +1092,7 @@ function BaseSection({ cab, set }: { cab: Cabinet; set: (patch: Partial<Cabinet>
           ? `Recessed ${fmt(s.toeKickHeight)} toe kick.`
           : `Cabinet height stays ${fmt(cab.height)}: the base takes ${fmt(L.top)}${cap ? ` (with the ${profileLabel(cap)} cap)` : ''}, a ${fmt(s.bottomRailWidth)} rail shows above it, and the openings shorten to suit.`}
         {b.style === 'baseboard' && (L.molded
-          ? ` Baseboard ${cap ? profileLabel(cap) : ''}, ${fmt(L.top)} from the floor${cab.island ? ', all four sides' : ', wrapping exposed ends back to the wall'}. The case and face frame stand ${fmt(L.lift)} off the floor to level; the bottom rail runs down to there as the nailer, ${fmt(s.bottomRailWidth)} showing above the baseboard.`
+          ? ` Baseboard ${cap ? profileLabel(cap) : ''}, ${fmt(L.top)} from the floor${cab.island ? ', all four sides' : ', wrapping exposed ends back to the wall'}. The stiles run to the floor; the bottom rail stops ${fmt(L.railY)} short of it as the baseboard nailer, ${fmt(s.bottomRailWidth)} showing above the baseboard. ${L.platform ? `The cases sit on a ${fmt(L.platform)} platform, leveled once for the run (it's in the cut list).` : `The case stands ${fmt(L.lift)} off the floor, room to level.`}`
           : (cab.island ? ' The board wraps all four sides of the island.' : ' The board wraps exposed ends back to the wall.') + ' Pick a baseboard (3" or taller, used from the floor) or a cap for the flat board under Mouldings → Base.')}
         {b.style === 'arch' && (b.build === 'applied'
           ? ' The skirt is applied to the face frame and wraps exposed ends; a recessed toe kick sits behind the cutout.'

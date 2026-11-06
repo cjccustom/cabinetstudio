@@ -389,7 +389,8 @@ function caseParts(c: Cabinet, s: ShopSettings, ends: EndInfo): Part[] {
     const bare = exposed && panel === 'none';
     notes.push(sideFastening(c, bare, exposed));
     if (fridge) notes.push('Runs to the floor as the fridge panel');
-    if (BL.lift > 0) notes.push(`Stands ${fmtShort(BL.lift)} off the floor behind the baseboard, room to level`);
+    if (BL.platform > 0) notes.push(`Sits on the ${fmtShort(BL.platform)} leveled platform`);
+    else if (BL.lift > 0) notes.push(`Stands ${fmtShort(BL.lift)} off the floor behind the baseboard, room to level`);
     if (bare) notes.push('Finished outside: paint (or stain) with the face frame');
     if (fl) notes.push('Band the front edge');
     parts.push({
@@ -531,6 +532,18 @@ function caseParts(c: Cabinet, s: ShopSettings, ends: EndInfo): Part[] {
       boxes: shaped ? [] : [vb(x0, BL.railY, zF, railLen, BL.railW, ft)],
       shapes: shaped ? [cutShape('x', [x0, BL.railY, zF], railLen, BL.railW, ft, a, b, BL.b.shape, BL.rise)] : undefined,
     });
+  }
+  if (BL.platform > 0) {
+    // A leveled platform under the case: front and back runners and cross pieces every 16" or so, built and
+    // leveled once for the run, the baseboard covering its front; the face frame stiles run past it to the floor
+    const ph = BL.platform, pd = boxD - 0.75, xs0 = xi0 - ta, len = xi1 + ta - xs0;
+    const runner = (z: number, where: string) => parts.push({ name: 'Platform runner', role: 'nailer', material: 'box', length: len, width: ph, thickness: tn, cut: true,
+      note: `Leveling platform, ${where}; shim level, then set the cabinets on it`, boxes: [vb(xs0, 0, z, len, ph, ta)] });
+    runner(pd - ta, `front, ${fmtShort(0.75)} behind the face frame`);
+    runner(0, 'back');
+    const n = Math.max(2, Math.ceil(len / 16) + 1);
+    for (let k = 0; k < n; k++) parts.push({ name: 'Platform cross piece', role: 'nailer', material: 'box', length: pd - 2 * ta, width: ph, thickness: tn, cut: true,
+      note: `${n} across, about 16" apart, one under each case side`, boxes: [vb(xs0 + ((len - ta) * k) / (n - 1), 0, ta, ta, ph, pd - 2 * ta)] });
   }
   if (BL.applied) {
     // Baseboard or skirt applied to the face frame, mitered around exposed ends and back to the wall

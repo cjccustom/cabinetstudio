@@ -528,6 +528,8 @@ export interface CabinetBase {
   rise: number;
   /** Foot width at each end, from the outside of the face frame (or end). */
   foot: number;
+  /** Baseboard wrap: the cases sit on a leveled platform this high (built and leveled once for the run), instead of each being shimmed. */
+  platform?: number;
 }
 
 /** A flat piece with a shaped edge (an arched skirt or rail): its outline, extruded through its thickness. */

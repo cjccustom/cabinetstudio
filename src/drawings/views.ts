@@ -355,8 +355,16 @@ export function sideSection(p: Project, c: Cabinet, frame: Frame): { svg: string
   // A third of the way into the first opening: through a door, not the gap between a pair
   const cx = stiles.length >= 2 ? stiles[0].min[0] + stiles[0].size[0] + (stiles[1].min[0] - stiles[0].min[0] - stiles[0].size[0]) * 0.3 : c.width * 0.3;
   const all = parts.flatMap((part) => part.boxes.map((b) => ({ part, b })));
-  const zMax = Math.max(c.depth, ...all.map(({ b }) => b.min[2] + b.size[2]));
-  const yMax = Math.max(c.height, ...all.map(({ b }) => b.min[1] + b.size[1]));
+  // Mouldings on the front, in profile (baseboard and cap, crown, light rail), to draw after the cut
+  const moldPcs = cabinetMoldings(c, eff(c, p.settings), resolveEnds(p.room, p.cabinets, c)).flatMap((pc) => {
+    const prof = pc.along === 'x' && pc.facing === 'front' ? profileByNum(pc.num) : undefined;
+    if (!prof) return [];
+    return [{ pc, prof, pts: mountShape(prof).pts.map(([u, q]) => [pc.z + u, pc.y + (pc.hang ? -q : q)] as [number, number]) }];
+  });
+  const molds = moldPcs.map((m) => m.pts);
+  const mz = molds.flat().map(([z]) => z), my = molds.flat().map(([, y]) => y);
+  const zMax = Math.max(c.depth, ...all.map(({ b }) => b.min[2] + b.size[2]), ...mz);
+  const yMax = Math.max(c.height, ...all.map(({ b }) => b.min[1] + b.size[1]), ...my);
   const perFoot = fitScale(zMax, yMax, frame.w - 2.2, frame.h - 1.9);
   const v = new View(frame, { x0: 0, y0: 0, x1: zMax, y1: yMax }, perFoot);
   // The near side of the case, as a ghost
@@ -370,6 +378,16 @@ export function sideSection(p: Project, c: Cabinet, frame: Frame): { svg: string
     const top = Math.max(...pts.map((q) => q[1]));
     v.rect(s.min[2], s.min[1], s.thickness, top, 'cut');
   }
+  for (const pts of molds) v.poly(pts, 'cut');
+  // Name the base moulding and the platform, small, out in front of the cabinet
+  for (const { pc, prof, pts } of moldPcs) {
+    if (pc.kind !== 'baseMold') continue;
+    const top = Math.max(...pts.map(([, y]) => y)), front = Math.max(...pts.map(([z]) => z));
+    v.text(front + v.p(0.95), (pc.y + top) / 2, `${profileLabel(prof)} ${pc.y < 0.01 ? 'baseboard' : 'base cap'}`, 0.07, 'start', 'dt');
+    if (pc.y < 0.01) v.dimV(0, top, front, 0.75);
+  }
+  const plat = parts.find((x) => x.name === 'Platform runner');
+  if (plat) v.text(c.depth / 2, plat.width / 2, `${dimText(plat.width)} leveled platform`, 0.07, 'middle', 'dt');
   v.line(-2, 0, zMax + 2, 0, 'heavy');
   // Depths along the bottom and top, heights on the front
   const s = eff(c, p.settings);

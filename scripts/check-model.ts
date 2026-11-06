@@ -725,7 +725,12 @@ eq('panel sticks out past frame', panelExtents(b21, s, { left: true, right: fals
   eq('baseboard: cabinet height unchanged, opening shorter', [Math.max(...bb.flatMap((x) => x.boxes.map((b) => b.min[1] + b.size[1]))) >= bc.height, bbRows[0].height < kRows[0].height].join(), 'true,true');
   eq('baseboard: no toe kick', bb.some((x) => x.role === 'toekick'), false);
   eq('baseboard: front and two returns', bb.filter((x) => x.name.startsWith('Baseboard')).length, 3);
-  eq('baseboard: stiles stop 1/2" off the floor', bb.find((x) => x.name === 'Stile')!.length, bc.height - 0.5);
+  eq('baseboard: stiles run to the floor', bb.find((x) => x.name === 'Stile')!.length, bc.height);
+  // On a leveled platform: the cases sit on it, the stiles still run to the floor, the platform is in the cut list
+  const plat = buildParts({ ...bbCab, base: { ...bbCab.base, platform: 3.5 } }, defaultSettings, both);
+  eq('platform: case sides sit on it', plat.filter((x) => x.role === 'side').every((x) => x.boxes[0].min[1] === 3.5), true);
+  eq('platform: stiles to the floor', plat.find((x) => x.name === 'Stile')!.boxes[0].min[1], 0);
+  eq('platform: runners and cross pieces', [plat.filter((x) => x.name === 'Platform runner').length, plat.filter((x) => x.name === 'Platform cross piece').length >= 2].join(), '2,true');
   eq('baseboard: bottom rail runs down to 1/2" off the floor', (() => { const r = bb.find((x) => x.name.startsWith('Bottom rail'))!; return [r.boxes[0].min[1], r.width].join(); })(), [0.5, 4.5 + 1.5 - 0.5].join());
   eq('baseboard: case sides stand 1/2" up', bb.filter((x) => x.role === 'side').every((x) => x.boxes[0].min[1] === 0.5), true);
   // A molded baseboard (3" or taller) is the whole baseboard, from the floor, with no flat board under it
