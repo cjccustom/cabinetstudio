@@ -1,3 +1,4 @@
+import { eff } from './parts';
 import type { MaterialKey, PartRole, Project } from './types';
 import { buildParts } from './parts';
 import { resolveEnds } from './layout';
@@ -35,9 +36,10 @@ const grainByRole: Partial<Record<PartRole, boolean>> = {
 };
 
 /** The sheet a part is cut from. Exposed case sides and toe kick skins can be a different plywood. */
-export const sheetMaterial = (key: MaterialKey, p: Project, partName?: string): string | null => {
-  const s = p.settings;
-  const exposed = s.exposedPlywood || s.plywood;
+export const sheetMaterial = (key: MaterialKey, p: Project, partName?: string, s = p.settings): string | null => {
+  // What shows (exposed sides, toe kick skins) stays in the job's showing plywood even when a
+  // cabinet's own case is a plainer one (birch bases on a red oak job)
+  const exposed = s.exposedPlywood || p.settings.plywood || s.plywood;
   if (key === 'box') return sheetName(s.boxThickness, partName === 'Side, exposed' ? exposed : s.plywood);
   if (key === 'back') return sheetName(s.backThickness, s.plywood);
   if (key === 'toeSkin') return sheetName(s.toeKickSkin, exposed);
@@ -95,7 +97,7 @@ export function designParts(p: Project, data: CutlistData): DesignPart[] {
     const counts = new Map<string, number>();
     for (const part of buildParts(c, p.settings, resolveEnds(p.room, p.cabinets, c))) {
       if (!part.cut) continue;
-      const material = part.sheet ?? sheetMaterial(part.material, p, part.name);
+      const material = part.sheet ?? sheetMaterial(part.material, p, part.name, eff(c, p.settings));
       if (!material) continue;
       const n = (counts.get(part.name) ?? 0) + 1;
       counts.set(part.name, n);

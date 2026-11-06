@@ -59,6 +59,11 @@ export function jobSheets(p: Project): { material: string; thickness: number; pl
     { key: 'back' as MaterialKey, thickness: s.backThickness, plywood: s.plywood, exposed: false },
     { key: 'box' as MaterialKey, thickness: s.boxThickness, plywood: exposed, exposed: true },
     { key: 'toeSkin' as MaterialKey, thickness: s.toeKickSkin, plywood: exposed, exposed: true },
+    // Cabinets built in their own case plywood (birch bases on a red oak job)
+    ...[...new Set(p.cabinets.map((c) => c.overrides?.plywood).filter((x): x is string => !!x && x !== s.plywood))].flatMap((ply) => [
+      { key: 'box' as MaterialKey, thickness: s.boxThickness, plywood: ply, exposed: false },
+      { key: 'back' as MaterialKey, thickness: s.backThickness, plywood: ply, exposed: false },
+    ]),
   ].map((x) => ({ ...x, material: sheetName(x.thickness, x.plywood) }));
   return all.filter((x, i) => all.findIndex((y) => y.material === x.material) === i);
 }

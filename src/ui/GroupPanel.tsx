@@ -5,6 +5,7 @@ import { picked, takesCrown, useStore } from '../store';
 import type { Cabinet, CabinetBase } from '../model/types';
 import { MoldSlot } from './ProfilePicker';
 import { CabinetFinishSection } from './CabinetFinish';
+import { CasePlywoodField } from './CasePlywood';
 import { takesLightRail } from '../model/moldings';
 import { baseOf, baseStyles, floorStanding } from '../model/cabinetBase';
 import { wallNames, wallLength } from '../model/layout';
@@ -53,6 +54,10 @@ export function GroupPanel() {
           <button className="mini" style={{ alignSelf: 'end' }} disabled={!up} onClick={() => moveGroup(0, up)}>Raise {fmt(Math.abs(up))}</button>
           <button className="mini" style={{ alignSelf: 'end' }} disabled={!up} onClick={() => moveGroup(0, -up)}>Lower {fmt(Math.abs(up))}</button>
         </div>
+      </Section>
+      <Section title="Case plywood">
+        <CasePlywoodField cabs={cabs.filter((c) => c.kind !== 'pilaster' && c.kind !== 'mantel' && c.kind !== 'shelf')} />
+        <p className="hint">For cabinets whose insides never show (bases on a stain grade job), prefinished birch; exposed sides, toe kick skins and stained open sections stay in the job's showing plywood.</p>
       </Section>
       <GroupCrown cabs={cabs} />
       <GroupLightRail cabs={cabs} />

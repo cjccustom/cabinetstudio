@@ -5,6 +5,7 @@ import { freeStanding, useStore } from '../store';
 import { useNav } from '../three/navigation';
 import type { CabinetNote, Cabinet, CaseBuild, FrameJoinery, CrownBuild, EndMode, FaceRow, PanelChoice, PanelMode, ShopSettings, WallId } from '../model/types';
 import { CabinetFinishSection } from './CabinetFinish';
+import { CasePlywoodField } from './CasePlywood';
 import { takesLightRail } from '../model/moldings';
 import { rowOpenings, buildParts, closetRod, isOpenRow, joineryLabel, PAINT_TOP, topThick, crownFit, crownLayout, crownRoom, layoutRows, noCrownBuild, panelOn } from '../model/parts';
 import { defaultPilaster, pilasterOf, pilasterSections } from '../model/pilaster';
@@ -638,6 +639,7 @@ function AssemblySection({ cab, set }: { cab: Cabinet; set: (p: Partial<Cabinet>
   const backs = [0.25, 0.5, 0.75];
   return (
     <Section title="How it’s built">
+      <CasePlywoodField cabs={[cab]} />
       <div className="grid2">
         {cab.kind === 'base' && (
           <Field label="Case top" htmlFor="as-top">

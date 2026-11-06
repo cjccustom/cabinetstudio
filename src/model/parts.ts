@@ -275,7 +275,7 @@ export function panelExtents(c: Cabinet, s: ShopSettings, ends: EndInfo) {
  */
 export function buildParts(c: Cabinet, s: ShopSettings, ends: EndInfo = { left: false, right: false }): Part[] {
   let parts = caseParts(c, s, ends);
-  if (c.build?.interior && c.build.interior !== 'prefinished') parts = paintOpenInterior(c, eff(c, s), parts);
+  if (c.build?.interior && c.build.interior !== 'prefinished') parts = paintOpenInterior(c, { ...eff(c, s), exposedPlywood: eff(c, s).exposedPlywood || (c.overrides?.plywood ? s.plywood : undefined) }, parts);
   // A cabinet in its own species (a stain-grade island on a painted job): its frame and solid wood
   // come off that species' stock, priced and listed apart from the job's
   const own = c.overrides?.woodSpecies;

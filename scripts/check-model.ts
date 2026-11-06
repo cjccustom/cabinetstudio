@@ -50,7 +50,7 @@ import { panelAbove, panelBetween, panelOrder } from "../src/model/panels";
 import { amCatalog } from "../src/model/andersonMcquaid";
 import { cabinetMoldings, moldingOrder, mountShape, priceOf, profileByNum, profileLabel, setCustomDrawings } from "../src/model/moldings";
 import { closetRods, estimateHours, estimateMaterials, extraFinishes, paintCalculated, paintEstimate, priceQuote, proposalScope, quoteOf, scopeLine } from "../src/model/quote";
-import { cutStock, defaultCutlist, optimizerParts } from "../src/model/cutlist";
+import { cutStock, defaultCutlist, designParts, optimizerParts } from "../src/model/cutlist";
 import { applyBook, choosePlywood, chooseSpecies, priceBook, setJobFinish, stalePrices } from "../src/model/pricebook";
 import { doorMaterials as eagleDoorMaterials } from "../src/model/eagle";
 import { amSpecies as moldSpeciesList } from "../src/model/moldings";
@@ -1808,6 +1808,18 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   eq('queue: on the portal, matched by last name', k('Foster, Fay - Berlin').kind, 'sent');
   eq('queue: signed on the portal', k('Ellis, Eve - Bolton').kind, 'signed');
   eq('queue: old quote flagged to follow up', (k('Baker') as { followUp: boolean }).followUp, true);
+}
+
+// Case plywood by cabinet: birch bases on a red oak job, what shows stays red oak
+{
+  const job = { ...p, settings: { ...p.settings, plywood: 'Red oak', exposedPlywood: undefined }, cabinets: p.cabinets.map((c) => (c.kind === 'base' ? { ...c, overrides: { ...c.overrides, plywood: 'Prefinished birch' } } : c)) };
+  const dp = designParts(job, job.cutlist ?? defaultCutlist(job));
+  const base = dp.filter((d) => job.cabinets.find((c) => c.name === d.cabinet)?.kind === 'base');
+  eq('case plywood: base case in birch', base.filter((d) => d.name === 'Bottom').every((d) => /prefinished birch/.test(d.material)), true);
+  eq('case plywood: base toe kick skin still red oak', base.filter((d) => d.name === 'Toe kick skin').every((d) => /red oak/.test(d.material)), true);
+  eq('case plywood: base exposed side still red oak', base.filter((d) => d.name === 'Side, exposed').every((d) => /red oak/.test(d.material)), true);
+  eq('case plywood: uppers in red oak', dp.filter((d) => job.cabinets.find((c) => c.name === d.cabinet)?.kind === 'wall').every((d) => /red oak/.test(d.material)), true);
+  eq('case plywood: proposal says which', proposalSummary(job).materials.find((m) => m.label === 'Construction')!.value, 'Face frame cabinets with prefinished birch plywood interiors for the base cabinets (clear factory finish inside); red oak plywood interiors for the upper cabinets and tall cabinets');
 }
 
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');

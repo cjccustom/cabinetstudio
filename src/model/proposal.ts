@@ -138,6 +138,23 @@ export function proposalSummary(p: Project): ProposalSummary {
   return { areas, materials: materialsOf(base), options: optionPrices(p) };
 }
 
+/** The cases' plywood in words, saying which cabinets get which when they differ (birch bases, red oak bookcases). */
+function plywoodInteriors(p: Project): string {
+  const job = p.settings.plywood ?? 'Prefinished birch';
+  const words = (ply: string, rest = '') => `${ply.toLowerCase()} plywood interiors${rest}${/prefinished/i.test(ply) ? ' (clear factory finish inside)' : ''}`;
+  const cabs = p.cabinets.filter((c) => c.kind === 'base' || c.kind === 'wall' || c.kind === 'tall');
+  const groups = new Map<string, Cabinet[]>();
+  for (const c of cabs) { const ply = c.overrides?.plywood ?? job; groups.set(ply, [...(groups.get(ply) ?? []), c]); }
+  if (groups.size <= 1) return words([...groups.keys()][0] ?? job);
+  const kindWord = { base: 'base cabinets', wall: 'upper cabinets', tall: 'tall cabinets' } as const;
+  const who = (list: Cabinet[]) => {
+    const kinds = [...new Set(list.map((c) => c.kind))] as ('base' | 'wall' | 'tall')[];
+    // A whole kind in one plywood is said by kind; otherwise by cabinet name
+    return kinds.every((k) => cabs.filter((c) => c.kind === k).every((c) => list.includes(c))) ? kinds.map((k) => kindWord[k]).join(' and ') : list.map((c) => c.name).join(', ');
+  };
+  return [...groups].map(([ply, list]) => words(ply, ` for the ${who(list)}`)).join('; ');
+}
+
 /** Materials and finishes, in a few lines. */
 export function materialsOf(p: Project): { label: string; value: string }[] {
   const s = p.settings;
@@ -152,7 +169,7 @@ export function materialsOf(p: Project): { label: string; value: string }[] {
   for (const a of accentFinishes(p)) out.push({ label: `Accent finish: ${a.label}`, value: a.value });
   const pg = paintGradeNote(p);
   if (pg) out.push({ label: 'About paint grade', value: pg });
-  out.push({ label: 'Construction', value: `${s.construction === 'frameless' ? 'Frameless' : 'Face frame'} cabinets with ${(s.plywood ?? 'Prefinished birch').toLowerCase()} plywood interiors${/prefinished/i.test(s.plywood ?? 'Prefinished birch') ? ' (clear factory finish inside)' : ''}` });
+  out.push({ label: 'Construction', value: `${s.construction === 'frameless' ? 'Frameless' : 'Face frame'} cabinets with ${plywoodInteriors(p)}` });
   if (p.cabinets.some((c) => c.rows.some((r) => r.type === 'drawer'))) out.push({ label: 'Drawers', value: 'Dovetail drawer boxes on soft-close, full-extension slides' });
   if (doors) out.push({ label: 'Hinges', value: 'Soft-close, adjustable' });
   const crown = p.cabinets.map((c) => profileByNum(c.crown)).find(Boolean);
