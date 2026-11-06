@@ -1056,7 +1056,7 @@ function BaseSection({ cab, set }: { cab: Cabinet; set: (patch: Partial<Cabinet>
     <Section title="Base">
       <div className="grid3">
         <Field label="Base" htmlFor="base-style">
-          <select id="base-style" value={b.style} onChange={(e) => put({ style: e.target.value as typeof b.style })}>
+          <select id="base-style" value={b.style} onChange={(e) => { const style = e.target.value as typeof b.style; if (style === 'kick' && cab.baseMold) set({ base: { ...b, style }, baseMold: undefined }); else put({ style }); }}>
             {Object.entries(baseStyles).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
           </select>
         </Field>

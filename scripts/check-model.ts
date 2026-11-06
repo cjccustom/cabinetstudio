@@ -1816,6 +1816,16 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   eq('baseboard: cabinet keeps its height', Math.max(...buildParts(a, s, resolveEnds(p.room, cabs, a)).filter((x) => x.role === 'stile').flatMap((x) => x.boxes.map((b) => b.min[1] + b.size[1]))), a.height);
 }
 
+// A toe kick or a baseboard, never both: base moulding on a toe-kick cabinet makes it a baseboard wrap
+{
+  const b = p.cabinets.find((c) => c.kind === 'base' && c.elevation < 0.5 && !c.corner)!;
+  const kicked = { ...b, base: { ...b.base, style: 'kick' as const }, baseMold: 'BR-B688' } as any;
+  const parts = buildParts(kicked, s);
+  eq('base moulding: no toe kick parts left', parts.filter((x) => x.role === 'toekick' || /Toe kick/.test(x.name)).length, 0);
+  eq('base moulding: stiles run to the floor', Math.min(...parts.filter((x) => x.role === 'stile').flatMap((x) => x.boxes.map((bx) => bx.min[1]))), 0);
+  eq('base moulding: the moulding sits at the floor on the face frame, not in front of a kick', cabinetMoldings(kicked, eff(kicked, s), resolveEnds(p.room, [kicked], kicked)).find((m) => m.kind === 'baseMold' && m.facing === 'front')!.y, 0);
+}
+
 // An upper set on the top below it: a 28-1/2" base with a wood top (1-1/4" unless set) is 29-3/4", not 30"
 {
   const base = { ...cabinetFromPreset(presets.find((x) => x.id === 'library-base')!, 'back', 0, []), id: 'lb', name: 'B1', height: 28.5, topThickness: undefined };

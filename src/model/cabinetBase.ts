@@ -6,7 +6,14 @@ import type { Cabinet, CabinetBase, CutShape, ShopSettings } from './types';
 import { mountShape, profileByNum } from './moldings';
 
 export const defaultBase: CabinetBase = { style: 'kick', height: 4.5, build: 'faceframe', shape: 'bracket', rise: 3, foot: 2.25 };
-export const baseOf = (c: Cabinet): CabinetBase => ({ ...defaultBase, ...c.base });
+/**
+ * A cabinet has a toe kick or a baseboard, never both: a base moulding on a floor-standing cabinet
+ * set to a toe kick makes it a baseboard wrap (stiles to the floor, the bottom rail as the nailer).
+ */
+export const baseOf = (c: Cabinet): CabinetBase => {
+  const b = { ...defaultBase, ...c.base };
+  return b.style === 'kick' && c.baseMold && floorStanding(c) ? { ...b, style: 'baseboard' } : b;
+};
 
 /** Cabinets that stand on the floor and can take a baseboard or decorative base. */
 export const floorStanding = (c: Cabinet) => (c.kind === 'base' || c.kind === 'tall') && !c.corner && c.elevation < 0.5;
