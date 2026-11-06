@@ -796,7 +796,7 @@ export function scopeLine(c: Cabinet, p: Project): string {
   if (c.countertop && c.cushion) bits.push(`custom ${fmtIn(c.cushion.thickness)} ${c.cushion.edge === 'boxed' ? 'boxed and welted' : 'knife edge'} seat cushion, ${c.cushion.fabric?.trim() ? c.cushion.fabric.trim() : "fabric to be selected by owner"}`);
   if (c.crown) bits.push('crown molding');
   if (c.lightRail) bits.push('light rail');
-  if (c.lighting?.length) bits.push(`LED lighting: ${c.lighting.map((k) => ({ puck: 'recessed puck lights', stile: 'vertical strips lighting the shelves', shelfFront: 'strip under the front of the open section', under: 'under-cabinet strip', shelves: 'Häfele adjustable shelf lighting under every shelf', topAccent: `accent uplight on top${(p.cabLighting?.accent ?? 'white') === 'rgbw' ? ', color changing' : (p.cabLighting?.accent ?? 'white') === 'tunable' ? ', tunable white' : ''}, dimmable` } as Record<string, string>)[k]).join(', ')}`);
+  if (c.lighting?.length) bits.push(`LED lighting: ${c.lighting.map((k) => ({ puck: 'recessed puck lights', stile: 'vertical strips lighting the shelves', shelfFront: 'strip in the top of each open section or cubby', under: 'under-cabinet strip', shelves: 'Häfele adjustable shelf lighting under every shelf', topAccent: `accent uplight on top${(p.cabLighting?.accent ?? 'white') === 'rgbw' ? ', color changing' : (p.cabLighting?.accent ?? 'white') === 'tunable' ? ', tunable white' : ''}, dimmable` } as Record<string, string>)[k]).join(', ')}`);
   const bl = baseLabel(c);
   if (bl) bits.push(bl);
   else if (c.baseMold) bits.push('baseboard');

@@ -1463,6 +1463,9 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   eq('hafele: drivers on top for the electrician', /on top of the bookcases/i.test(electricianHtml(hp)), true);
   const low = { ...hp, room: { ...hp.room, height: 86 } };
   eq('accent: no uplight with no room above', cabinetFixtures(hc, low).some((f) => f.kind === 'topAccent'), false);
+  const cub = { ...hc, id: 'CU', rows: [{ id: 'r1', type: 'open', count: 1, shelves: 0, dividers: 3 }], lighting: ['shelfFront'] } as any;
+  eq('cubby: a strip in the top of each of 4 cubbies', cabinetFixtures(cub, hp).map((f) => `${f.kind}:${f.count}`).join(','), 'shelfFront:4');
+  eq('cans: the real count across and deep', canSpots({ ...hp, lights: { across: 3, deep: 2 } }).length, 6);
   const cs = customerSet(hp, drawingsOf(hp));
   eq('hafele: the customer drawings get a lighting spec sheet', cs.some((x) => /Cabinet lighting/.test(x.svg ?? JSON.stringify(x)) && /Häfele adjustable shelf lighting/.test(JSON.stringify(x))), true);
   eq('hafele: the shop notes carry the groove and channel', forAudience(cabinetCallouts(hp, hc), 'shop').filter((n) => /Häfele (shelf lighting: groove|power channel)/.test(n.text)).length, 2);

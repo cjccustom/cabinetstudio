@@ -187,11 +187,16 @@ export function LightingSection() {
         <Field label="Brightness" htmlFor="lt-bright">
           <input id="lt-bright" type="range" min={0.4} max={2} step={0.1} value={L.brightness} onChange={(e) => put({ brightness: Number(e.target.value) })} />
         </Field>
-        {L.kind === 'recessed' && !coffered && (
-          <Field label="Can spacing" htmlFor="lt-space"><LengthInput id="lt-space" value={L.spacing} onChange={(v) => put({ spacing: Math.max(24, v ?? L.spacing) })} /></Field>
+        {L.kind === 'recessed' && (!coffered || L.grid) && (
+          <>
+            <Field label="Cans across (along the back wall)" htmlFor="lt-nx"><input id="lt-nx" inputMode="numeric" value={L.across ?? ''} placeholder={`${Math.max(1, Math.round(project.room.width / L.spacing))} (auto)`} onChange={(e) => { const v = parseInt(e.target.value, 10); put({ across: Number.isFinite(v) ? Math.max(0, Math.min(12, v)) : undefined }); }} /></Field>
+            <Field label="Rows deep (out from the back wall)" htmlFor="lt-nz"><input id="lt-nz" inputMode="numeric" value={L.deep ?? ''} placeholder={`${Math.max(1, Math.round(project.room.depth / L.spacing))} (auto)`} onChange={(e) => { const v = parseInt(e.target.value, 10); put({ deep: Number.isFinite(v) ? Math.max(0, Math.min(12, v)) : undefined }); }} /></Field>
+            {L.across == null && L.deep == null && <Field label="Can spacing (auto counts)" htmlFor="lt-space"><LengthInput id="lt-space" value={L.spacing} onChange={(v) => put({ spacing: Math.max(24, v ?? L.spacing) })} /></Field>}
+          </>
         )}
       </div>
-      {L.kind === 'recessed' && <p className="hint">{n} can{n === 1 ? '' : 's'}{coffered ? ', one centered in each coffer' : ', spread evenly across the ceiling'}. Shadows from the cans show depth the way the finished room will look.</p>}
+      {L.kind === 'recessed' && coffered && <label className="check-inline"><input type="checkbox" checked={!L.grid} onChange={(e) => put({ grid: !e.target.checked })} /> A can centered in every coffer</label>}
+      {L.kind === 'recessed' && <p className="hint">{n} can{n === 1 ? '' : 's'}{coffered && !L.grid ? ', one centered in each coffer' : ', spread evenly across the ceiling'}. Set the counts to match the room's real cans (0 for none in a direction leaves none). Shadows from the cans show depth the way the finished room will look.</p>}
       <label className="swatch" htmlFor="lt-ceil"><input id="lt-ceil" type="color" value={project.finishes.ceiling ?? '#f7f6f2'} onChange={(e) => commit((p) => ({ ...p, finishes: { ...p.finishes, ceiling: e.target.value } }))} /><span>Ceiling color</span></label>
     </Section>
   );

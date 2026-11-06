@@ -11,6 +11,11 @@ export interface RoomLights {
   spacing: number;
   /** How bright, 1 = normal. */
   brightness: number;
+  /** The real layout, when known: how many cans across the room (along the back wall) and how many deep. Replaces the spacing. */
+  across?: number;
+  deep?: number;
+  /** With a coffered ceiling: a can in every coffer (the default), or the grid above instead. */
+  grid?: boolean;
 }
 export const defaultLights: RoomLights = { kind: 'recessed', spacing: 60, brightness: 1 };
 export const lightsOf = (p: Project): RoomLights => ({ ...defaultLights, ...p.lights });
@@ -20,9 +25,10 @@ export function canSpots(p: Project): { x: number; z: number }[] {
   const L = lightsOf(p);
   if (L.kind !== 'recessed') return [];
   const c = cofferOf(p);
-  if (c.on) return coffers(p, c).map((k) => ({ x: (k.x0 + k.x1) / 2, z: (k.z0 + k.z1) / 2 }));
+  if (c.on && !L.grid) return coffers(p, c).map((k) => ({ x: (k.x0 + k.x1) / 2, z: (k.z0 + k.z1) / 2 }));
   const { width: W, depth: D } = p.room;
-  const nx = Math.max(1, Math.round(W / L.spacing)), nz = Math.max(1, Math.round(D / L.spacing));
+  const count = (v: number | undefined, len: number) => (v != null && v >= 0 ? Math.round(v) : Math.max(1, Math.round(len / L.spacing)));
+  const nx = count(L.across, W), nz = count(L.deep, D);
   const out: { x: number; z: number }[] = [];
   for (let i = 0; i < nx; i++) for (let j = 0; j < nz; j++) out.push({ x: (W * (i + 0.5)) / nx, z: (D * (j + 0.5)) / nz });
   return out;

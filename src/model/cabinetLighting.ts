@@ -15,7 +15,7 @@ export type CabLightKind = 'puck' | 'stile' | 'shelfFront' | 'under' | 'shelves'
 export const cabLightLabel: Record<CabLightKind, string> = {
   puck: 'Puck lights in the top of each open section',
   stile: 'Vertical strips behind the face frame stiles',
-  shelfFront: 'Strip across the front of each open section’s top',
+  shelfFront: 'Strip in the top of each open section or cubby (in a channel)',
   under: 'Under-cabinet strip (front of the bottom)',
   shelves: 'Häfele adjustable shelf lighting (under every shelf)',
   topAccent: 'Accent uplight on top (dimmable, color optional)',
@@ -107,10 +107,12 @@ export function cabinetFixtures(c: Cabinet, p: Project, job = lightingJobOf(p)):
       continue;
     }
     if (k === 'shelves') {
-      // One profile under each adjustable shelf and under the top of each open section
+      // One profile under each adjustable shelf and under the top of each open section (each cubby, with dividers)
       spans.forEach((o, i) => {
-        const shelves = c.rows.filter((r, ri) => ri < c.rows.length && openRowAt(c, s, ri, o)).reduce((t, r) => t + (r.fixedShelves ? 0 : r.shelves), 0);
-        const n = shelves + 1, L = inner - 1;
+        const rs = c.rows.filter((_, ri) => openRowAt(c, s, ri, o));
+        const bays = 1 + Math.max(0, ...rs.map((r) => (r.type === 'open' ? r.dividers ?? 0 : 0)));
+        const shelves = rs.reduce((t, r) => t + (r.fixedShelves || c.build?.shelves === 'fixed' ? 0 : r.shelves), 0);
+        const n = bays * (shelves + 1), L = Math.max(6, (inner - (bays - 1) * 0.75) / bays - 1);
         const which = spans.length > 1 ? `open section ${i + 1} (from the bottom)` : 'open section';
         out.push({ cab: c, kind: k, count: n, length: L, watts: n * (L / 12) * job.wattsPerFt, leads: n, span: o.y1 - o.y0, where: `Under the front of each shelf and the top of the ${which}, in a groove behind the drop edge; power in a channel down each side` });
       });
@@ -126,8 +128,11 @@ export function cabinetFixtures(c: Cabinet, p: Project, job = lightingJobOf(p)):
         const L = Math.max(6, h - 1);
         out.push({ cab: c, kind: k, count: 2, length: L, watts: 2 * (L / 12) * job.wattsPerFt, leads: 2, where: `Both sides of the ${which}, in channel let into the case side just behind the stile, facing in` });
       } else if (k === 'shelfFront') {
-        const L = inner - 1;
-        out.push({ cab: c, kind: k, count: 1, length: L, watts: (L / 12) * job.wattsPerFt, leads: 1, where: `Across the front of the top of the ${which}, in a channel behind the rail` });
+        // One strip per cubby when the section has vertical dividers
+        const rs = c.rows.filter((_, ri) => openRowAt(c, s, ri, o));
+        const bays = 1 + Math.max(0, ...rs.map((r) => (r.type === 'open' ? r.dividers ?? 0 : 0)));
+        const L = Math.max(6, (inner - (bays - 1) * 0.75) / bays - 1);
+        out.push({ cab: c, kind: k, count: bays, length: L, watts: bays * (L / 12) * job.wattsPerFt, leads: bays, where: `In a channel routed into the underside of the top of ${bays > 1 ? `each of the ${bays} cubbies in the ${which}` : `the ${which}`}, just behind the rail, facing down` });
       }
     });
   }
