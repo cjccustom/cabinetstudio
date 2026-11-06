@@ -50,8 +50,8 @@ export function cabinetCallouts(p: Project, c: Cabinet): Callout[] {
     const H = hafeleOf(p);
     const hf = fx.filter((f) => f.kind === 'shelves');
     if (hf.length) {
-      out.push({ text: `Häfele shelf lighting: groove each adjustable shelf underneath ${fmt(H.profileW)} W × ${fmt(H.profileD)} D, ${fmt(H.profileBack)} behind the drop edge, stopped 1/2" from the ends; solid drop edge, top flush, ${fmt(H.drop)} below the shelf`, for: 'shop' });
-      out.push({ text: `Häfele power channel ${fmt(H.railW)} W × ${fmt(H.railD)} D in each case side (and divider) of the open section, ${fmt(H.railBack)} from the front edge, top to bottom of the opening; shelf pin holes as usual`, for: 'shop' });
+      out.push({ text: `Häfele shelf lighting: groove each lit shelf underneath ${fmt(H.profileW)} W × ${fmt(H.profileD)} D, ${fmt(H.profileBack)} behind the drop edge, through end to end; light bar = shelf length (spring contacts each end); solid drop edge, top flush, ${fmt(H.drop)} below the shelf`, for: 'shop' });
+      out.push({ text: `Häfele bus bar channel ${fmt(H.railW)} W × ${fmt(H.railD)} D in each case side (both faces of a divider) of the open section, ${fmt(H.railBack)} from the front edge, lined up with the shelf grooves, full height of the opening; power supply kit 833.88.986 at the top or bottom of each bay; shelf pin holes as usual`, for: 'shop' });
       out.push({ text: `Häfele LED lighting under every shelf (${hf.reduce((t, f) => t + f.count, 0)} lights, ${job.kelvin}K): shelves stay adjustable`, for: 'customer' });
     }
     if (fx.some((f) => f.kind === 'topAccent')) out.push({ text: `Accent uplight on top of the case: ${accentLabel[job.accent ?? 'white'].toLowerCase()}`, for: 'both' });

@@ -8,8 +8,8 @@ import { Field } from './fields';
 import { fmt, parseLength } from '../units';
 
 const money = (v: number) => `$${v.toFixed(2)}`;
-const hfLen: [keyof HafeleSpec, string][] = [['profileW', 'Shelf groove width'], ['profileD', 'Shelf groove depth'], ['profileBack', 'Groove back from the drop edge'], ['drop', 'Drop edge below the shelf'], ['railW', 'Side channel width'], ['railD', 'Side channel depth'], ['railBack', 'Side channel from the front edge']];
-const hfNo: [keyof HafeleSpec, string][] = [['profileNo', 'Profile article no.'], ['railNo', 'Power rail article no.'], ['connectorNo', 'Shelf connector article no.'], ['driverNo', 'Driver article no.']];
+const hfLen: [keyof HafeleSpec, string][] = [['profileW', 'Shelf groove width'], ['profileD', 'Shelf groove depth'], ['profileBack', 'Groove back from the drop edge'], ['drop', 'Drop edge below the shelf'], ['railW', 'Bus bar channel width'], ['railD', 'Bus bar channel depth'], ['railBack', 'Bus bar channel from the front edge']];
+const hfNo: [keyof HafeleSpec, string][] = [['profileNo', 'Light bar profile'], ['railNo', 'Bus bar article no.'], ['connectorNo', 'Power supply kit article no.'], ['driverNo', 'Loox 12 V driver article no.']];
 
 /** Cabinet lighting for the job: the parts to price, your prices, and the electrician's sheet. */
 export function LightingOrder() {
@@ -88,8 +88,14 @@ export function LightingOrder() {
       {hasShelves && (
         <details>
           <summary>Häfele shelf lighting: machining and article numbers</summary>
-          <p className="hint">Placeholders until you have Häfele’s spec sheet for the profile and power rail: set them from it. They go on the cut list, the shop drawings and the customer’s spec sheet.</p>
+          <p className="hint">From Häfele’s tech doc (Wireless Adjustable Shelf Lighting System, 2/23); groove sizes read off its drawing, so check them against the parts before cutting. They go on the cut list, the shop drawings and the customer’s spec sheet. Bars run the full shelf length: standard 18/24/30/36", anything else custom from Häfele Service+ (888.437.7477), about 10 days.</p>
           <div className="grid2">
+            <Field label="Light bar intensity" htmlFor="hf-int">
+              <select id="hf-int" value={H.intensity} onChange={(e) => putH({ intensity: e.target.value as HafeleSpec['intensity'] })}>
+                <option value="medium">Medium, LED 2065 (4.8 W/m)</option>
+                <option value="high">High, LED 2068 (9.6 W/m)</option>
+              </select>
+            </Field>
             {hfLen.map(([k, label]) => (
               <Field key={`${k}-${H[k]}`} label={label} htmlFor={`hf-${k}`}>
                 <input id={`hf-${k}`} defaultValue={fmt(H[k] as number)} onBlur={(e) => { const v = parseLength(e.target.value); if (v != null && v >= 0) putH({ [k]: v }); }} />

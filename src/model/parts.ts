@@ -342,7 +342,7 @@ function caseParts(c: Cabinet, s: ShopSettings, ends: EndInfo): Part[] {
   if (c.corner) return buildCornerParts(c, s);
   const HF: HafeleSpec = { ...defaultHafele, ...s.hafele };
   const hfSpans = c.lighting?.includes('shelves') ? openSpans(c, s) : [];
-  const hafeleSideNote = (spans: { y0: number; y1: number }[], both: boolean) => `Häfele power channel ${fmtShort(HF.railW)} wide × ${fmtShort(HF.railD)} deep${both ? ' each face' : ' on the inside face'}, ${fmtShort(HF.railBack)} from the front edge, ${spans.map((o) => `${fmtShort(o.y0)} to ${fmtShort(o.y1)}`).join(' and ')} up from the bottom of the cabinet; drill through for the lead to the driver`;
+  const hafeleSideNote = (spans: { y0: number; y1: number }[], both: boolean) => `Häfele bus bar channel ${fmtShort(HF.railW)} wide × ${fmtShort(HF.railD)} deep${both ? ' each face (bars back to back)' : ' on the inside face'}, ${fmtShort(HF.railBack)} from the front edge, lined up with the shelf bar grooves, ${spans.map((o) => `${fmtShort(o.y0)} to ${fmtShort(o.y1)}`).join(' and ')} up from the bottom of the cabinet (Häfele bit 001.25.921); room for the power supply kit's contact at the top or bottom`;
   if (c.kind === 'pilaster') return [...pilasterParts(c, s, ends), ...crownParts(c, s, ends)];
   if (c.kind === 'shelf') return floatingShelfParts(c, s, ends);
   if (c.kind === 'mantel') return mantelParts(c, s);
@@ -802,7 +802,7 @@ function caseParts(c: Cabinet, s: ShopSettings, ends: EndInfo): Part[] {
         const fixed = c.build?.shelves === 'fixed' || !!row.fixedShelves;
         const bw = b1 - b0, sW = bays.length > 1 ? bw - s.shelfClearance : shelfW;
         parts.push({ name: fixed ? 'Fixed shelf' : 'Adjustable shelf', role: 'shelf', material: 'box', length: fixed ? bw + 2 * dd : sW, width: shelfD, thickness: tn, cut: true,
-          note: [fixed ? `In ${dados} dados` : '', lit ? `Häfele LED groove ${fmtShort(HF.profileW)} wide × ${fmtShort(HF.profileD)} deep in the underside, ${fmtShort(HF.profileBack)} behind the drop edge, stopped 1/2" short of the ends; notch the back corners for the connectors` : '', sf ? (lit ? 'Solid drop edge applied, no banding' : 'Solid front applied, no banding') : ''].filter(Boolean).join(' · ') || undefined, banded: !sf,
+          note: [fixed ? `In ${dados} dados` : '', lit ? `Häfele light bar groove ${fmtShort(HF.profileW)} wide × ${fmtShort(HF.profileD)} deep in the underside, ${fmtShort(HF.profileBack)} behind the drop edge, run through end to end so the bar's spring contacts reach the bus bars` : '', sf ? (lit ? 'Solid drop edge applied, no banding' : 'Solid front applied, no banding') : ''].filter(Boolean).join(' · ') || undefined, banded: !sf,
           boxes: [fixed ? vb(b0, y, rw, bw, ta, shelfD) : vb(b0 + s.shelfClearance / 2, y, rw, sW, ta, shelfD)] });
         if (sf) parts.push({ name: lit ? 'Shelf drop edge' : 'Shelf front', role: 'trim', material: 'faceframe', length: sW, width: sf.height, thickness: sf.thickness, cut: true,
           note: lit ? `Solid wood, top flush with the shelf, drops ${fmtShort(HF.drop)} below it to hide the LED profile; glued and nailed` : 'Glued and nailed to the shelf edge, top flush',

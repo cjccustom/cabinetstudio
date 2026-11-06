@@ -21,7 +21,7 @@ export const cabLightLabel: Record<CabLightKind, string> = {
   topAccent: 'Accent uplight on top (dimmable, color optional)',
 };
 
-export type PartKey = 'tape' | 'channel' | 'puck' | 'driver30' | 'driver60' | 'driver96' | 'lead' | 'cable' | 'control' | 'hProfile' | 'hRail' | 'hConnector' | 'accentTape' | 'accentControl';
+export type PartKey = 'tape' | 'channel' | 'puck' | 'driver30' | 'driver60' | 'driver96' | 'lead' | 'cable' | 'control' | 'hProfile' | 'hCustom' | 'hRail' | 'hConnector' | 'hDriver' | 'accentTape' | 'accentControl';
 export type Control = 'wall' | 'door' | 'touch' | 'remote';
 export const controlLabel: Record<Control, string> = {
   wall: 'Wall dimmer (electrician), dimmable driver',
@@ -52,20 +52,40 @@ export interface LightingJob {
 }
 
 /**
- * Häfele adjustable shelf lighting, as Cody builds it: an LED profile in a groove under the front
- * of every adjustable shelf, hidden behind a solid wood edge that drops below the shelf; power in a
- * channel routed down the inside of each case side. The sizes start as placeholders: set them from
- * Häfele's spec sheet for the profile and power rail you order.
+ * Häfele Wireless Adjustable Shelf Lighting System (tech doc 2/23), as Cody builds it:
+ * - A light bar (Profile 1103, 12 V) routed into the underside of every shelf, hidden behind a
+ *   solid wood edge that drops below the shelf. Spring-loaded contacts in each end of the bar touch
+ *   the bus bars, so the bar runs the shelf's full length: standard 18", 24", 30", 36", or custom
+ *   lengths from Häfele Service+ (about 10 days).
+ * - Brushed aluminum bus bars (833.74.996: 92" × 9/32" × 3/16", 20 to a pack) in narrow vertical
+ *   channels in the case sides, two per lit bay; two can go back to back in one divider. Häfele
+ *   sells a router bit for the channel (001.25.920 8 mm shank, 001.25.921 1/4" shank).
+ * - A power supply kit (833.88.986) at the top or bottom of each bay: splice block, two
+ *   spring-loaded contact connectors with 500 mm cables, brackets and a 1 m modular cable to a
+ *   Loox 12 V driver, ordered separately.
+ * Sizes read off Häfele's drawing (channel 7 × 5 mm; bar about 13 × 11.5 mm in a 13.9 × 12 mm
+ * groove): confirm against the parts before cutting.
  */
 export interface HafeleSpec {
   profileW: number; profileD: number; profileBack: number;
   railW: number; railD: number; railBack: number;
-  /** How far the solid wood edge drops below the shelf, to hide the profile. */
+  /** How far the solid wood edge drops below the shelf, to hide the bar. */
   drop: number;
+  /** LED 2065 medium (4.8 W/m) or LED 2068 high (9.6 W/m). */
+  intensity: 'medium' | 'high';
   /** Häfele article numbers, for the spec sheet and the order. */
   profileNo: string; railNo: string; connectorNo: string; driverNo: string;
 }
-export const defaultHafele: HafeleSpec = { profileW: 0.625, profileD: 0.3125, profileBack: 0.375, railW: 0.375, railD: 0.25, railBack: 1, drop: 0.75, profileNo: '', railNo: '', connectorNo: '', driverNo: '' };
+export const defaultHafele: HafeleSpec = { profileW: 0.5625, profileD: 0.5, profileBack: 0.25, railW: 0.25, railD: 0.1875, railBack: 1, drop: 0.75, intensity: 'medium', profileNo: 'Profile 1103', railNo: '833.74.996', connectorNo: '833.88.986', driverNo: '' };
+/** Häfele's standard light bar lengths and article numbers (12 V), by intensity and color. */
+export const HAFELE_BARS = [18, 24, 30, 36] as const;
+const hafeleBarNo: Record<'medium' | 'high', Record<3000 | 4000, string[]>> = {
+  medium: { 3000: ['833.88.978', '833.88.979', '833.88.980', '833.88.981'], 4000: ['833.88.982', '833.88.983', '833.88.984', '833.88.985'] },
+  high: { 3000: ['833.88.970', '833.88.971', '833.88.972', '833.88.973'], 4000: ['833.88.974', '833.88.975', '833.88.976', '833.88.977'] },
+};
+/** The standard bar a shelf takes, if its length is one (within 1/16"). */
+export const hafeleStandard = (len: number) => HAFELE_BARS.find((b) => Math.abs(b - len) <= 0.0625);
+export const hafeleWattsPerIn = (H: HafeleSpec) => (H.intensity === 'high' ? 9.6 : 4.8) / 39.37;
 export const hafeleOf = (p: Project): HafeleSpec => ({ ...defaultHafele, ...p.cabLighting?.hafele, ...p.settings.hafele });
 export const accentLabel = { white: 'White, dimmable', tunable: 'Tunable white (warm to cool), dimmable', rgbw: 'Color (RGBW) with white, dimmable' } as const;
 export type WireRoute = 'dado' | 'behind';
@@ -81,7 +101,7 @@ export const lightingJobOf = (p: Project): LightingJob => {
   return j;
 };
 
-export interface Fixture { cab: Cabinet; kind: CabLightKind; count: number; /** Strip length each, inches (0 for pucks). */ length: number; watts: number; leads: number; where: string; /** Häfele shelves: the open section's height, for the power rail down each side. */ span?: number }
+export interface Fixture { cab: Cabinet; kind: CabLightKind; count: number; /** Strip length each, inches (0 for pucks). */ length: number; watts: number; leads: number; where: string; /** Häfele shelves: the open section's height, for the bus bars down each side, and its bays across. */ span?: number; bays?: number; /** 12 V (Häfele) or the usual 24 V. */ volts?: 12 | 24 }
 
 /** The light fixtures a cabinet gets from its choices. */
 export function cabinetFixtures(c: Cabinet, p: Project, job = lightingJobOf(p)): Fixture[] {
@@ -112,9 +132,11 @@ export function cabinetFixtures(c: Cabinet, p: Project, job = lightingJobOf(p)):
         const rs = c.rows.filter((_, ri) => openRowAt(c, s, ri, o));
         const bays = 1 + Math.max(0, ...rs.map((r) => (r.type === 'open' ? r.dividers ?? 0 : 0)));
         const shelves = rs.reduce((t, r) => t + (r.fixedShelves || c.build?.shelves === 'fixed' ? 0 : r.shelves), 0);
-        const n = bays * (shelves + 1), L = Math.max(6, (inner - (bays - 1) * 0.75) / bays - 1);
+        // Each bar runs the full length of its shelf, contacts touching the bus bars both ends
+        const n = bays * (shelves + 1), L = Math.max(6, (inner - (bays - 1) * 0.75) / bays - s.shelfClearance);
         const which = spans.length > 1 ? `open section ${i + 1} (from the bottom)` : 'open section';
-        out.push({ cab: c, kind: k, count: n, length: L, watts: n * (L / 12) * job.wattsPerFt, leads: n, span: o.y1 - o.y0, where: `Under the front of each shelf and the top of the ${which}, in a groove behind the drop edge; power in a channel down each side` });
+        const H = hafeleOf(p);
+        out.push({ cab: c, kind: k, count: n, length: L, watts: n * L * hafeleWattsPerIn(H), leads: bays, span: o.y1 - o.y0, bays, volts: 12, where: `Under the front of each shelf and the top of the ${which}, in a groove behind the drop edge; bus bars in channels down each side${bays > 1 ? ' of every cubby' : ''}` });
       });
       continue;
     }
@@ -146,19 +168,20 @@ function openRowAt(c: Cabinet, s: ReturnType<typeof eff>, ri: number, o: { y0: n
 }
 
 export const DRIVERS = [30, 60, 96] as const;
-export interface Driver { wall: WallId; watts: number; size: 30 | 60 | 96; serves: string[] }
+export interface Driver { wall: WallId; watts: number; size: 30 | 60 | 96; serves: string[]; volts: 12 | 24 }
 
-/** One driver run per wall, sized with 20% headroom; a wall over 96 W splits into more drivers. */
+/** One driver run per wall (and voltage: Häfele's 12 V shelf system has its own), sized with 20% headroom; a wall over 96 W splits into more drivers. */
 export function lightingDrivers(fx: Fixture[]): Driver[] {
   const out: Driver[] = [];
-  const byWall = new Map<WallId, Fixture[]>();
-  for (const f of fx) byWall.set(f.cab.wall, [...(byWall.get(f.cab.wall) ?? []), f]);
-  for (const [wall, list] of byWall) {
+  const byWall = new Map<string, Fixture[]>();
+  for (const f of fx) { const key = `${f.cab.wall}|${f.volts ?? 24}`; byWall.set(key, [...(byWall.get(key) ?? []), f]); }
+  for (const [key, list] of byWall) {
+    const wall = key.split('|')[0] as WallId, volts = (Number(key.split('|')[1]) === 12 ? 12 : 24) as 12 | 24;
     let cur: Fixture[] = [], w = 0;
     const flush = () => {
       if (!cur.length) return;
       const need = w * 1.2;
-      out.push({ wall, watts: w, size: DRIVERS.find((d) => d >= need) ?? 96, serves: [...new Set(cur.map((f) => f.cab.name))] });
+      out.push({ wall, watts: w, size: DRIVERS.find((d) => d >= need) ?? 96, serves: [...new Set(cur.map((f) => f.cab.name))], volts });
       cur = []; w = 0;
     };
     for (const f of list) {
@@ -178,7 +201,7 @@ export function lightingParts(p: Project): { parts: LightingPart[]; fixtures: Fi
   const job = lightingJobOf(p);
   const fixtures = p.cabinets.flatMap((c) => cabinetFixtures(c, p, job));
   const drivers = lightingDrivers(fixtures);
-  const strips = fixtures.filter((f) => f.length > 0 && !(f.kind === 'topAccent' && (job.accent ?? 'white') !== 'white'));
+  const strips = fixtures.filter((f) => f.length > 0 && f.kind !== 'shelves' && !(f.kind === 'topAccent' && (job.accent ?? 'white') !== 'white'));
   const stripFt = strips.reduce((t, f) => t + (f.count * f.length) / 12, 0);
   const pucks = fixtures.filter((f) => f.kind === 'puck').reduce((t, f) => t + f.count, 0);
   const leads = fixtures.reduce((t, f) => t + f.leads, 0);
@@ -193,11 +216,21 @@ export function lightingParts(p: Project): { parts: LightingPart[]; fixtures: Fi
   const hf = fixtures.filter((f) => f.kind === 'shelves');
   if (hf.length) {
     const H = hafeleOf(p);
-    const profFt = hf.reduce((t, f) => t + (f.count * f.length) / 12, 0);
-    const railFt = hf.reduce((t, f) => t + (2 * (f.span ?? 0)) / 12, 0);
-    parts.push({ key: 'hProfile', label: 'Häfele shelf LED profile', spec: `${H.profileNo ? `Häfele ${H.profileNo}; ` : ''}in a ${fmt(H.profileW)} × ${fmt(H.profileD)} groove under each shelf front; ${k}K`, qty: Math.ceil(profFt * 1.1), unit: 'ft', search: google(`Hafele Loox5 shelf lighting profile ${k}K`) });
-    parts.push({ key: 'hRail', label: 'Häfele power rail for the case sides', spec: `${H.railNo ? `Häfele ${H.railNo}; ` : ''}in a ${fmt(H.railW)} × ${fmt(H.railD)} channel down each side, ${fmt(H.railBack)} from the front`, qty: Math.ceil(railFt * 1.1), unit: 'ft', search: google('Hafele Loox5 adjustable shelf lighting power rail') });
-    parts.push({ key: 'hConnector', label: 'Häfele shelf connectors', spec: `${H.connectorNo ? `Häfele ${H.connectorNo}; ` : ''}one per lit shelf, so shelves can be moved`, qty: hf.reduce((t, f) => t + f.count, 0), unit: 'ea', search: google('Hafele Loox5 shelf connector adjustable shelf') });
+    const kk = (k >= 3500 ? 4000 : 3000) as 3000 | 4000;
+    const std = new Map<number, number>(), custom = new Map<string, number>();
+    for (const f of hf) {
+      const b = hafeleStandard(f.length);
+      if (b) std.set(b, (std.get(b) ?? 0) + f.count);
+      else custom.set(fmt(f.length), (custom.get(fmt(f.length)) ?? 0) + f.count);
+    }
+    const fam = H.intensity === 'high' ? 'LED 2068 high (9.6 W/m)' : 'LED 2065 medium (4.8 W/m)';
+    const nStd = [...std.values()].reduce((a, b) => a + b, 0), nCus = [...custom.values()].reduce((a, b) => a + b, 0);
+    if (nStd) parts.push({ key: 'hProfile', label: 'Häfele adjustable shelf light bars, standard length', spec: `${H.profileNo || 'Profile 1103'}, 12 V ${fam}, ${kk}K${k !== kk ? ` (nearest Häfele color to ${k}K)` : ''}: ${[...std].map(([b, n]) => `${n} × ${b}" (${hafeleBarNo[H.intensity][kk][HAFELE_BARS.indexOf(b as 18)]})`).join(', ')}`, qty: nStd, unit: 'ea', search: google(`Hafele ${hafeleBarNo[H.intensity][kk][1]} light bar wireless adjustable shelf`) });
+    if (nCus) parts.push({ key: 'hCustom', label: 'Häfele adjustable shelf light bars, custom length', spec: `${H.profileNo || 'Profile 1103'}, 12 V ${fam}, ${kk}K, made to the shelf length by Häfele Service+ (888.437.7477, projects@hafele.us; about 10 days): ${[...custom].map(([l, n]) => `${n} × ${l}`).join(', ')}`, qty: nCus, unit: 'ea', search: google('Hafele wireless adjustable shelf lighting custom length light bar') });
+    // Two bus bars per bay (one each side), each 92" long and cut to the section's height; 20 to a pack
+    const bars = hf.reduce((t, f) => t + (f.bays ?? 1) * 2 * Math.ceil((f.span ?? 0) / 92), 0);
+    parts.push({ key: 'hRail', label: 'Häfele bus bars, packs of 20', spec: `${H.railNo || '833.74.996'}: 92" × 9/32" × 3/16" brushed aluminum, ${bars} bars needed (2 per lit bay, cut to height) in ${fmt(H.railW)} × ${fmt(H.railD)} channels; router bit 001.25.921 (1/4" shank) if you don't have it`, qty: Math.ceil(bars / 20), unit: 'ea', search: google('Hafele 833.74.996 bus bar') });
+    parts.push({ key: 'hConnector', label: 'Häfele power supply kits', spec: `${H.connectorNo || '833.88.986'}: one per lit bay, at its top or bottom (splice block, 2 spring contact connectors, brackets, 1 m modular cable)`, qty: hf.reduce((t, f) => t + (f.bays ?? 1), 0), unit: 'ea', search: google('Hafele 833.88.986 power supply kit') });
   }
   const acc = fixtures.filter((f) => f.kind === 'topAccent');
   if (acc.length && (job.accent ?? 'white') !== 'white') {
@@ -206,8 +239,10 @@ export function lightingParts(p: Project): { parts: LightingPart[]; fixtures: Fi
     parts.push({ key: 'accentControl', label: job.accent === 'rgbw' ? 'RGBW controller and remote' : 'Tunable white controller and remote', spec: '24 V DC, rated for the accent run; app or remote dimming', qty: 1, unit: 'ea', search: google(`24V ${job.accent === 'rgbw' ? 'RGBW' : 'CCT'} LED controller remote`) });
   }
   if (pucks) parts.push({ key: 'puck', label: 'Recessed LED puck lights', spec: `24 V DC, ${k}K, CRI 90+, about ${job.puckWatts} W each; note the cutout diameter and depth (must fit the part thickness)`, qty: pucks, unit: 'ea', search: google(`24V recessed LED puck light ${k}K CRI 90 cabinet`) });
+  const d12 = drivers.filter((d) => d.volts === 12);
+  if (d12.length) parts.push({ key: 'hDriver', label: 'Häfele Loox 12 V drivers', spec: `${hafeleOf(p).driverNo ? `Häfele ${hafeleOf(p).driverNo}: ` : ''}12 V constant-voltage Loox driver for the shelf light bars: ${d12.map((d) => `${d.size} W`).join(', ')}${job.control === 'wall' ? ', dimmable to suit the wall dimmer' : ''}`, qty: d12.length, unit: 'ea', search: google('Hafele Loox5 12V driver') });
   for (const size of DRIVERS) {
-    const n = drivers.filter((d) => d.size === size).length;
+    const n = drivers.filter((d) => d.size === size && d.volts === 24).length;
     if (n) parts.push({ key: `driver${size}` as PartKey, label: `Driver, ${size} W`, spec: `24 V DC constant-voltage, Class 2${job.control === 'wall' ? ', dimmable with a wall dimmer (ELV/MLV or TRIAC: match the dimmer the electrician installs)' : ''}; plug-in or hard-wired to suit the outlet`, qty: n, unit: 'ea', search: google(`24V ${size}W dimmable LED driver class 2 cabinet lighting`) });
   }
   if (leads) parts.push({ key: 'lead', label: 'Leads, connectors and distribution block', spec: 'Quick-connect leads to each fixture and a 6- or 10-port block at each driver', qty: leads, unit: 'ea', search: google('24V LED lighting distribution block quick connect lead cabinet') });
@@ -229,10 +264,10 @@ export function electricianHtml(p: Project): string {
   const { fixtures, drivers, watts } = lightingParts(p);
   if (!fixtures.length) return '';
   const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;');
-  const rows = drivers.map((d, i) => `<tr><td>D${i + 1}</td><td>${esc(wallNames[d.wall])}</td><td>${d.size} W (${Math.round(d.watts)} W load)</td><td>${esc(d.serves.join(', '))}</td><td>${esc(job.driverAt)}</td></tr>`).join('');
+  const rows = drivers.map((d, i) => `<tr><td>D${i + 1}</td><td>${esc(wallNames[d.wall])}</td><td>${d.volts} V, ${d.size} W (${Math.round(d.watts)} W load)</td><td>${esc(d.serves.join(', '))}</td><td>${esc(job.driverAt)}</td></tr>`).join('');
   const fx = fixtures.map((f) => `<tr><td>${esc(f.cab.name)}</td><td>${esc(cabLightLabel[f.kind])}</td><td>${f.length ? `${f.count} × ${fmt(f.length)}` : `${f.count} pucks`}</td><td>${Math.round(f.watts)} W</td><td>${esc(f.where)}</td></tr>`).join('');
   return `<h2>Cabinet lighting: for the electrician</h2>
-<p>Low-voltage LED, 24 V DC, ${job.kelvin}K. Total about ${Math.round(watts)} W of fixtures on ${drivers.length} driver${drivers.length === 1 ? '' : 's'}.</p>
+<p>Low-voltage LED, ${fixtures.some((f) => f.volts === 12) ? '24 V DC (Häfele shelf lighting 12 V DC on its own drivers)' : '24 V DC'}, ${job.kelvin}K. Total about ${Math.round(watts)} W of fixtures on ${drivers.length} driver${drivers.length === 1 ? '' : 's'}.</p>
 <h3>What the electrician provides</h3><ul>
 <li>A 120 V receptacle or junction box at each driver location (below): ${esc(job.driverAt)}. Confirm the exact spot with CJC before the cabinets go in.</li>
 ${job.control === 'wall' ? '<li>A wall dimmer for each driver run, matched to the driver type CJC orders (ELV/MLV or TRIAC); we’ll send the driver model.</li>' : `<li>Switching is in the cabinet (${esc(controlLabel[job.control].toLowerCase())}): constant power to the driver, no wall switch needed unless wanted.</li>`}
@@ -262,7 +297,7 @@ export function lightingSpecHtml(p: Project): string {
   if (kinds.has('under')) what.push('<li><b>Under-cabinet light strips</b> at the front of the wall cabinets, lighting the counter.</li>');
   const rows = fixtures.map((f) => `<tr><td>${esc(f.cab.name)}</td><td>${esc(cabLightLabel[f.kind])}</td><td>${f.length ? `${f.count} × ${esc(fmt(f.length))}` : `${f.count}`}</td><td>${esc(f.where)}</td></tr>`).join('');
   return `<h2>Cabinet lighting</h2>
-<p>Low-voltage LED (24 V), ${job.kelvin}K (${warm}), high color rendering so wood and paint colors look true. Dimmable.</p>
+<p>Low-voltage LED, ${job.kelvin}K (${warm}), high color rendering so wood and paint colors look true. Dimmable.</p>
 <h3>What's lit</h3><ul>${what.join('')}</ul>
 <h3>Switching</h3><p>${esc(controlLabel[job.control])}.${kinds.has('topAccent') && (job.accent ?? 'white') !== 'white' ? ' The accent uplight has its own controller and remote.' : ''}</p>
 <h3>Power</h3><p>${drivers.length} hidden driver${drivers.length === 1 ? '' : 's'}: ${esc(job.driverAt.charAt(0).toLowerCase() + job.driverAt.slice(1))}. Your electrician brings a 120 V outlet or box to ${drivers.length === 1 ? 'it' : 'each one'}${job.control === 'wall' ? ' and installs the wall dimmer' : ''}; we supply and wire the lights, drivers and low-voltage wiring.</p>

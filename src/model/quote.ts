@@ -509,7 +509,7 @@ export function estimateHours(p: Project, q: QuoteSettings): HourLine[] {
   // Cabinet lighting: routing and fitting channel or pucks in the shop, wiring and drivers on site
   const lit = lightingParts(p);
   if (lit.fixtures.length) {
-    const strips = lit.fixtures.filter((f) => f.length > 0).reduce((t, f) => t + f.count, 0);
+    const strips = lit.fixtures.filter((f) => f.length > 0 && f.kind !== 'shelves').reduce((t, f) => t + f.count, 0);
     const pucks = lit.fixtures.filter((f) => f.kind === 'puck').reduce((t, f) => t + f.count, 0);
     add('Lighting: rout & fit channel and tape (each strip)', strips, st.lightStrip ?? 0.5);
     add('Lighting: bore & fit puck lights (each)', pucks, st.lightPuck ?? 0.3);

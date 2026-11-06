@@ -607,7 +607,7 @@ function LightingSection({ cab, set }: { cab: Cabinet; set: (p: Partial<Cabinet>
         <label key={k} className="check-inline" style={{ display: "flex", gap: 6, margin: "4px 0" }}><input type="checkbox" checked={on.includes(k)} onChange={() => toggle(k)} /> {cabLightLabel[k]}</label>
       ))}
       {fx.length > 0 && <p className="hint">{fx.map((f) => (f.length ? `${f.count} × ${fmt(f.length)} strip` : `${f.count} puck${f.count > 1 ? 's' : ''}`)).join(', ')} · about {Math.round(fx.reduce((t, f) => t + f.watts, 0))} W. Parts, prices and the electrician’s sheet are on the Orders tab.</p>}
-      {on.includes('shelves') && <p className="hint">Each adjustable shelf in the open sections gets a solid drop edge with the LED groove behind it, and the case sides get the power channel: on the cut list and shop drawings. Groove sizes and Häfele article numbers are on the Orders tab.</p>}
+      {on.includes('shelves') && <p className="hint">Each adjustable shelf in the open sections gets a solid drop edge with the LED groove behind it, and the case sides get the bus bar channels: on the cut list and shop drawings. Bars run each shelf’s full length (standard 18/24/30/36" or custom from Häfele). Groove sizes, intensity and article numbers are on the Orders tab.</p>}
       {on.includes('topAccent') && !fx.some((f) => f.kind === 'topAccent') && <p className="warn">No accent uplight: less than 6" from the top of this cabinet to the ceiling.</p>}
       {on.includes('stile') && <p className="hint">Vertical strips light every shelf wherever adjustable shelves end up. Strips under a shelf front only suit fixed shelves.</p>}
     </Section>

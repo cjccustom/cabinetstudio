@@ -11,7 +11,7 @@ import { corbelCatalog } from "../src/model/corbels";
 import { roomMoldings as roomMolds, wallAccentBoxes } from "../src/model/room";
 import { paymentSchedule } from "../src/model/schedule";
 import { asciiHtml } from "../src/dropbox";
-import { cabinetFixtures, lightingCost, lightingParts, electricianHtml } from "../src/model/cabinetLighting";
+import { cabinetFixtures, lightingCost, lightingParts, electricianHtml, hafeleStandard } from "../src/model/cabinetLighting";
 import { printQuote } from "../src/model/printQuote";
 import { shopGroups } from "../src/drawings/sheets";
 import { sidePanelLayout, wallElevation } from "../src/drawings/views";
@@ -1454,11 +1454,16 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   const fx = cabinetFixtures(hc, hp);
   eq('hafele: a profile under each of 3 shelves and the top, plus the accent', fx.map((f) => `${f.kind}:${f.count}`).join(','), 'shelves:4,topAccent:1');
   const keys = lightingParts(hp).parts.map((x) => x.key);
-  eq('hafele: profile, rail, connectors and RGBW accent bought', ['hProfile', 'hRail', 'hConnector', 'accentTape', 'accentControl'].every((k) => keys.includes(k as any)), true);
+  eq('hafele: bars, bus bars, power kit, 12 V driver and RGBW accent bought', ['hCustom', 'hRail', 'hConnector', 'hDriver', 'accentTape', 'accentControl'].every((k) => keys.includes(k as any)), true);
+  const hpParts = lightingParts(hp).parts;
+  eq('hafele: a 36" bookcase takes 4 custom-length bars (one per shelf and the top)', hpParts.find((x) => x.key === 'hCustom')?.qty, 4);
+  eq('hafele: 2 bus bars, one pack; one power kit', `${hpParts.find((x) => x.key === 'hRail')?.qty}/${hpParts.find((x) => x.key === 'hConnector')?.qty}`, '1/1');
+  eq('hafele: its 12 V driver is apart from the 24 V accent driver', lightingParts(hp).drivers.map((d) => d.volts).sort().join(','), '12,24');
+  eq('hafele: a shelf exactly 30" takes a standard bar', hafeleStandard(30), 30);
   const parts = buildParts(hc, hp.settings);
   eq('hafele: a drop edge on each adjustable shelf in the open section', parts.filter((x) => x.name === 'Shelf drop edge').length, 3);
   eq('hafele: the door section shelf stays plain', parts.filter((x) => x.name === 'Adjustable shelf' && !/Häfele/.test(x.note ?? '')).length, 1);
-  eq('hafele: the sides get the power channel', parts.filter((x) => x.role === 'side').every((x) => /power channel/.test(x.note ?? '')), true);
+  eq('hafele: the sides get the power channel', parts.filter((x) => x.role === 'side').every((x) => /bus bar channel/.test(x.note ?? '')), true);
   eq('hafele: labor for channels and drop edges', estimateHours(hp, quoteOf(hp)).some((h) => h.label.startsWith('Lighting: mill & apply shelf drop edges')), true);
   eq('hafele: drivers on top for the electrician', /on top of the bookcases/i.test(electricianHtml(hp)), true);
   const low = { ...hp, room: { ...hp.room, height: 86 } };
@@ -1468,7 +1473,7 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   eq('cans: the real count across and deep', canSpots({ ...hp, lights: { across: 3, deep: 2 } }).length, 6);
   const cs = customerSet(hp, drawingsOf(hp));
   eq('hafele: the customer drawings get a lighting spec sheet', cs.some((x) => /Cabinet lighting/.test(x.svg ?? JSON.stringify(x)) && /Häfele adjustable shelf lighting/.test(JSON.stringify(x))), true);
-  eq('hafele: the shop notes carry the groove and channel', forAudience(cabinetCallouts(hp, hc), 'shop').filter((n) => /Häfele (shelf lighting: groove|power channel)/.test(n.text)).length, 2);
+  eq('hafele: the shop notes carry the groove and channel', forAudience(cabinetCallouts(hp, hc), 'shop').filter((n) => /Häfele (shelf lighting: groove|bus bar channel)/.test(n.text)).length, 2);
 }
 
 // Next Day Moulding: profiles priced per foot by material; crowns drawn from projection and drop
