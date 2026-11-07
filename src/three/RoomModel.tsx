@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
+import { hasSlopes, wallCeiling } from '../model/ceiling';
 import { Edges, Line } from '@react-three/drei';
 import type { ViewMode } from '../store';
 import type { Floor, Opening, Project, VisualBox, WallId } from '../model/types';
@@ -28,7 +29,7 @@ export function RoomModel({ project, view, walls = true }: { project: Project; v
         const mine = openings.filter((o) => o.wall === wall);
         return (
           <group key={wall} position={pos} rotation-y={rotY}>
-            {walls && <WallFace len={wallLength(room, wall)} H={H} openings={mine} color={project.wallFinishes?.[wall]?.color ?? wallColor} />}
+            {walls && <WallFace len={wallLength(room, wall)} H={H} top={hasSlopes(room) ? wallCeiling(room, wall) : undefined} openings={mine} color={project.wallFinishes?.[wall]?.color ?? wallColor} />}
             <FacingCamera>
               {wallAccentBoxes(project, wall).map((b, i) => <Box key={i} b={b} color={shadeOf(project.wallFinishes?.[wall]?.accentColor ?? trim, b.shade)} />)}
               {mine.map((o) => <OpeningModel key={o.id} o={o} trim={trim} />)}
@@ -56,10 +57,12 @@ function FacingCamera({ children }: { children: React.ReactNode }) {
   return <group ref={ref}>{children}</group>;
 }
 
-function WallFace({ len, H, openings, color }: { len: number; H: number; openings: Opening[]; color: string }) {
-  const key = JSON.stringify([len, H, openings.map((o) => [o.offset, o.width, o.sill, o.height])]);
+function WallFace({ len, H, top, openings, color }: { len: number; H: number; top?: [number, number][]; openings: Opening[]; color: string }) {
+  const key = JSON.stringify([len, H, top, openings.map((o) => [o.offset, o.width, o.sill, o.height])]);
   const geo = useMemo(() => {
-    const shape = new THREE.Shape([new THREE.Vector2(0, 0), new THREE.Vector2(len, 0), new THREE.Vector2(len, H), new THREE.Vector2(0, H)]);
+    // Up to the ceiling line: flat, or following the slopes
+    const edge = top ?? [[0, H], [len, H]];
+    const shape = new THREE.Shape([new THREE.Vector2(0, 0), new THREE.Vector2(len, 0), ...[...edge].reverse().map(([x, y]) => new THREE.Vector2(x, y))]);
     for (const o of openings) {
       const x0 = Math.max(0.1, o.offset), x1 = Math.min(len - 0.1, o.offset + o.width);
       const y0 = Math.max(0, o.sill), y1 = Math.min(H - 0.1, o.sill + o.height);

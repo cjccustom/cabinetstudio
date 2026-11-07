@@ -5,6 +5,7 @@ import { freeStanding, useStore } from '../store';
 import { useNav } from '../three/navigation';
 import type { CabinetNote, Cabinet, CaseBuild, FrameJoinery, CrownBuild, EndMode, FaceRow, PanelChoice, PanelMode, ShopSettings, WallId } from '../model/types';
 import { CabinetFinishSection } from './CabinetFinish';
+import { SlopeFit } from './SlopeFit';
 import { CasePlywoodField } from './CasePlywood';
 import { takesLightRail } from '../model/moldings';
 import { rowOpenings, buildParts, closetRod, isOpenRow, joineryLabel, PAINT_TOP, topThick, crownFit, crownLayout, crownRoom, layoutRows, noCrownBuild, panelOn } from '../model/parts';
@@ -106,6 +107,7 @@ export function Inspector({ cab, issues, tab }: { cab: Cabinet; issues: string[]
           <Field label="Depth" htmlFor="cab-d"><LengthInput id="cab-d" value={cab.depth} min={4} onChange={(v) => set({ depth: v! })} /></Field>
         </div>
         <FitButtons cab={cab} />
+        <SlopeFit cab={cab} set={set} />
       </Section>}
 
       {show('size', true) && cab.kind !== 'pilaster' && cab.kind !== 'mantel' && cab.kind !== 'shelf' && <CabinetFinishSection cabs={[cab]} />}

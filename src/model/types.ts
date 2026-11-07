@@ -126,6 +126,8 @@ export interface Cabinet {
   topSpecies?: string;
   /** LED lighting built into this cabinet. */
   lighting?: import('./cabinetLighting').CabLightKind[];
+  /** Top cut to a sloped ceiling that falls toward the wall: the case's height at the back (the height is the front's). */
+  slopeTop?: { back: number };
   /** What sits on top of a base cabinet: stone (by others) or a solid wood top/bench seat built in the shop. */
   topKind?: 'stone' | 'wood' | 'paint';
   /** A paint-grade top's edging species (poplar or maple). */
@@ -432,7 +434,10 @@ export interface Floor {
 export interface Room {
   width: number;
   depth: number;
+  /** The flat ceiling's height (the top of any slopes). */
   height: number;
+  /** Sloped ceiling at a wall: knee height and pitch (an attic closet, a hip ceiling). */
+  slopes?: Partial<Record<WallId, import('./ceiling').CeilingSlope>>;
 }
 
 export interface Project {

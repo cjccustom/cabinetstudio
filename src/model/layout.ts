@@ -2,6 +2,7 @@ import type { EndInfo } from './parts';
 import type { Cabinet, Room, ShopSettings, WallId } from './types';
 import { crownFit, panelExtents, topThick } from './parts';
 import { fmt } from '../units';
+import { cabinetCeiling, slopeFit, SLOPE_CLEAR } from './ceiling';
 
 export const wallNames: Record<WallId, string> = { back: 'Back wall', left: 'Left wall', right: 'Right wall', front: 'Front wall' };
 export const wallOrder: WallId[] = ['back', 'left', 'right', 'front'];
@@ -125,10 +126,19 @@ export function findIssues(room: Room, cabinets: Cabinet[], s: ShopSettings): Is
       const f = fps[i];
       if (f.x0 < -EPS || f.z0 < -EPS || f.x1 > room.width + EPS || f.z1 > room.depth + EPS) issues.push({ cabinetId: c.id, message: `${c.name} runs past the corner wall` });
     }
+    // Under a sloped ceiling: the lowest ceiling over its top, front and back
+    const k = cabinetCeiling(room, c);
+    const sloped = k.low < room.height - EPS;
+    const frontCeil = Math.min(k.frontLeft, k.frontRight), backCeil = Math.min(k.backLeft, k.backRight);
+    const backTop = c.elevation + (c.slopeTop ? Math.min(c.height, c.slopeTop.back) : c.height);
     if (c.elevation + c.height > room.height + EPS) issues.push({ cabinetId: c.id, message: `${c.name} is taller than the ceiling (top ${fmt(c.elevation + c.height)}, ceiling ${fmt(room.height)})` });
+    else if (sloped && (c.elevation + c.height > frontCeil + EPS || backTop > backCeil + EPS || (!c.slopeTop && c.elevation + c.height > k.low + EPS))) {
+      const fit = slopeFit(room, c)!;
+      issues.push({ cabinetId: c.id, message: `${c.name} runs into the sloped ceiling: the ceiling over it is ${fmt(k.low)} at its lowest (${fmt(backCeil)} at the back, ${fmt(frontCeil)} at the front), its top is at ${fmt(c.elevation + c.height)}. ${fit.across ? `Make it ${fmt(Math.floor((k.low - c.elevation - SLOPE_CLEAR) * 8) / 8)} tall, or split it where the ceiling steps.` : `Make it ${fmt(Math.floor((k.low - c.elevation - SLOPE_CLEAR) * 8) / 8)} tall, or cut its top to the slope (${fmt(fit.back)} at the back, ${fmt(fit.front)} at the front).`}` });
+    } else if (sloped && c.crown && c.kind !== 'base') issues.push({ cabinetId: c.id, message: `${c.name} has crown under a sloped ceiling: crown can't follow the slope; take it off or end it where the ceiling is flat` });
     else {
-      const cf = crownFit(c, s, room.height);
-      if (cf && cf.over > EPS) issues.push({ cabinetId: c.id, message: `${c.name}'s crown is ${fmt(cf.over)} too tall: case top at ${fmt(cf.caseTop)}, crown drop ${fmt(cf.drop)} puts its top at ${fmt(cf.top)}, ceiling ${fmt(room.height)}. Shorten the cabinet ${fmt(cf.over)} or pick a crown with a drop under ${fmt(Math.max(0, cf.drop - cf.over))}.` });
+      const cf = crownFit(c, s, k.low);
+      if (cf && cf.over > EPS) issues.push({ cabinetId: c.id, message: `${c.name}'s crown is ${fmt(cf.over)} too tall: case top at ${fmt(cf.caseTop)}, crown drop ${fmt(cf.drop)} puts its top at ${fmt(cf.top)}, ceiling ${fmt(k.low)}. Shorten the cabinet ${fmt(cf.over)} or pick a crown with a drop under ${fmt(Math.max(0, cf.drop - cf.over))}.` });
     }
     // An upper or bookcase meant to sit on the top below it, but hovering just above it (or into it)
     const below = topBelow(cabinets, c, s);

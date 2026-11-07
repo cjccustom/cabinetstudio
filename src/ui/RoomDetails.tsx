@@ -3,6 +3,7 @@ import { topThick } from '../model/parts';
 import { PhotoRoomButton, ScanImportButton } from './PhotoRoom';
 import { PlanImportButton } from './PlanImport';
 import { CofferSection } from './CofferSection';
+import { CeilingSlopesSection } from './CeilingSlopes';
 import { LadderSection } from './LadderSection';
 import { useState } from 'react';
 import { useStore } from '../store';
@@ -46,6 +47,7 @@ export function RoomDetails() {
         <div className="order-actions"><PhotoRoomButton className="primary" /><ScanImportButton /><PlanImportButton /></div>
         <p className="hint">Room scan: from the CJC Room Scan app on your iPhone Pro (LiDAR), saved to Dropbox or AirDropped here. Chief plan: File → Export → Export DWG/DXF from the floor plan view.</p>
       </Section>
+      <CeilingSlopesSection />
       <TVSection />
       <CofferSection />
       <LadderSection />

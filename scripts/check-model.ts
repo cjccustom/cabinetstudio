@@ -69,6 +69,7 @@ import { clientInfoDoc, folderName, ordersDoc, parseFolderName, proposalLines, q
 import { readScan, scanToDraft } from "../src/model/roomScan";
 import { customerSet, drawingsOf, setDocument, sheetCss, shopSet } from "../src/drawings/sheets";
 import { cabinetCallouts, forAudience, jobCallouts } from "../src/drawings/notes";
+import { ceilingAt, slopeFit, wallCeiling } from "../src/model/ceiling";
 import { hardwareItems, partsOf } from "../src/drawings/views";
 import { cabinetLine, cofferFeet, cofferLayout, cofferMoldings, cofferParts, coffers as cofferList, fasciaBacking } from "../src/model/coffer";
 import { blockedAlong, casingReach, freeRuns, newOpening, openingIssues, openingTrim, roomMoldings } from "../src/model/room";
@@ -1824,6 +1825,31 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   eq('base moulding: no toe kick parts left', parts.filter((x) => x.role === 'toekick' || /Toe kick/.test(x.name)).length, 0);
   eq('base moulding: stiles run to the floor', Math.min(...parts.filter((x) => x.role === 'stile').flatMap((x) => x.boxes.map((bx) => bx.min[1]))), 0);
   eq('base moulding: the moulding sits at the floor on the face frame, not in front of a kick', cabinetMoldings(kicked, eff(kicked, s), resolveEnds(p.room, [kicked], kicked)).find((m) => m.kind === 'baseMold' && m.facing === 'front')!.y, 0);
+}
+
+// Sloped ceilings: an attic closet's roof slope at the back wall, a hip ceiling, cabinets fit or cut to the slope
+{
+  const room = { width: 72, depth: 60, height: 96, slopes: { back: { knee: 48, pitch: 12 } } };
+  eq('slope: knee height at the wall', ceilingAt(room, 30, 0), 48);
+  eq('slope: 12/12 rises a foot per foot', ceilingAt(room, 30, 24), 72);
+  eq('slope: flat ceiling past the slope', ceilingAt(room, 30, 55), 96);
+  const hip = { width: 132, depth: 125, height: 118, slopes: Object.fromEntries(['back', 'left', 'right', 'front'].map((w) => [w, { knee: 80, pitch: 8 }])) } as any;
+  eq('hip: flat in the middle', ceilingAt(hip, 66, 62), 118);
+  eq('hip: lowest in the corners', ceilingAt(hip, 0, 0), 80);
+  const tower = { ...cabinetFromPreset(presets.find((x) => x.id === 'tall-pantry')!, 'back', 10, []), id: 'SL', name: 'SL', width: 30, depth: 16, height: 84, elevation: 0, crown: undefined, rows: [{ id: 'r1', type: 'open', count: 1, shelves: 4 }] } as any;
+  const iss = findIssues(room as any, [tower], s).map((i) => i.message).join(' ');
+  eq('slope: a cabinet into the slope is flagged with what fits', /runs into the sloped ceiling.*cut its top to the slope \(47 1\/2" at the back, 63 1\/2" at the front\)/.test(iss), true);
+  const fit = slopeFit(room as any, tower)!;
+  const cut = { ...tower, height: fit.front, slopeTop: { back: fit.back } };
+  eq('slope: cut to the slope, no more flags', findIssues(room as any, [cut], s).filter((i) => /slope/.test(i.message)).length, 0);
+  const parts = buildParts(cut, s);
+  const line = (z: number) => fit.back + ((fit.front - fit.back) * z) / cut.depth;
+  const above = parts.flatMap((x) => x.boxes.filter((b) => b.min[2] < cut.depth - 1.5).map((b) => b.min[1] + b.size[1] - line(b.min[2]))).filter((d) => d > 0.02);
+  eq('slope: nothing behind the face frame pokes above the slope', above.length, 0);
+  eq('slope: both sides cut to the slope', parts.filter((x) => x.role === 'side' && x.shapes?.length && /cut to the slope/.test(x.note ?? '')).length, 2);
+  eq('slope: the top tilts under it', parts.some((x) => x.role === 'top' && /Tilted to the slope \(45\.0°\)/.test(x.note ?? '')), true);
+  eq('slope: a high shelf gets shallower', parts.some((x) => x.role === 'shelf' && /Shallower under the slope/.test(x.note ?? '')), true);
+  eq('slope: the elevation follows the ceiling', wallCeiling(room as any, 'left').map(([, h]) => h).join(','), '96,96,60,48');
 }
 
 // An upper set on the top below it: a 28-1/2" base with a wood top (1-1/4" unless set) is 29-3/4", not 30"

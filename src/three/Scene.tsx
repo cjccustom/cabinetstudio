@@ -7,6 +7,7 @@ import { finishColors, woodColor } from '../model/woodColors';
 import { freeStanding, picked, runWall, useStore, type ViewMode } from '../store';
 import type { Cabinet, Finishes, Project, Room, ShopSettings, WallId, WallPanel } from '../model/types';
 import { canSpots, lightsOf } from '../model/lighting';
+import { ceilingAt, hasSlopes } from '../model/ceiling';
 import { spacingOf } from '../model/panels';
 import { cabinetMoldings, panelMoldings } from '../model/moldings';
 import { eff } from '../model/parts';
@@ -78,10 +79,12 @@ export function Scene({ issueIds }: { issueIds: Set<string> }) {
       {tvsOf(project).filter((t) => !elevWall || t.wall === elevWall).map((t) => <WallTVModel key={t.id} t={t} room={room} />)}
       {/* The ceiling, seen only from below, so the coffers and cans have something over them */}
       {showCeiling && view === '3d' && (
-        <mesh position={[room.width / 2, room.height, room.depth / 2]} rotation-x={Math.PI / 2}>
-          <planeGeometry args={[room.width, room.depth]} />
-          <meshStandardMaterial color={project.finishes.ceiling ?? '#f7f6f2'} emissive="#ffffff" emissiveIntensity={0.18} roughness={0.95} />
-        </mesh>
+        hasSlopes(room)
+          ? <SlopedCeiling room={room} color={project.finishes.ceiling ?? '#f7f6f2'} />
+          : <mesh position={[room.width / 2, room.height, room.depth / 2]} rotation-x={Math.PI / 2}>
+            <planeGeometry args={[room.width, room.depth]} />
+            <meshStandardMaterial color={project.finishes.ceiling ?? '#f7f6f2'} emissive="#ffffff" emissiveIntensity={0.18} roughness={0.95} />
+          </mesh>
       )}
       {visible.filter((c) => !hidden.includes(c.id)).map((c) => (
         <CabinetModel
@@ -526,5 +529,33 @@ function WallPanelModel({ panel: w, room, finishes, selected }: { panel: WallPan
         </mesh>
       )}
     </group>
+  );
+}
+
+/** A ceiling that slopes down to the walls: a fine grid following the ceiling height, seen from below. */
+function SlopedCeiling({ room, color }: { room: Room; color: string }) {
+  const geo = useMemo(() => {
+    const nx = Math.max(2, Math.ceil(room.width / 2)), nz = Math.max(2, Math.ceil(room.depth / 2));
+    const pos: number[] = [], idx: number[] = [];
+    for (let j = 0; j <= nz; j++) for (let i = 0; i <= nx; i++) {
+      const x = (room.width * i) / nx, z = (room.depth * j) / nz;
+      pos.push(x, ceilingAt(room, x, z), z);
+    }
+    for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) {
+      const a = j * (nx + 1) + i, b = a + 1, c = a + nx + 1, d = c + 1;
+      // Faces point down, into the room
+      idx.push(a, b, c, b, d, c);
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.setIndex(idx);
+    g.computeVertexNormals();
+    return g;
+  }, [room]);
+  useEffect(() => () => geo.dispose(), [geo]);
+  return (
+    <mesh geometry={geo}>
+      <meshStandardMaterial color={color} emissive="#ffffff" emissiveIntensity={0.18} roughness={0.95} side={THREE.DoubleSide} />
+    </mesh>
   );
 }

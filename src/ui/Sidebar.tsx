@@ -175,7 +175,7 @@ function RoomPanel() {
           <Field label="Side walls" htmlFor="room-d"><LengthInput id="room-d" value={room.depth} min={24} onChange={(v) => commit((p) => ({ ...p, room: { ...p.room, depth: v! } }))} /></Field>
           <Field label="Ceiling" htmlFor="room-h"><LengthInput id="room-h" value={room.height} min={60} onChange={(v) => commit((p) => ({ ...p, room: { ...p.room, height: v! } }))} /></Field>
         </div>
-        <p className="hint">Rectangular rooms for now. Feet work too: type 13' or 13' 4".</p>
+        <p className="hint">Rectangular rooms; the ceiling height is the flat ceiling. Sloped ceilings (attic closets, hip ceilings) are under Sloped ceiling below. Feet work too: type 13' or 13' 4".</p>
       </Section>
       <Section title="Finishes">
         <div className="swatches">

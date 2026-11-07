@@ -9,6 +9,7 @@ import { baseLayout, boardT, cutShape, archShapes, fridgeBelow } from './cabinet
 import { mountShape, profileByNum } from './moldings';
 import type { CutShape } from './types';
 import { defaultHafele, type HafeleSpec } from './cabinetLighting';
+import { cutToSlope } from './slopeCut';
 
 export const vb = (x: number, y: number, z: number, sx: number, sy: number, sz: number, shade?: number): VisualBox => ({
   min: [x, y, z], size: [sx, sy, sz], shade,
@@ -281,7 +282,7 @@ export function buildParts(c: Cabinet, s: ShopSettings, ends: EndInfo = { left: 
   // come off that species' stock, priced and listed apart from the job's
   const own = c.overrides?.woodSpecies;
   if (own && own !== s.woodSpecies) parts = parts.map((p) => ((p.material === 'faceframe' || p.material === 'solidWood') && !p.species ? { ...p, species: own } : p));
-  return frameJoinery(c, eff(c, s), parts);
+  return cutToSlope(c, frameJoinery(c, eff(c, s), parts));
 }
 
 /** Frame joinery: the tongue length on each rail end for tongue and groove, and how each joint goes together. */

@@ -9,6 +9,7 @@ import { cabinetMoldings, mountShape, profileByNum, profileLabel } from '../mode
 import { casingReach, openingTrim, roomMoldings, wallAccentBoxes } from '../model/room';
 import { View, dimText, fitScale, type Frame } from './draw';
 import { canSpots } from '../model/lighting';
+import { hasSlopes, wallCeiling } from '../model/ceiling';
 import { applianceName, placedAppliances, type PlacedAppliance } from '../model/appliances';
 import { mantelLayout, mantelOf } from '../model/mantel';
 import { beadCorner, cofferLayout, cofferOf, coffers, fasciaHeight, perimOf, underFascia } from '../model/coffer';
@@ -143,7 +144,13 @@ export function wallElevation(p: Project, wall: WallId, frame: Frame, mode: 'cus
   v.rect(-4.5, 0, 4.5, H, 'wall');
   v.rect(L, 0, 4.5, H, 'wall');
   v.line(-4.5, 0, L + 4.5, 0, 'heavy');
-  v.line(0, H, L, H, 'f');
+  // The ceiling: flat, or following the slopes along this wall
+  if (hasSlopes(p.room)) {
+    const pts = wallCeiling(p.room, wall);
+    for (let i = 0; i + 1 < pts.length; i++) v.line(pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1], 'heavy');
+    // The flat ceiling beyond, where the slope comes down in front of this wall
+    v.line(0, H, L, H, 'ghost');
+  } else v.line(0, H, L, H, 'f');
   // The wall's accent (wainscot, shiplap, slats...) behind everything in front of it
   for (const b of wallAccentBoxes(p, wall)) v.rect(b.min[0], b.min[1], b.size[0], b.size[1], 'thin');
   drawItems(v, elevationItems(p, wall));
@@ -369,7 +376,9 @@ export function sideSection(p: Project, c: Cabinet, frame: Frame): { svg: string
   const v = new View(frame, { x0: 0, y0: 0, x1: zMax, y1: yMax }, perFoot);
   // The near side of the case, as a ghost
   for (const { part, b } of all) if (part.role === 'side' && b.min[0] < c.width / 2) v.rect(b.min[2], b.min[1], b.size[2], b.size[1], 'ghost');
-  for (const part of parts) for (const s of part.shapes ?? []) if (s.along === 'z' && s.min[0] < c.width / 2) v.poly(s.outline.map(([u, q]) => [s.min[2] + u, s.min[1] + q]), 'ghost');
+  for (const part of parts) for (const s of part.shapes ?? []) if (s.along === 'z' && s.min[0] < c.width / 2 && !(s.min[0] <= cx && cx <= s.min[0] + s.thickness)) v.poly(s.outline.map(([u, q]) => [s.min[2] + u, s.min[1] + q]), 'ghost');
+  // Shaped pieces the cut passes through (a top tilted to a sloped ceiling)
+  for (const part of parts) for (const s of part.shapes ?? []) if (s.along === 'z' && s.min[0] <= cx && cx <= s.min[0] + s.thickness) v.poly(s.outline.map(([u, q]) => [s.min[2] + u, s.min[1] + q]), 'cut');
   // What the cut passes through
   const cut = all.filter(({ b }) => b.min[0] <= cx && cx <= b.min[0] + b.size[0]).sort((a, b) => a.b.min[0] - b.b.min[0]);
   for (const { part, b } of cut) v.rect(b.min[2], b.min[1], b.size[2], b.size[1], part.role === 'door' || part.role === 'drawerFront' || part.role === 'counter' ? 'o' : 'cut');
