@@ -2,6 +2,7 @@
 // Scope of Work and Purchase Agreement tables, signature lines), followed by the Terms and
 // Conditions with the Notice of Cancellation in duplicate. Saved to the client's Dropbox folder
 // each time a proposal is published, for the paper copy that goes to the client.
+import { forCustomer } from './moldings';
 import type { Project } from './types';
 import { clientName, clientOf, proposalLines, proposalTitle } from './client';
 import { paymentSchedule, pctText } from './schedule';
@@ -25,7 +26,10 @@ const SETUP = [
   'Jobsite will be left broom clean at the end of each workday and at the end of the project all protection materials will be removed.',
 ];
 
-export function printQuote(p: Project, opts: { terms: string; version?: number; publishedAt?: number }): string {
+/** The print copy the customer signs, with no supplier names in it. */
+export const printQuote = (p: Project, opts: { terms: string; version?: number; publishedAt?: number }): string => forCustomer(printQuoteRaw(p, opts));
+
+function printQuoteRaw(p: Project, opts: { terms: string; version?: number; publishedAt?: number }): string {
   const c = clientOf(p);
   const base = withOptions(p);
   const r = priceQuote(base);

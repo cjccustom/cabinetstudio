@@ -478,6 +478,8 @@ export interface Project {
   floor?: Floor;
   /** $ per lineal foot for this job by profile number, where there's no list price (Brosco) or a quoted one. */
   moldPrices?: Record<string, number>;
+  /** Brosco profiles bought from Next Day: the Next Day item each is bought as (Brosco num → Next Day num). */
+  moldSource?: Record<string, string>;
   /** $ per sheet for this job by sheet material ("3/4\" red oak plywood"), for plywood without a shop price. */
   sheetPrices?: Record<string, number>;
   /** Eagle's quoted totals for this job by request (doors & panels, drawer fronts, drawer boxes), used in place of the estimate. */

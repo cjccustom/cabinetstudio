@@ -1852,6 +1852,25 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   eq('slope: the elevation follows the ceiling', wallCeiling(room as any, 'left').map(([, h]) => h).join(','), '96,96,60,48');
 }
 
+// The customer's documents name no suppliers; Brosco profiles take Next Day's price where Next Day sells them; the profiles sheet
+{
+  const cp = { ...p, client: { first: 'Pat', last: 'Doe', address: '1 Main St', email: '', phone: '' },
+    cabinets: p.cabinets.map((c, i) => (c.kind === 'wall' ? { ...c, crown: 'BR-B688' } : c.kind === 'base' && i < 3 ? { ...c, baseMold: 'ND-163' } : c)) } as any;
+  const sup = /Eagle|Brosco|Next Day|A&M |A&amp;M /i;
+  eq('no suppliers: quote document', sup.test(quoteDoc(cp, { online: true })), false);
+  eq('no suppliers: customer drawings', customerSet(cp, drawingsOf(cp)).some((x) => sup.test(x.svg) || sup.test(x.title)), false);
+  eq('suppliers kept for the shop', shopSet(cp, drawingsOf(cp)).some((x) => /Brosco B688/.test(x.svg)), true);
+  const cs = customerSet(cp, drawingsOf(cp));
+  eq('profiles sheet: crown and base drawn for the customer', cs.some((x) => x.title === 'Moulding & beadboard profiles' && /Crown: profile B688/.test(x.svg) && /Base: profile 163/.test(x.svg)), true);
+  eq('profiles sheet: on the cover index', /Moulding &amp; beadboard profiles/.test(cs[0].svg), true);
+  const b665 = { ...cp, cabinets: cp.cabinets.map((c: any) => (c.kind === 'base' ? { ...c, baseMold: 'BR-B665' } : c)) };
+  const line = moldingOrder(b665).find((l) => l.num === 'BR-B665')!;
+  eq('brosco: B665 priced from Next Day 5089, which lists it', `${(line.via as any)?.code}/${line.price}`, '5089/1.1');
+  const picked = moldingOrder({ ...cp, moldSource: { 'BR-B688': 'ND-660' } }).find((l) => l.num === 'BR-B688')!;
+  eq('brosco: B688 priced from the Next Day item picked for it', picked.price != null && (picked.via as any)?.code === '660', true);
+  eq('brosco: unpicked and unlisted stays unpriced', moldingOrder(cp).find((l) => l.num === 'BR-B688')!.price, null);
+}
+
 // An upper set on the top below it: a 28-1/2" base with a wood top (1-1/4" unless set) is 29-3/4", not 30"
 {
   const base = { ...cabinetFromPreset(presets.find((x) => x.id === 'library-base')!, 'back', 0, []), id: 'lb', name: 'B1', height: 28.5, topThickness: undefined };

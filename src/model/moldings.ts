@@ -77,6 +77,23 @@ export const supplierOf = (p: Profile): Supplier => p.supplier ?? 'am';
 /** How a profile is named on an order: "A&M 1827" or "Brosco 8712". */
 export const profileLabel = (p: Profile) => (p.custom ? `Custom ${p.custom.category.toLowerCase()}` : supplierOf(p) === 'brosco' ? `Brosco ${p.code}` : supplierOf(p) === 'nextday' ? `Next Day ${p.code}` : `A&M ${p.num}`);
 
+/** A profile as the customer sees it: its number, not who sells it. */
+export const customerProfile = (p: Profile) => (p.custom ? 'custom profile, milled to match' : `profile ${supplierOf(p) === 'am' ? p.num : p.code}`);
+
+/**
+ * Customer-facing text with the suppliers taken out: moulding profiles by number alone, and no door
+ * maker's name. Cody doesn't hide that he buys doors and mouldings, but the customer doesn't need to
+ * know from whom. The shop's drawings and orders keep the names.
+ */
+export function forCustomer(text: string): string {
+  return text
+    .replace(/\bBrosco (?=[A-Z]{0,3}-?\d)/gi, 'profile ')
+    .replace(/\bNext Day (?=\d)/gi, 'profile ')
+    .replace(/\bA(?:&|&amp;)M (?=[A-Z]{0,3}-?\d)/gi, 'profile ')
+    .replace(/\bEagle(?:’s|'s|&#39;s)? /gi, '')
+    .replace(/\bEagle\b/gi, 'the door maker');
+}
+
 export const profileByNum = (num?: string): Profile | undefined => (num ? catalog.find((p) => p.num === num) ?? customProfile(num) : undefined);
 
 export const amSpecies = [...new Set([...amCatalog, ...nextDayCatalog].flatMap((p) => Object.keys(p.prices)))].sort();
@@ -387,7 +404,26 @@ export function panelMoldings(w: WallPanel): MoldPiece[] {
   return [{ kind: 'cap', num: p.num, along: 'x', facing: 'front', x: 0, y: w.bottom + w.height, z: 0, length: w.width }];
 }
 
-export interface MoldOrderLine { num: string; supplier: Supplier; profile: Profile; kinds: MoldKind[]; inches: number; feet: number; species: string; price: number | null; cost: number }
+export interface MoldOrderLine { num: string; supplier: Supplier; profile: Profile; kinds: MoldKind[]; inches: number; feet: number; species: string; price: number | null; cost: number; /** A Brosco profile priced from the Next Day item it's bought as. */ via?: Profile }
+
+/**
+ * The Next Day item a Brosco profile is bought as: the one picked for this job, or the one Next Day
+ * lists under that Brosco number ("5089 B665 Basecap").
+ */
+export function nextDayFor(p: { moldSource?: Record<string, string> }, prof: Profile): Profile | undefined {
+  if (supplierOf(prof) !== 'brosco') return undefined;
+  const picked = p.moldSource?.[prof.num];
+  if (picked === '') return undefined;
+  if (picked) return profileByNum(picked);
+  const code = (prof as Profile & { code?: string }).code;
+  return code ? nextDayCatalog.find((n) => new RegExp(`(^|\\W)${code}(\\W|$)`, 'i').test(n.name)) : undefined;
+}
+
+/** Next Day items that could stand in for a Brosco profile: same kind of moulding, nearest in size first. */
+export function nextDayChoices(prof: Profile): Profile[] {
+  return nextDayCatalog.filter((n) => n.category === prof.category)
+    .sort((a, b) => Math.abs(a.t - prof.t) + Math.abs(a.w - prof.w) - (Math.abs(b.t - prof.t) + Math.abs(b.w - prof.w)));
+}
 
 /** Lineal feet to order from Anderson & McQuaid, by profile, with waste for miters and defects. */
 export function moldingOrder(p: Project): MoldOrderLine[] {
@@ -426,7 +462,9 @@ export function moldingOrder(p: Project): MoldOrderLine[] {
     const feet = Math.ceil((t.inches / 12) * (1 + s.moldWaste));
     // A price entered for the job (Brosco, or an A&M quote) beats the list price
     const own = p.moldPrices?.[num];
-    const pr = own != null ? { species: s.moldSpecies, price: own } : priceOf(profile, s.moldSpecies);
-    return { num, supplier: supplierOf(profile), profile, kinds: [...t.kinds], inches: t.inches, feet, species: pr?.species ?? s.moldSpecies, price: pr?.price ?? null, cost: pr ? pr.price * feet : 0 };
+    // A Brosco profile bought from Next Day takes Next Day's price
+    const via = own == null ? nextDayFor(p, profile) : undefined;
+    const pr = own != null ? { species: s.moldSpecies, price: own } : via ? priceOf(via, s.moldSpecies) : priceOf(profile, s.moldSpecies);
+    return { num, supplier: supplierOf(profile), profile, kinds: [...t.kinds], inches: t.inches, feet, species: pr?.species ?? s.moldSpecies, price: pr?.price ?? null, cost: pr ? pr.price * feet : 0, via };
   });
 }

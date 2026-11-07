@@ -6,7 +6,7 @@ import { cofferScope, priceQuote, scopeLine } from './quote';
 import { furnitureOf, tableScope } from './furniture';
 import { wallNames } from './layout';
 import { styleById } from './eagle';
-import { profileByNum, profileLabel } from './moldings';
+import { customerProfile, profileByNum } from './moldings';
 import { fridgeBelow } from './cabinetBase';
 import { colorText } from './paintColors';
 import { accentFinishes } from './cabinetFinish';
@@ -173,7 +173,7 @@ export function materialsOf(p: Project): { label: string; value: string }[] {
   if (p.cabinets.some((c) => c.rows.some((r) => r.type === 'drawer'))) out.push({ label: 'Drawers', value: 'Dovetail drawer boxes on soft-close, full-extension slides' });
   if (doors) out.push({ label: 'Hinges', value: 'Soft-close, adjustable' });
   const crown = p.cabinets.map((c) => profileByNum(c.crown)).find(Boolean);
-  if (crown) out.push({ label: 'Mouldings', value: `Crown moulding${p.cabinets.some((c) => c.baseMold) ? ' and base moulding' : ''} (${profileLabel(crown)})` });
+  if (crown) out.push({ label: 'Mouldings', value: `Crown moulding${p.cabinets.some((c) => c.baseMold) ? ' and base moulding' : ''} (${customerProfile(crown)})` });
   if (p.cabinets.some((c) => c.countertop && c.topKind === 'wood')) out.push({ label: 'Tops', value: `Solid ${s.woodSpecies.toLowerCase()}` });
   else if (p.cabinets.some((c) => c.countertop && c.topKind === 'paint')) out.push({ label: 'Tops', value: 'Paint grade, painted with the cabinets' });
   if (p.cabinets.some((c) => c.cushion)) out.push({ label: 'Cushions', value: 'Custom seat cushions, fabric to be selected' });

@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useStore } from '../store';
-import { moldLabel, moldingOrder, profileLabel, supplierName, type Supplier } from '../model/moldings';
+import { moldLabel, moldingOrder, nextDayChoices, nextDayFor, profileLabel, supplierName, type Supplier } from '../model/moldings';
 import { fmt } from '../units';
 import { ProfileThumb } from './ProfilePicker';
 import { DoorGlyph } from './DoorPicker';
@@ -11,7 +11,7 @@ export function MoldingOrder() {
   const project = useStore((s) => s.project);
   const lines = useMemo(() => moldingOrder(project), [project]);
   if (!lines.length) return null;
-  return <>{(['am', 'brosco', 'custom'] as Supplier[]).map((sup) => lines.some((l) => l.supplier === sup) && <SupplierOrder key={sup} sup={sup} lines={lines.filter((l) => l.supplier === sup)} />)}</>;
+  return <>{(['am', 'nextday', 'brosco', 'custom'] as Supplier[]).map((sup) => lines.some((l) => l.supplier === sup) && <SupplierOrder key={sup} sup={sup} lines={lines.filter((l) => l.supplier === sup)} />)}</>;
 }
 
 function SupplierOrder({ sup, lines }: { sup: Supplier; lines: ReturnType<typeof moldingOrder> }) {
@@ -23,6 +23,11 @@ function SupplierOrder({ sup, lines }: { sup: Supplier; lines: ReturnType<typeof
     const next = { ...p.moldPrices };
     if (v == null) delete next[num]; else next[num] = v;
     return { ...p, moldPrices: next };
+  });
+  const setSource = (num: string, nd: string | undefined) => commit((p) => {
+    const next = { ...p.moldSource };
+    if (nd == null) delete next[num]; else next[num] = nd;
+    return { ...p, moldSource: Object.keys(next).length ? next : undefined };
   });
   return (
     <div className="pgroup" style={{ marginTop: 18 }}>
@@ -36,10 +41,25 @@ function SupplierOrder({ sup, lines }: { sup: Supplier; lines: ReturnType<typeof
           {lines.map((l) => (
             <tr key={l.num}>
               <td><ProfileThumb p={l.profile} size={30} /></td>
-              <td>{profileLabel(l.profile)} <span className="muted mono">{fmt(l.profile.t)} × {fmt(l.profile.w)}</span><span className="note">{l.kinds.map((k) => moldLabel[k]).join(', ')}{l.profile.custom ? `; ${l.profile.name?.toLowerCase()}` : ''}{sup === 'am' && l.species !== project.settings.moldSpecies ? `; not offered in ${project.settings.moldSpecies.toLowerCase()}, priced in ${l.species.toLowerCase()}` : ''}</span></td>
+              <td>{profileLabel(l.profile)} <span className="muted mono">{fmt(l.profile.t)} × {fmt(l.profile.w)}</span><span className="note">{l.kinds.map((k) => moldLabel[k]).join(', ')}{l.profile.custom ? `; ${l.profile.name?.toLowerCase()}` : ''}{sup === 'am' && l.species !== project.settings.moldSpecies ? `; not offered in ${project.settings.moldSpecies.toLowerCase()}, priced in ${l.species.toLowerCase()}` : ''}</span>
+                {sup === 'brosco' && (() => {
+                  const auto = nextDayFor({}, l.profile);
+                  const cur = project.moldSource?.[l.num];
+                  return (
+                    <label className="note" style={{ display: 'block' }}>Bought at Next Day as{' '}
+                      <select aria-label={`Next Day item for ${profileLabel(l.profile)}`} value={cur ?? 'auto'} onChange={(e) => setSource(l.num, e.target.value === 'auto' ? undefined : e.target.value)}>
+                        <option value="auto">{auto ? `${auto.code} (lists ${profileLabel(l.profile)})` : 'not listed: pick one or enter a price'}</option>
+                        <option value="">None: my own price</option>
+                        {nextDayChoices(l.profile).slice(0, 12).filter((n) => n.num !== auto?.num).map((n) => <option key={n.num} value={n.num}>{n.code} {n.name}, {fmt(n.t)} × {fmt(n.w)}</option>)}
+                      </select>
+                      {l.via && !project.moldPrices?.[l.num] && <> · Next Day {(l.via as { code?: string }).code}, ${l.price?.toFixed(2) ?? '—'}/ft</>}
+                    </label>
+                  );
+                })()}
+              </td>
               <td className="num">{l.feet}</td>
               <td className="num">
-                {sup !== 'am' && sup !== 'nextday'
+                {sup !== 'am' && sup !== 'nextday' && !(l.via && project.moldPrices?.[l.num] == null)
                   ? <input className="price-in" aria-label={`${profileLabel(l.profile)} price per foot`} inputMode="decimal" placeholder="$/ft" defaultValue={project.moldPrices?.[l.num] ?? ''}
                       onBlur={(e) => { const v = parseFloat(e.target.value); setPrice(l.num, Number.isFinite(v) ? v : null); }} />
                   : l.price != null ? `$${l.price.toFixed(2)}` : '—'}
@@ -56,7 +76,7 @@ function SupplierOrder({ sup, lines }: { sup: Supplier; lines: ReturnType<typeof
         : sup === 'nextday'
           ? 'Next Day Moulding’s online prices, per foot (pieces sold by length worked back to $/ft), as collected Nov 1, 2026. Check the page before ordering.'
         : sup === 'brosco'
-          ? 'Brosco sells through dealers and doesn’t publish prices. Enter your price per foot for each profile; it’s saved with this job and used in the quote.'
+          ? 'Brosco sells through dealers and doesn’t publish prices. Where Next Day sells the profile (it lists the Brosco number, or you pick the Next Day item it’s bought as), Next Day’s price is used; otherwise enter your price per foot. Saved with this job and used in the quote.'
           : 'Milled to match the existing trim. Enter the supplier’s price per foot, or your stock cost for the ones you mill; it’s saved with this job and used in the quote.'}</p>
     </div>
   );

@@ -1,11 +1,13 @@
 // Drawing sets: the customer's (cover, floor plan, wall elevations) and the shop's (a wall
 // assembly sheet per wall, then a sheet per cabinet), on 11×17 or letter, each with CJC's title
 // block. Every sheet is one SVG at true size, so it prints to scale.
+import { forCustomer } from '../model/moldings';
 import type { Cabinet, Part, Project, WallId } from '../model/types';
 import { wallOrder, wallNames, wallLength } from '../model/layout';
 import { clientName, clientOf, COMPANY } from '../model/client';
 import { eff } from '../model/parts';
 import { doorProfileViews } from './doorProfile';
+import { profileItems, profileViews } from './profileSheet';
 import { styleById } from '../model/eagle';
 import { baseLabel } from '../model/cabinetBase';
 import { fmt } from '../units';
@@ -166,7 +168,8 @@ const wallsWithWork = (p: Project) => wallOrder.filter((w) => cabinetsOn(p, w).l
 
 export function customerSet(p: Project, s: DrawingSettings): Sheet[] {
   beginEdits(s.edits);
-  try { return customerSheets(p, s); } finally { endEdits(); }
+  // The customer's set names no suppliers (the shop set keeps them)
+  try { return customerSheets(p, s).map((x) => ({ ...x, title: forCustomer(x.title), svg: forCustomer(x.svg) })); } finally { endEdits(); }
 }
 function customerSheets(p: Project, s: DrawingSettings): Sheet[] {
   const A = area(s.paper);
@@ -177,9 +180,16 @@ function customerSheets(p: Project, s: DrawingSettings): Sheet[] {
   const placed = placeDetails(p, 'customer', 'A', first + walls.length);
   const detailIdx = [...new Set(placed.map((x) => x.sheet))].map((n) => [n, 'Details']);
   // The door style sheet goes last, after any details
-  const doorNo = `A${first + walls.length + detailIdx.length}`;
   const doorStyle = styleById(eff({ overrides: undefined } as never, p.settings).doorStyleId).profile !== 'slab' && p.cabinets.some((c) => c.rows.some((r) => r.type === 'doors' || r.type === 'drawer'));
-  const index = [['A0', 'Cover'], ['A1', 'Floor plan'], ...(ceiling ? [['A2', 'Ceiling plan']] : []), ...walls.map((w, i) => [`A${i + first}`, `${wallNames[w]} elevation`]), ...detailIdx, ...(doorStyle ? [[doorNo, 'Door style']] : []), ...furnitureOf(p).map((t, i) => [`A${first + walls.length + detailIdx.length + (doorStyle ? 1 : 0) + i}`, t.name])];
+  // After the details: the door style, the moulding and beadboard profiles, each table, then the lighting spec
+  let nextNo = first + walls.length + detailIdx.length;
+  const doorNo = `A${doorStyle ? nextNo++ : nextNo}`;
+  const profiles = profileItems(p);
+  const profNo = `A${profiles.length ? nextNo++ : nextNo}`;
+  const tableNos = furnitureOf(p).map(() => `A${nextNo++}`);
+  const spec = lightingSpecHtml(p);
+  const specNo = `A${nextNo}`;
+  const index = [['A0', 'Cover'], ['A1', 'Floor plan'], ...(ceiling ? [['A2', 'Ceiling plan']] : []), ...walls.map((w, i) => [`A${i + first}`, `${wallNames[w]} elevation`]), ...detailIdx, ...(doorStyle ? [[doorNo, 'Door style']] : []), ...(profiles.length ? [[profNo, 'Moulding & beadboard profiles']] : []), ...furnitureOf(p).map((t, i) => [tableNos[i], t.name]), ...(spec ? [[specNo, 'Cabinet lighting']] : [])];
   // Cover: the picture, the job, and what's in the set
   const c = clientOf(p);
   const imgW = A.w * 0.64;
@@ -217,16 +227,16 @@ function customerSheets(p: Project, s: DrawingSettings): Sheet[] {
       sheets.push(sheet(p, s, doorNo, 'Door style', 'As noted', dv.svg + label(A.x, A.w * 0.5, 'FRAMING BEAD, SECTION (FULL SIZE)') + label(A.x + A.w * 0.5, A.w * 0.24, 'DOOR (1-1/2" = 1\'-0")') + notes));
     }
   }
+  if (profiles.length) sheets.push(sheet(p, s, profNo, 'Moulding & beadboard profiles', 'As noted', profileViews(profiles, A)));
   furnitureOf(p).forEach((t, i) => {
-    const no = `A${first + walls.length + detailIdx.length + (doorStyle ? 1 : 0) + i}`;
+    const no = tableNos[i];
     const fs = s.paper === 'tabloid' ? 0.11 : 0.09;
     const v = tableSheetViews(t, A, 0.74);
     const notes = html({ x: A.x + A.w * 0.76, y: A.y, w: A.w * 0.24, h: A.h }, `<h2>${esc(t.name)}</h2><p>${esc(tableScope(t).replace(/^[^:]*:\s*/, '').replace(/^./, (c) => c.toUpperCase()))}</p>${t.notes ? `<p>${esc(t.notes)}</p>` : ''}<p class="small">Drawings show design intent; final sizes are confirmed before the lumber is milled.</p>`, fs);
     sheets.push(sheet(p, s, no, t.name, `${scaleName(v.scale)}; section ${scaleName(v.secScale)}`, v.svg + notes));
   });
   // Lighting chosen on any cabinet brings its spec sheet along
-  const spec = lightingSpecHtml(p);
-  if (spec) sheets.push(sheet(p, s, `A${first + walls.length + detailIdx.length + (doorStyle ? 1 : 0) + furnitureOf(p).length}`, 'Cabinet lighting', 'No scale', html({ x: A.x, y: A.y, w: A.w, h: A.h }, spec, s.paper === 'tabloid' ? 0.11 : 0.09)));
+  if (spec) sheets.push(sheet(p, s, specNo, 'Cabinet lighting', 'No scale', html({ x: A.x, y: A.y, w: A.w, h: A.h }, spec, s.paper === 'tabloid' ? 0.11 : 0.09)));
   return sheets;
 }
 

@@ -100,11 +100,11 @@ export function doorProfileViews(p: Project, section: Frame, front: Frame): { sv
   if (style.line !== 'MDF') { fv.line(S, 0, S, dh, 'thin'); fv.line(dw - S, 0, dw - S, dh, 'thin'); }
   fv.dimH(0, S, 0, -0.25);
   const notes = [
-    `${style.name}${style.bead ? `, Eagle framing bead ${style.bead}` : ''}: ${style.detail}`,
+    `${style.name}${style.bead ? `, framing bead ${style.bead}` : ''}: ${style.detail}`,
     `${style.line === 'MDF' ? 'MDF' : s.doorMaterial}, ${s.doorMount === 'inset' ? 'inset' : 'overlay'} doors and drawer fronts`,
     panel ? `Center panel: ${panel.code}, ${panel.name}` : '',
     `Outside edge: ${edgeText(s.outsideEdge)}`,
-    `Framing bead ${beadOf(style).w ? `${fmtIn(beadOf(style).w)} wide, ` : ''}panel ${fmtIn(beadOf(style).recess)} below the frame face (Eagle’s profile drawing)`,
+    `Framing bead ${beadOf(style).w ? `${fmtIn(beadOf(style).w)} wide, ` : ''}panel ${fmtIn(beadOf(style).recess)} below the frame face (from the door maker’s profile drawing)`,
     'Section drawn full size; the sample door is the final word.',
   ].filter(Boolean);
   return { svg: v.svg() + fv.svg(), notes };

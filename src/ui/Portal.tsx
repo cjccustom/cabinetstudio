@@ -20,6 +20,10 @@ import {
 } from '../portal';
 import { askConfirm } from './Confirm';
 import { projectPage } from '../../portal/src/pages';
+import { forCustomer } from '../model/moldings';
+
+/** What goes on the customer's page, with no supplier names. */
+const clean = <T,>(x: T): T => JSON.parse(forCustomer(JSON.stringify(x))) as T;
 import type { Job, Shop as PortalShop } from '../../portal/src/store';
 import type { Project } from '../model/types';
 
@@ -146,11 +150,11 @@ export function ClientPortal() {
       replaceSigned = true;
     }
     const jobId = portal?.jobId ?? newJobId(project);
-    const summary = proposalSummary(project);
+    const summary = clean(proposalSummary(project));
     const status = await publishProposal({
       job_id: jobId, project: proposalTitle(project),
       client: { first: c.first, last: c.last, email: c.email, phone: c.phone, address: c.address },
-      agreement_html: withCarried(quoteDoc(project, { online: true }), { summary: { areas: summary.areas, materials: summary.materials }, sections: proposalLines(project), options: summary.options }), total, deposit,
+      agreement_html: withCarried(quoteDoc(project, { online: true }), { summary: { areas: summary.areas, materials: summary.materials }, sections: clean(proposalLines(project)), options: summary.options }), total, deposit,
       renderings: await renderingsFor(project), replace_signed: replaceSigned,
     });
     keep(status, jobId);
@@ -164,14 +168,14 @@ export function ClientPortal() {
     let shop: PortalShop = { company: [], about: '', terms: CJC_TERMS, docs: [] };
     let offline = false;
     try { shop = (await getShop()) as unknown as PortalShop; } catch { offline = true; }
-    const summary = proposalSummary(project);
+    const summary = clean(proposalSummary(project));
     const rend = await renderingsFor(project);
     const job: Job = {
       jobId: 'preview', token: 'preview', project: proposalTitle(project), stage: 'proposal',
       client: { first: c.first, last: c.last, email: c.email, phone: c.phone, address: c.address },
       proposal: {
         agreementHtml: quoteDoc(project, { online: true }), total, deposit, publishedAt: Date.now(), version: (st?.version ?? 0) + 1, hash: '', terms: shop.terms,
-        summary: { areas: summary.areas, materials: summary.materials }, sections: proposalLines(project).map(({ label, price }) => ({ label, price })), options: summary.options,
+        summary: { areas: summary.areas, materials: summary.materials }, sections: clean(proposalLines(project)).map(({ label, price }) => ({ label, price })), options: summary.options,
       },
       renderings: rend.map((r, i) => ({ id: `r${i}`, name: r.name, mimeType: r.mimeType })), views: [],
     };

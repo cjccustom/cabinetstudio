@@ -1,6 +1,7 @@
 // The customer side of a job: who they are, what they want, what was measured on site, and where
 // their folder lives in Dropbox (/CJC/Jobs/<stage>/<Last, First - Location>). The documents written
 // into that folder are built here as plain text so they read well in the Dropbox app.
+import { forCustomer } from './moldings';
 import type { Project } from './types';
 import { finishingItems } from './finishing';
 import { priceQuote, quoteOf, groupLabel, paintLineLabel, proposalScope } from './quote';
@@ -157,7 +158,10 @@ export function scheduleHtml(p: Project, total: number, withOptions: boolean, se
 
 /** Scope of work and purchase agreement, laid out like Cody's Word template; opens in a browser or Word and prints to PDF.
  *  `online` is the copy for the client portal, which is signed electronically on the page instead of on signature lines. */
-export function quoteDoc(p: Project, opts: { online?: boolean } = {}): string {
+/** The quote document the customer reads, with no supplier names in it. */
+export const quoteDoc = (p: Project, opts: { online?: boolean } = {}): string => forCustomer(quoteDocRaw(p, opts));
+
+function quoteDocRaw(p: Project, opts: { online?: boolean } = {}): string {
   const c = clientOf(p);
   const base = withOptions(p);
   const r = priceQuote(base);
