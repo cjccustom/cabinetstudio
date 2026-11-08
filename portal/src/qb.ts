@@ -60,7 +60,11 @@ const basic = (env: Env) => `Basic ${btoa(`${env.QB_CLIENT_ID}:${env.QB_CLIENT_S
 async function tokenCall(env: Env, body: Record<string, string>) {
   const res = await fetch(TOKEN_URL, { method: 'POST', headers: { authorization: basic(env), accept: 'application/json', 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams(body) });
   const j = (await res.json().catch(() => ({}))) as Record<string, unknown>;
-  if (!res.ok) throw new Error(`QuickBooks sign-in failed: ${j.error_description || j.error || res.status}`);
+  if (!res.ok) {
+    const tid = res.headers.get('intuit_tid') || '';
+    await logQbError(env, { at: new Date().toISOString(), method: 'POST', path: 'oauth2/tokens', status: res.status, code: j.error ?? null, message: String(j.error_description || j.error || res.status), tid });
+    throw new Error(`QuickBooks sign-in failed: ${j.error_description || j.error || res.status}${tid ? ` [intuit_tid ${tid}]` : ''}`);
+  }
   return j as { access_token: string; refresh_token: string; expires_in: number; x_refresh_token_expires_in: number };
 }
 
@@ -125,9 +129,18 @@ export async function qb(env: Env, method: 'GET' | 'POST', path: string, body?: 
   const j = (await res.json().catch(() => ({}))) as Raw;
   if (!res.ok || j.Fault) {
     const e = j.Fault?.Error?.[0] ?? j.fault?.error?.[0];
-    throw Object.assign(new Error(`QuickBooks: ${e?.Message || e?.message || res.status}${e?.Detail || e?.detail ? ` (${e.Detail || e.detail})` : ''}`), { qbCode: e?.code });
+    // Intuit's tracking number for this call, kept with the error so their support can find it
+    const tid = res.headers.get('intuit_tid') || '';
+    const message = `QuickBooks: ${e?.Message || e?.message || res.status}${e?.Detail || e?.detail ? ` (${e.Detail || e.detail})` : ''}`;
+    await logQbError(env, { at: new Date().toISOString(), method, path: path.split('?')[0], status: res.status, code: e?.code ?? null, message, tid });
+    throw Object.assign(new Error(`${message}${tid ? ` [intuit_tid ${tid}]` : ''}`), { qbCode: e?.code, tid });
   }
   return j;
+}
+
+/** Every QuickBooks error, kept 90 days in the portal's storage (qblog:<time>) for troubleshooting with Intuit. */
+async function logQbError(env: Env, entry: Record<string, unknown>) {
+  try { await env.PORTAL.put(`qblog:${Date.now()}:${randomToken(4)}`, JSON.stringify(entry), { expirationTtl: 90 * 86400 } as never); } catch { /* logging never blocks the work */ }
 }
 
 const quote = (s: string) => `'${s.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;

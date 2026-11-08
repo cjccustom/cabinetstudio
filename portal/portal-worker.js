@@ -488,7 +488,11 @@ var basic = (env) => `Basic ${btoa(`${env.QB_CLIENT_ID}:${env.QB_CLIENT_SECRET}`
 async function tokenCall2(env, body) {
   const res = await fetch(TOKEN_URL2, { method: "POST", headers: { authorization: basic(env), accept: "application/json", "content-type": "application/x-www-form-urlencoded" }, body: new URLSearchParams(body) });
   const j = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(`QuickBooks sign-in failed: ${j.error_description || j.error || res.status}`);
+  if (!res.ok) {
+    const tid = res.headers.get("intuit_tid") || "";
+    await logQbError(env, { at: (/* @__PURE__ */ new Date()).toISOString(), method: "POST", path: "oauth2/tokens", status: res.status, code: j.error ?? null, message: String(j.error_description || j.error || res.status), tid });
+    throw new Error(`QuickBooks sign-in failed: ${j.error_description || j.error || res.status}${tid ? ` [intuit_tid ${tid}]` : ""}`);
+  }
   return j;
 }
 async function finishConnect(env, url) {
@@ -548,9 +552,18 @@ async function qb(env, method, path, body, query = {}) {
   const j = await res.json().catch(() => ({}));
   if (!res.ok || j.Fault) {
     const e = j.Fault?.Error?.[0] ?? j.fault?.error?.[0];
-    throw Object.assign(new Error(`QuickBooks: ${e?.Message || e?.message || res.status}${e?.Detail || e?.detail ? ` (${e.Detail || e.detail})` : ""}`), { qbCode: e?.code });
+    const tid = res.headers.get("intuit_tid") || "";
+    const message = `QuickBooks: ${e?.Message || e?.message || res.status}${e?.Detail || e?.detail ? ` (${e.Detail || e.detail})` : ""}`;
+    await logQbError(env, { at: (/* @__PURE__ */ new Date()).toISOString(), method, path: path.split("?")[0], status: res.status, code: e?.code ?? null, message, tid });
+    throw Object.assign(new Error(`${message}${tid ? ` [intuit_tid ${tid}]` : ""}`), { qbCode: e?.code, tid });
   }
   return j;
+}
+async function logQbError(env, entry) {
+  try {
+    await env.PORTAL.put(`qblog:${Date.now()}:${randomToken(4)}`, JSON.stringify(entry), { expirationTtl: 90 * 86400 });
+  } catch {
+  }
 }
 var quote = (s) => `'${s.replace(/\\/g, "\\\\").replace(/'/g, "\\'")}'`;
 var select = async (env, sql) => (await qb(env, "GET", "query", void 0, { query: sql })).QueryResponse ?? {};
