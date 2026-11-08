@@ -1,4 +1,5 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { clearSent, startShop, useShop } from '../shop/shop';
 import { BACKUP_KEY, useStore } from '../store';
 import { FileButton } from './FileButton';
 import type { Project } from '../model/types';
@@ -11,12 +12,15 @@ export function ProjectDialog({ onClose }: { onClose: () => void }) {
   const [text, setText] = useState(json);
   const [msg, setMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
   const area = useRef<HTMLTextAreaElement>(null);
+  const sent = useShop((s) => s.sent);
+  useEffect(() => { void startShop(); }, []);
   // The design last replaced by opening another one, if any
   const backup = (() => { try { const b = JSON.parse(localStorage.getItem(BACKUP_KEY) ?? 'null') as { at: number; project: Project } | null; return b?.project ? b : null; } catch { return null; } })();
 
-  const load = (raw: string) => {
+  const load = (raw: string, fromInbox = false) => {
     try {
       loadProject(JSON.parse(raw) as Project);
+      if (fromInbox) void clearSent();
       onClose();
     } catch (e) {
       setMsg({ kind: 'err', text: e instanceof SyntaxError ? 'That isn’t a Cabinet Studio project file (or only part of one). Pick the .json design file, or paste the whole text.' : (e as Error).message });
@@ -36,6 +40,12 @@ export function ProjectDialog({ onClose }: { onClose: () => void }) {
       <div className="modal" role="dialog" aria-modal="true" aria-labelledby="pf-title" onClick={(e) => e.stopPropagation()}>
         <h2 id="pf-title">Project file</h2>
         <p>Your work saves automatically in this browser. To move a job to another computer or keep a backup, copy the project text below, or paste one in to open it.</p>
+        {sent && (
+          <p className="ok">
+            Design sent by Claude: <b>{sent.name}</b>{sent.at ? `, ${new Date(sent.at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}` : ''}.{' '}
+            <button className="primary" onClick={() => load(sent.text, true)}>Open it</button>
+          </p>
+        )}
         <textarea id="pf-text" ref={area} value={text} onChange={(e) => setText(e.target.value)} spellCheck={false} />
         {backup && (
           <p className="hint">

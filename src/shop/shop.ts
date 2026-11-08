@@ -55,9 +55,11 @@ interface ShopState {
   prices: Record<string, PriceItem>;
   error: string | null;
   canExport: boolean;
+  /** A design Claude put in the app's inbox to open (inbox/design: name, at, project as JSON text) */
+  sent: { name: string; at: number; text: string } | null;
 }
 
-export const useShop = create<ShopState>(() => ({ mode: 'loading', jobs: {}, entries: {}, todos: {}, timer: null, rate: 75, prices: {}, error: null, canExport: false }));
+export const useShop = create<ShopState>(() => ({ mode: 'loading', jobs: {}, entries: {}, todos: {}, timer: null, rate: 75, prices: {}, error: null, canExport: false, sent: null }));
 
 type Db = {
   doc(path: string): { set(d: Record<string, unknown>): Promise<void>; delete(): Promise<void>; onSnapshot(n: (s: { exists: boolean; data(): Record<string, unknown> | undefined }) => void, e?: (err: { code: string }) => void): () => void };
@@ -110,7 +112,17 @@ export async function startShop() {
     const v = d.exists ? (d.data() as Partial<Timer>) : null;
     useShop.setState({ timer: v?.jobId ? (v as Timer) : null });
   }, lostConnection);
+  db.doc('inbox/design').onSnapshot((d) => {
+    const v = d.exists ? d.data() : undefined;
+    useShop.setState({ sent: v && typeof v.project === 'string' ? { name: String(v.name ?? 'Design'), at: Number(v.at) || 0, text: v.project } : null });
+  }, () => {});
   db.doc('settings/shop').onSnapshot((d) => { if (d.exists) useShop.setState({ rate: Number(d.data()?.rate) || 75 }); }, lostConnection);
+}
+
+/** Clear the inbox once its design is opened. */
+export async function clearSent() {
+  useShop.setState({ sent: null });
+  try { await db?.doc('inbox/design').delete(); } catch { /* it clears next time */ }
 }
 
 type Kind = 'jobs' | 'entries' | 'todos' | 'prices';
