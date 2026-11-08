@@ -639,7 +639,8 @@ var round2 = (v) => Math.round(v * 100) / 100;
 var html = (body, status2 = 200) => new Response(body, { status: status2, headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "x-robots-tag": "noindex", "referrer-policy": "no-referrer" } });
 var json = (body) => new Response(JSON.stringify(body), { headers: { "content-type": "application/json" } });
 var worker_default = {
-  async fetch(request, env) {
+  async fetch(request, env0) {
+    const env = Object.fromEntries(Object.entries(env0).map(([k, v]) => [k, typeof v === "string" ? v.trim() : v]));
     const url = new URL(request.url);
     const path = url.pathname.replace(/\/+$/, "") || "/";
     if (!env.PORTAL) return setupPage("Almost there", "<p>The portal is running, but its storage isn\u2019t connected. In Cloudflare open this worker\u2019s <b>Settings \u2192 Bindings</b>, add a <b>KV namespace</b> binding named <code>PORTAL</code> (create a namespace called <b>cjc-portal</b> if you don\u2019t have one), then reload this page.</p>");

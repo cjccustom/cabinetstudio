@@ -22,7 +22,9 @@ const html = (body: string, status = 200) => new Response(body, { status, header
 const json = (body: unknown) => new Response(JSON.stringify(body), { headers: { 'content-type': 'application/json' } });
 
 export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
+  async fetch(request: Request, env0: Env): Promise<Response> {
+    // Keys pasted into Cloudflare often carry a stray space or line break: trim every text setting
+    const env = Object.fromEntries(Object.entries(env0).map(([k, v]) => [k, typeof v === 'string' ? v.trim() : v])) as unknown as Env;
     const url = new URL(request.url);
     const path = url.pathname.replace(/\/+$/, '') || '/';
     if (!env.PORTAL) return setupPage('Almost there', '<p>The portal is running, but its storage isn’t connected. In Cloudflare open this worker’s <b>Settings → Bindings</b>, add a <b>KV namespace</b> binding named <code>PORTAL</code> (create a namespace called <b>cjc-portal</b> if you don’t have one), then reload this page.</p>');
