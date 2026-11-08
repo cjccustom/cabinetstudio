@@ -19,7 +19,7 @@ export function ProjectDialog({ onClose }: { onClose: () => void }) {
       loadProject(JSON.parse(raw) as Project);
       onClose();
     } catch (e) {
-      setMsg({ kind: 'err', text: e instanceof SyntaxError ? 'That text isn’t a complete project file. Check that the whole file was pasted.' : (e as Error).message });
+      setMsg({ kind: 'err', text: e instanceof SyntaxError ? 'That isn’t a Cabinet Studio project file (or only part of one). Pick the .json design file, or paste the whole text.' : (e as Error).message });
     }
   };
 
@@ -45,7 +45,8 @@ export function ProjectDialog({ onClose }: { onClose: () => void }) {
         )}
         {msg && <p className={msg.kind === 'err' ? 'warn' : 'ok'}>{msg.text}</p>}
         <div className="modal-actions">
-          <FileButton accept=".json,.cabinet,application/json,text/plain" onFiles={(f) => { const file = f?.[0]; if (file) file.text().then(load); }}>Open file…</FileButton>
+          {/* No accept filter: iPad and the Claude app grey out .json files when one is set, and load() rejects anything that isn’t a project */}
+          <FileButton onFiles={(f) => { const file = f?.[0]; if (file) file.text().then(load); }}>Open file…</FileButton>
           <span className="spacer" />
           <button onClick={copy}>Copy project</button>
           <button className="primary" disabled={text === json} onClick={() => load(text)}>Open pasted project</button>
