@@ -654,6 +654,19 @@ var worker_default = {
       return new Response(calendar(appts, "CJC Jobs"), { headers: { "content-type": "text/calendar; charset=utf-8", "cache-control": "no-store" } });
     }
     if (path === "/" || path === "/setup") return setup(request, url, key);
+    if (path === "/qb/start" || path === "/dropbox/start") {
+      const t = url.searchParams.get("t") || "";
+      const which = path.startsWith("/qb") ? "qb" : "dbx";
+      const exp = t ? Number(await env.PORTAL.get(`${which}link:${t}`, "json")) : 0;
+      if (!exp || exp < Date.now()) return setupPage("That link has expired", "<p>Ask Claude (or Cabinet Studio) for a new connect link; each one works once, for 15 minutes.</p>");
+      await env.PORTAL.delete(`${which}link:${t}`);
+      if (which === "qb") {
+        if (!qbReady(env)) return setupPage("QuickBooks isn\u2019t set up", "<p>The QuickBooks keys aren\u2019t in the portal yet.</p>");
+        return Response.redirect(await connectUrl(env, url.origin), 302);
+      }
+      if (!dbxReady(env)) return setupPage("Dropbox isn\u2019t set up", "<p>The Dropbox keys aren\u2019t in the portal yet.</p>");
+      return Response.redirect(await dbxConnectUrl(env, url.origin), 302);
+    }
     if (path === "/qb" || path === "/qb/connect" || path === "/qb/callback") return qbPage(request, env, url, key, path);
     if (path === "/dropbox" || path === "/dropbox/callback") return dbxPage(request, env, url, key, path);
     if (path === "/legal/eula" || path === "/legal/privacy") return html(legalPage(path.endsWith("eula")));
@@ -956,6 +969,8 @@ var TOOLS = [
   },
   { name: "delete_appointment", description: "Remove an appointment from the calendar.", inputSchema: { type: "object", properties: { id: { type: "string" } }, required: ["id"] } },
   { name: "calendar_feed", description: "The private calendar address for Cody\u2019s phone to subscribe to.", inputSchema: { type: "object", properties: {} } },
+  { name: "qb_connect_link", description: "A one-time link (15 minutes) that starts connecting QuickBooks: open it, sign in to Intuit and pick the company. No SHOP_KEY needed.", inputSchema: { type: "object", properties: {} } },
+  { name: "dropbox_connect_link", description: "A one-time link (15 minutes) that starts connecting Dropbox for photos. No SHOP_KEY needed.", inputSchema: { type: "object", properties: {} } },
   { name: "qb_status", description: "Whether QuickBooks Online is set up and connected, to which company, the invoice settings, and the address of the page for connecting it.", inputSchema: { type: "object", properties: {} } },
   { name: "dropbox_status", description: "Whether the portal can save photos to Dropbox, whose Dropbox it is, and the address of the page for connecting it.", inputSchema: { type: "object", properties: {} } },
   {
@@ -1128,6 +1143,14 @@ ${shop.terms}`);
       if (!key) throw new Error("SHOP_KEY isn\u2019t set.");
       const url2 = `${url.origin}/cal/${await feedCode(key)}.ics`;
       return { url: url2, webcal: url2.replace(/^https:/, "webcal:") };
+    }
+    case "qb_connect_link":
+    case "dropbox_connect_link": {
+      const which = name === "qb_connect_link" ? "qb" : "dbx";
+      if (which === "qb" ? !qbReady(env) : !dbxReady(env)) throw new Error(`The ${which === "qb" ? "QuickBooks" : "Dropbox"} keys aren\u2019t in the portal yet.`);
+      const t = randomToken(24);
+      await env.PORTAL.put(`${which}link:${t}`, JSON.stringify(Date.now() + 15 * 6e4));
+      return { url: `${url.origin}/${which === "qb" ? "qb" : "dropbox"}/start?t=${t}`, expiresInMinutes: 15 };
     }
     case "qb_status": {
       const conn = qbReady(env) ? await getConn(env) : null;
