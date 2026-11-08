@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useStore } from '../store';
 import { designRenderPrompt, geminiModels, renderOf } from '../model/rendering';
 import { base64ToBlob, blobToDataUrl, shrinkImage, type Assets, type Mcp } from '../runtime';
@@ -40,7 +41,8 @@ export function DesignRenderButton() {
       <button className="render-view-btn" onClick={open} title="Send this view to Gemini for a photorealistic rendering">Render this view</button>
       <SaveViewButton onMsg={setMsg} />
       {msg && <span className="render-view-msg">{msg}</span>}
-      {shot && <DesignRenderDialog shot={shot} onClose={close} />}
+      {/* On the page body: inside the view's corner the add-toolbar would sit on top of it */}
+      {shot && createPortal(<DesignRenderDialog shot={shot} onClose={close} />, document.body)}
     </>
   );
 }
