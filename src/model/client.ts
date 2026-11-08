@@ -2,6 +2,7 @@
 // their folder lives in Dropbox (/CJC/Jobs/<stage>/<Last, First - Location>). The documents written
 // into that folder are built here as plain text so they read well in the Dropbox app.
 import { forCustomer } from './moldings';
+import { cardLines, cardOf, checkDiscountOf, paySchedule, pctText as discPct } from './payDiscount';
 import type { Project } from './types';
 import { finishingItems } from './finishing';
 import { priceQuote, quoteOf, groupLabel, paintLineLabel, proposalScope } from './quote';
@@ -168,6 +169,7 @@ function quoteDocRaw(p: Project, opts: { online?: boolean } = {}): string {
   const summary = proposalSummary(p);
   const full = p.proposalDetail === 'full';
   const rounded = proposalLines(p);
+  const d = checkDiscountOf(p);
   const head = `<div class="co"><img src="${LOGO}" alt="CJC Custom Carpentry" style="height:.62in;display:block;margin-bottom:6px">${COMPANY.slice(1).map(esc).join('<br>')}</div>`;
   const who = `<table class="who"><tr><th>Client Name</th><td>${esc(clientName(c))}</td></tr><tr><th>Project Address</th><td>${esc(c.address)}</td></tr>`;
   return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(clientName(c) || 'Quote')} - ${esc(p.name)}</title>
@@ -186,9 +188,10 @@ ${summary.options.length ? `<h3>Options</h3><p>Added to the work above only when
 <p>${full ? 'Final dimensions will be field verified.' : 'Sizes shown are approximate; exact sizes are set on the shop drawings you approve after signing, from measurements taken on site.'} The homeowner will approve door style, finish and hardware before ordering.</p></section>
 <section>${head}<h1>PURCHASE AGREEMENT</h1>${who}<tr><th>Agreement Date</th><td>${date()}</td></tr><tr><th>Estimated Start Date</th><td>${esc(p.proposalStart ?? '')}</td></tr><tr><th>Project Duration</th><td>${esc(p.proposalDuration ?? '')}</td></tr></table>
 <p style="font-size:9.5pt">The above Estimated Start Date is an approximation valid on the above listed Agreement Date and is used for planning purposes only. CJC Custom Carpentry, LLC cannot be held responsible for delays caused by weather or other unforeseen circumstances before or during the project. All pricing is valid for (14) days from agreement date.</p>
-<table class="price">${rounded.map((l) => `<tr><th>${esc(l.label)}</th><td>${money(l.price)}</td></tr>`).join('')}<tr class="total"><th>Total Project Investment${summary.options.length ? ' (before options)' : ''}</th><td>${money(r.total)}</td></tr></table>
-${summary.options.length ? `<table class="price">${summary.options.map((o) => `<tr><th>Option: ${esc(o.label)}</th><td>add ${money(o.price)}</td></tr>`).join('')}</table><p style="font-size:9.5pt">${opts.online ? 'Options chosen when signing are added to the total and listed with the signature; the deposit and final payment follow that total.' : 'Options chosen: ____________________ &nbsp; Total with options: $__________'}</p>` : ''}
-<p><b>Project Payment Schedule</b><br>${scheduleHtml(p, r.total, summary.options.length > 0)}</p>
+<table class="price">${cardLines(rounded, d).map((l) => `<tr><th>${esc(l.label)}</th><td>${money(l.price)}</td></tr>`).join('')}<tr class="total"><th>Total Project Investment${summary.options.length ? ' (before options)' : ''}</th><td>${money(cardOf(r.total, d))}</td></tr>${d ? `<tr class="total"><th>Paying by check or bank transfer: ${discPct(d)} off</th><td>${money(r.total)}</td></tr>` : ''}</table>
+${summary.options.length ? `<table class="price">${summary.options.map((o) => `<tr><th>Option: ${esc(o.label)}</th><td>add ${money(cardOf(o.price, d))}${d ? ` (${money(o.price)} by check or bank transfer)` : ''}</td></tr>`).join('')}</table><p style="font-size:9.5pt">${opts.online ? 'Options chosen when signing are added to the total and listed with the signature; the deposit and final payment follow that total.' : 'Options chosen: ____________________ &nbsp; Total with options: $__________'}</p>` : ''}
+<p><b>Project Payment Schedule</b><br>${d ? paySchedule(p, r.total, d).map((l) => `${esc(l.label)} – ${money(l.card)} (${money(l.check)} by check or bank transfer)${summary.options.length ? ` (plus ${pctText(l.pct)} of options chosen)` : ''}`).join('<br>') : scheduleHtml(p, r.total, summary.options.length > 0)}</p>
+${d ? `<p style="font-size:9.5pt">Prices listed are for paying by card. Paying by check or bank transfer takes ${discPct(d)} off every amount, as shown.${opts.online ? ' You choose how you’ll pay when you sign.' : ' Paying by: &#9744; check or bank transfer &nbsp; &#9744; card'}</p>` : ''}
 <p style="font-size:9.5pt">This agreement supersedes all conversations, statements, and agreements expressed or implied between the parties, their agents and representatives.</p>
 ${opts.online ? '<p style="font-size:9.5pt"><b>The Terms and Conditions are part of this agreement.</b> It is signed electronically on the project page.</p>' : '<div class="sign"><div>Owner</div><div>Date</div><div>CJC Custom Carpentry, LLC</div><div>Date</div></div>'}</section></body></html>`;
 }

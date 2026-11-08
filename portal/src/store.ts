@@ -35,7 +35,11 @@ export interface Signature {
   name: string; image: string; at: number; ip: string; ua: string; hash: string; version: number; consent: true;
   /** Options ticked when signing, and the total and deposit that came to. */
   options?: string[]; total?: number; deposit?: number;
+  /** How the client said they'd pay: by card at the listed price, or by check or bank transfer with the discount. */
+  payBy?: 'card' | 'check';
 }
+/** A discount for paying by check or bank transfer: the listed prices are the card prices. */
+export interface PayDiscount { discount: number; checkTotal: number; checkDeposit: number; optionCheck?: Record<string, number> }
 export interface ProposalOption { id: string; label: string; price: number; items: string[] }
 export interface ProposalSummary { areas: { title: string; items: string[] }[]; materials: { label: string; value: string }[] }
 export interface Job {
@@ -49,6 +53,7 @@ export interface Job {
     /** The terms as published with this version: what the client signs. Older jobs fall back to the shop's. */ terms?: string;
     /** The plain-language page (older jobs show only the agreement). */
     summary?: ProposalSummary; sections?: { label: string; price: number }[]; options?: ProposalOption[];
+    /** The check / bank transfer price, when there's a discount for paying that way. */ pay?: PayDiscount;
   };
   renderings: { id: string; name: string; mimeType: string }[];
   views: number[];

@@ -12,6 +12,7 @@ import { capability, type Downloads } from '../runtime';
 import { pricingFileName, pricingXlsx } from '../export/pricingWorkbook';
 import { XLSX_TYPE } from '../export/xlsx';
 import { defaultFinalLabel, paymentSchedule, paymentsOf, type PaymentStep } from '../model/schedule';
+import { cardOf, checkDiscountOf } from '../model/payDiscount';
 import { quoteTotals } from '../model/client';
 import { defaultSupplies, driverLabel, newSupply, supplyLines, type SupplyDriver, type SupplyItem } from '../model/supplies';
 
@@ -478,6 +479,15 @@ function ScheduleSection() {
           <div className="sched-amt"><span className="muted">The rest</span><span /><b className="num">{money(lines[lines.length - 1].amount)}</b></div>
         </div>
       </div>
+      <div className="sched-row">
+        <div className="sched-top"><label htmlFor="q-cdisc">Discount for paying by check or bank transfer</label></div>
+        <div className="sched-amt">
+          <span className="sched-val"><input id="q-cdisc" inputMode="decimal" value={+(checkDiscountOf(project) * 100).toFixed(2)} onChange={(e) => { const v = parseFloat(e.target.value); set({ checkDiscount: Number.isFinite(v) ? Math.max(0, Math.min(10, v)) / 100 : 0 }); }} /><span className="muted">%</span></span>
+          <span />
+          <b className="num">{checkDiscountOf(project) ? `card ${money(cardOf(quoteTotals(project).total, checkDiscountOf(project)))}` : 'off'}</b>
+        </div>
+      </div>
+      {checkDiscountOf(project) > 0 && <p className="hint">Your quote above is the check / bank transfer price. The proposal lists the card price ({money(cardOf(quoteTotals(project).total, checkDiscountOf(project)))}), and paying by check or bank transfer takes {+(checkDiscountOf(project) * 100).toFixed(1)}% off it, back to your price. The client picks how they’ll pay when signing; the invoices follow. Set it to 0 to list one price.</p>}
       <p className="hint">The first payment is the deposit: it’s what the client portal asks for at signing and what the deposit invoice charges. {q.payments ? <button className="link-btn" onClick={() => set({ payments: undefined, finalPaymentLabel: undefined })}>Back to 30% / balance</button> : null}</p>
     </Section>
   );

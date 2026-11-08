@@ -65,11 +65,12 @@ import { broscoCatalog } from "../src/model/brosco";
 import { designByCode, doorDrawing, proportionsFor, stockSlab, tradeSize } from "../src/model/reeb";
 import { doorOrder } from "../src/model/doorOrder";
 import { applyDraft, cleanDraft, closestProfile, draftRequest } from "../src/model/photoRoom";
-import { clientInfoDoc, folderName, ordersDoc, parseFolderName, proposalLines, quoteDoc, stageByFolder } from "../src/model/client";
+import { clientInfoDoc, folderName, ordersDoc, parseFolderName, proposalLines, quoteDoc, quoteTotals, stageByFolder } from "../src/model/client";
 import { readScan, scanToDraft } from "../src/model/roomScan";
 import { customerSet, drawingsOf, setDocument, sheetCss, shopSet } from "../src/drawings/sheets";
 import { cabinetCallouts, forAudience, jobCallouts } from "../src/drawings/notes";
 import { ceilingAt, slopeFit, wallCeiling } from "../src/model/ceiling";
+import { cardLines, cardOf, checkDiscountOf } from "../src/model/payDiscount";
 import { hardwareItems, partsOf } from "../src/drawings/views";
 import { cabinetLine, cofferFeet, cofferLayout, cofferMoldings, cofferParts, coffers as cofferList, fasciaBacking } from "../src/model/coffer";
 import { blockedAlong, casingReach, freeRuns, newOpening, openingIssues, openingTrim, roomMoldings } from "../src/model/room";
@@ -1536,7 +1537,7 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   eq('schedule: default 30% deposit and balance', paymentSchedule(p, 10000).map((l) => l.amount).join(','), '3000,7000');
   const q = { ...p, quote: { ...p.quote, payments: [{ id: 'a', label: 'Deposit', pct: 0.25 }, { id: 'b', label: 'At install', amount: 4000 }], finalPaymentLabel: 'On completion' } } as any;
   eq('schedule: share, amount, remainder', paymentSchedule(q, 10000).map((l) => `${l.label}:${l.amount}`).join(','), 'Deposit:2500,At install:4000,On completion:3500');
-  eq('schedule: on the agreement', quoteDoc(q).includes('At install – $4,000'), true);
+  eq('schedule: on the agreement', quoteDoc(q).includes('($4,000 by check or bank transfer)'), true);
 }
 // Inset doors hang on Clip Top even when the job says Compact
 {
@@ -1885,6 +1886,22 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   eq('bench: shelf hours and the upholsterer priced', est.hours.some((h) => /Lower shelf/.test(h.label)) && est.materials.some((m) => /cushion/.test(m.label) && m.cost > 0), true);
   eq('bench: on the proposal', /closet|bench/.test(tableScope(b)) && /slatted lower shelf for shoes/.test(tableScope(b)), true);
   eq('bench: its own drawing sheet', customerSet(bp, drawingsOf(bp)).some((x) => x.title === 'Bench'), true);
+}
+
+// The check / bank transfer discount: card prices gross up so 3% off lands exactly on the quote
+{
+  for (const v of [25000, 7500, 1234, 99999, 1]) eq(`discount: $${v} by check is ${cardOf(v, 0.03)} by card, back to the dollar`, Math.round(cardOf(v, 0.03) * 0.97), v);
+  const lines = cardLines([{ price: 12000 }, { price: 8000 }, { price: 5000 }], 0.03);
+  eq('discount: card lines add up to the card total', lines.reduce((t, l) => t + l.price, 0), cardOf(25000, 0.03));
+  const dp = { ...p, client: { first: 'Pat', last: 'Doe', address: '1 Main St', email: '', phone: '' } } as any;
+  const total = quoteTotals(dp).total;
+  const doc = quoteDoc(dp, { online: true });
+  eq('discount: on by default, 3%', checkDiscountOf(dp), 0.03);
+  eq('discount: the agreement lists the card total and the check price', doc.includes(`$${cardOf(total, 0.03).toLocaleString('en-US')}`) && doc.includes('Paying by check or bank transfer: 3% off') && doc.includes(`$${total.toLocaleString('en-US')}`), true);
+  eq('discount: the schedule shows both', /by check or bank transfer\)/.test(doc), true);
+  eq('discount: the paper copy has the choice to tick', /Paying by: &#9744; check or bank transfer/.test(printQuote(dp, { terms: '' })), true);
+  const off = { ...dp, quote: { ...dp.quote, checkDiscount: 0 } };
+  eq('discount: 0 turns it off (one price)', quoteDoc(off, { online: true }).includes('Paying by check'), false);
 }
 
 // An upper set on the top below it: a 28-1/2" base with a wood top (1-1/4" unless set) is 29-3/4", not 30"

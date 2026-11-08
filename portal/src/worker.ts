@@ -125,13 +125,21 @@ async function client(request: Request, env: Env, token: string, what: string, i
     if (!name || f.get('consent') !== 'on' || f.get('agree') !== 'on' || !/^data:image\/png;base64,/.test(image) || image.length > 400_000) {
       return html(projectPage(job, shop, token, 'Please check both boxes, type your name and sign in the box.'), 400);
     }
+    // How they'll pay, when paying by check or bank transfer takes a discount off the listed (card) price
+    const pay = job.proposal.pay;
+    const payBy = pay ? (f.get('pay_by') === 'check' ? 'check' : f.get('pay_by') === 'card' ? 'card' : null) : null;
+    if (pay && !payBy) return html(projectPage(job, shop, token, 'Please choose how you’ll pay: by check or bank transfer, or by card.'), 400);
     // Options ticked on the page add to the total; the deposit keeps the proposal's share of it
     const picked = (job.proposal.options ?? []).filter((o) => f.get(`opt_${o.id}`) === 'on');
-    const total = job.proposal.total + picked.reduce((t, o) => t + o.price, 0);
-    const share = job.proposal.total ? job.proposal.deposit / job.proposal.total : 0.3;
+    const byCheck = !!pay && payBy === 'check';
+    const base = byCheck ? pay!.checkTotal : job.proposal.total;
+    const baseDep = byCheck ? pay!.checkDeposit : job.proposal.deposit;
+    const total = base + picked.reduce((t, o) => t + (byCheck ? pay!.optionCheck?.[o.id] ?? Math.round(o.price * (1 - pay!.discount)) : o.price), 0);
+    const share = base ? baseDep / base : 0.3;
     job.signature = {
       name, image, at: Date.now(), ip, ua: (request.headers.get('user-agent') || '').slice(0, 200), hash: job.proposal.hash, version: job.proposal.version, consent: true,
-      ...(job.proposal.options?.length ? { options: picked.map((o) => o.id), total, deposit: Math.round(total * share) } : {}),
+      ...(job.proposal.options?.length || pay ? { options: picked.map((o) => o.id), total, deposit: picked.length ? Math.round(total * share) : baseDep } : {}),
+      ...(payBy ? { payBy } : {}),
     };
     await putJob(env, job);
     await autoDeposit(env, job);
@@ -440,7 +448,7 @@ async function tool(name: string, a: Record<string, unknown>, env: Env, url: URL
       // The plain-language page can ride inside the agreement (a connector that still has the old list
       // of fields drops new ones); it's taken back out before the agreement is stored and fingerprinted
       const carried = readCarried(String(a.agreement_html || ''));
-      if (carried.data) for (const k of ['summary', 'sections', 'options'] as const) if (a[k] == null && carried.data[k] != null) a[k] = carried.data[k];
+      if (carried.data) for (const k of ['summary', 'sections', 'options', 'pay'] as const) if (a[k] == null && carried.data[k] != null) a[k] = carried.data[k];
       const agreementHtml = carried.html;
       const version = (old?.proposal.version ?? 0) + 1;
       const hash = await sha256(`${agreementHtml}\n--terms--\n${shop.terms}`);
@@ -610,12 +618,17 @@ async function tool(name: string, a: Record<string, unknown>, env: Env, url: URL
 }
 
 /** The plain-language parts of a proposal as sent, kept to plain text and numbers. */
-function cleanSummary(a: Record<string, unknown>): Pick<Job['proposal'], 'summary' | 'sections' | 'options'> {
+function cleanSummary(a: Record<string, unknown>): Pick<Job['proposal'], 'summary' | 'sections' | 'options' | 'pay'> {
   const str = (v: unknown, n = 400) => String(v ?? '').slice(0, n);
   const num = (v: unknown) => (Number.isFinite(Number(v)) ? Number(v) : 0);
   const arr = (v: unknown) => (Array.isArray(v) ? v : []) as Record<string, unknown>[];
   const sm = (a.summary ?? null) as Record<string, unknown> | null;
-  const out: Pick<Job['proposal'], 'summary' | 'sections' | 'options'> = {};
+  const out: Pick<Job['proposal'], 'summary' | 'sections' | 'options' | 'pay'> = {};
+  const py = (a.pay ?? null) as Record<string, unknown> | null;
+  if (py && num(py.discount) > 0 && num(py.discount) < 0.2 && num(py.checkTotal) > 0) {
+    const oc = (py.optionCheck ?? {}) as Record<string, unknown>;
+    out.pay = { discount: num(py.discount), checkTotal: num(py.checkTotal), checkDeposit: num(py.checkDeposit), optionCheck: Object.fromEntries(Object.entries(oc).slice(0, 12).map(([k, v]) => [k.replace(/[^a-z0-9-]/g, ''), num(v)])) };
+  }
   if (sm) out.summary = {
     areas: arr(sm.areas).slice(0, 30).map((x) => ({ title: str(x.title, 80), items: arr(x.items).slice(0, 60).map((i) => str(i)) })),
     materials: arr(sm.materials).slice(0, 20).map((x) => ({ label: str(x.label, 60), value: str(x.value, 200) })),

@@ -104,7 +104,7 @@ export function projectPage(j: Job, shop: Shop, token: string, flash = '', visit
   const open = !s && !j.cancelled;
   const optionsBlock = pr.options?.length
     ? open
-      ? `<h3>Options</h3><p class="muted" style="margin-top:0">Tick any you’d like added. The total and deposit update, and what you tick is part of what you sign.</p>${pr.options.map((o) => `<label class="opt"><input type="checkbox" name="opt_${esc(o.id)}" form="sign" data-price="${o.price}"><span><b>${esc(o.label)}</b>${o.items.length ? `<span class="muted">${o.items.map(esc).join('; ')}</span>` : ''}</span><b class="add">+${money(o.price)}</b></label>`).join('')}`
+      ? `<h3>Options</h3><p class="muted" style="margin-top:0">Tick any you’d like added. The total and deposit update, and what you tick is part of what you sign.</p>${pr.options.map((o) => `<label class="opt"><input type="checkbox" name="opt_${esc(o.id)}" form="sign" data-price="${o.price}"${pr.pay?.optionCheck?.[o.id] != null ? ` data-check="${pr.pay.optionCheck[o.id]}"` : ''}><span><b>${esc(o.label)}</b>${o.items.length ? `<span class="muted">${o.items.map(esc).join('; ')}</span>` : ''}</span><b class="add">+${money(o.price)}</b></label>`).join('')}`
       : chosen.length ? `<h3>Options chosen</h3><ul class="items">${chosen.map((o) => `<li>${esc(o.label)} (+${money(o.price)})</li>`).join('')}</ul>` : ''
     : '';
   // Sections when there's more than one; with options, the base price they add to
@@ -112,9 +112,16 @@ export function projectPage(j: Job, shop: Shop, token: string, flash = '', visit
   const lines = rows.length || pr.options?.length
     ? `<table class="lines">${rows.map((l) => `<tr><td>${esc(l.label)}</td><td class="num">${money(l.price)}</td></tr>`).join('')}${pr.options?.length ? `<tr class="sub"><td>${rows.length ? 'Before options' : 'Base price'}</td><td class="num">${money(pr.total)}</td></tr>` : ''}</table>`
     : '';
+  // With a check / bank transfer discount, the listed prices are the card prices; both totals show
+  const pay = pr.pay;
+  const pct = pay ? `${+(pay.discount * 100).toFixed(1)}%` : '';
+  const payNote = pay && open
+    ? `<div class="price"><div><span class="muted">Paying by check or bank transfer (${pct} off)</span><b id="ctot">${money(pay.checkTotal)}</b></div><div><span class="muted">Deposit at signing</span><b id="cdep">${money(pay.checkDeposit)}</b></div></div>`
+    : pay && s ? `<p class="muted">${s.payBy === 'check' ? `Paying by check or bank transfer (${pct} off the listed price).` : 'Paying by card, at the listed price.'}</p>` : '';
   const price = `<section class="card"><h2>Your investment</h2>${lines}${optionsBlock}
-<div class="price"><div><span class="muted">Total project investment</span><b id="tot">${money(signedFor.total)}</b></div><div><span class="muted">Deposit at signing (${Math.round(share * 100)}%)</span><b id="dep">${money(signedFor.deposit)}</b></div></div>
-${open && pr.options?.length ? `<script>(()=>{const base=${pr.total},share=${share},f=n=>'$'+Math.round(n).toLocaleString('en-US');const go=()=>{let t=base;document.querySelectorAll('input[data-price]').forEach(i=>{if(i.checked)t+=+i.dataset.price});document.getElementById('tot').textContent=f(t);document.getElementById('dep').textContent=f(Math.round(t*share))};document.querySelectorAll('input[data-price]').forEach(i=>i.addEventListener('change',go));go()})();</script>` : ''}
+<div class="price"><div><span class="muted">Total project investment${pay && open ? ' (paying by card)' : ''}</span><b id="tot">${money(signedFor.total)}</b></div><div><span class="muted">Deposit at signing (${Math.round(share * 100)}%)</span><b id="dep">${money(signedFor.deposit)}</b></div></div>
+${payNote}
+${open && pr.options?.length ? `<script>(()=>{const base=${pr.total},share=${share},cbase=${pay ? pay.checkTotal : 0},cshare=${pay && pay.checkTotal ? pay.checkDeposit / pay.checkTotal : 0},d=${pay ? pay.discount : 0},f=n=>'$'+Math.round(n).toLocaleString('en-US');const go=()=>{let t=base,c=cbase;document.querySelectorAll('input[data-price]').forEach(i=>{if(i.checked){t+=+i.dataset.price;c+=+(i.dataset.check||Math.round(i.dataset.price*(1-d)))}});document.getElementById('tot').textContent=f(t);document.getElementById('dep').textContent=f(Math.round(t*share));const ct=document.getElementById('ctot');if(ct){ct.textContent=f(c);document.getElementById('cdep').textContent=f(Math.round(c*cshare))}};document.querySelectorAll('input[data-price]').forEach(i=>i.addEventListener('change',go));go()})();</script>` : ''}
 <details class="agree"><summary>Read the full proposal and agreement</summary><iframe class="doc" title="Project scope and purchase agreement" sandbox srcdoc="${esc(pr.agreementHtml)}"></iframe></details>
 <p class="row"><a href="${base}/agreement" target="_blank" rel="noopener">Open the full agreement to print or save</a></p></section>`;
   const docs = shop.docs.filter((d) => d.kind !== 'terms');
@@ -128,6 +135,9 @@ ${payBlock(j, shop)}
 `
       : `<p>Read the scope, price and terms above.${pr.options?.length ? ' Any options you ticked are included.' : ''} When you’re ready, sign below; your signed copy opens right away to save or print.</p>
 <form id="sign" method="post" action="${base}/sign">
+${pr.pay ? `<fieldset class="payby"><legend><b>How will you pay?</b></legend>
+<label class="chk"><input type="radio" name="pay_by" value="check" required> <span>By check or bank transfer: ${+(pr.pay.discount * 100).toFixed(1)}% off the listed price</span></label>
+<label class="chk"><input type="radio" name="pay_by" value="card" required> <span>By card, at the listed price</span></label></fieldset>` : ''}
 <label class="chk"><input type="checkbox" name="consent" required> <span>I agree to sign and receive this agreement electronically. I can save or print it, and I can ask CJC Custom Carpentry for a paper copy at any time.</span></label>
 <label class="chk"><input type="checkbox" name="agree" required> <span>I have read the Project Scope of Work, the Purchase Agreement and the Terms and Conditions, and I agree to them.</span></label>
 <p><input type="text" name="name" placeholder="Your full name" autocomplete="name" required></p>
@@ -167,7 +177,7 @@ export function agreementPage(j: Job, shop: Shop): string {
   const signed = s
     ? `<section style="page-break-before:always"><h2>Electronic signature</h2>
 <p>Signed by <b>${esc(s.name)}</b> on ${esc(new Date(s.at).toLocaleString('en-US', { timeZone: 'America/New_York', dateStyle: 'long', timeStyle: 'short' }))} (Eastern), from ${esc(s.ip)}.</p>
-${s.total != null ? `<p><b>Options chosen:</b> ${(j.proposal.options ?? []).filter((o) => s.options?.includes(o.id)).map((o) => `${esc(o.label)} (+${money(o.price)})`).join('; ') || 'none'}.<br><b>Total project investment: ${money(s.total)}</b>; deposit ${money(s.deposit ?? 0)}, balance ${money(s.total - (s.deposit ?? 0))} on completion.</p>` : ''}
+${s.total != null ? `<p>${j.proposal.options?.length ? `<b>Options chosen:</b> ${(j.proposal.options ?? []).filter((o) => s.options?.includes(o.id)).map((o) => `${esc(o.label)} (+${money(o.price)})`).join('; ') || 'none'}.<br>` : ''}${s.payBy ? `<b>Paying ${s.payBy === 'check' ? `by check or bank transfer (${+((j.proposal.pay?.discount ?? 0) * 100).toFixed(1)}% off the listed price)` : 'by card, at the listed price'}.</b><br>` : ''}<b>Total project investment: ${money(s.total)}</b>; deposit ${money(s.deposit ?? 0)}, balance ${money(s.total - (s.deposit ?? 0))} on completion.</p>` : ''}
 <p><img src="${esc(s.image)}" alt="Signature of ${esc(s.name)}" style="max-width:360px;border-bottom:1px solid #111"></p>
 <p class="muted" style="font-size:12px">The signer agreed to sign electronically and confirmed reading the Project Scope of Work, Purchase Agreement and Terms and Conditions. Document fingerprint (SHA-256) ${esc(s.hash.slice(0, 32))}, version ${s.version}.</p>
 </section>`

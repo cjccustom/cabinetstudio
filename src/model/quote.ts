@@ -182,6 +182,8 @@ export interface QuoteSettings {
   rodSockets: number;
   /** Custom seat cushions from the upholsterer, per sq ft of seat (foam, fabric and labor). */
   cushionPerSqFt: number;
+  /** Discount for paying by check or bank transfer (the listed price is the card price); unset = 3%, 0 = off. */
+  checkDiscount?: number;
   beadboardSheet: number;
   /** Coffered ceiling stock bought prepped from the millwork supplier, and blocking/fasteners, per ft of beam and perimeter. */
   cofferStockPerFt: number;

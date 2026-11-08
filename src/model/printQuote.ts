@@ -5,7 +5,8 @@
 import { forCustomer } from './moldings';
 import type { Project } from './types';
 import { clientName, clientOf, proposalLines, proposalTitle } from './client';
-import { paymentSchedule, pctText } from './schedule';
+import { paymentSchedule, pctText as schedPct } from './schedule';
+import { cardLines, cardOf, checkDiscountOf, paySchedule, pctText as discPct } from './payDiscount';
 import { proposalSummary, withOptions } from './proposal';
 import { priceQuote, proposalScope } from './quote';
 import { LOGO } from '../drawings/logo';
@@ -36,6 +37,7 @@ function printQuoteRaw(p: Project, opts: { terms: string; version?: number; publ
   const summary = proposalSummary(p);
   const full = p.proposalDetail === 'full';
   const lines = proposalLines(p);
+  const d = checkDiscountOf(p);
   const when = opts.publishedAt ?? Date.now();
   const bullets = (items: string[]) => `<ul class="dash">${items.map((i) => `<li>${esc(i)}</li>`).join('')}</ul>`;
 
@@ -60,7 +62,7 @@ function printQuoteRaw(p: Project, opts: { terms: string; version?: number; publ
 <tr><th>Cell Phone</th><td>${esc(c.phone)}</td><th class="em">E-Mail</th><td>${esc(c.email)}</td></tr>
 <tr><td colspan="4" class="body">${sections.join('')}</td></tr></table></section>`;
 
-  const optRows = summary.options.map((o) => `<tr><td class="lab">Option: ${esc(o.label)}</td><td class="amt">add ${money(o.price)}</td></tr>`).join('');
+  const optRows = summary.options.map((o) => `<tr><td class="lab">Option: ${esc(o.label)}</td><td class="amt">add ${money(cardOf(o.price, d))}${d ? `<br><span class="small">${money(o.price)} by check</span>` : ''}</td></tr>`).join('');
   const agreementPage = `<section class="page">${head}
 <table class="grid pa"><tr><th class="band" colspan="2">PURCHASE AGREEMENT</th></tr>
 <tr><th>Client Name</th><td>${esc(clientName(c))}</td></tr>
@@ -69,9 +71,9 @@ function printQuoteRaw(p: Project, opts: { terms: string; version?: number; publ
 <tr><th>Estimated Start Date</th><td>${esc(p.proposalStart ?? '')}</td></tr>
 <tr><th>Project Duration</th><td>${esc(p.proposalDuration ?? '')}</td></tr>
 <tr><td colspan="2" class="small">The above <b>Estimated Start Date</b> is an approximation valid on the above listed <b>Agreement Date</b> and is used for planning purposes only. CJC Custom Carpentry, LLC cannot be held responsible for delays caused by weather or other unforeseen circumstances before or during the project. All pricing is valid for (14) days from Agreement date.</td></tr></table>
-<table class="grid prices">${lines.map((l) => `<tr><td class="lab">${esc(l.label)}</td><td class="amt">${money(l.price)}</td></tr>`).join('')}
-<tr class="tot"><td class="lab">Total Project Investment${summary.options.length ? ' (before options)' : ''}</td><td class="amt">${money(r.total)}</td></tr>${optRows}
-<tr><td colspan="2" class="sched"><u><b>Project Payment Schedule</b></u><br>${paymentSchedule(p, r.total).map((l) => `<b>${esc(l.label)} – ${money(l.amount)}</b>${summary.options.length ? ` (plus ${pctText(l.pct)} of options chosen)` : ''}`).join('<br><br>')}${summary.options.length ? '<br><br>Options chosen: ______________________________ &nbsp; Total with options: $____________' : ''}</td></tr></table>
+<table class="grid prices">${cardLines(lines, d).map((l) => `<tr><td class="lab">${esc(l.label)}</td><td class="amt">${money(l.price)}</td></tr>`).join('')}
+<tr class="tot"><td class="lab">Total Project Investment${summary.options.length ? ' (before options)' : ''}</td><td class="amt">${money(cardOf(r.total, d))}</td></tr>${d ? `<tr class="tot"><td class="lab">Paying by check or bank transfer: ${discPct(d)} off</td><td class="amt">${money(r.total)}</td></tr>` : ''}${optRows}
+<tr><td colspan="2" class="sched"><u><b>Project Payment Schedule</b></u><br>${(d ? paySchedule(p, r.total, d).map((l) => ({ label: l.label, amount: l.card, check: l.check, pct: l.pct })) : paymentSchedule(p, r.total).map((l) => ({ ...l, check: 0 }))).map((l) => `<b>${esc(l.label)} – ${money(l.amount)}</b>${d ? ` (${money(l.check)} by check or bank transfer)` : ''}${summary.options.length ? ` (plus ${schedPct(l.pct)} of options chosen)` : ''}`).join('<br><br>')}${d ? `<br><br>Prices listed are for paying by card; paying by check or bank transfer takes ${discPct(d)} off every amount.<br>Paying by: &#9744; check or bank transfer &nbsp; &#9744; card` : ''}${summary.options.length ? '<br><br>Options chosen: ______________________________ &nbsp; Total with options: $____________' : ''}</td></tr></table>
 <p class="supersede">This agreement supersedes all conversations, statements, and agreements expressed or implied between the parties, their agents and representatives. The Terms and Conditions that follow are part of this agreement.</p>
 <div class="sign"><div>Owner</div><div>Date</div><div>CJC Custom Carpentry, LLC</div><div>Date</div></div>
 <p class="ver">Proposal${opts.version ? ` version ${opts.version}` : ''}, ${esc(longDate(when))}</p></section>`;

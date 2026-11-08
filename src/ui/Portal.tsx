@@ -21,9 +21,25 @@ import {
 import { askConfirm } from './Confirm';
 import { projectPage } from '../../portal/src/pages';
 import { forCustomer } from '../model/moldings';
+import { cardLines, cardOf, checkDiscountOf } from '../model/payDiscount';
 
 /** What goes on the customer's page, with no supplier names. */
 const clean = <T,>(x: T): T => JSON.parse(forCustomer(JSON.stringify(x))) as T;
+
+/**
+ * What goes on the client's page with the check / bank transfer discount: the listed prices are the
+ * card prices, and the check prices (the quote as built) ride along for the client to choose at signing.
+ */
+function cardSide(project: Project, summary: ReturnType<typeof proposalSummary>) {
+  const d = checkDiscountOf(project);
+  const { total, deposit } = quoteTotals(project);
+  return {
+    total: cardOf(total, d), deposit: cardOf(deposit, d),
+    sections: cardLines(clean(proposalLines(project)), d),
+    options: summary.options.map((o) => ({ ...o, price: cardOf(o.price, d) })),
+    pay: d ? { discount: d, checkTotal: total, checkDeposit: deposit, optionCheck: Object.fromEntries(summary.options.map((o) => [o.id, o.price])) } : undefined,
+  };
+}
 import type { Job, Shop as PortalShop } from '../../portal/src/store';
 import type { Project } from '../model/types';
 
@@ -151,10 +167,11 @@ export function ClientPortal() {
     }
     const jobId = portal?.jobId ?? newJobId(project);
     const summary = clean(proposalSummary(project));
+    const card = cardSide(project, summary);
     const status = await publishProposal({
       job_id: jobId, project: proposalTitle(project),
       client: { first: c.first, last: c.last, email: c.email, phone: c.phone, address: c.address },
-      agreement_html: withCarried(quoteDoc(project, { online: true }), { summary: { areas: summary.areas, materials: summary.materials }, sections: clean(proposalLines(project)), options: summary.options }), total, deposit,
+      agreement_html: withCarried(quoteDoc(project, { online: true }), { summary: { areas: summary.areas, materials: summary.materials }, sections: card.sections, options: card.options, pay: card.pay }), total: card.total, deposit: card.deposit,
       renderings: await renderingsFor(project), replace_signed: replaceSigned,
     });
     keep(status, jobId);
@@ -169,13 +186,14 @@ export function ClientPortal() {
     let offline = false;
     try { shop = (await getShop()) as unknown as PortalShop; } catch { offline = true; }
     const summary = clean(proposalSummary(project));
+    const card = cardSide(project, summary);
     const rend = await renderingsFor(project);
     const job: Job = {
       jobId: 'preview', token: 'preview', project: proposalTitle(project), stage: 'proposal',
       client: { first: c.first, last: c.last, email: c.email, phone: c.phone, address: c.address },
       proposal: {
-        agreementHtml: quoteDoc(project, { online: true }), total, deposit, publishedAt: Date.now(), version: (st?.version ?? 0) + 1, hash: '', terms: shop.terms,
-        summary: { areas: summary.areas, materials: summary.materials }, sections: clean(proposalLines(project)).map(({ label, price }) => ({ label, price })), options: summary.options,
+        agreementHtml: quoteDoc(project, { online: true }), total: card.total, deposit: card.deposit, publishedAt: Date.now(), version: (st?.version ?? 0) + 1, hash: '', terms: shop.terms,
+        summary: { areas: summary.areas, materials: summary.materials }, sections: card.sections.map(({ label, price }) => ({ label, price })), options: card.options, pay: card.pay,
       },
       renderings: rend.map((r, i) => ({ id: `r${i}`, name: r.name, mimeType: r.mimeType })), views: [],
     };

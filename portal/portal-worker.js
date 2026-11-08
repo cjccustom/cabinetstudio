@@ -260,12 +260,16 @@ function projectPage(j, shop, token, flash = "", visits = [], sent = false) {
   const chosen = (pr.options ?? []).filter((o) => s?.options?.includes(o.id));
   const signedFor = s?.total != null ? { total: s.total, deposit: s.deposit ?? pr.deposit } : { total: pr.total, deposit: pr.deposit };
   const open = !s && !j.cancelled;
-  const optionsBlock = pr.options?.length ? open ? `<h3>Options</h3><p class="muted" style="margin-top:0">Tick any you\u2019d like added. The total and deposit update, and what you tick is part of what you sign.</p>${pr.options.map((o) => `<label class="opt"><input type="checkbox" name="opt_${esc(o.id)}" form="sign" data-price="${o.price}"><span><b>${esc(o.label)}</b>${o.items.length ? `<span class="muted">${o.items.map(esc).join("; ")}</span>` : ""}</span><b class="add">+${money(o.price)}</b></label>`).join("")}` : chosen.length ? `<h3>Options chosen</h3><ul class="items">${chosen.map((o) => `<li>${esc(o.label)} (+${money(o.price)})</li>`).join("")}</ul>` : "" : "";
+  const optionsBlock = pr.options?.length ? open ? `<h3>Options</h3><p class="muted" style="margin-top:0">Tick any you\u2019d like added. The total and deposit update, and what you tick is part of what you sign.</p>${pr.options.map((o) => `<label class="opt"><input type="checkbox" name="opt_${esc(o.id)}" form="sign" data-price="${o.price}"${pr.pay?.optionCheck?.[o.id] != null ? ` data-check="${pr.pay.optionCheck[o.id]}"` : ""}><span><b>${esc(o.label)}</b>${o.items.length ? `<span class="muted">${o.items.map(esc).join("; ")}</span>` : ""}</span><b class="add">+${money(o.price)}</b></label>`).join("")}` : chosen.length ? `<h3>Options chosen</h3><ul class="items">${chosen.map((o) => `<li>${esc(o.label)} (+${money(o.price)})</li>`).join("")}</ul>` : "" : "";
   const rows = (pr.sections?.length ?? 0) > 1 ? pr.sections : [];
   const lines = rows.length || pr.options?.length ? `<table class="lines">${rows.map((l) => `<tr><td>${esc(l.label)}</td><td class="num">${money(l.price)}</td></tr>`).join("")}${pr.options?.length ? `<tr class="sub"><td>${rows.length ? "Before options" : "Base price"}</td><td class="num">${money(pr.total)}</td></tr>` : ""}</table>` : "";
+  const pay = pr.pay;
+  const pct = pay ? `${+(pay.discount * 100).toFixed(1)}%` : "";
+  const payNote = pay && open ? `<div class="price"><div><span class="muted">Paying by check or bank transfer (${pct} off)</span><b id="ctot">${money(pay.checkTotal)}</b></div><div><span class="muted">Deposit at signing</span><b id="cdep">${money(pay.checkDeposit)}</b></div></div>` : pay && s ? `<p class="muted">${s.payBy === "check" ? `Paying by check or bank transfer (${pct} off the listed price).` : "Paying by card, at the listed price."}</p>` : "";
   const price = `<section class="card"><h2>Your investment</h2>${lines}${optionsBlock}
-<div class="price"><div><span class="muted">Total project investment</span><b id="tot">${money(signedFor.total)}</b></div><div><span class="muted">Deposit at signing (${Math.round(share * 100)}%)</span><b id="dep">${money(signedFor.deposit)}</b></div></div>
-${open && pr.options?.length ? `<script>(()=>{const base=${pr.total},share=${share},f=n=>'$'+Math.round(n).toLocaleString('en-US');const go=()=>{let t=base;document.querySelectorAll('input[data-price]').forEach(i=>{if(i.checked)t+=+i.dataset.price});document.getElementById('tot').textContent=f(t);document.getElementById('dep').textContent=f(Math.round(t*share))};document.querySelectorAll('input[data-price]').forEach(i=>i.addEventListener('change',go));go()})();</script>` : ""}
+<div class="price"><div><span class="muted">Total project investment${pay && open ? " (paying by card)" : ""}</span><b id="tot">${money(signedFor.total)}</b></div><div><span class="muted">Deposit at signing (${Math.round(share * 100)}%)</span><b id="dep">${money(signedFor.deposit)}</b></div></div>
+${payNote}
+${open && pr.options?.length ? `<script>(()=>{const base=${pr.total},share=${share},cbase=${pay ? pay.checkTotal : 0},cshare=${pay && pay.checkTotal ? pay.checkDeposit / pay.checkTotal : 0},d=${pay ? pay.discount : 0},f=n=>'$'+Math.round(n).toLocaleString('en-US');const go=()=>{let t=base,c=cbase;document.querySelectorAll('input[data-price]').forEach(i=>{if(i.checked){t+=+i.dataset.price;c+=+(i.dataset.check||Math.round(i.dataset.price*(1-d)))}});document.getElementById('tot').textContent=f(t);document.getElementById('dep').textContent=f(Math.round(t*share));const ct=document.getElementById('ctot');if(ct){ct.textContent=f(c);document.getElementById('cdep').textContent=f(Math.round(c*cshare))}};document.querySelectorAll('input[data-price]').forEach(i=>i.addEventListener('change',go));go()})();</script>` : ""}
 <details class="agree"><summary>Read the full proposal and agreement</summary><iframe class="doc" title="Project scope and purchase agreement" sandbox srcdoc="${esc(pr.agreementHtml)}"></iframe></details>
 <p class="row"><a href="${base}/agreement" target="_blank" rel="noopener">Open the full agreement to print or save</a></p></section>`;
   const docs = shop.docs.filter((d) => d.kind !== "terms");
@@ -275,6 +279,9 @@ ${open && pr.options?.length ? `<script>(()=>{const base=${pr.total},share=${sha
 ${payBlock(j, shop)}
 ` : `<p>Read the scope, price and terms above.${pr.options?.length ? " Any options you ticked are included." : ""} When you\u2019re ready, sign below; your signed copy opens right away to save or print.</p>
 <form id="sign" method="post" action="${base}/sign">
+${pr.pay ? `<fieldset class="payby"><legend><b>How will you pay?</b></legend>
+<label class="chk"><input type="radio" name="pay_by" value="check" required> <span>By check or bank transfer: ${+(pr.pay.discount * 100).toFixed(1)}% off the listed price</span></label>
+<label class="chk"><input type="radio" name="pay_by" value="card" required> <span>By card, at the listed price</span></label></fieldset>` : ""}
 <label class="chk"><input type="checkbox" name="consent" required> <span>I agree to sign and receive this agreement electronically. I can save or print it, and I can ask CJC Custom Carpentry for a paper copy at any time.</span></label>
 <label class="chk"><input type="checkbox" name="agree" required> <span>I have read the Project Scope of Work, the Purchase Agreement and the Terms and Conditions, and I agree to them.</span></label>
 <p><input type="text" name="name" placeholder="Your full name" autocomplete="name" required></p>
@@ -311,7 +318,7 @@ function agreementPage(j, shop) {
   const s = j.signature;
   const signed = s ? `<section style="page-break-before:always"><h2>Electronic signature</h2>
 <p>Signed by <b>${esc(s.name)}</b> on ${esc(new Date(s.at).toLocaleString("en-US", { timeZone: "America/New_York", dateStyle: "long", timeStyle: "short" }))} (Eastern), from ${esc(s.ip)}.</p>
-${s.total != null ? `<p><b>Options chosen:</b> ${(j.proposal.options ?? []).filter((o) => s.options?.includes(o.id)).map((o) => `${esc(o.label)} (+${money(o.price)})`).join("; ") || "none"}.<br><b>Total project investment: ${money(s.total)}</b>; deposit ${money(s.deposit ?? 0)}, balance ${money(s.total - (s.deposit ?? 0))} on completion.</p>` : ""}
+${s.total != null ? `<p>${j.proposal.options?.length ? `<b>Options chosen:</b> ${(j.proposal.options ?? []).filter((o) => s.options?.includes(o.id)).map((o) => `${esc(o.label)} (+${money(o.price)})`).join("; ") || "none"}.<br>` : ""}${s.payBy ? `<b>Paying ${s.payBy === "check" ? `by check or bank transfer (${+((j.proposal.pay?.discount ?? 0) * 100).toFixed(1)}% off the listed price)` : "by card, at the listed price"}.</b><br>` : ""}<b>Total project investment: ${money(s.total)}</b>; deposit ${money(s.deposit ?? 0)}, balance ${money(s.total - (s.deposit ?? 0))} on completion.</p>` : ""}
 <p><img src="${esc(s.image)}" alt="Signature of ${esc(s.name)}" style="max-width:360px;border-bottom:1px solid #111"></p>
 <p class="muted" style="font-size:12px">The signer agreed to sign electronically and confirmed reading the Project Scope of Work, Purchase Agreement and Terms and Conditions. Document fingerprint (SHA-256) ${esc(s.hash.slice(0, 32))}, version ${s.version}.</p>
 </section>` : '<p class="muted">Not signed yet.</p>';
@@ -777,9 +784,15 @@ async function client(request, env, token, what, id) {
     if (!name || f.get("consent") !== "on" || f.get("agree") !== "on" || !/^data:image\/png;base64,/.test(image) || image.length > 4e5) {
       return html(projectPage(job, shop, token, "Please check both boxes, type your name and sign in the box."), 400);
     }
+    const pay = job.proposal.pay;
+    const payBy = pay ? f.get("pay_by") === "check" ? "check" : f.get("pay_by") === "card" ? "card" : null : null;
+    if (pay && !payBy) return html(projectPage(job, shop, token, "Please choose how you\u2019ll pay: by check or bank transfer, or by card."), 400);
     const picked = (job.proposal.options ?? []).filter((o) => f.get(`opt_${o.id}`) === "on");
-    const total = job.proposal.total + picked.reduce((t, o) => t + o.price, 0);
-    const share = job.proposal.total ? job.proposal.deposit / job.proposal.total : 0.3;
+    const byCheck = !!pay && payBy === "check";
+    const base = byCheck ? pay.checkTotal : job.proposal.total;
+    const baseDep = byCheck ? pay.checkDeposit : job.proposal.deposit;
+    const total = base + picked.reduce((t, o) => t + (byCheck ? pay.optionCheck?.[o.id] ?? Math.round(o.price * (1 - pay.discount)) : o.price), 0);
+    const share = base ? baseDep / base : 0.3;
     job.signature = {
       name,
       image,
@@ -789,7 +802,8 @@ async function client(request, env, token, what, id) {
       hash: job.proposal.hash,
       version: job.proposal.version,
       consent: true,
-      ...job.proposal.options?.length ? { options: picked.map((o) => o.id), total, deposit: Math.round(total * share) } : {}
+      ...job.proposal.options?.length || pay ? { options: picked.map((o) => o.id), total, deposit: picked.length ? Math.round(total * share) : baseDep } : {},
+      ...payBy ? { payBy } : {}
     };
     await putJob(env, job);
     await autoDeposit(env, job);
@@ -1106,7 +1120,7 @@ async function tool(name, a, env, url) {
       const shop = await getShop(env);
       const carried = readCarried(String(a.agreement_html || ""));
       if (carried.data) {
-        for (const k of ["summary", "sections", "options"]) if (a[k] == null && carried.data[k] != null) a[k] = carried.data[k];
+        for (const k of ["summary", "sections", "options", "pay"]) if (a[k] == null && carried.data[k] != null) a[k] = carried.data[k];
       }
       const agreementHtml = carried.html;
       const version = (old?.proposal.version ?? 0) + 1;
@@ -1295,6 +1309,11 @@ function cleanSummary(a) {
   const arr = (v) => Array.isArray(v) ? v : [];
   const sm = a.summary ?? null;
   const out = {};
+  const py = a.pay ?? null;
+  if (py && num(py.discount) > 0 && num(py.discount) < 0.2 && num(py.checkTotal) > 0) {
+    const oc = py.optionCheck ?? {};
+    out.pay = { discount: num(py.discount), checkTotal: num(py.checkTotal), checkDeposit: num(py.checkDeposit), optionCheck: Object.fromEntries(Object.entries(oc).slice(0, 12).map(([k, v]) => [k.replace(/[^a-z0-9-]/g, ""), num(v)])) };
+  }
   if (sm) out.summary = {
     areas: arr(sm.areas).slice(0, 30).map((x) => ({ title: str(x.title, 80), items: arr(x.items).slice(0, 60).map((i) => str(i)) })),
     materials: arr(sm.materials).slice(0, 20).map((x) => ({ label: str(x.label, 60), value: str(x.value, 200) }))

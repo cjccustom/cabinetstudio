@@ -6,6 +6,7 @@
 // and $0 quotes. Nothing here touches Cloudflare, QuickBooks, Dropbox or a real client.
 //
 //   npm run rehearsal          (build first with npm run build:preview for part 2)
+import { cardOf } from '../src/model/payDiscount';
 import { createRequire } from 'node:module';
 import { existsSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -93,6 +94,28 @@ async function portal() {
   check('a signed job isn’t deleted without even_signed', kept);
   await mcp('delete_job', { job_id: 'rehearsal', confirm: 'rehearsal', even_signed: true });
   check('deleted job: link gone, not listed', (await call('/p/' + token)).status === 404 && ((await mcp('list_jobs', {})) as { jobs: unknown[] }).jobs.length === 0);
+
+  // The 3% discount for paying by check or bank transfer: listed prices are card prices; the client picks at signing
+  for (const way of ['check', 'card'] as const) {
+    const d = 0.03, cTotal = 25000, cDep = 7500, opt = { id: 'lighting', label: 'Lighting', price: cardOf(1000, d), items: [] };
+    const pay = { discount: d, checkTotal: cTotal, checkDeposit: cDep, optionCheck: { lighting: 1000 } };
+    const data = Buffer.from(JSON.stringify({ sections: [{ label: 'Cabinetry', price: cardOf(cTotal, d) }], options: [opt], pay })).toString('base64');
+    const id = `disc-${way}`;
+    const pb = await mcp('publish_proposal', { job_id: id, project: 'Discount test', client: { first: 'Pay', last: way }, agreement_html: `<p>Test</p><!--CJC-PROPOSAL ${data} -->`, total: cardOf(cTotal, d), deposit: cardOf(cDep, d) }) as { url: string };
+    const tk = pb.url.split('/p/')[1];
+    const pg = await (await call('/p/' + tk)).text();
+    check(`discount page (${way}): both prices and the choice`, pg.includes('$25,000') && pg.includes(`$${cardOf(cTotal, d).toLocaleString('en-US')}`) && (pg.match(/name="pay_by"/g) ?? []).length === 2);
+    const noChoice = await call(`/p/${tk}/sign`, { method: 'POST', body: new URLSearchParams({ consent: 'on', agree: 'on', name: 'Pay Test', image: 'data:image/png;base64,iVBORw0KGgo=' }), redirect: 'manual' });
+    check(`discount (${way}): signing without choosing how to pay is refused`, noChoice.status === 400);
+    await call(`/p/${tk}/sign`, { method: 'POST', body: new URLSearchParams({ consent: 'on', agree: 'on', name: 'Pay Test', image: 'data:image/png;base64,iVBORw0KGgo=', pay_by: way, opt_lighting: 'on' }), redirect: 'manual' });
+    const s2 = await mcp('job_status', { job_id: id }) as { signed?: { total?: number; deposit?: number } };
+    const wantT = way === 'check' ? 26000 : cardOf(cTotal, d) + cardOf(1000, d);
+    const wantD = Math.round(wantT * (way === 'check' ? cDep / cTotal : cardOf(cDep, d) / cardOf(cTotal, d)));
+    check(`discount (${way}): signed total and deposit`, s2.signed?.total === wantT && s2.signed?.deposit === wantD, `$${s2.signed?.total}, deposit $${s2.signed?.deposit}`);
+    const ag = await (await call(`/p/${tk}/agreement`)).text();
+    check(`discount (${way}): the signed copy says how they're paying`, ag.includes(way === 'check' ? 'Paying by check or bank transfer' : 'Paying by card'));
+    await mcp('delete_job', { job_id: id, confirm: id, even_signed: true });
+  }
 }
 
 /* ---------- Part 2: the app in a browser ---------- */
