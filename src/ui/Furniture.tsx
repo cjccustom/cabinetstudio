@@ -2,7 +2,7 @@
 // the price that goes on the proposal, with a plan and side view to show the client.
 import { useMemo } from 'react';
 import { useStore } from '../store';
-import { furnitureOf, newTable, seats, tableBaseLabel, tableChecks, tableEstimate, tableFinishLabel, type DiningTable, type TableBase, type TableFinish, type TableLeg } from '../model/furniture';
+import { furnitureOf, isBench, newBench, newTable, seatHeight, seats, tableBaseLabel, tableChecks, tableEstimate, tableFinishLabel, type DiningTable, type TableBase, type TableFinish, type TableLeg } from '../model/furniture';
 import { priceQuote, quoteOf } from '../model/quote';
 import { tableSpecies } from '../model/tableParts';
 import { Field, LengthInput, Section } from './fields';
@@ -17,8 +17,8 @@ export function FurnitureSection() {
   const setAll = (next: DiningTable[]) => commit((p) => ({ ...p, furniture: next }));
   const put = (id: string, patch: Partial<DiningTable>) => setAll(tables.map((t) => (t.id === id ? { ...t, ...patch } : t)));
   return (
-    <Section title="Furniture" aside={<button className="mini" onClick={() => setAll([...tables, newTable()])}>Add table</button>}>
-      {!tables.length && <p className="hint">Tables (dining, puzzle, game and the like): size and seating, top and base, leaves, species and finish, priced with your shop rate.</p>}
+    <Section title="Furniture" aside={<span><button className="mini" onClick={() => setAll([...tables, newTable()])}>Add table</button> <button className="mini" onClick={() => setAll([...tables, newBench()])}>Add bench</button></span>}>
+      {!tables.length && <p className="hint">Tables (dining, puzzle, game and the like) and benches (closet, entry, window): size, top and base, species and finish; a bench can have a shoe shelf and a cushion. Priced with your shop rate.</p>}
       {tables.map((t) => <TableEditor key={t.id} t={t} put={(patch) => put(t.id, patch)} remove={() => setAll(tables.filter((x) => x.id !== t.id))} />)}
     </Section>
   );
@@ -39,21 +39,38 @@ function TableEditor({ t, put, remove }: { t: DiningTable; put: (p: Partial<Dini
     <Field label={label} htmlFor={`t-${k}-${t.id}`}><LengthInput id={`t-${k}-${t.id}`} value={t[k] as number} onChange={(v) => v != null && put({ [k]: v } as Partial<DiningTable>)} /></Field>
   );
   const id = (k: string) => `t-${k}-${t.id}`;
+  const bench = isBench(t);
   return (
     <div className="stock-row table-ed">
       <div className="sr-head">
         <input aria-label="Name" value={t.name} onChange={(e) => put({ name: e.target.value })} />
-        <button className="icon-btn" aria-label="Remove table" onClick={remove}>×</button>
+        <button className="icon-btn" aria-label={bench ? 'Remove bench' : 'Remove table'} onClick={remove}>×</button>
       </div>
       <TableSketch t={t} />
-      <div className="grid3">{len('length', 'Length')}{len('width', 'Width')}{len('height', 'Height')}</div>
+      <div className="grid3">{len('length', 'Length')}{len('width', bench ? 'Depth' : 'Width')}{len('height', bench ? 'Seat height (wood)' : 'Height')}</div>
       <Field label="What it's for (as the proposal says it)" htmlFor={id('use')}>
-        <input id={id('use')} list="table-uses" value={t.use ?? 'dining table'} onChange={(e) => put({ use: e.target.value })} />
+        <input id={id('use')} list={bench ? 'bench-uses' : 'table-uses'} value={t.use ?? (bench ? 'bench' : 'dining table')} onChange={(e) => put({ use: e.target.value })} />
         <datalist id="table-uses">{['dining table', 'puzzle table', 'game table', 'kitchen table', 'desk', 'work table', 'console table'].map((u) => <option key={u} value={u} />)}</datalist>
+        <datalist id="bench-uses">{['bench', 'closet bench', 'entry bench', 'dressing bench', 'end-of-bed bench', 'window bench'].map((u) => <option key={u} value={u} />)}</datalist>
       </Field>
-      {/dining/i.test(t.use ?? 'dining table') && <p className="hint">Seats {seats(t)}{t.leaves ? `, ${seats(t, true)} with the leaves in (${fmt(t.length + t.leaves * t.leafWidth)} long)` : ''}.</p>}
+      {bench && <p className="hint">Seat height {fmt(seatHeight(t))}{t.cushion ? ' with the cushion' : ''}.</p>}
+      {bench && (
+        <>
+          <div className="grid3">
+            <Field label="Lower shelf" htmlFor={id('shelf')}>
+              <select id={id('shelf')} value={t.shelf ?? 'none'} onChange={(e) => put({ shelf: e.target.value as DiningTable['shelf'] })}>
+                <option value="none">None</option><option value="slats">Slatted (shoes)</option><option value="solid">Solid panel</option>
+              </select>
+            </Field>
+            {t.shelf && t.shelf !== 'none' && <Field label="Shelf top off the floor" htmlFor={id('shh')}><LengthInput id={id('shh')} value={t.shelfHeight ?? 5} onChange={(v) => v != null && put({ shelfHeight: v })} /></Field>}
+          </div>
+          <label className="chk-row"><input type="checkbox" checked={!!t.cushion} onChange={(e) => put({ cushion: e.target.checked })} /> Upholstered seat cushion (by the upholsterer)</label>
+          {t.cushion && <div className="grid3"><Field label="Cushion thickness" htmlFor={id('ct')}><LengthInput id={id('ct')} value={t.cushionThick ?? 2} onChange={(v) => v != null && put({ cushionThick: v })} /></Field></div>}
+        </>
+      )}
+      {!bench && /dining/i.test(t.use ?? 'dining table') && <p className="hint">Seats {seats(t)}{t.leaves ? `, ${seats(t, true)} with the leaves in (${fmt(t.length + t.leaves * t.leafWidth)} long)` : ''}.</p>}
       <div className="grid3">
-        {len('top', 'Top thickness')}
+        {len('top', bench ? 'Seat thickness' : 'Top thickness')}
         <Field label="Species" htmlFor={id('sp')}>
           <select id={id('sp')} value={t.species} onChange={(e) => put({ species: e.target.value })}>
             {!tableSpecies.some((x) => x.name === t.species) && <option value={t.species}>{t.species} (not on A&M's list)</option>}
@@ -63,9 +80,9 @@ function TableEditor({ t, put, remove }: { t: DiningTable; put: (p: Partial<Dini
         <Field label="Your $/BF (blank = A&M list)" htmlFor={id('bf')}><input id={id('bf')} inputMode="decimal" value={t.pricePerBF || ''} placeholder="A&M" onChange={(e) => put({ pricePerBF: parseFloat(e.target.value) || 0 })} /></Field>
       </div>
       <div className="grid3">
-        <Field label="Base" htmlFor={id('base')}>
+        {!bench && <Field label="Base" htmlFor={id('base')}>
           <select id={id('base')} value={t.base} onChange={(e) => put({ base: e.target.value as TableBase })}>{Object.entries(tableBaseLabel).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>
-        </Field>
+        </Field>}
         {t.base === 'legs' && (
           <>
             <Field label="Legs" htmlFor={id('leg')}>
@@ -82,16 +99,16 @@ function TableEditor({ t, put, remove }: { t: DiningTable; put: (p: Partial<Dini
         </div>
       )}
       <div className="grid3">
-        <Field label="Leaves" htmlFor={id('lv')}>
+        {!bench && <Field label="Leaves" htmlFor={id('lv')}>
           <select id={id('lv')} value={t.leaves} onChange={(e) => put({ leaves: Number(e.target.value) })}>{[0, 1, 2, 3].map((n) => <option key={n} value={n}>{n || 'None'}</option>)}</select>
-        </Field>
+        </Field>}
         {t.leaves > 0 && len('leafWidth', 'Leaf width')}
         <Field label="Edge" htmlFor={id('edge')}>
           <select id={id('edge')} value={t.edge} onChange={(e) => put({ edge: e.target.value as DiningTable['edge'] })}><option value="eased">Eased</option><option value="profile">Profiled</option><option value="live">Live edge</option></select>
         </Field>
       </div>
-      <label className="chk-row"><input type="checkbox" checked={t.breadboard} onChange={(e) => put({ breadboard: e.target.checked })} /> Breadboard ends</label>
-      <label className="chk-row"><input type="checkbox" checked={!!t.lip} onChange={(e) => put({ lip: e.target.checked })} /> Raised lip around the top (puzzle or game table)</label>
+      {!bench && <label className="chk-row"><input type="checkbox" checked={t.breadboard} onChange={(e) => put({ breadboard: e.target.checked })} /> Breadboard ends</label>}
+      {!bench && <label className="chk-row"><input type="checkbox" checked={!!t.lip} onChange={(e) => put({ lip: e.target.checked })} /> Raised lip around the top (puzzle or game table)</label>}
       {t.lip && (
         <div className="grid3">
           <Field label="Lip above the top" htmlFor={id('liph')}><LengthInput id={id('liph')} value={t.lipHeight ?? 0.75} onChange={(v) => v != null && put({ lipHeight: v })} /></Field>
@@ -115,7 +132,7 @@ function TableEditor({ t, put, remove }: { t: DiningTable; put: (p: Partial<Dini
         <Field label="From back wall" htmlFor={id('rz')}><LengthInput id={id('rz')} value={t.roomZ ?? project.room.depth / 2} onChange={(v) => v != null && put({ roomZ: v })} /></Field>
         <label className="chk-row"><input type="checkbox" checked={!!t.turned} onChange={(e) => put({ turned: e.target.checked })} /> Turned 90°</label>
       </div>
-      <p className="hint">Measured to the middle of the table. It shows in the 3D view and floor plan, and gets its own sheet in the customer and shop drawings.</p>
+      <p className="hint">Measured to the middle of the {bench ? 'bench' : 'table'}. It shows in the 3D view and floor plan, and gets its own sheet in the customer and shop drawings.</p>
       <ul className="table-checks">{tableChecks(t).map((c) => <li key={c}>{c}</li>)}</ul>
       <table className="totals">
         <tbody>
@@ -141,7 +158,9 @@ export function TableSketch({ t }: { t: DiningTable }) {
   const legW = (t.base === 'legs' ? t.legSize : 3) * k;
   const inset = t.base === 'legs' ? 1.5 * k : 0;
   const top = t.top * k;
-  const seatsN = Math.floor((t.length - (t.base === 'legs' ? 2 * t.legSize : 0)) / 24);
+  const seatsN = isBench(t) ? 0 : Math.floor((t.length - (t.base === 'legs' ? 2 * t.legSize : 0)) / 24);
+  const shelfY = isBench(t) && t.shelf && t.shelf !== 'none' ? floor - (t.shelfHeight ?? 5) * k : null;
+  const cush = isBench(t) && t.cushion ? (t.cushionThick ?? 2) * k : 0;
   const chairs = Array.from({ length: seatsN }, (_, i) => x0 + ((i + 0.5) * (t.length / seatsN)) * k);
   const base = (() => {
     if (t.base === 'legs') {
@@ -166,9 +185,11 @@ export function TableSketch({ t }: { t: DiningTable }) {
       {t.leaves > 0 && <line className="ts-line dash" x1={x0 + (t.length / 2) * k} y1={yPlan} x2={x0 + (t.length / 2) * k} y2={yPlan + planH} />}
       <g className="ts-base">{base}</g>
       <rect className="ts-top" x={x0} y={ySide} width={t.length * k} height={top} />
+      {shelfY != null && <rect className="ts-top" x={x0 + inset + legW} y={shelfY} width={t.length * k - 2 * (inset + legW)} height={0.75 * k} />}
+      {cush > 0 && <rect className="ts-chairs" x={x0 + 0.25 * k} y={ySide - cush} width={(t.length - 0.5) * k} height={cush} rx={2} />}
       <line className="ts-line" x1={0} y1={floor} x2={W} y2={floor} />
       <text x={W / 2} y={yPlan + planH / 2 + 4} textAnchor="middle">{fmt(t.length)} × {fmt(t.width)}</text>
-      <text x={W / 2} y={floor + 12} textAnchor="middle">Side view, {fmt(t.height)} high</text>
+      <text x={W / 2} y={floor + 12} textAnchor="middle">Side view, {isBench(t) ? `${fmt(seatHeight(t))} seat` : `${fmt(t.height)} high`}</text>
     </svg>
   );
 }

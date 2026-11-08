@@ -3,10 +3,10 @@
 // the floor, z across the width (0 at the middle).
 import type { Project } from './types';
 import { fmt } from '../units';
-import { furnitureOf, lipStock, type DiningTable } from './furniture';
+import { furnitureOf, isBench, lipStock, type DiningTable } from './furniture';
 import { amSizes, boardSize } from './amLumber';
 
-export type TableRole = 'top' | 'breadboard' | 'lip' | 'leg' | 'apron' | 'post' | 'foot' | 'cleat' | 'stretcher' | 'column' | 'leaf';
+export type TableRole = 'top' | 'breadboard' | 'lip' | 'leg' | 'apron' | 'post' | 'foot' | 'cleat' | 'stretcher' | 'column' | 'leaf' | 'shelf' | 'slat' | 'cushion';
 export interface TableBox { min: [number, number, number]; size: [number, number, number] }
 export interface TablePart {
   role: TableRole;
@@ -58,6 +58,21 @@ export function tableParts(t: DiningTable): TablePart[] {
     const longA = between(L), endA = between(W);
     out.push({ role: 'apron', name: 'Apron, long side', qty: 2, length: longA + 2, width: t.apron, thick: APRON_T, note: `${longA.toFixed(2).replace(/\.00$/, '')}" between legs plus 1" tenons each end`, boxes: [-1, 1].map((b) => box(-L / 2 + LEG_INSET + s, ay0, b * (W / 2 - LEG_INSET - APRON_SET), L / 2 - LEG_INSET - s, topY, b * (W / 2 - LEG_INSET - APRON_SET - APRON_T))) });
     out.push({ role: 'apron', name: 'Apron, end', qty: 2, length: endA + 2, width: t.apron, thick: APRON_T, note: `${endA.toFixed(2).replace(/\.00$/, '')}" between legs plus 1" tenons each end`, boxes: [-1, 1].map((a) => box(a * (L / 2 - LEG_INSET - APRON_SET), ay0, -W / 2 + LEG_INSET + s, a * (L / 2 - LEG_INSET - APRON_SET - APRON_T), topY, W / 2 - LEG_INSET - s)) });
+    // A bench's lower shelf: rails between the legs, then slats along its length or a solid panel
+    if (isBench(t) && t.shelf && t.shelf !== 'none') {
+      const RH = 2, RT = 0.875, sy = (t.shelfHeight ?? 5) - 0.75, ry0 = sy - RH + 0.75;
+      const xi = L / 2 - LEG_INSET - s, zi = W / 2 - LEG_INSET - s;
+      out.push({ role: 'stretcher', name: 'Shelf rail, long side', qty: 2, length: longA + 2, width: RH, thick: RT, note: '1" tenons each end into the legs; the shelf rests on it', boxes: [-1, 1].map((b) => box(-xi, ry0, b * (zi - RT + 0.001), xi, ry0 + RH, b * zi)) });
+      out.push({ role: 'stretcher', name: 'Shelf rail, end', qty: 2, length: endA + 2, width: RH, thick: RT, note: '1" tenons each end into the legs', boxes: [-1, 1].map((a) => box(a * xi, ry0, -zi, a * (xi - RT), ry0 + RH, zi)) });
+      const iw = 2 * zi, il = 2 * xi;
+      if (t.shelf === 'slats') {
+        const sw = 2.5, gap = 0.75, n = Math.max(2, Math.floor((iw - 2 * RT + gap) / (sw + gap)));
+        const step = (iw - 2 * RT - sw) / (n - 1);
+        out.push({ role: 'slat', name: 'Shelf slat', qty: n, length: il, width: sw, thick: 0.75, note: `Run the length, ${gap}" gaps; notched around the legs at the ends, screwed to the end rails`, boxes: Array.from({ length: n }, (_, i) => box(-xi, sy, -zi + RT + i * step, xi, sy + 0.75, -zi + RT + i * step + sw)) });
+      } else {
+        out.push({ role: 'shelf', name: 'Shelf panel', qty: 1, length: il, width: iw, thick: 0.75, note: 'Solid, notched around the legs; on cleats inside the rails, screwed through slotted holes so it can move', boxes: [box(-xi, sy, -zi, xi, sy + 0.75, zi)] });
+      }
+    }
   } else if (t.base === 'trestle') {
     const at = L / 2 - 14, footL = W - 6, cleatL = W - 8, postW = 6, postT = 3;
     out.push({ role: 'foot', name: 'Trestle foot', qty: 2, length: footL, width: 3, thick: 3, boxes: [-1, 1].map((a) => box(a * at - 1.5, 0, -footL / 2, a * at + 1.5, 3, footL / 2)) });
@@ -71,6 +86,11 @@ export function tableParts(t: DiningTable): TablePart[] {
     out.push({ role: 'foot', name: 'Pedestal foot', qty: cols.length * 2, length: 24, width: 3, thick: 3, note: 'Half-lapped in a cross', boxes: cols.flatMap((x) => [box(x - 12, 0, -1.5, x + 12, 3, 1.5), box(x - 1.5, 0, -12, x + 1.5, 3, 12)]) });
     out.push({ role: 'cleat', name: 'Top cleat', qty: cols.length * 2, length: Math.min(24, W - 10), width: 2, thick: 3, note: 'Half-lapped; slotted screw holes to the top', boxes: cols.flatMap((x) => [box(x - 1.5, topY - 2, -Math.min(12, W / 2 - 5), x + 1.5, topY, Math.min(12, W / 2 - 5)), box(x - Math.min(12, W / 2 - 5), topY - 2, -1.5, x + Math.min(12, W / 2 - 5), topY, 1.5)]) });
     if (cols.length > 1) out.push({ role: 'stretcher', name: 'Stretcher', qty: 1, length: cols[1] - cols[0] + 6, width: 3, thick: 1.5, boxes: [box(cols[0], 6, -0.75, cols[1], 9, 0.75)] });
+  }
+  // The seat cushion, by the upholsterer: drawn, not cut
+  if (isBench(t) && t.cushion) {
+    const ct = t.cushionThick ?? 2, r = 0.25;
+    out.push({ role: 'cushion', name: 'Seat cushion (upholsterer)', qty: 1, length: L - 2 * r, width: W - 2 * r, thick: ct, note: 'Foam and fabric by the upholsterer', boxes: [box(-L / 2 + r, H, -W / 2 + r, L / 2 - r, H + ct, W / 2 - r)] });
   }
   return out;
 }
@@ -105,6 +125,7 @@ export function tableStock(t: DiningTable, waste = 0.15): { lines: TableStock[];
   const lines: TableStock[] = [];
   let missing = !boards.length;
   for (const part of tableParts(t)) {
+    if (part.role === 'cushion') continue;
     // Thickness: the top from 1-1/4"; anything thicker than A&M's thickest is glued up in layers
     const want = part.role === 'top' || part.role === 'breadboard' || part.role === 'leaf' ? Math.max(1.25, part.thick) : part.thick;
     const thick = thicks.find((x) => x >= want - 1e-6 && x <= 1.625) ?? thicks.filter((x) => x <= 1.625).pop();

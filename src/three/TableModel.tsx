@@ -13,7 +13,7 @@ export function TableModels({ project, hidden }: { project: Project; hidden: str
     const map = t.finish === 'paint' ? null : woodTexture(t.species, color);
     return (
       <group key={t.id} position={[place.x, 0, place.z]} rotation-y={place.turned ? Math.PI / 2 : 0}>
-        {parts.flatMap((part, i) => part.boxes.map((b, j) => <PartMesh key={`${i}-${j}`} part={part} b={b} color={color} map={map} seed={i * 7 + j * 3} />))}
+        {parts.flatMap((part, i) => part.boxes.map((b, j) => <PartMesh key={`${i}-${j}`} part={part} b={b} color={part.role === 'cushion' ? '#9aa3ad' : color} map={part.role === 'cushion' ? null : map} seed={i * 7 + j * 3} />))}
       </group>
     );
   })}</>;

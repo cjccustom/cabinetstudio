@@ -38,7 +38,8 @@ export interface TableSheetViews { svg: string; scale: number; secScale: number 
 export function tableViews(t: DiningTable, f: { plan: Frame; side: Frame; end: Frame; section: Frame }): TableSheetViews {
   const parts = tableParts(t);
   const L = t.length, W = t.width, H = t.height;
-  const lipTop = t.lip ? Math.max(...parts.filter((p) => p.role === 'lip').flatMap((p) => p.boxes.map((b) => b.min[1] + b.size[1]))) : H;
+  // The highest thing on it: the lip, or a bench's cushion
+  const lipTop = Math.max(H, ...parts.filter((p) => p.role === 'lip' || p.role === 'cushion').flatMap((p) => p.boxes.map((b) => b.min[1] + b.size[1])));
   const out: string[] = [];
   // One scale for the plan and elevations, so they read together
   const scale = inView(`table:${t.id}`, `${t.name}`, () => Math.min(
@@ -48,9 +49,9 @@ export function tableViews(t: DiningTable, f: { plan: Frame; side: Frame; end: F
   ));
   // Plan: x along, z down the page (z = −W/2 at the top is the far side)
   const pv = new View(f.plan, { x0: -L / 2, y0: -W / 2, x1: L / 2, y1: W / 2 }, scale, false);
-  drawParts(pv, parts.filter((p) => p.role !== 'leg' && p.role !== 'apron' && p.role !== 'foot' && p.role !== 'post' && p.role !== 'stretcher' && p.role !== 'column' && p.role !== 'cleat'), { u: 0, v: 2, depth: 1, near: 1 });
+  drawParts(pv, parts.filter((p) => !['leg', 'apron', 'foot', 'post', 'stretcher', 'column', 'cleat', 'shelf', 'slat'].includes(p.role)), { u: 0, v: 2, depth: 1, near: 1 });
   // The base under the top, dashed
-  for (const part of parts) if (['leg', 'apron', 'foot', 'post', 'column'].includes(part.role)) for (const b of part.boxes) pv.rect(b.min[0], b.min[2], b.size[0], b.size[2], 'hid');
+  for (const part of parts) if (['leg', 'apron', 'foot', 'post', 'column', 'shelf', 'slat'].includes(part.role)) for (const b of part.boxes) pv.rect(b.min[0], b.min[2], b.size[0], b.size[2], 'hid');
   pv.dimH(-L / 2, L / 2, W / 2, -0.45);
   pv.dimV(-W / 2, W / 2, L / 2, 0.45);
   if (t.lip) {
@@ -73,7 +74,9 @@ export function tableViews(t: DiningTable, f: { plan: Frame; side: Frame; end: F
     sv.chainH([-L / 2, ...xs, L / 2], 0, -0.75);
   }
   // Floor to the apron and to the top; the lip's own sizes are on the edge section
-  sv.chainV([0, ...(t.base === 'legs' ? [H - t.top - t.apron] : []), H], L / 2, 0.4);
+  const shelfTop = Math.max(0, ...parts.filter((p) => p.role === 'slat' || p.role === 'shelf').flatMap((p) => p.boxes.map((b) => b.min[1] + b.size[1])));
+  sv.chainV([0, ...(shelfTop ? [shelfTop] : []), ...(t.base === 'legs' ? [H - t.top - t.apron] : []), H], L / 2, 0.4);
+  if (t.cushion) sv.dimV(0, lipTop, L / 2, 0.8, `${dimText(lipTop)} seat with cushion`);
   if (t.lip) sv.dimV(0, lipTop, L / 2, 0.8, `${dimText(lipTop)} to top of lip`);
   sv.text(0, -sv.p(1.05), 'SIDE ELEVATION', 0.12, 'middle', 'lbl');
   out.push(sv.svg());

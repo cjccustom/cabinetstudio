@@ -12,6 +12,14 @@ export type TableFinish = 'clear' | 'stain' | 'paint' | 'oil' | 'painter';
 
 export interface DiningTable {
   id: string;
+  /** A table (the default) or a bench: a bench is built the same way, as a seat on legs and aprons, with its own checks and options. */
+  kind?: 'table' | 'bench';
+  /** Bench: a lower shelf on rails between the legs (shoes, baskets), slatted or a solid panel, and the height of its top off the floor. */
+  shelf?: 'none' | 'slats' | 'solid';
+  shelfHeight?: number;
+  /** Bench: an upholstered cushion on the seat, by the upholsterer, and its thickness. */
+  cushion?: boolean;
+  cushionThick?: number;
   name: string;
   length: number;
   width: number;
@@ -59,6 +67,15 @@ export const newTable = (): DiningTable => ({
   use: 'dining table', lip: false, lipHeight: 0.75, lipWidth: 0.75, lipStyle: 'edge',
 });
 
+/** A bench: a seat on four legs and aprons, about 18" high; a lower shelf and a cushion are options. */
+export const newBench = (): DiningTable => ({
+  ...newTable(), id: uid('bench'), kind: 'bench', name: 'Bench', use: 'bench', length: 48, width: 16, height: 18, top: 1.125,
+  leg: 'square', legSize: 2, apron: 3, shelf: 'none', shelfHeight: 5, cushion: false, cushionThick: 2,
+});
+export const isBench = (t: DiningTable) => t.kind === 'bench';
+/** Where you sit: the seat, plus the cushion. */
+export const seatHeight = (t: DiningTable) => t.height + (t.cushion ? t.cushionThick ?? 2 : 0);
+
 export const tableBaseLabel: Record<TableBase, string> = { legs: 'Four legs and aprons', trestle: 'Trestle', pedestal: 'Single pedestal', 'double-pedestal': 'Double pedestal' };
 export const tableFinishLabel: Record<TableFinish, string> = { clear: 'Clear coat (shop)', stain: 'Stain and clear coat (shop)', paint: 'Paint (shop)', oil: 'Hardwax oil (shop)', painter: 'By the painter / finisher' };
 
@@ -79,6 +96,8 @@ export const tableStandards = {
   finishPerSqFt: { clear: 0.12, stain: 0.18, paint: 0.16, oil: 0.08, painter: 0 } as Record<TableFinish, number>,
   finishBase: { clear: 3, stain: 4, paint: 4, oil: 2, painter: 0 } as Record<TableFinish, number>,
   delivery: 2,
+  // Bench lower shelf: four rails tenoned into the legs, then slats or a solid panel on cleats
+  shelfRails: 3, shelfSlats: 2, shelfSolid: 1.5,
 };
 
 /** Tangential shrinkage per 1% change in moisture content (flatsawn), from the USDA Wood Handbook. */
@@ -107,6 +126,7 @@ export const topMovement = (t: DiningTable) => t.width * movementCoef(t.species)
 
 /** Things to check on the design, in plain words. */
 export function tableChecks(t: DiningTable): string[] {
+  if (isBench(t)) return benchChecks(t);
   const out: string[] = [];
   const knee = t.height - t.top - (t.base === 'legs' ? t.apron : 0);
   if (t.base === 'legs' && knee < 24.5) out.push(`Only ${knee.toFixed(2)}" from floor to apron: aim for 24 1/2" or more so knees clear (a narrower apron or thinner top helps).`);
@@ -124,6 +144,24 @@ export function tableChecks(t: DiningTable): string[] {
   if (t.leaves && t.breadboard) out.push('Breadboard ends and extension leaves don’t mix well: the leaves need their own breadboards to match, and the slides fight the breadboard movement.');
   out.push(`A ${t.width}" wide ${t.species.toLowerCase()} top moves about ${topMovement(t).toFixed(2)}" across its width between winter and summer: attach it with buttons or figure-8s${t.breadboard ? ', and peg the breadboard ends through elongated holes' : ''}.`);
   out.push('Allow 36" (42"–48" is comfortable) from the table edge to walls and furniture for chairs to pull out.');
+  return out;
+}
+
+/** A bench's checks: seat height and depth, a long seat's sag, the shoe shelf's clearance. */
+export function benchChecks(t: DiningTable): string[] {
+  const out: string[] = [];
+  const sh = seatHeight(t);
+  if (sh < 16.5 || sh > 19.5) out.push(`Seat height is ${sh}"${t.cushion ? ' with the cushion' : ''}; 17"–19" is comfortable for sitting to put on shoes.`);
+  if (t.width < 13) out.push(`At ${t.width}" deep the seat is narrow; 14"–18" is typical (15"–16" in a closet).`);
+  if (t.width > 20) out.push(`At ${t.width}" deep it sits more like a daybed; 14"–18" is typical.`);
+  const span = t.length - 2 * (1.5 + t.legSize);
+  if (span > 54 && t.top < 1.25) out.push(`The seat spans ${Math.round(span)}" between legs: a ${t.top}" seat will flex under two people; go to 1-1/4" or add a center stretcher or leg.`);
+  if (t.shelf && t.shelf !== 'none') {
+    const clear = t.height - t.top - t.apron - (t.shelfHeight ?? 5);
+    if (clear < 7) out.push(`Only ${clear.toFixed(1)}" between the shoe shelf and the apron: boots and taller shoes want 8" or more.`);
+  }
+  if (t.cushion) out.push('Cushion by the upholsterer: fabric to be selected; a 1/4" reveal around the seat keeps it from looking oversized.');
+  out.push(`A ${t.width}" ${t.species.toLowerCase()} seat moves about ${topMovement(t).toFixed(2)}" across its depth through the year: fasten it with buttons or figure-8s.`);
   return out;
 }
 
@@ -149,6 +187,7 @@ export function tableEstimate(t: DiningTable, p: Project): { hours: TableLine[];
   } else {
     hours.push({ label: tableBaseLabel[t.base] + ' base', hours: t.base === 'trestle' ? s.trestle : t.base === 'pedestal' ? s.pedestal : s.doublePedestal });
   }
+  if (isBench(t) && t.shelf && t.shelf !== 'none') hours.push({ label: `Lower shelf: rails and ${t.shelf === 'slats' ? 'slats' : 'a solid panel'}`, hours: s.shelfRails + (t.shelf === 'slats' ? s.shelfSlats : s.shelfSolid) });
   hours.push(
     { label: 'Top attachment', hours: s.attach },
     { label: 'Dry fit and assembly', hours: s.assembly },
@@ -179,6 +218,10 @@ export function tableEstimate(t: DiningTable, p: Project): { hours: TableLine[];
   ];
   if (t.leaves) materials.push({ label: 'Table slides and leaf hardware', cost: 180, detail: 'Wooden or aluminum slides, alignment pins, leaf locks' });
   if (t.base === 'legs' && t.leg === 'turned' && t.turningEach) materials.push({ label: 'Leg turning', cost: 4 * t.turningEach, detail: `4 legs at $${t.turningEach}` });
+  if (isBench(t) && t.cushion) {
+    const per = p.quote?.cushionPerSqFt ?? 0;
+    materials.push({ label: 'Upholstered seat cushion (upholsterer)', cost: area * per, detail: `${area.toFixed(1)} sq ft${per ? ` at $${per}/sq ft` : ': enter the upholsterer’s price under Quote → Prices'}` });
+  }
   if (t.finish === 'painter') materials.push({ label: 'Finishing (by others)', cost: t.finishPrice, detail: 'Finisher’s price' });
   else materials.push({ label: 'Finish materials', cost: (area + leafSqft(t)) * 2 * (t.finish === 'oil' ? 1.2 : 0.9) + 25, detail: tableFinishLabel[t.finish] });
   return { hours, materials, bf: total };
@@ -192,6 +235,15 @@ const gcd = (a: number, b: number): number => (b ? gcd(b, a % b) : a);
 
 /** The scope line, in the wording of the quotes. */
 export function tableScope(t: DiningTable): string {
+  if (isBench(t)) return [
+    `${t.name}: solid ${/sapele/i.test(t.species) ? 'sapele mahogany' : t.species.toLowerCase()} ${t.use || 'bench'}, approx ${fmt(t.length)}L x ${fmt(t.width)}D x ${fmt(seatHeight(t))} seat height`,
+    `${fmt(t.top)} thick seat${t.edge === 'profile' ? ', profiled edge' : ''}`,
+    `${t.leg} legs with aprons`,
+    ...(t.shelf && t.shelf !== 'none' ? [`${t.shelf === 'slats' ? 'slatted' : 'solid'} lower shelf for shoes`] : []),
+    ...(t.cushion ? [`upholstered ${fmt(t.cushionThick ?? 2)} seat cushion (fabric to be selected)`] : []),
+    t.finish === 'painter' ? 'finish by others' : tableFinishLabel[t.finish].replace(' (shop)', '').toLowerCase() + ' finish',
+    'delivered and set in place',
+  ].join('; ');
   const bits = [
     `${t.name}: solid ${/sapele/i.test(t.species) ? "sapele mahogany" : t.species.toLowerCase()} ${t.use || 'dining table'}, approx ${fmt(t.length)}L x ${fmt(t.width)}W x ${fmt(t.height)}H`,
     `${fmt(t.top)} thick top${t.breadboard ? ' with breadboard ends' : ''}${t.edge === 'profile' ? ', profiled edge' : t.edge === 'live' ? ', live edge' : ''}`,

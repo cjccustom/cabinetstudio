@@ -27,7 +27,7 @@ import { ladderIssues, ladderOf } from "../src/model/ladder";
 import { newOpening } from "../src/model/room";
 import { cancelDeadline, holidays } from "../portal/src/cancel";
 import { expiring } from "../src/portal";
-import { newTable, seats, tableEstimate, tableScope } from "../src/model/furniture";
+import { benchChecks, newBench, newTable, seatHeight, seats, tableEstimate, tableScope } from "../src/model/furniture";
 import { tableParts, tableStock } from "../src/model/tableParts";
 import { contractTotal, parseWordQuote, splitNames } from "../src/model/contract";
 import { mantelOf, shelfFor } from "../src/model/mantel";
@@ -1869,6 +1869,22 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   const picked = moldingOrder({ ...cp, moldSource: { 'BR-B688': 'ND-660' } }).find((l) => l.num === 'BR-B688')!;
   eq('brosco: B688 priced from the Next Day item picked for it', picked.price != null && (picked.via as any)?.code === '660', true);
   eq('brosco: unpicked and unlisted stays unpriced', moldingOrder(cp).find((l) => l.num === 'BR-B688')!.price, null);
+}
+
+// A bench: a seat on legs and aprons, a slatted shoe shelf, an upholstered cushion; drawn, priced and on the proposal
+{
+  const b = { ...newBench(), shelf: 'slats' as const, cushion: true };
+  const bp = { ...p, furniture: [b], quote: { ...p.quote, cushionPerSqFt: 40 } } as any;
+  const parts = tableParts(b);
+  eq('bench: four legs, rails and slats for the shoe shelf', ['leg', 'stretcher', 'slat'].every((r) => parts.some((x) => x.role === r)), true);
+  eq('bench: slats sit between the legs', parts.filter((x) => x.role === 'slat').every((x) => x.boxes.every((bx) => bx.min[0] >= -b.length / 2 + 1.5 + b.legSize - 0.01)), true);
+  eq('bench: seat height with the cushion', seatHeight(b), 20);
+  eq('bench: checks flag a 20" seat', benchChecks(b).some((c) => /Seat height is 20"/.test(c)), true);
+  eq('bench: the cushion is not bought as lumber', tableStock(b).lines.some((l) => /cushion/i.test(l.part)), false);
+  const est = tableEstimate(b, bp);
+  eq('bench: shelf hours and the upholsterer priced', est.hours.some((h) => /Lower shelf/.test(h.label)) && est.materials.some((m) => /cushion/.test(m.label) && m.cost > 0), true);
+  eq('bench: on the proposal', /closet|bench/.test(tableScope(b)) && /slatted lower shelf for shoes/.test(tableScope(b)), true);
+  eq('bench: its own drawing sheet', customerSet(bp, drawingsOf(bp)).some((x) => x.title === 'Bench'), true);
 }
 
 // An upper set on the top below it: a 28-1/2" base with a wood top (1-1/4" unless set) is 29-3/4", not 30"
