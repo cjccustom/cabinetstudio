@@ -2,6 +2,7 @@
 // Scope of Work and Purchase Agreement tables, signature lines), followed by the Terms and
 // Conditions with the Notice of Cancellation in duplicate. Saved to the client's Dropbox folder
 // each time a proposal is published, for the paper copy that goes to the client.
+import { hardwareScope, hasHardware } from './pulls';
 import { forCustomer } from './moldings';
 import type { Project } from './types';
 import { clientName, clientOf, proposalLines, proposalTitle } from './client';
@@ -52,7 +53,8 @@ function printQuoteRaw(p: Project, opts: { terms: string; version?: number; publ
   if (summary.options.length) sections.push(`<h4>Options</h4><p>Added to the work above only when chosen at signing:</p>${bullets(summary.options.map((o) => `${o.label} (${money(o.price)})${o.items.length ? `: ${o.items.join('; ')}` : ''}`))}`);
   sections.push(`<h4>*Notes*</h4>${bullets([
     full ? 'Final dimensions will be field verified' : 'Sizes shown are approximate; exact sizes are set on the shop drawings you approve after signing, from measurements taken on site',
-    'Homeowner to approve door style, finish and hardware before ordering',
+    hasHardware(p) ? 'Homeowner to approve door style, finish and hardware before ordering' : 'Homeowner to approve door style and finish before ordering',
+    ...hardwareScope(p),
   ])}`);
 
   const scopePage = `<section class="page">${head}

@@ -1,6 +1,7 @@
 // What the customer sees before they sign: the work in plain words, grouped by area, the materials
 // and finishes, the price in sections, and options they can add. No dimensioned drawings and no
 // cabinet-by-cabinet sizes until the job is sold, so the design can't be shopped to another builder.
+import { hardwareScope } from './pulls';
 import type { Cabinet, Project, WallId } from './types';
 import { cofferScope, priceQuote, scopeLine } from './quote';
 import { furnitureOf, tableScope } from './furniture';
@@ -172,6 +173,7 @@ export function materialsOf(p: Project): { label: string; value: string }[] {
   out.push({ label: 'Construction', value: `${s.construction === 'frameless' ? 'Frameless' : 'Face frame'} cabinets with ${plywoodInteriors(p)}` });
   if (p.cabinets.some((c) => c.rows.some((r) => r.type === 'drawer'))) out.push({ label: 'Drawers', value: 'Dovetail drawer boxes on soft-close, full-extension slides' });
   if (doors) out.push({ label: 'Hinges', value: 'Soft-close, adjustable' });
+  if (doors) out.push({ label: 'Knobs & pulls', value: hardwareScope(p).join('; ') });
   const crown = p.cabinets.map((c) => profileByNum(c.crown)).find(Boolean);
   if (crown) out.push({ label: 'Mouldings', value: `Crown moulding${p.cabinets.some((c) => c.baseMold) ? ' and base moulding' : ''} (${customerProfile(crown)})` });
   if (p.cabinets.some((c) => c.countertop && c.topKind === 'wood')) out.push({ label: 'Tops', value: `Solid ${s.woodSpecies.toLowerCase()}` });

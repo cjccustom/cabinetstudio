@@ -11,6 +11,7 @@ import { mantelNotes } from '../model/mantel';
 import { eff, panelOn } from '../model/parts';
 import { resolveEnds } from '../model/layout';
 import { profileByNum, profileLabel } from '../model/moldings';
+import { fingerPullNote, hasFingerPulls, hasHardware } from '../model/pulls';
 import { baseLabel } from '../model/cabinetBase';
 import { styleById } from '../model/eagle';
 import { fmt } from '../units';
@@ -88,11 +89,13 @@ export function jobCallouts(p: Project, a: Audience): string[] {
   if (a === 'customer') {
     return [...paint,
       `${style.name} style doors and drawer fronts, ${s.doorMount === 'inset' ? 'inset' : 'overlay'}`,
-      'Hardware shown at typical locations; final hardware and placement to be selected',
+      ...(hasHardware(p) ? ['Knobs and pulls supplied by the homeowner and installed by CJC; shown at typical locations until chosen'] : []),
+      ...(hasFingerPulls(p) ? [hasHardware(p) ? 'Integrated finger pulls where shown, no hardware there' : 'Integrated finger pulls on the doors and drawer fronts; no knobs or pulls'] : []),
     ];
   }
   return [...paint,
     `Face frames ${fmt(s.ffThickness)} ${s.woodSpecies}; doors ${style.name} ${s.doorMount}`,
-    'Hardware locations shown are assumed until the customer selects hardware',
+    ...(hasHardware(p) ? ['Hardware supplied by the customer; locations shown are assumed until it is selected'] : []),
+    ...(hasFingerPulls(p) ? [fingerPullNote(s)] : []),
   ];
 }

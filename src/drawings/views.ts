@@ -12,6 +12,7 @@ import { canSpots } from '../model/lighting';
 import { hasSlopes, wallCeiling } from '../model/ceiling';
 import { applianceName, placedAppliances, type PlacedAppliance } from '../model/appliances';
 import { mantelLayout, mantelOf } from '../model/mantel';
+import { pullSpots } from '../model/pulls';
 import { beadCorner, cofferLayout, cofferOf, coffers, fasciaHeight, perimOf, underFascia } from '../model/coffer';
 
 export const partsOf = (p: Project, c: Cabinet) => buildParts(c, p.settings, resolveEnds(p.room, p.cabinets, c));
@@ -21,34 +22,19 @@ const isFloor = (c: Cabinet) => c.elevation < 6 && c.kind !== 'shelf';
 interface Item { x: number; y: number; w: number; h: number; z: number; cls: string; pts?: [number, number][]; circle?: boolean }
 
 /**
- * Knobs and pulls where they'd usually go, until the customer picks hardware: door knobs near
- * the top corner (bottom corner on uppers) away from the hinges, pulls centered on drawer fronts.
+ * Knobs and pulls where they'd go, or the finger grips routed in their place: knobs as circles,
+ * pulls as bars, finger pulls as a thin band along the pull edge.
  */
 export function hardwareItems(p: Project, c: Cabinet, parts: Part[]): Item[] {
-  const out: Item[] = [];
-  const bbox = (part: Part) => {
-    const xs = part.boxes.flatMap((b) => [b.min[0], b.min[0] + b.size[0]]), ys = part.boxes.flatMap((b) => [b.min[1], b.min[1] + b.size[1]]);
-    return { x0: Math.min(...xs), x1: Math.max(...xs), y0: Math.min(...ys), y1: Math.max(...ys), z: Math.max(...part.boxes.map((b) => b.min[2] + b.size[2])) };
-  };
-  const doors = parts.filter((x) => x.role === 'door' && x.boxes.length).map((x) => ({ part: x, b: bbox(x) }));
-  const L = wallLength(p.room, c.wall);
-  const upper = c.elevation > 30;
-  for (const d of doors) {
-    // A pair: knobs on the meeting edges. A single door: hinges toward the nearer end of the wall.
-    const mate = doors.find((o) => o !== d && Math.abs(o.b.y0 - d.b.y0) < 1 && Math.abs(o.b.y1 - d.b.y1) < 1);
-    const knobRight = mate ? mate.b.x0 > d.b.x0 : c.offset + c.width / 2 < L / 2;
-    const x = knobRight ? d.b.x1 - 2.5 : d.b.x0 + 2.5;
-    const tall = d.b.y1 - d.b.y0 > 40;
-    const y = upper ? d.b.y0 + 3 : tall ? Math.min(d.b.y1 - 3, Math.max(d.b.y0 + 3, 36 - c.elevation)) : d.b.y1 - 3;
-    out.push({ x: c.offset + x, y: c.elevation + y, w: 0.65, h: 0, z: 100 + d.b.z, cls: 'hw', circle: true });
-  }
-  for (const f of parts.filter((x) => x.role === 'drawerFront' && x.boxes.length && x.name !== 'False front')) {
-    const b = bbox(f);
-    const cx = (b.x0 + b.x1) / 2, cy = (b.y0 + b.y1) / 2;
-    if (b.x1 - b.x0 >= 12) out.push({ x: c.offset + cx - 2, y: c.elevation + cy - 0.25, w: 4, h: 0.5, z: 100 + b.z, cls: 'hw' });
-    else out.push({ x: c.offset + cx, y: c.elevation + cy, w: 0.65, h: 0, z: 100 + b.z, cls: 'hw', circle: true });
-  }
-  return out;
+  return pullSpots(p, c, parts).map((h): Item => {
+    const z = 100 + h.z;
+    if (h.kind === 'knob') return { x: c.offset + h.x, y: c.elevation + h.y, w: 0.65, h: 0, z, cls: 'hw', circle: true };
+    const t = h.kind === 'finger' ? 0.4 : 0.5;
+    const cls = h.kind === 'finger' ? 'hw finger' : 'hw';
+    // Centered on its line (a finger grip's line is just inside the front's edge)
+    if (h.vertical) return { x: c.offset + h.x - t / 2, y: c.elevation + h.y, w: t, h: h.len, z, cls };
+    return { x: c.offset + h.x, y: c.elevation + h.y - t / 2, w: h.len, h: t, z, cls };
+  });
 }
 
 /** Everything seen looking straight at a wall, in wall coordinates, nearest last. */

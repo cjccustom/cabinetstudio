@@ -33,6 +33,7 @@ import { CutlistInputs, CutlistLayouts, CutlistSummary } from './ui/Cutlist';
 import { FaceFrameBreakdown, FaceFrameInputs, FaceFrameSummary } from './ui/FaceFrames';
 import { findIssues, wallNames, wallOrder } from './model/layout';
 import { sampleProject } from './model/defaults';
+import { Present } from './ui/Present';
 
 const views: { v: ViewMode; label: string }[] = [
   { v: '3d', label: '3D' },
@@ -67,6 +68,8 @@ export default function App() {
 
   useEffect(() => { if (selectedId) setPanel('cabinet'); }, [selectedId]);
   useKeyboard();
+  const present = useStore((s) => s.present);
+  if (present) return <Present />;
 
   return (
     <div className={`app mode-${mode}`}>
@@ -96,6 +99,7 @@ export default function App() {
         <div className="actions">
           <button onClick={undo} disabled={!canUndo} title="Undo (⌘Z)">Undo</button>
           <button onClick={redo} disabled={!canRedo} title="Redo (⇧⌘Z)">Redo</button>
+          <button onClick={() => useStore.getState().setPresent(true)} title="Show the customer the 3D and elevations, full screen, without the shop side">Present</button>
           <button onClick={() => setDialog('file')}>Project file</button>
           <button onClick={() => setDialog('new')}>New</button>
         </div>

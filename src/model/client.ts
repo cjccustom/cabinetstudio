@@ -8,6 +8,7 @@ import { finishingItems } from './finishing';
 import { priceQuote, quoteOf, groupLabel, paintLineLabel, proposalScope } from './quote';
 import { eagleRequests, requestText } from './eagleRequest';
 import { hardwareOrder, hardwareText } from './hardware';
+import { hardwareScope, hasHardware } from './pulls';
 import { releaseOf } from './release';
 import { LOGO } from '../drawings/logo';
 import { proposalSummary, withOptions } from './proposal';
@@ -185,7 +186,7 @@ ${full ? `<ol>${proposalScope(base).map((x) => `<li>${esc(x)}</li>`).join('')}</
 ${!full && summary.materials.length ? `<h3>Materials &amp; finishes</h3><table class="mat">${summary.materials.map((m) => `<tr><th>${esc(m.label)}</th><td>${esc(m.value)}</td></tr>`).join('')}</table>` : ''}
 ${!full ? '' : r.extras.length ? `<p><b>Additional work:</b> ${r.extras.map((e) => esc(e.label)).join('; ')}</p>` : ''}
 ${summary.options.length ? `<h3>Options</h3><p>Added to the work above only when chosen at signing:</p><ul>${summary.options.map((o) => `<li><b>${esc(o.label)}</b> (${money(o.price)})${o.items.length ? `: ${o.items.map(esc).join('; ')}` : ''}</li>`).join('')}</ul>` : ''}
-<p>${full ? 'Final dimensions will be field verified.' : 'Sizes shown are approximate; exact sizes are set on the shop drawings you approve after signing, from measurements taken on site.'} The homeowner will approve door style, finish and hardware before ordering.</p></section>
+<p>${full ? 'Final dimensions will be field verified.' : 'Sizes shown are approximate; exact sizes are set on the shop drawings you approve after signing, from measurements taken on site.'} The homeowner will approve door style, finish${hasHardware(p) ? ' and hardware' : ''} before ordering.${hardwareScope(p).map((t) => ` ${t}.`).join('')}</p></section>
 <section>${head}<h1>PURCHASE AGREEMENT</h1>${who}<tr><th>Agreement Date</th><td>${date()}</td></tr><tr><th>Estimated Start Date</th><td>${esc(p.proposalStart ?? '')}</td></tr><tr><th>Project Duration</th><td>${esc(p.proposalDuration ?? '')}</td></tr></table>
 <p style="font-size:9.5pt">The above Estimated Start Date is an approximation valid on the above listed Agreement Date and is used for planning purposes only. CJC Custom Carpentry, LLC cannot be held responsible for delays caused by weather or other unforeseen circumstances before or during the project. All pricing is valid for (14) days from agreement date.</p>
 <table class="price">${cardLines(rounded, d).map((l) => `<tr><th>${esc(l.label)}</th><td>${money(l.price)}</td></tr>`).join('')}<tr class="total"><th>Total Project Investment${summary.options.length ? ' (before options)' : ''}</th><td>${money(cardOf(r.total, d))}</td></tr>${d ? `<tr class="total"><th>Paying by check or bank transfer: ${discPct(d)} off</th><td>${money(r.total)}</td></tr>` : ''}</table>

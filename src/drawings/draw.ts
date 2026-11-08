@@ -220,6 +220,7 @@ export const drawingCss = `
 .dwg .tk{stroke:#111;stroke-width:.011}
 .dwg .tag{fill:#fff;stroke:#111;stroke-width:.008}
 .dwg .hw{fill:#555;stroke:#111;stroke-width:.004}
+.dwg .hw.finger{fill:#bbb;stroke:#333;stroke-width:.004;stroke-dasharray:.03 .02}
 .dwg text{font-family:"Helvetica Neue",Arial,sans-serif;fill:#111}
 .dwg .dt{font-weight:500}
 .dwg .tagt{font-weight:700}

@@ -58,6 +58,8 @@ import { normalize, reachesCeiling } from "../src/store";
 import { fieldChecks, releaseStatus } from "../src/model/release";
 import { eagleFraction, eagleRequests, requestText } from "../src/model/eagleRequest";
 import { hardwareOrder, tierPrice } from "../src/model/hardware";
+import { hardwareScope, pullSpots } from "../src/model/pulls";
+import { hardwareItems } from "../src/drawings/views";
 import { defaultSupplies, supplyDrivers, supplyLines } from "../src/model/supplies";
 import { jobNumbers, phaseOf, starterTodos } from "../src/shop/fromDesign";
 import { bracketCount, bracketLength, finishedEnds } from "../src/model/floatingShelf";
@@ -1973,6 +1975,28 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   eq('case plywood: base exposed side still red oak', base.filter((d) => d.name === 'Side, exposed').every((d) => /red oak/.test(d.material)), true);
   eq('case plywood: uppers in red oak', dp.filter((d) => job.cabinets.find((c) => c.name === d.cabinet)?.kind === 'wall').every((d) => /red oak/.test(d.material)), true);
   eq('case plywood: proposal says which', proposalSummary(job).materials.find((m) => m.label === 'Construction')!.value, 'Face frame cabinets with prefinished birch plywood interiors for the base cabinets (clear factory finish inside); red oak plywood interiors for the upper cabinets and tall cabinets');
+}
+
+// Knobs and pulls: drawn where they go; finger pulls instead of hardware
+{
+  const c = p.cabinets.find((x) => x.kind === 'base' && x.rows.some((r) => r.type === 'drawer') && x.rows.some((r) => r.type === 'doors'))!;
+  const parts = buildParts(c, p.settings, resolveEnds(p.room, p.cabinets, c));
+  const std = pullSpots(p, c, parts);
+  eq('pulls: knobs on the doors by default', std.filter((h) => h.kind === 'knob').length >= parts.filter((x) => x.role === 'door').length, true);
+  eq('pulls: a pull on the drawer', std.some((h) => h.kind === 'bar'), c.width >= 12 + 3);
+  eq('pulls: standard scope', hardwareScope(p).join(' | '), 'Customer responsible for providing knobs/pulls. CJC responsible for installation');
+  const fp = { ...p, settings: { ...p.settings, pulls: 'finger' as const } };
+  const fin = pullSpots(fp, c, parts);
+  eq('pulls: finger grips only', fin.every((h) => h.kind === 'finger'), true);
+  eq('pulls: one grip per front', fin.length, parts.filter((x) => (x.role === 'door' || x.role === 'drawerFront') && x.name !== 'False front').length);
+  const drawer = parts.find((x) => x.role === 'drawerFront' && x.name !== 'False front')!;
+  const top = Math.max(...drawer.boxes.map((b) => b.min[1] + b.size[1]));
+  eq('pulls: drawer grip at its top edge, 6" long', fin.some((h) => Math.abs(h.y - (top - 0.25)) < 0.01 && h.len === 6), true);
+  eq('pulls: finger scope', hardwareScope(fp).join(' | '), 'Integrated finger pulls routed into the doors and drawer fronts; no knobs or pulls');
+  eq('pulls: drawn as bands on the elevation', hardwareItems(fp, c, parts).every((i) => i.cls === 'hw finger'), true);
+  const lines = estimateHours(fp, quoteOf(fp)).map((l) => l.label);
+  eq('pulls: finger pulls priced, no pull install', [lines.some((l) => /^Finger pulls, routed/.test(l)), lines.some((l) => /Install pulls/.test(l))].join(), 'true,false');
+  eq('pulls: proposal lists them', proposalSummary(fp).materials.find((m) => m.label === 'Knobs & pulls')!.value, 'Integrated finger pulls routed into the doors and drawer fronts; no knobs or pulls');
 }
 
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');

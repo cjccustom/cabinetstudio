@@ -339,6 +339,16 @@ export interface ShopSettings {
   exposedPlywood?: string;
   /** Häfele adjustable shelf lighting machining for the job (groove and channel sizes, drop edge, article numbers). */
   hafele?: Partial<import('./cabinetLighting').HafeleSpec>;
+  /**
+   * Knobs and pulls as drawn. The customer supplies them and we install them: knobs on doors and
+   * pulls on drawers (unset), knobs everywhere, pulls everywhere, or integrated finger pulls routed
+   * into the doors and drawer fronts (no hardware at all).
+   */
+  pulls?: 'standard' | 'knobs' | 'bars' | 'finger';
+  /** Length of a finger pull grip; 0 = the full width of the front. Unset = 6". */
+  fingerPullLength?: number;
+  /** The hardware's color in the 3D view and renderings. Unset = satin nickel. */
+  pullFinish?: 'nickel' | 'black' | 'brass' | 'bronze';
   /** Species for Anderson & McQuaid mouldings, as they list it (Maple, Poplar…). */
   moldSpecies: string;
   /** Extra moulding for miters and defects. 0.15 = 15%. */

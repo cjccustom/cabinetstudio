@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { Canvas, ThreeEvent, useThree } from '@react-three/fiber';
+import { PullModel } from './PullModel';
+import { pullColor, pullSpots } from '../model/pulls';
 import { Html, Line, OrbitControls, OrthographicCamera, PerspectiveCamera } from '@react-three/drei';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import { finishColors, woodColor } from '../model/woodColors';
@@ -45,6 +47,7 @@ export function Scene({ issueIds }: { issueIds: Set<string> }) {
   const showWalls = useNav((n) => n.walls) || view !== '3d';
   const elevWall = view.startsWith('elev-') ? (view.slice(5) as WallId) : null;
   const cans = lightsOf(project).kind === 'recessed';
+  const present = useStore((s) => s.present);
   const visible = elevWall ? project.cabinets.filter((c) => c.wall === elevWall) : project.cabinets;
 
   return (
@@ -94,14 +97,14 @@ export function Scene({ issueIds }: { issueIds: Set<string> }) {
           settings={settings}
           finishes={finishes}
           view={view}
-          selected={pickedIds.includes(c.id)}
-          issue={issueIds.has(c.id)}
+          selected={!present && pickedIds.includes(c.id)}
+          issue={!present && issueIds.has(c.id)}
         />
       ))}
       {(project.panels ?? []).filter((w) => (!elevWall || w.wall === elevWall) && !hidden.includes(w.id)).map((w) => (
         <WallPanelModel key={w.id} panel={w} room={room} finishes={finishes} selected={w.id === selectedId} />
       ))}
-      {elevWall && <ElevationDims room={room} wall={elevWall} cabinets={visible} />}
+      {elevWall && <ElevationDims room={room} wall={elevWall} cabinets={visible} tags={!present} />}
       {view === 'plan' && <PlanLabels room={room} cabinets={project.cabinets} />}
     </Canvas>
   );
@@ -283,6 +286,8 @@ function CabinetModel(props: {
     [cab, settings, ends.left, ends.right],
   );
   const geo = useMemo(() => buildCabinetGeometry(parts), [parts]);
+  const project0 = useStore((st) => st.project);
+  const spots = useMemo(() => pullSpots(project0, cab, parts), [project0, cab, parts]);
   // The cabinet's lighting, lit, in the 3D view (the Lights switch over the view turns it off)
   const lightsOn = useNav((n) => n.lights) && view === '3d' && !!cab.lighting?.length;
   const project = useStore((st) => st.project);
@@ -314,7 +319,8 @@ function CabinetModel(props: {
   };
 
   const onDown = (e: ThreeEvent<PointerEvent>) => {
-    if (e.button !== 0) return;
+    // Showing the customer: a drag only turns the view
+    if (e.button !== 0 || useStore.getState().present) return;
     // Phones and tablets don't send double-clicks: two quick taps on the same cabinet open the editor
     if (e.nativeEvent.pointerType === 'touch') {
       // The time the finger came down, not when the busy page got to it
@@ -434,6 +440,7 @@ function CabinetModel(props: {
       {(cab.crown || cab.lightRail || cab.baseMold) && (
         <MoldingModel pieces={cabinetMoldings(cab, eff(cab, settings), ends, { noCrown })} color={fc.paint} edgeColor={edgeColor} />
       )}
+      <PullModel spots={spots} color={pullColor(s)} />
       <ApplianceModel cab={cab} settings={settings} />
       {lightsOn && <CabinetLights cab={cab} project={project} parts={parts} />}
     </group>
@@ -457,7 +464,7 @@ function DimLine({ a, b, y, z, label, tick = 2 }: { a: number; b: number; y: num
 }
 
 /** Shop-drawing dimensions: base run below the floor line, uppers above the ceiling, overall at the bottom. */
-function ElevationDims({ room, wall, cabinets }: { room: Room; wall: WallId; cabinets: Cabinet[] }) {
+function ElevationDims({ room, wall, cabinets, tags }: { room: Room; wall: WallId; cabinets: Cabinet[]; tags: boolean }) {
   const { pos, rotY } = wallTransform(room, wall, 0);
   const len = wallLength(room, wall);
   const z = 40;
@@ -472,7 +479,7 @@ function ElevationDims({ room, wall, cabinets }: { room: Room; wall: WallId; cab
         <DimLine key={c.id} a={c.offset} b={c.offset + c.width} y={room.height + 7} z={z} label={fmt(c.width)} />
       ))}
       <DimLine a={0} b={len} y={-17} z={z} label={`${fmt(len)}  (${fmtFeet(len)})`} />
-      {cabinets.map((c) => (
+      {tags && cabinets.map((c) => (
         <Html key={`n-${c.id}`} position={[c.offset + c.width / 2, c.elevation + c.height + (c.kind === 'base' ? 3.5 : 0) + 3, z]} center zIndexRange={[20, 0]}>
           <span className="cab-tag">{c.name}</span>
         </Html>
@@ -510,6 +517,7 @@ function WallPanelModel({ panel: w, room, finishes, selected }: { panel: WallPan
   }, [w.profile, w.spacing, w.width, w.bottom, w.height]);
   useEffect(() => () => beads.dispose(), [beads]);
   const select = (e: ThreeEvent<PointerEvent>) => {
+    if (useStore.getState().present) return;
     if (e.button !== 0) return;
     e.stopPropagation();
     useStore.getState().select(w.id);

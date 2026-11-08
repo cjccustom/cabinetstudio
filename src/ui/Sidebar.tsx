@@ -11,6 +11,7 @@ import { useShop } from '../shop/shop';
 import { wallNames, wallOrder } from '../model/layout';
 import type { PanelMode, ShopSettings, WallId } from '../model/types';
 import { RoomDetails } from './RoomDetails';
+import { pullFinishes, pullStyles } from '../model/pulls';
 import { MaterialsSection } from './Materials';
 import { finishColors } from '../model/woodColors';
 import { fmt } from '../units';
@@ -345,6 +346,28 @@ function ShopPanel() {
         <p className="hint">Drawer fronts under 6 1/2" tall get 1 1/2" rails, as Eagle builds them. Anything too short even for that goes on the order as a slab.</p>
       </Section>
 
+      <Section title="Knobs & pulls">
+        <Field label="On the doors and drawers" htmlFor="pull-style">
+          <select id="pull-style" value={settings.pulls ?? 'standard'} onChange={(e) => set({ pulls: e.target.value as ShopSettings['pulls'] })}>
+            {pullStyles.map((x) => <option key={x.v} value={x.v}>{x.label}</option>)}
+          </select>
+        </Field>
+        {settings.pulls === 'finger' ? (
+          <>
+            <Field label="Finger grip length (0 = full width)" htmlFor="pull-len"><LengthInput id="pull-len" value={settings.fingerPullLength ?? 6} min={0} onChange={(v) => set({ fingerPullLength: v ?? 6 })} /></Field>
+            <p className="hint">Routed into the fronts in the shop: tops of base doors and drawers, bottoms of uppers, the opening edge of tall doors. {settings.doorMount === 'inset' ? 'Inset fronts sit flush, so the grip is a scoop cut into the face. ' : 'A grip on the back of the edge, hidden from the front. '}Priced per front under Quote → Labor standards; no pull installation.</p>
+          </>
+        ) : (
+          <>
+            <Field label="Color in 3D and renderings" htmlFor="pull-fin">
+              <select id="pull-fin" value={settings.pullFinish ?? 'nickel'} onChange={(e) => set({ pullFinish: e.target.value as ShopSettings['pullFinish'] })}>
+                {pullFinishes.map((x) => <option key={x.v} value={x.v}>{x.label}</option>)}
+              </select>
+            </Field>
+            <p className="hint">The customer supplies the knobs and pulls and we install them; the scope says so. These only set what the drawings and 3D show.</p>
+          </>
+        )}
+      </Section>
       <Section title="Door mounting">
         <Field label="Doors & fronts" htmlFor="door-mount">
           <select id="door-mount" value={mountValue(settings)} onChange={(e) => {

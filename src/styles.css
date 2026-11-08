@@ -757,3 +757,11 @@ textarea.text-input { resize: vertical; }
 .queue-note{display:block;font-size:11px;color:var(--muted);padding:0 8px 4px}
 .queue-note.due{color:#b26a00;font-weight:600}
 .queue-mark{font-size:11px;padding:0 8px 4px}
+
+/* Present: the design alone, full screen, for showing the customer */
+.present { position: fixed; inset: 0; display: grid; grid-template-rows: auto minmax(0, 1fr); background: var(--bg, #f6f5f2); }
+.present-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--surface); }
+.present-title { display: flex; flex-direction: column; line-height: 1.2; margin-right: auto; }
+.present-title span { color: var(--muted); font-size: 13px; }
+.present-tools { display: flex; gap: 6px; align-items: center; margin-left: auto; }
+.present .present-stage { grid-area: auto; position: relative; min-height: 0; }

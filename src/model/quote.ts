@@ -15,6 +15,7 @@ import { panelOrder } from './panels';
 import { uid } from './defaults';
 import { eaglePrice, centersOf, eagleWood, hingeTypes } from './eagle';
 import { hardwareOrder } from './hardware';
+import { pullStyleOf } from './pulls';
 import { bracketCount, bracketLength, bracketProduct, finishedEnds, floatingOf } from './floatingShelf';
 import { doorOrder } from './doorOrder';
 import { baseLabel } from './cabinetBase';
@@ -108,6 +109,8 @@ export interface LaborStandards {
   installDay: number;
   moldingInstallPerFt: number;
   pullInstall: number;
+  /** Rout an integrated finger pull into a door or drawer front, per front. Unset = 0.3 h. */
+  fingerPull?: number;
 }
 
 export const defaultStandards: LaborStandards = {
@@ -158,6 +161,7 @@ export const defaultStandards: LaborStandards = {
   installDay: 1,
   moldingInstallPerFt: 0.15,
   pullInstall: 0.15,
+  fingerPull: 0.3,
 };
 
 export type Workload = 'full' | 'normal' | 'light';
@@ -469,7 +473,9 @@ export function estimateHours(p: Project, q: QuoteSettings): HourLine[] {
     const box = (st.installPerBox + (tall ? st.installTall : 0)) * (stain ? st.stainInstall ?? 1.25 : 1);
     add(stain ? 'Install cabinets, stain grade' : 'Install cabinets', 1, box, 'cabinets', true);
     installHours += box;
-    if (q.installPulls) add('Install pulls & knobs', n('door') + n('drawerFront'), st.pullInstall, 'cabinets', true);
+    const fronts = n('door') + parts.filter((x) => x.role === 'drawerFront' && x.name !== 'False front').length;
+    if (pullStyleOf(s) === 'finger') addC('Finger pulls, routed', fronts, st.fingerPull ?? 0.3);
+    else if (q.installPulls) add('Install pulls & knobs', fronts, st.pullInstall, 'cabinets', true);
   }
   const cc = cofferOf(p);
   const cm = cc.on ? cofferMoldings(p, cc) : null;

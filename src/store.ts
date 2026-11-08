@@ -79,6 +79,9 @@ interface State {
   editing: Editing | null;
   edit: (what: Editing | null) => void;
   setView: (v: ViewMode) => void;
+  /** Showing the customer: just the design, nothing to click or edit. Not saved. */
+  present: boolean;
+  setPresent: (on: boolean) => void;
   setDragging: (d: boolean) => void;
   addFromPreset: (presetId: string, wall: WallId) => void;
   updateCabinet: (id: string, patch: Partial<Cabinet>) => void;
@@ -95,7 +98,9 @@ export const useStore = create<State>((set, get) => ({
   project: loadSaved() ?? normalize(sampleProject()),
   selectedId: null,
   editing: null,
-  edit: (editing) => set(editing && (editing.kind === 'cabinet' || editing.kind === 'panel') ? { editing, selectedId: editing.id, group: [] } : { editing }),
+  present: false,
+  setPresent: (present) => set(present ? { present, selectedId: null, group: [], editing: null } : { present }),
+  edit: (editing) => get().present ? undefined : set(editing && (editing.kind === 'cabinet' || editing.kind === 'panel') ? { editing, selectedId: editing.id, group: [] } : { editing }),
   group: [],
   view: '3d',
   mode: (() => { try { const m = localStorage.getItem('cabinet-studio.mode'); return m === 'job' || m === 'render' || m === 'clients' || m === 'drawings' || m === 'quote' || m === 'cutlist' || m === 'faceframe' ? m : 'design'; } catch { return 'design'; } })(),
@@ -123,6 +128,7 @@ export const useStore = create<State>((set, get) => ({
     set({ project: future[0], past: [...past, project], future: future.slice(1) });
   },
   select: (id, add) => {
+    if (get().present) return;
     if (!add || !id) { set({ selectedId: id, group: [] }); return; }
     // Shift- or ⌘-click adds a cabinet to what's picked, or takes it back out
     const { group, selectedId } = get();
