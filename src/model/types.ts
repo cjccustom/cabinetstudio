@@ -516,7 +516,7 @@ export interface Project {
   cabLighting?: Partial<import('./cabinetLighting').LightingJob>;
 }
 
-export type MaterialKey = 'box' | 'back' | 'toeSkin' | 'faceframe' | 'door' | 'drawerBox' | 'counter' | 'solidWood' | 'hardware' | 'upholstery';
+export type MaterialKey = 'box' | 'back' | 'toeSkin' | 'faceframe' | 'door' | 'drawerBox' | 'counter' | 'solidWood' | 'hardware' | 'upholstery' | 'wall';
 
 export type PartRole =
   | 'side' | 'bottom' | 'top' | 'stretcher' | 'back' | 'nailer' | 'toekick' | 'shelf'
@@ -566,7 +566,7 @@ export interface Part {
   /** Sheet goods other than the job's case and back plywood, e.g. 1/4" MDF or stain-grade plywood. */
   sheet?: string;
   /** How it's finished, when that isn't what its material suggests (painted MDF panels, stained shelf plywood). */
-  look?: 'paint' | 'wood';
+  look?: 'paint' | 'wood' | 'wall';
   /** Solid stock in a different species from the job's face frame stock (poplar pilasters on a maple job). */
   species?: string;
   length: number;

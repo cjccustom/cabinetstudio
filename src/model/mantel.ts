@@ -70,7 +70,8 @@ export interface MantelSpec {
    * Full-height treatment above the shelf: pilasters over the legs framing a panel, up to `top`
    * (off the floor; the ceiling trim). The panel is the same frame-and-panel build.
    */
-  upper: { on: boolean; top: number; plinth: number; frameStile: number; frameRail: number };
+  /** Above the shelf: pilasters over the legs, and between them a frame and panel, or just the wall (painted the wall color). */
+  upper: { on: boolean; top: number; plinth: number; frameStile: number; frameRail: number; between?: 'panel' | 'wall' };
   /** The room's baseboard wrapped around the chimney, plinths and front: flat board, cap, thickness. 0 = none. */
   baseH: number;
   baseCapH: number;
@@ -227,8 +228,13 @@ export function mantelParts(c: Cabinet, s: ShopSettings): Part[] {
       out.push({ name: 'Chimney side', role: 'side', material: 'back', look: 'paint', sheet: '3/4" MDF', length: top, width: zc, thickness: skin, cut: true,
         note: `${side}; painted with the walls`, boxes: [vb(x, 0, 0, skin, top, zc)] });
     }
-    out.push({ name: 'Chimney face', role: 'back', material: 'back', look: 'paint', sheet: '3/4" MDF', length: top, width: W, thickness: skin, cut: true,
-      note: 'Behind the frieze, legs and upper panel; cut out for the insert opening. Shows as a painted facing beside the insert.', boxes: [vb(0, 0, zc - skin, W, top, skin)] });
+    // With only pilasters above the shelf, the chimney face between them is wall: painted the wall color
+    const wallAbove = m.upper.on && m.upper.between === 'wall' && top > c.height;
+    const faceTop = wallAbove ? c.height : top;
+    out.push({ name: 'Chimney face', role: 'back', material: 'back', look: 'paint', sheet: '3/4" MDF', length: faceTop, width: W, thickness: skin, cut: true,
+      note: `Behind the frieze and legs${wallAbove ? '' : ' and upper panel'}; cut out for the insert opening. Shows as a painted facing beside the insert.`, boxes: [vb(0, 0, zc - skin, W, faceTop, skin)] });
+    if (wallAbove) out.push({ name: 'Chimney face, above the mantel', role: 'back', material: 'back', look: 'wall', sheet: '3/4" MDF (or drywall by others)', length: top - c.height, width: W, thickness: skin, cut: true,
+      note: 'Between the upper pilasters: finished and painted the wall color', boxes: [vb(0, c.height, zc - skin, W, top - c.height, skin)] });
   }
   // Full height above the shelf: pilasters over the legs and a frame-and-panel between them
   if (m.upper.on && L.legW > 0.5) {
@@ -236,10 +242,12 @@ export function mantelParts(c: Cabinet, s: ShopSettings): Part[] {
     if (h > 6) {
       for (const x0 of [0, W - L.legW]) out.push(...pilasterAt('Upper pilaster', x0, y0, L.legW, h, m.upper.plinth));
       const fx = L.legW, fw = W - 2 * L.legW, st = m.upper.frameStile, rl = m.upper.frameRail, ft = t, fz = zc;
-      for (const [n, x] of [['Left', fx], ['Right', fx + fw - st]] as const) out.push(piece('Overmantel stile', h, st, ft, [vb(x, y0, fz, st, h, ft)], n));
-      for (const [n, y] of [['bottom', y0], ['top', top - rl]] as const) out.push(piece('Overmantel rail', fw - 2 * st, rl, ft, [vb(fx + st, y, fz, fw - 2 * st, rl, ft)], n));
+      // Between the pilasters: a frame and panel, unless it's left as wall
+      const framed = m.upper.between !== 'wall';
+      if (framed) for (const [n, x] of [['Left', fx], ['Right', fx + fw - st]] as const) out.push(piece('Overmantel stile', h, st, ft, [vb(x, y0, fz, st, h, ft)], n));
+      if (framed) for (const [n, y] of [['bottom', y0], ['top', top - rl]] as const) out.push(piece('Overmantel rail', fw - 2 * st, rl, ft, [vb(fx + st, y, fz, fw - 2 * st, rl, ft)], n));
       const pw = fw - 2 * st, ph = h - 2 * rl, rb = defaultPilaster.rabbet;
-      if (pw > 1 && ph > 1) out.push({ name: 'Overmantel panel', role: 'back', material: 'back', look: 'paint', sheet: '1/4" MDF', length: ph + 2 * rb - 0.0625, width: pw + 2 * rb - 0.0625, thickness: 0.25, cut: true,
+      if (framed && pw > 1 && ph > 1) out.push({ name: 'Overmantel panel', role: 'back', material: 'back', look: 'paint', sheet: '1/4" MDF', length: ph + 2 * rb - 0.0625, width: pw + 2 * rb - 0.0625, thickness: 0.25, cut: true,
         note: `set into a ${fmt(rb)} rabbet from the back`, boxes: [vb(fx + st, y0 + rl, fz - 0.1875, pw, ph, 0.25, 0.94)] });
     }
   }

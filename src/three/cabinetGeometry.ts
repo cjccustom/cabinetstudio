@@ -18,7 +18,7 @@ export function buildCabinetGeometry(parts: Part[]): CabinetGeometry {
       if (sx <= 0 || sy <= 0 || sz <= 0) continue;
       const [x, y, z] = b.min;
       // The toe kick gets covered with a finished skin on site, so draw it in the finish color, in shadow.
-      const material = p.role === 'toekick' || p.look === 'paint' ? 'faceframe' : p.look === 'wood' ? 'solidWood' : p.material;
+      const material = p.look === 'wall' ? 'wall' : p.role === 'toekick' || p.look === 'paint' ? 'faceframe' : p.look === 'wood' ? 'solidWood' : p.material;
       const shade = b.shade ?? (p.role === 'back' ? 0.9 : p.role === 'toekick' ? 0.55 : 1);
       const key = `${material}:${shade}`;
       let g = groups.get(key);
@@ -31,7 +31,7 @@ export function buildCabinetGeometry(parts: Part[]): CabinetGeometry {
       pushBoxEdges(edgePts, x, y, z, x + sx, y + sy, z + sz);
     }
     for (const c of p.shapes ?? []) {
-      const material = p.look === 'paint' ? 'faceframe' : p.look === 'wood' ? 'solidWood' : p.material;
+      const material = p.look === 'wall' ? 'wall' : p.look === 'paint' ? 'faceframe' : p.look === 'wood' ? 'solidWood' : p.material;
       const key = `${material}:1:cut`;
       let g = groups.get(key);
       if (!g) groups.set(key, (g = { material, shade: 1, geos: [] }));

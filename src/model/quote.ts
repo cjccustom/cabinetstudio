@@ -406,7 +406,9 @@ export function estimateHours(p: Project, q: QuoteSettings): HourLine[] {
       if (m.corbels) add('Mantels: corbels', m.corbels, st.mantelCorbel ?? 1.5);
       if (m.pediment !== 'none') add('Mantels: pediment', 1, st.mantelPediment ?? 4);
       if (m.upper.on) {
-        add('Mantels: upper pilasters & overmantel panel', 1, st.mantelUpper ?? 10);
+        // Pilasters alone with wall between them: about 60% of the work of pilasters plus a frame and panel
+        if (m.upper.between === 'wall') add('Mantels: upper pilasters (wall between)', 1, (st.mantelUpper ?? 10) * 0.6);
+        else add('Mantels: upper pilasters & overmantel panel', 1, st.mantelUpper ?? 10);
         add('Install overmantel', 1, st.installMantelUpper ?? 4, 'cabinets', true);
         installHours += st.installMantelUpper ?? 4;
       }
@@ -774,7 +776,7 @@ export function scopeLine(c: Cabinet, p: Project): string {
       m.corbels ? `(${m.corbels}) corbels` : '',
       m.pediment !== 'none' ? `${m.pediment === 'arch' ? 'arched ' : ''}pediment` : '',
       m.fuel === 'wood' ? 'surround for the existing wood-burning firebox' : `opening for owner's ${m.fuel === 'gas' ? 'gas' : 'electric'} insert${m.insert?.model ? ` (${m.insert.model})` : ''}`,
-      m.upper.on ? `full-height overmantel to the ceiling trim (approx ${fmtIn(m.upper.top)} high): pilasters over the legs framing a recessed panel` : '',
+      m.upper.on ? (m.upper.between === 'wall' ? `pilasters continuing above the shelf to the ceiling trim (approx ${fmtIn(m.upper.top)} high), with the wall painted between them` : `full-height overmantel to the ceiling trim (approx ${fmtIn(m.upper.top)} high): pilasters over the legs framing a recessed panel`) : '',
       m.baseH > 0 ? 'existing two-piece baseboard profile wrapped around the chimney and plinths' : c.baseMold ? 'base moulding' : '',
       'paint grade',
     ].filter(Boolean);

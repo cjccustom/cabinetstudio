@@ -297,15 +297,17 @@ function CabinetModel(props: {
 
   // Stain grade shows the species; the case interior shows the plywood
   const fc = finishColors(eff(cab, settings), finishes, cab.paint);
+  // A chimney face left as wall between upper pilasters takes the wall's color
+  const wallTint = project.wallFinishes?.[cab.wall]?.color ?? finishes.wall ?? '#f1efea';
   const colorFor = (material: string, shade: number) => {
-    const base = material === 'hardware' ? '#c9ccd1' : material === 'upholstery' ? '#9aa3ad' : material === 'box' || material === 'back' ? fc.box : material === 'counter' ? finishes.counter : material === 'solidWood' ? woodColor(cab.topSpecies) ?? finishes.wood ?? '#b9875a' : fc.paint;
+    const base = material === 'wall' ? wallTint : material === 'hardware' ? '#c9ccd1' : material === 'upholstery' ? '#9aa3ad' : material === 'box' || material === 'back' ? fc.box : material === 'counter' ? finishes.counter : material === 'solidWood' ? woodColor(cab.topSpecies) ?? finishes.wood ?? '#b9875a' : fc.paint;
     return new THREE.Color(base).multiplyScalar(shade);
   };
   // Natural wood gets its grain: stain grade fronts and frames, solid wood tops, and veneer plywood that shows
   const s = eff(cab, settings);
   const ply = settings.plywood && !/prefinished|paint-grade|mdf/i.test(settings.plywood) ? settings.plywood : undefined;
   const grainFor = (material: string) => {
-    if (material === 'hardware' || material === 'upholstery' || material === 'counter') return null;
+    if (material === 'hardware' || material === 'upholstery' || material === 'counter' || material === 'wall') return null;
     if (material === 'solidWood') { const sp = cab.topSpecies ?? settings.woodSpecies; return woodTexture(sp, woodColor(cab.topSpecies) ?? finishes.wood ?? '#b9875a'); }
     if (material === 'box' || material === 'back') return ply ? woodTexture(ply, fc.box) : null;
     return s.finish === 'stain' ? woodTexture(s.woodSpecies, fc.paint) : null;

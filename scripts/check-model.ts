@@ -1904,6 +1904,18 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   eq('discount: 0 turns it off (one price)', quoteDoc(off, { online: true }).includes('Paying by check'), false);
 }
 
+// A mantel with only pilasters above the shelf: no frame and panel, the chimney face between them is wall
+{
+  const mt = { ...cabinetFromPreset(presets.find((x) => x.kind === 'mantel')!, 'front', 40, []), id: 'MW', name: 'M1' } as any;
+  const base = { ...mt, mantel: { ...mt.mantel, chimney: true, upper: { on: true, top: 98, plinth: 0, frameStile: 3, frameRail: 3.5 } } };
+  const wall = { ...base, mantel: { ...base.mantel, upper: { ...base.mantel.upper, between: 'wall' } } };
+  const names = (c: any) => buildParts(c, s).map((x) => x.name);
+  eq('mantel: frame and panel by default', names(base).includes('Overmantel panel'), true);
+  eq('mantel: pilasters only leaves the panel out', names(wall).some((n) => /Overmantel (panel|stile|rail)/.test(n)), false);
+  eq('mantel: upper pilasters still there', names(wall).filter((n) => /Upper pilaster/.test(n)).length > 0, true);
+  eq('mantel: the chimney face above the shelf is wall color', buildParts(wall, s).some((x) => x.name === 'Chimney face, above the mantel' && x.look === 'wall'), true);
+}
+
 // An upper set on the top below it: a 28-1/2" base with a wood top (1-1/4" unless set) is 29-3/4", not 30"
 {
   const base = { ...cabinetFromPreset(presets.find((x) => x.id === 'library-base')!, 'back', 0, []), id: 'lb', name: 'B1', height: 28.5, topThickness: undefined };

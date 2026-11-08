@@ -42,7 +42,9 @@ export function profileItems(p: Project): Item[] {
   for (const l of moldingOrder(p)) {
     const m = mountShape(l.profile);
     if (!m.pts.length) continue;
-    const kinds = [...new Set(l.kinds.map((k) => moldLabel[k]))].join(', ');
+    // A mantel's "crown" is the bed moulding under its shelf
+    const mantelOnly = l.kinds.includes('crown') && p.cabinets.some((c) => c.crown === l.num) && p.cabinets.filter((c) => c.crown === l.num).every((c) => c.kind === 'mantel');
+    const kinds = [...new Set(l.kinds.map((k) => (k === 'crown' && mantelOnly ? 'Bed moulding (mantel)' : moldLabel[k])))].join(', ');
     items.push({
       title: `${kinds}: ${profileLabel(l.profile)}`, sub: `${fmtIn(m.height)} high × ${fmtIn(m.depth)} projection`, w: m.depth, h: m.height,
       draw: (v) => { v.poly(m.pts, 'cut'); v.dimH(0, m.depth, 0, -0.22); v.dimV(0, m.height, 0, -0.22); },

@@ -9,6 +9,7 @@ import { eaglePrice, centersOf } from '../model/eagle';
 const materialLabel: Record<MaterialKey, string> = {
   box: '3/4" case plywood',
   back: 'Back panels',
+  wall: 'Wall finish (painted the wall color)',
   toeSkin: 'Toe kick skins (install)',
   drawerBox: 'Drawer boxes',
   faceframe: 'Face frame stock',
