@@ -522,7 +522,16 @@ async function access(env) {
   if (!c) throw new Error("QuickBooks isn\u2019t connected. Connect it from the portal\u2019s QuickBooks page.");
   if (c.accessExp - Date.now() > 6e4) return c;
   if (c.refreshExp < Date.now()) throw new Error("The QuickBooks connection expired. Connect it again from the portal\u2019s QuickBooks page.");
-  const t = await tokenCall2(env, { grant_type: "refresh_token", refresh_token: c.refresh });
+  let t;
+  try {
+    t = await tokenCall2(env, { grant_type: "refresh_token", refresh_token: c.refresh });
+  } catch (e) {
+    if (/invalid_grant|401|400/.test(String(e.message))) {
+      await env.PORTAL.delete("qb");
+      throw new Error("The QuickBooks connection was ended or expired. Reconnect QuickBooks from Portal settings in Cabinet Studio.");
+    }
+    throw e;
+  }
   const now = Date.now();
   const next = { ...c, access: t.access_token, accessExp: now + t.expires_in * 1e3, refresh: t.refresh_token, refreshExp: now + t.x_refresh_token_expires_in * 1e3 };
   await env.PORTAL.put("qb", JSON.stringify(next));
