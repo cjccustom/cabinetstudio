@@ -488,6 +488,19 @@ export function Inspector({ cab, issues, tab }: { cab: Cabinet; issues: string[]
         )}
         {shrunk > 0 && <p className="hint">Shortened {cab.name} {fmt(shrunk)} to {fmt(cab.height)} so the crown meets the ceiling. Undo puts it back.</p>}
         {cab.kind !== 'base' && cab.kind !== 'mantel' && <CrownBuildEditor cab={cab} set={set} species={settings.moldSpecies} />}
+        {cab.kind !== 'mantel' && cab.kind !== 'pilaster' && !ends.right && (
+          <div className="seam-edit">
+            <label className="check-inline"><input type="checkbox" checked={!!cab.seamCover} onChange={(e) => set({ seamCover: e.target.checked ? { width: 1.75, thickness: 0.5 } : undefined })} /> Seam batten where it meets the next cabinet on the right</label>
+            {cab.seamCover && (
+              <div className="grid3">
+                <Field label="Width" htmlFor="seam-w"><LengthInput id="seam-w" value={cab.seamCover.width} min={0.5} onChange={(v) => v && set({ seamCover: { ...cab.seamCover!, width: v } })} /></Field>
+                <Field label="Thickness" htmlFor="seam-t"><LengthInput id="seam-t" value={cab.seamCover.thickness} min={0.125} onChange={(v) => v && set({ seamCover: { ...cab.seamCover!, thickness: v } })} /></Field>
+                <div className="field"><button className="mini" title="Every cabinet on this wall that meets another on its right" onClick={() => useStore.getState().commit((p) => ({ ...p, cabinets: p.cabinets.map((c) => (c.wall === cab.wall && c.kind !== 'mantel' && c.kind !== 'pilaster' && !resolveEnds(p.room, p.cabinets, c).right ? { ...c, seamCover: cab.seamCover } : c)) }))}>Every seam on this wall</button></div>
+              </div>
+            )}
+            <p className="hint">Solid stock centered on the joint, from the top of the base up {cab.crownBuild?.subCrown ? 'into the sub-crown' : 'to the top of the case (add a sub-crown under Crown build to die it into one)'}.</p>
+          </div>
+        )}
         <p className="hint">Runs across the face and returns to the wall on exposed ends. Lineal footage and cost are on the Orders tab.</p>
       </Section>}
 

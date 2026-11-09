@@ -145,6 +145,11 @@ export interface Cabinet {
   baseMold?: string;
   /** How the crown is built up on top of the cabinet. */
   crownBuild?: CrownBuild;
+  /**
+   * A batten over the joint where this case meets the one to its right (two bookcases screwed
+   * together): solid stock from the top of the base up into the sub-crown (or the case top).
+   */
+  seamCover?: { width: number; thickness: number };
   /** Pilaster details (kind 'pilaster'). Its depth runs from the wall to the panel face. */
   pilaster?: PilasterSpec;
   /** Fireplace mantel / surround (kind 'mantel'): width is outside the legs, height the shelf top, depth wall to frieze. */

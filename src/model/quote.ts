@@ -111,6 +111,8 @@ export interface LaborStandards {
   pullInstall: number;
   /** Rout an integrated finger pull into a door or drawer front, per front. Unset = 0.3 h. */
   fingerPull?: number;
+  /** A batten over the joint between two cases, each. */
+  seamBatten?: number;
 }
 
 export const defaultStandards: LaborStandards = {
@@ -162,6 +164,7 @@ export const defaultStandards: LaborStandards = {
   moldingInstallPerFt: 0.15,
   pullInstall: 0.15,
   fingerPull: 0.3,
+  seamBatten: 0.5,
 };
 
 export type Workload = 'full' | 'normal' | 'light';
@@ -475,6 +478,8 @@ export function estimateHours(p: Project, q: QuoteSettings): HourLine[] {
     const box = (st.installPerBox + (tall ? st.installTall : 0)) * (stain ? st.stainInstall ?? 1.25 : 1);
     add(stain ? 'Install cabinets, stain grade' : 'Install cabinets', 1, box, 'cabinets', true);
     installHours += box;
+    const battens = parts.filter((x) => x.name === 'Seam batten').length;
+    if (battens) addC('Seam battens (mill, fit, glue)', battens, st.seamBatten ?? 0.5);
     const fronts = n('door') + parts.filter((x) => x.role === 'drawerFront' && x.name !== 'False front').length;
     if (pullStyleOf(s) === 'finger') addC('Finger pulls, routed', fronts, st.fingerPull ?? 0.3);
     else if (q.installPulls) add('Install pulls & knobs', fronts, st.pullInstall, 'cabinets', true);

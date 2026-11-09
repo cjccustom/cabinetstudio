@@ -2062,6 +2062,22 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   eq('summary: refuses junk', readSummary('nope'), null);
 }
 
+// Seam batten over the joint between two cases, up into the sub-crown
+{
+  const run = p.cabinets.filter((c) => c.wall === 'back' && c.kind === 'wall').sort((a, b) => a.offset - b.offset);
+  const left = run.find((c) => !resolveEnds(p.room, p.cabinets, c).right)!;
+  const cab = { ...left, seamCover: { width: 1.75, thickness: 0.5 }, crownBuild: { subCrown: 3, rise: 0, drop: 0, extra: [] } };
+  const job = { ...p, cabinets: p.cabinets.map((c) => (c.id === left.id ? cab : c)) };
+  const parts = buildParts(cab, job.settings, resolveEnds(job.room, job.cabinets, cab));
+  const b = parts.find((x) => x.name === 'Seam batten');
+  const sub = parts.find((x) => x.name === 'Sub-crown')!;
+  eq('seam: batten centered on the joint', b ? b.boxes[0].min[0] + b.boxes[0].size[0] / 2 : null, cab.width);
+  eq('seam: dies into the sub-crown', b ? b.boxes[0].min[1] + b.boxes[0].size[1] : null, sub.boxes[0].min[1]);
+  eq('seam: priced', estimateHours(job, quoteOf(job)).some((l) => /Seam battens/.test(l.label)), true);
+  const free = { ...cab, offset: 0, wall: 'front' as const };
+  eq('seam: none on an exposed end', buildParts(free, job.settings, { left: true, right: true }).some((x) => x.name === 'Seam batten'), false);
+}
+
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');
 
 console.log(failed ? `${failed} check(s) failed` : 'All model checks passed');

@@ -281,6 +281,15 @@ export function buildParts(c: Cabinet, s: ShopSettings, ends: EndInfo = { left: 
   // A cabinet in its own species (a stain-grade island on a painted job): its frame and solid wood
   // come off that species' stock, priced and listed apart from the job's
   const own = c.overrides?.woodSpecies;
+  // The seam batten where it meets the next case on the right
+  if (c.seamCover && !ends.right && c.kind !== 'mantel' && c.kind !== 'shelf') {
+    const sc = c.seamCover, bl = baseLayout(c, eff(c, s)), L = crownLayout(c, s);
+    const y0 = bl.style === 'kick' ? bl.kick : bl.top;
+    const y1 = L.subT > 0 ? L.subBottom : c.height;
+    if (y1 - y0 > 1) parts.push({ name: 'Seam batten', role: 'trim', material: 'faceframe', length: y1 - y0, width: sc.width, thickness: sc.thickness, cut: true,
+      note: `Centered on the joint with the next case; ${bl.style === 'kick' ? 'from the toe kick' : 'on the base cap'} up ${L.subT > 0 ? 'into the sub-crown' : 'to the case top'}. Glue to this case only, so the joint can move`,
+      boxes: [vb(c.width - sc.width / 2, y0, c.depth, sc.width, y1 - y0, sc.thickness)] });
+  }
   if (own && own !== s.woodSpecies) parts = parts.map((p) => ((p.material === 'faceframe' || p.material === 'solidWood') && !p.species ? { ...p, species: own } : p));
   return cutToSlope(c, frameJoinery(c, eff(c, s), parts));
 }
