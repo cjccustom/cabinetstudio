@@ -454,7 +454,7 @@ function CabinetModel(props: {
     >
       {drawGeo(geo)}
       {motions.map((m, i) => (
-        <Moving key={i} open={opened} pivot={m.pivot} angle={m.angle} slide={m.slide}>
+        <Moving key={i} open={opened} pivot={m.pivot} angle={m.angle} slide={m.slide} lift={m.lift}>
           {drawGeo(frontGeos[i])}
           {m.pulls.length > 0 && <PullModel spots={m.pulls} color={pullColor(s)} />}
           {m.box && <DrawerBox {...m.box} />}
@@ -594,20 +594,23 @@ function SlopedCeiling({ room, color }: { room: Room; color: string }) {
 }
 
 /** A door or drawer front that swings on its hinge line, or slides out, easing to where it's going. */
-function Moving({ open, pivot, angle, slide, children }: { open: boolean; pivot: [number, number]; angle: number; slide: number; children: React.ReactNode }) {
+function Moving({ open, pivot, angle, slide, lift, children }: { open: boolean; pivot: [number, number]; angle: number; slide: number; lift?: boolean; children: React.ReactNode }) {
   const ref = useRef<THREE.Group>(null);
   useFrame((_, dt) => {
     const g = ref.current;
     if (!g) return;
     const k = 1 - Math.exp(-Math.min(dt, 0.1) * 7);
     const ta = open ? angle : 0, tz = pivot[1] + (open ? slide : 0);
-    if (Math.abs(g.rotation.y - ta) < 1e-4 && Math.abs(g.position.z - tz) < 1e-3) return;
-    g.rotation.y += (ta - g.rotation.y) * k;
+    const rot = lift ? g.rotation.x : g.rotation.y;
+    if (Math.abs(rot - ta) < 1e-4 && Math.abs(g.position.z - tz) < 1e-3) return;
+    if (lift) g.rotation.x += (ta - rot) * k; else g.rotation.y += (ta - rot) * k;
     g.position.z += (tz - g.position.z) * k;
   });
+  // Doors turn about a vertical hinge line at (x, z); lift-up doors about a level one at (y, z)
+  const at: [number, number, number] = lift ? [0, pivot[0], pivot[1]] : [pivot[0], 0, pivot[1]];
   return (
-    <group ref={ref} position={[pivot[0], 0, pivot[1]]}>
-      <group position={[-pivot[0], 0, -pivot[1]]}>{children}</group>
+    <group ref={ref} position={at}>
+      <group position={[-at[0], -at[1], -at[2]]}>{children}</group>
     </group>
   );
 }

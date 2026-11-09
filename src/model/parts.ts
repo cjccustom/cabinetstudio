@@ -665,7 +665,7 @@ function caseParts(c: Cabinet, s: ShopSettings, ends: EndInfo): Part[] {
   const shareOv = (rail: number) => Math.min(o, (rail - gap) / 2);
   const dt = s.doorThickness;
   const zFront = inset ? D - dt : D;
-  const addFront = (name: string, role: 'door' | 'drawerFront', x: number, y: number, w: number, h: number, note?: string) => {
+  const addFront = (name: string, role: 'door' | 'drawerFront', x: number, y: number, w: number, h: number, note?: string, specExtra = '') => {
     // Short drawer fronts can't be built 5-piece; they go on the order as slabs.
     // Eagle drops short drawer fronts to 1 1/2" rails.
     const rail = role === 'drawerFront' && h < narrowRailBelow ? Math.min(narrowRail, doorStile) : doorStile;
@@ -673,7 +673,7 @@ function caseParts(c: Cabinet, s: ShopSettings, ends: EndInfo): Part[] {
     const slab = role === 'drawerFront' && (s.drawerFronts === 'slab' || tooShort);
     const profile: DoorProfile = slab ? 'slab' : style.profile;
     const cs = centerSplit(w, h, profile, c.noCenterRail);
-    const spec = (slab ? `Slab, ${material}` : doorSpec) + (inset ? ', inset' : '') + centerText(cs);
+    const spec = (slab ? `Slab, ${material}` : doorSpec) + (inset ? ', inset' : '') + centerText(cs) + specExtra;
     parts.push({
       name, role, material: 'door', length: h, width: w, thickness: dt, cut: false, note: [note, centerNote(cs, w, h, profile, c.noCenterRail)].filter(Boolean).join(' · ') || undefined,
       order: { item: role, w, h, spec, ...(profile === 'slab' ? {} : { rail, stile: doorStile }), ...centerOrder(cs) },
@@ -718,7 +718,8 @@ function caseParts(c: Cabinet, s: ShopSettings, ends: EndInfo): Part[] {
     if (row.type === 'drawer' || row.type === 'falseFront') {
       addFront(row.type === 'drawer' ? 'Drawer front' : 'False front', 'drawerFront', ox0 - side, fy, fullW, fh, row.type === 'falseFront' ? 'Fixed, no drawer box' : undefined);
     } else if (hasDoors(row)) {
-      if (row.doors === 1) addFront('Door', 'door', ox0 - side, fy, fullW, fh);
+      if (row.lift) addFront('Lift-up door', 'door', ox0 - side, fy, fullW, fh, 'Blum Aventos HK top lift system; no hinge cups', ', lift-up (no hinge holes)');
+      else if (row.doors === 1) addFront('Door', 'door', ox0 - side, fy, fullW, fh);
       else if (split) {
         const mid = inset ? -rev : shareOv(sw);
         const lw = cx - sw / 2 - ox0 + side + mid;

@@ -11,6 +11,8 @@ export interface FaceRow {
   /** Face frame opening height. null = share the leftover height with other auto rows. */
   height: number | null;
   doors: 1 | 2;
+  /** One lift-up door across the opening, hinged at the top on a Blum Aventos HK top lift system (no hinge cups). */
+  lift?: boolean;
   shelves: number;
   /** Open rows: vertical dividers splitting it into equal cubbies (0 = none). */
   dividers?: number;

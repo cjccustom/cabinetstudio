@@ -127,6 +127,7 @@ export function QuoteInputs() {
             <Num id="q-cfb" label="Coffer blocking & fasteners" suffix="$/ft" value={q.cofferSundriesPerFt} onChange={(v) => set({ cofferSundriesPerFt: v })} />
             <Num id="q-brk" label="Shelf brackets" suffix="$ / 8-pack" value={q.shelfBracketPack} onChange={(v) => set({ shelfBracketPack: v })} />
             <Num id="q-rod" label="Closet rod, 8' length" suffix="$" value={q.closetRod8ft} onChange={(v) => set({ closetRod8ft: v })} />
+            <Num id="q-lift" label="Lift system (Aventos HK top), per door" suffix="$" value={q.liftKit ?? 0} onChange={(v) => set({ liftKit: v })} />
             <Num id="q-sock" label="Rod sockets, pair" suffix="$" value={q.rodSockets} onChange={(v) => set({ rodSockets: v })} />
             <Num id="q-cush" label="Seat cushions" suffix="$/sq ft" value={q.cushionPerSqFt} onChange={(v) => set({ cushionPerSqFt: v })} />
           </div>

@@ -240,9 +240,10 @@ export function Inspector({ cab, issues, tab }: { cab: Cabinet; issues: string[]
               </select>
               <LengthInput id={`row-h-${r.id}`} value={r.height} allowAuto placeholder={`auto ${fmt(layout[i]?.height ?? 0)}`} onChange={(v) => setRow(r.id, { height: v })} />
               {r.type === 'doors' ? (
-                <select id={`row-doors-${r.id}`} aria-label="Door count" value={r.doors} onChange={(e) => setRow(r.id, { doors: Number(e.target.value) as 1 | 2 })}>
+                <select id={`row-doors-${r.id}`} aria-label="Door count" value={r.lift ? 'lift' : r.doors} onChange={(e) => setRow(r.id, e.target.value === 'lift' ? { doors: 1, lift: true } : { doors: Number(e.target.value) as 1 | 2, lift: undefined })}>
                   <option value={1}>1 door</option>
                   <option value={2}>2 doors</option>
+                  <option value="lift">Lift-up door</option>
                 </select>
               ) : r.type === 'hang' || r.type === 'shoes' ? (
                 <select id={`row-doors-${r.id}`} aria-label="Open or behind doors" value={r.covered ? r.doors : 0} onChange={(e) => {

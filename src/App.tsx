@@ -186,6 +186,9 @@ export default function App() {
               <p>Add cabinets from the list on the left. Set how you build them under <em>Shop standards</em>.</p>
               <p className="muted">{project.cabinets.length} cabinets in this job.</p>
               {project.cabinets.length > 1 && <p><button className="mini" onClick={() => useStore.getState().selectCeiling()}>Pick everything that reaches the ceiling (to crown it)</button></p>}
+              {project.cabinets.some((c) => c.kind === 'wall' && c.rows.some((r) => r.type === 'doors')) && (
+                <p><button className="mini" title="One lift-up door per opening on every upper, on Blum Aventos HK top lift systems (undo puts them back)" onClick={() => useStore.getState().commit((p) => ({ ...p, cabinets: p.cabinets.map((c) => (c.kind === 'wall' ? { ...c, rows: c.rows.map((r) => (r.type === 'doors' ? { ...r, doors: 1 as const, lift: true } : r)) } : c)) }))}>Lift-up doors on every upper</button></p>
+              )}
             </div>
           ))}
           {panel === 'cutlist' && (

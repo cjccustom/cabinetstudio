@@ -1999,6 +1999,23 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   eq('pulls: proposal lists them', proposalSummary(fp).materials.find((m) => m.label === 'Knobs & pulls')!.value, 'Integrated finger pulls routed into the doors and drawer fronts; no knobs or pulls');
 }
 
+// Lift-up doors on uppers: one door per opening on an Aventos, no hinge cups
+{
+  const job = { ...p, cabinets: p.cabinets.map((c) => (c.kind === 'wall' ? { ...c, rows: c.rows.map((r) => (r.type === 'doors' ? { ...r, doors: 1 as const, lift: true } : r)) } : c)) };
+  const w = job.cabinets.find((c) => c.kind === 'wall' && c.rows.some((r) => r.type === 'doors'))!;
+  const parts = buildParts(w, job.settings, resolveEnds(job.room, job.cabinets, w));
+  const doors = parts.filter((x) => x.role === 'door');
+  eq('lift: one lift-up door per door row', doors.map((d) => d.name).join(), w.rows.filter((r) => r.type === 'doors').map(() => 'Lift-up door').join());
+  const hw = hardwareOrder(job);
+  eq('lift: counted for the Aventos, no hinges for them', hw.lifts, job.cabinets.filter((c) => c.kind === 'wall').reduce((t, c) => t + c.rows.filter((r) => r.type === 'doors').length, 0));
+  eq('lift: flagged to order separately', hw.problems.some((x) => /Aventos/.test(x.text)), true);
+  const reqs = eagleRequests(job).filter((r) => r.lines?.some?.(() => true) ?? true);
+  eq('lift: Eagle request with no hinge holes', JSON.stringify(reqs).includes('Lift-up doors (Blum Aventos): no hinge holes'), true);
+  const sp = pullSpots(job, w, parts);
+  const d0 = doors[0].boxes.reduce((m, b) => Math.min(m, b.min[1]), Infinity);
+  eq('lift: pull at the bottom of the door', sp.every((h) => h.y - d0 < 3), true);
+}
+
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');
 
 console.log(failed ? `${failed} check(s) failed` : 'All model checks passed');

@@ -8,7 +8,7 @@ import { fmt } from '../units';
 
 export interface HardwareLine { part: WWEPart; qty: number; each: number; total: number; use: string; group: 'hinges' | 'slides' }
 export interface HardwareProblem { group: HardwareLine['group']; text: string }
-export interface HardwareOrder { lines: HardwareLine[]; problems: HardwareProblem[]; hinges: number; drawers: number; cost: number }
+export interface HardwareOrder { lines: HardwareLine[]; problems: HardwareProblem[]; hinges: number; drawers: number; cost: number; /** Lift-up doors, each on a Blum Aventos HK top bought separately. */ lifts: number }
 
 const byPart = (n: string) => wweParts.find((p) => p.part === n);
 
@@ -30,7 +30,7 @@ export function hardwareOrder(p: Project): HardwareOrder {
     row.uses.add(use);
     need.set(part.sku, row);
   };
-  let hinges = 0, drawers = 0;
+  let hinges = 0, drawers = 0, lifts = 0;
   for (const c of p.cabinets) {
     const s = eff(c, p.settings);
     const inset = s.doorMount === 'inset';
@@ -39,6 +39,13 @@ export function hardwareOrder(p: Project): HardwareOrder {
       if (!o) continue;
       if (o.item === 'door') {
         const n = hingeHoles(o.h);
+        if (o.spec.includes('lift-up')) {
+          lifts += 1;
+          flag(`Lift-up door in ${c.name}: Blum Aventos HK top, sized to the door's height and weight; not in the Woodworker Express list, order it separately`, 'hinges');
+          // An HK top suits doors up to about 24" high; taller ones want a bi-fold (HF) or vertical lift (HL)
+          if (o.h > 24) flag(`${c.name}: a ${fmt(o.h)} high lift-up door is taller than an Aventos HK top takes (about 24"); use an HF bi-fold or HL lift, or split the opening`, 'hinges');
+          continue;
+        }
         if (o.spec.includes('bifold')) { flag(`Bifold corner doors in ${c.name} need their own hinges (not in the price list)`, 'hinges'); continue; }
         hinges += n;
         if (s.hingeType === 'compact') {
@@ -72,7 +79,7 @@ export function hardwareOrder(p: Project): HardwareOrder {
     const each = tierPrice(r.part, r.qty);
     return { part: r.part, qty: r.qty, each, total: each * r.qty, use: [...r.uses].join(', '), group: r.group };
   }).sort((a, b) => (a.group === b.group ? 0 : a.group === 'hinges' ? -1 : 1) || a.part.part.localeCompare(b.part.part));
-  return { lines, problems: [...problems].map(([text, group]) => ({ text, group })), hinges, drawers, cost: lines.reduce((t, l) => t + l.total, 0) };
+  return { lines, problems: [...problems].map(([text, group]) => ({ text, group })), hinges, drawers, lifts, cost: lines.reduce((t, l) => t + l.total, 0) };
 }
 
 /** Lines to paste into an order or keep with the job: SKU, quantity, part number. */

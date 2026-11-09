@@ -56,7 +56,15 @@ export function pullSpots(p: Project, c: Cabinet, parts: Part[]): PullSpot[] {
   const s = eff(c, p.settings);
   const style = pullStyleOf(s);
   const out: PullSpot[] = [];
-  const doors = parts.filter((x) => x.role === 'door' && x.boxes.length).map((x) => bbox(x));
+  const lifts = parts.filter((x) => x.role === 'door' && x.boxes.length && x.name === 'Lift-up door').map((x) => bbox(x));
+  for (const d of lifts) {
+    // A lift-up door is pulled up from the middle of its bottom edge
+    const w = d.x1 - d.x0, cx = (d.x0 + d.x1) / 2;
+    if (style === 'finger') { const len = gripLen(s, w); out.push({ kind: 'finger', x: cx - len / 2, y: d.y0 + 0.25, z: d.z, len, vertical: false }); }
+    else if (style === 'bars' || (style === 'standard' && w >= 24)) { const len = w >= 30 ? 8 : 4; out.push({ kind: 'bar', x: cx - len / 2, y: d.y0 + 2, z: d.z, len, vertical: false }); }
+    else out.push({ kind: 'knob', x: cx, y: d.y0 + 2, z: d.z, len: 0, vertical: false });
+  }
+  const doors = parts.filter((x) => x.role === 'door' && x.boxes.length && x.name !== 'Lift-up door').map((x) => bbox(x));
   const L = wallLength(p.room, c.wall);
   const upper = c.elevation > 30;
   for (const d of doors) {

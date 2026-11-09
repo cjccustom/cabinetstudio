@@ -183,6 +183,8 @@ export interface QuoteSettings {
   shelfBracketPack: number;
   /** Closet rod, per 8' length, and a pair of rod sockets. */
   closetRod8ft: number;
+  /** Blum Aventos HK top lift system, per lift-up door. */
+  liftKit?: number;
   rodSockets: number;
   /** Custom seat cushions from the upholsterer, per sq ft of seat (foam, fabric and labor). */
   cushionPerSqFt: number;
@@ -641,6 +643,7 @@ export function estimateMaterials(p: Project, q: QuoteSettings): MaterialLine[] 
   const hwCost = (g: 'hinges' | 'slides') => hw.lines.filter((l) => l.group === g).reduce((t, l) => t + l.total, 0);
   const hwMissing = (g: 'hinges' | 'slides') => hw.problems.filter((x) => x.group === g).map((x) => x.text).join('; ') || undefined;
   if (hw.hinges) out.push({ group: 'cabinets', label: `Hinges (${[...hingeKinds].join(' & ')})`, cost: hwCost('hinges'), detail: `${hw.hinges} hinges on ${doors} doors`, missing: hwMissing('hinges') });
+  if (hw.lifts) out.push({ group: 'cabinets', label: 'Blum Aventos HK top lift systems', cost: hw.lifts * (q.liftKit ?? 0), detail: `${hw.lifts} lift-up door${hw.lifts > 1 ? 's' : ''}`, missing: q.liftKit ? undefined : 'Enter the Aventos HK top price per door under Quote → Prices to fill in' });
   if (hw.drawers) out.push({ group: 'cabinets', label: 'Blum Tandem slides & locking devices', cost: hwCost('slides'), detail: `${hw.drawers} drawers`, missing: hwMissing('slides') });
   for (const m of moldingOrder(p)) {
     out.push({ group: moldGroup(m.kinds), label: `${profileLabel(m.profile)} ${m.kinds.every((k) => roomKinds.includes(k)) ? m.kinds.map((k) => moldLabel[k].toLowerCase()).join(' & ') : 'moulding'}`, cost: m.cost, detail: `${m.feet} lin ft`, missing: m.price == null ? (m.supplier === 'brosco' ? 'Enter the Brosco price per foot on the Orders tab' : m.supplier === 'custom' ? 'Enter the custom-milled price per foot on the Orders tab' : m.supplier === 'nextday' ? 'No Next Day price in this material' : 'No A&M price') : undefined });

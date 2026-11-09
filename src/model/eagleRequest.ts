@@ -78,7 +78,11 @@ function pieces(p: Project): Piece[] {
         continue;
       }
       const kind = o.item === 'drawerFront' ? 'fronts' : 'doors';
-      const { config, check } = frontConfig(p, c.id, kind, o.rail == null);
+      const fc = frontConfig(p, c.id, kind, o.rail == null);
+      // Lift-up doors hang on Aventos brackets: no hinge cups, so they go on their own request
+      const lift = o.spec.includes('lift-up');
+      const config: [string, string][] = lift ? fc.config.map(([k, v]): [string, string] => [k, k === 'Hinge Holes' ? 'None' : v]) : fc.config;
+      const check = lift ? [...fc.check, 'Lift-up doors (Blum Aventos): no hinge holes'] : fc.check;
       const center = o.centerRail && o.centerStile ? 'Center rail & stile' : o.centerRail ? 'Center rail' : o.centerStile ? 'Center stile' : undefined;
       const big = Math.max(o.w, o.h);
       const warn = big > 95 ? [`A ${dec(o.w)} x ${dec(o.h)} piece is over Eagle's 95" maximum`]

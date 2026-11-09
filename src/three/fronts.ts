@@ -10,6 +10,8 @@ export interface FrontMotion {
   /** Doors: the hinge line (x, z) and the swing in radians. Drawers: how far it slides out. */
   pivot: [number, number];
   angle: number;
+  /** Lift-up doors swing up on a hinge line along the top: (y, z) in pivot, about the x axis. */
+  lift?: boolean;
   slide: number;
   /** The drawer box behind a drawer front, to draw while it's out. */
   box?: { x0: number; y0: number; z0: number; w: number; h: number; d: number };
@@ -26,8 +28,12 @@ export function frontMotions(p: Project, c: Cabinet, parts: Part[], spots: PullS
   const out: FrontMotion[] = [];
   doors.forEach((part, i) => {
     const b = doorBoxes[i];
-    const right = opensRight(c, L, doorBoxes, b);
     const back = Math.min(...part.boxes.map((x) => x.min[2]));
+    if (part.name === 'Lift-up door') {
+      out.push({ part, pivot: [b.y1, back], angle: -(100 * Math.PI) / 180, slide: 0, lift: true, pulls: spots.filter((h) => inside(h, b)) });
+      return;
+    }
+    const right = opensRight(c, L, doorBoxes.filter((_, j) => doors[j].name !== 'Lift-up door'), b);
     // Hinged on the far edge from the pull, swinging out toward the room
     out.push({ part, pivot: [right ? b.x0 : b.x1, back], angle: right ? -SWING : SWING, slide: 0, pulls: spots.filter((h) => inside(h, b)) });
   });
