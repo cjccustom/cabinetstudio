@@ -9,6 +9,7 @@ import { priceQuote, quoteOf, groupLabel, paintLineLabel, proposalScope } from '
 import { eagleRequests, requestText } from './eagleRequest';
 import { hardwareOrder, hardwareText } from './hardware';
 import { hardwareScope, hasHardware } from './pulls';
+import { visitsDoc } from './meeting';
 import { releaseOf } from './release';
 import { LOGO } from '../drawings/logo';
 import { proposalSummary, withOptions } from './proposal';
@@ -52,6 +53,8 @@ export interface ClientInfo {
   measurements: Measurement[];
   todos: ClientTodo[];
   metOn: string;
+  /** Visits on site, from the meeting screen. */
+  visits?: import('./meeting').Visit[];
 }
 
 export interface DropboxLink {
@@ -106,6 +109,7 @@ export function clientInfoDoc(p: Project): string {
     lines.push('', '## Measurements', '', '| What | Size | Notes |', '|---|---|---|', ...c.measurements.map((m) => `| ${m.what} | ${m.size} | ${m.note} |`));
   }
   if (c.notes) lines.push('', '## Notes', c.notes);
+  lines.push(...visitsDoc(c.visits));
   if (c.todos.length) lines.push('', '## To do', ...c.todos.map((t) => `- [${t.done ? 'x' : ' '}] ${t.text}`));
   lines.push('', `_Updated ${date()} by Cabinet Studio._`);
   return lines.join('\n');

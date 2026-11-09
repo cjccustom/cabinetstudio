@@ -34,6 +34,7 @@ import { FaceFrameBreakdown, FaceFrameInputs, FaceFrameSummary } from './ui/Face
 import { findIssues, wallNames, wallOrder } from './model/layout';
 import { sampleProject } from './model/defaults';
 import { Present } from './ui/Present';
+import { Meeting } from './ui/Meeting';
 
 const views: { v: ViewMode; label: string }[] = [
   { v: '3d', label: '3D' },
@@ -69,6 +70,8 @@ export default function App() {
   useEffect(() => { if (selectedId) setPanel('cabinet'); }, [selectedId]);
   useKeyboard();
   const present = useStore((s) => s.present);
+  const meeting = useStore((s) => s.meeting);
+  if (meeting) return <Meeting />;
   if (present) return <Present />;
 
   return (

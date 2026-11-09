@@ -79,6 +79,9 @@ interface State {
   editing: Editing | null;
   edit: (what: Editing | null) => void;
   setView: (v: ViewMode) => void;
+  /** The meeting screen (on the iPad, with the customer). Not saved. */
+  meeting: boolean;
+  setMeeting: (on: boolean) => void;
   /** Showing the customer: just the design, nothing to click or edit. Not saved. */
   present: boolean;
   setPresent: (on: boolean) => void;
@@ -99,6 +102,8 @@ export const useStore = create<State>((set, get) => ({
   selectedId: null,
   editing: null,
   present: false,
+  meeting: false,
+  setMeeting: (meeting) => set({ meeting, selectedId: null, editing: null }),
   setPresent: (present) => set(present ? { present, selectedId: null, group: [], editing: null } : { present }),
   edit: (editing) => get().present ? undefined : set(editing && (editing.kind === 'cabinet' || editing.kind === 'panel') ? { editing, selectedId: editing.id, group: [] } : { editing }),
   group: [],

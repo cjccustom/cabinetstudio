@@ -282,6 +282,11 @@ export function ClientMain() {
           {text('source', 'How they found us')}
         </section>
 
+        <section className="sheet-sec meeting-start">
+          <button className="primary" onClick={() => useStore.getState().setMeeting(true)}>Start meeting</button>
+          <span className="hint">Full screen for the iPad: notes, sketches, measuring (laser ready), site conditions and photos, saved to this client’s folder.</span>
+        </section>
+
         <ClientAppointments />
 
         <ClientPhotos />

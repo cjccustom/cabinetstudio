@@ -766,3 +766,26 @@ textarea.text-input { resize: vertical; }
 .present-title span { color: var(--muted); font-size: 13px; }
 .present-tools { display: flex; gap: 6px; align-items: center; margin-left: auto; }
 .present .present-stage { grid-area: auto; position: relative; min-height: 0; }
+
+/* The meeting screen (iPad) */
+.meeting { position: fixed; inset: 0; display: grid; grid-template-rows: auto minmax(0, 1fr); background: var(--bg, #f6f5f2); }
+.meeting-body { min-height: 0; overflow: auto; }
+.meeting-pad { max-width: 980px; margin: 0 auto; padding: 16px; }
+.meeting-pad h3 { margin: 18px 0 6px; }
+.meeting-label { display: block; font-weight: 600; margin: 8px 0 4px; }
+.meeting-notes { width: 100%; min-height: 45vh; font-size: 17px; line-height: 1.5; }
+.meeting-start { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.sketch { display: grid; grid-template-rows: auto minmax(0, 1fr); height: 100%; }
+.sketch-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 8px 16px; }
+.sketch-bar input { width: 220px; max-width: 100%; }
+.sketch-wrap { position: relative; margin: 0 16px 16px; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: #fff; }
+.sketch-wrap canvas { display: block; }
+.mrow { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; padding: 6px 0; border-bottom: 1px solid var(--line); }
+.mbox { display: flex; flex-direction: column; gap: 2px; font-size: 12px; color: var(--muted); min-width: 110px; flex: 0 1 140px; }
+.mbox.grow { flex: 1 1 200px; }
+.mbox input, .mbox select { font-size: 17px; padding: 8px; color: var(--text, inherit); }
+.mbox input.bad { border-color: #c0392b; background: #fdecea; }
+.site-row { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(140px, 1fr); gap: 8px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.site-row.issue .site-label b { color: #b04a1c; }
+.site-label { display: flex; flex-direction: column; }
+@media (max-width: 700px) { .site-row { grid-template-columns: 1fr; } }

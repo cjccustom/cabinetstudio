@@ -59,6 +59,7 @@ import { fieldChecks, releaseStatus } from "../src/model/release";
 import { eagleFraction, eagleRequests, requestText } from "../src/model/eagleRequest";
 import { hardwareOrder, tierPrice } from "../src/model/hardware";
 import { hardwareScope, pullSpots } from "../src/model/pulls";
+import { parseMeasure, visitsDoc, newVisit } from "../src/model/meeting";
 import { hardwareItems } from "../src/drawings/views";
 import { defaultSupplies, supplyDrivers, supplyLines } from "../src/model/supplies";
 import { jobNumbers, phaseOf, starterTodos } from "../src/shop/fromDesign";
@@ -2035,6 +2036,21 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   eq('discount off: quote doc has no card/check wording', words.test(quoteDoc(off)), false);
   eq('discount off: printed quote has none', words.test(printQuote(off, { terms: '' })), false);
   eq('discount on: quote doc mentions it', words.test(quoteDoc(on)), true);
+}
+
+// Meeting: laser and typed measurements read as inches; the visit goes in the client sheet
+{
+  eq('measure: fraction', parseMeasure('92 5/16'), 92.3125);
+  eq('measure: decimal inches', parseMeasure('92.3125'), 92.3125);
+  eq('measure: feet and inches', parseMeasure(`7'8 1/2"`), 92.5);
+  eq('measure: inches word', parseMeasure('36 in'), 36);
+  eq('measure: meters', Math.round(parseMeasure('2.345 m')! * 1000) / 1000, 92.323);
+  eq('measure: millimeters', Math.round(parseMeasure('2345mm')! * 1000) / 1000, 92.323);
+  eq('measure: decimal feet', parseMeasure('7.5 ft'), 90);
+  eq('measure: junk', parseMeasure('abc'), null);
+  const v = { ...newVisit('v1'), at: Date.UTC(2026, 10, 9, 15), notes: 'Wants painted built-ins', site: { pre1978: { state: 'issue' as const, note: 'Built 1950' } }, utilities: [{ id: 'u1', kind: 'outlet' as const, wall: 'back' as const, offset: 30, height: 18, note: 'Moves' }] };
+  const doc = visitsDoc([v]).join('\n');
+  eq('meeting: notes, concerns and outlets in the sheet', [/Wants painted built-ins/.test(doc), /\*\*Built before 1978\*\*: Built 1950/.test(doc), /\| Outlet \| Back wall \| 30" \| 18" \| Moves \|/.test(doc)].join(), 'true,true,true');
 }
 
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');
