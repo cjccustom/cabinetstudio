@@ -25,6 +25,11 @@ export default {
   async fetch(request: Request, env0: Env): Promise<Response> {
     // Keys pasted into Cloudflare often carry a stray space or line break: trim every text setting
     const env = Object.fromEntries(Object.entries(env0).map(([k, v]) => [k, typeof v === 'string' ? v.trim() : v])) as unknown as Env;
+    // Dropbox app keys pasted on the setup page (kept in KV) when they aren't Cloudflare secrets
+    if (env.PORTAL && !(env.DBX_APP_KEY && env.DBX_APP_SECRET)) {
+      const a = (await env.PORTAL.get('dbxapp', 'json')) as { key?: string; secret?: string } | null;
+      if (a?.key && a.secret) { env.DBX_APP_KEY = a.key; env.DBX_APP_SECRET = a.secret; }
+    }
     const url = new URL(request.url);
     const path = url.pathname.replace(/\/+$/, '') || '/';
     if (!env.PORTAL) return setupPage('Almost there', '<p>The portal is running, but its storage isn’t connected. In Cloudflare open this worker’s <b>Settings → Bindings</b>, add a <b>KV namespace</b> binding named <code>PORTAL</code> (create a namespace called <b>cjc-portal</b> if you don’t have one), then reload this page.</p>');
@@ -46,6 +51,16 @@ export default {
       const which = path.startsWith('/qb') ? 'qb' : 'dbx';
       const exp = t ? Number(await env.PORTAL.get(`${which}link:${t}`, 'json')) : 0;
       if (!exp || exp < Date.now()) return setupPage('That link has expired', '<p>Ask Claude (or Cabinet Studio) for a new connect link; each one works once, for 15 minutes.</p>');
+      // No Dropbox app keys yet: paste them here (the link stays good until they're saved)
+      if (which === 'dbx' && !dbxReady(env)) {
+        if (request.method === 'POST') {
+          const f = await request.formData();
+          const k = String(f.get('app_key') || '').trim(), sec = String(f.get('app_secret') || '').trim();
+          if (!/^[a-z0-9]{10,20}$/i.test(k) || !/^[a-z0-9]{10,20}$/i.test(sec)) return setupPage('Those don’t look right', '<p>Copy the <b>App key</b> and <b>App secret</b> from your Dropbox app’s Settings page (the secret appears after you click <b>Show</b>).</p>' + dbxKeysForm(t, url));
+          await env.PORTAL.put('dbxapp', JSON.stringify({ key: k, secret: sec }));
+          env.DBX_APP_KEY = k; env.DBX_APP_SECRET = sec;
+        } else return setupPage('Connect Dropbox for photos', dbxKeysForm(t, url));
+      }
       await env.PORTAL.delete(`${which}link:${t}`);
       if (which === 'qb') { if (!qbReady(env)) return setupPage('QuickBooks isn’t set up', '<p>The QuickBooks keys aren’t in the portal yet.</p>'); return Response.redirect(await connectUrl(env, url.origin), 302); }
       if (!dbxReady(env)) return setupPage('Dropbox isn’t set up', '<p>The Dropbox keys aren’t in the portal yet.</p>');
@@ -256,6 +271,16 @@ async function dbxPage(request: Request, env: Env, url: URL, key: string, path: 
   const conn = await getDbx(env);
   return setupPage('Dropbox', `<p>${conn ? `Connected to <b>${esc(conn.name || 'your Dropbox')}</b>${conn.email ? ` (${esc(conn.email)})` : ''} since ${esc(new Date(conn.connectedAt).toLocaleDateString('en-US'))}.` : 'Not connected yet.'}</p><p>The portal uses it only to save photos you take in Cabinet Studio into the client's folder. Paste your SHOP_KEY to ${conn ? 'reconnect or disconnect' : 'connect'}; Dropbox then asks you to sign in and allow it.</p>${dbxForm(!!conn)}`);
 }
+/** Paste the Dropbox app's keys (from a one-time link), with the steps to make the app. */
+const dbxKeysForm = (t: string, url: URL) => `<ol>
+<li>Open <a href="https://www.dropbox.com/developers/apps/create" target="_blank" rel="noopener">dropbox.com/developers/apps/create</a> and sign in.</li>
+<li>Choose <b>Scoped access</b>, then <b>Full Dropbox</b>, name it <b>CJC Portal</b> (or any name), and click <b>Create app</b>.</li>
+<li>Open the <b>Permissions</b> tab, tick <b>files.content.write</b>, and click <b>Submit</b> at the bottom.</li>
+<li>Back on the <b>Settings</b> tab, under <b>OAuth 2 → Redirect URIs</b>, paste this and click <b>Add</b>:<br><input readonly value="${dbxRedirect(url.origin)}" onclick="this.select()"></li>
+<li>On the same page, copy the <b>App key</b> and the <b>App secret</b> (click <b>Show</b>) into the boxes below.</li>
+</ol>
+<form method="post" action="/dropbox/start?t=${t}"><input name="app_key" placeholder="App key" autocomplete="off" required><input name="app_secret" type="password" placeholder="App secret" autocomplete="off" required><p><button>Save and connect Dropbox</button></p></form>
+<p style="color:#666;font-size:14px">Dropbox then asks you to sign in and allow it. This page works for 15 minutes.</p>`;
 const dbxForm = (connected = false) => `<form method="post" action="/dropbox"><input name="key" type="password" placeholder="SHOP_KEY" autocomplete="off" required><p><button name="action" value="connect">${connected ? 'Reconnect' : 'Connect to Dropbox'}</button>${connected ? ' <button name="action" value="disconnect" style="background:#8a2a1e">Disconnect</button>' : ''}</p></form>`;
 
 function legalPage(eula: boolean) {
@@ -502,7 +527,7 @@ async function tool(name: string, a: Record<string, unknown>, env: Env, url: URL
     case 'qb_connect_link':
     case 'dropbox_connect_link': {
       const which = name === 'qb_connect_link' ? 'qb' : 'dbx';
-      if (which === 'qb' ? !qbReady(env) : !dbxReady(env)) throw new Error(`The ${which === 'qb' ? 'QuickBooks' : 'Dropbox'} keys aren’t in the portal yet.`);
+      if (which === 'qb' && !qbReady(env)) throw new Error(`The ${which === 'qb' ? 'QuickBooks' : 'Dropbox'} keys aren’t in the portal yet.`);
       const t = randomToken(24);
       await env.PORTAL.put(`${which}link:${t}`, JSON.stringify(Date.now() + 15 * 60e3));
       return { url: `${url.origin}/${which === 'qb' ? 'qb' : 'dropbox'}/start?t=${t}`, expiresInMinutes: 15 };

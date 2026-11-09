@@ -92,7 +92,7 @@ portal, which needs its own Dropbox key. It's free and takes about ten minutes, 
    `https://cjc-portal.<you>.workers.dev/dropbox/callback`, the exact Worker address.
 4. **Give the portal the keys.** From the same Settings tab, copy the **App key** and
    **App secret**. In Cloudflare, Worker → Settings → Variables and Secrets: add Secret
-   `DBX_APP_KEY` and Secret `DBX_APP_SECRET`. Deploy.
+   `DBX_APP_KEY` and Secret `DBX_APP_SECRET`. Deploy. (Or ask Claude for a Dropbox connect link: when the keys aren't set, that page walks through making the app and takes the two keys there.)
 5. **Connect.** Open `https://cjc-portal.<you>.workers.dev/dropbox`, paste your SHOP_KEY and click
    Connect. Sign in to Dropbox and click Allow.
 
