@@ -4,7 +4,7 @@ import { tvSize, tvsOf } from '../model/tv';
 import { tablesOf } from '../model/tableParts';
 import type { Cabinet, Part, Project, WallId } from '../model/types';
 import { buildParts, eff, topThick } from '../model/parts';
-import { footprint, resolveEnds, wallLength, wallNames, wallTransform } from '../model/layout';
+import { footprint, resolveEnds, wallAxes, wallLength, wallNames, wallTransform } from '../model/layout';
 import { cabinetMoldings, mountShape, profileByNum, profileLabel } from '../model/moldings';
 import { casingReach, openingTrim, roomMoldings, wallAccentBoxes } from '../model/room';
 import { View, dimText, fitScale, type Frame } from './draw';
@@ -119,8 +119,77 @@ function drawItems(v: View, items: Item[]) {
   }
 }
 
+/**
+ * What's built on the other walls, seen from this one: everything on the side walls (bookcases, a
+ * mantel and its chimney, crown and base) and the coffered ceiling, projected onto this wall's
+ * elevation. 'section': cut and shaded solid, so it shows how far the work comes out into the room
+ * without its insides. 'side': drawn as you'd see it from here, near pieces covering far ones, so an
+ * exposed end shows its panels and mouldings.
+ */
+export type SideMode = 'section' | 'side';
+function sideItems(p: Project, wall: WallId, mode: SideMode): Item[] {
+  const room = p.room;
+  const opp: Record<WallId, WallId> = { back: 'front', front: 'back', left: 'right', right: 'left' };
+  const o = wallTransform(room, wall, 0).pos, ax = wallAxes[wall];
+  // A point in the room (x, z) as (along this wall, out from it)
+  const proj = (x: number, z: number) => [(x - o[0]) * ax.along[0] + (z - o[2]) * ax.along[1], (x - o[0]) * ax.out[0] + (z - o[2]) * ax.out[1]];
+  const items: Item[] = [];
+  const box = (c: Cabinet, min: [number, number, number], size: [number, number, number], cls: string) => {
+    const t = wallTransform(room, c.wall, c.offset, c.wallInset).pos, cx = wallAxes[c.wall];
+    const pts = [[min[0], min[2]], [min[0] + size[0], min[2]], [min[0], min[2] + size[2]], [min[0] + size[0], min[2] + size[2]]]
+      .map(([lx, lz]) => proj(t[0] + lx * cx.along[0] + lz * cx.out[0], t[2] + lx * cx.along[1] + lz * cx.out[1]));
+    const xs = pts.map((q) => q[0]), ns = pts.map((q) => q[1]);
+    const x0 = Math.min(...xs), x1 = Math.max(...xs);
+    if (x1 - x0 < 1e-3 || size[1] < 1e-3) return;
+    items.push({ x: x0, y: c.elevation + min[1], w: x1 - x0, h: size[1], z: Math.max(...ns), cls });
+  };
+  for (const c of p.cabinets) {
+    if (c.wall === wall || c.wall === opp[wall]) continue;
+    const ends = resolveEnds(room, p.cabinets, c);
+    for (const part of buildParts(c, p.settings, ends)) {
+      if (part.role === 'drawerBox' || part.role === 'rod') continue;
+      for (const b of part.boxes) box(c, b.min, b.size, mode === 'side' ? (part.role === 'counter' || part.role === 'woodTop' ? 'cut' : 'o') : 'sec');
+      for (const s of part.shapes ?? []) {
+        const us = s.outline.map((q) => q[0]), vs = s.outline.map((q) => q[1]);
+        const w = Math.max(...us) - Math.min(...us), h = Math.max(...vs) - Math.min(...vs);
+        box(c, [s.min[0] + (s.along === 'x' ? Math.min(...us) : 0), s.min[1] + Math.min(...vs), s.min[2] + (s.along === 'z' ? Math.min(...us) : 0)], s.along === 'x' ? [w, h, s.thickness] : [s.thickness, h, w], mode === 'side' ? 'o' : 'sec');
+      }
+    }
+    // Crown and base, as the blocks they fill
+    for (const pc of cabinetMoldings(c, eff(c, p.settings), ends, { noCrown: underFascia(p, c) })) {
+      const prof = profileByNum(pc.num); if (!prof) continue;
+      const m = mountShape(prof), y = pc.hang ? pc.y - m.height : pc.y;
+      const size: [number, number, number] = pc.along === 'x' ? [pc.length, m.height, m.depth] : [m.depth, m.height, pc.length];
+      const min: [number, number, number] = pc.along === 'x' ? [pc.x, y, pc.facing === 'back' ? pc.z - m.depth : pc.z] : [pc.facing === 'left' ? pc.x - m.depth : pc.x, y, pc.z];
+      box(c, min, size, mode === 'side' ? 'o' : 'sec');
+    }
+  }
+  // The coffered ceiling: beams running toward you cut across; the perimeter fascia on the side walls
+  const cc = cofferOf(p);
+  if (cc.on) {
+    const L = cofferLayout(p, cc), H = room.height;
+    const across = ax.along[0] !== 0 ? L.beamsX : L.beamsZ;
+    for (const b of across) {
+      const [a0] = ax.along[0] !== 0 ? proj(b.a, 0) : proj(0, b.a);
+      const [a1] = ax.along[0] !== 0 ? proj(b.b, 0) : proj(0, b.b);
+      items.push({ x: Math.min(a0, a1), y: H - cc.drop, w: Math.abs(a1 - a0), h: cc.drop, z: 1e4, cls: mode === 'section' ? 'sec' : 'o' });
+    }
+    if (cc.perimeter) {
+      const Lw = wallLength(room, wall), fh = fasciaHeight(cc);
+      const sides = (['left', 'right', 'back', 'front'] as WallId[]).filter((w2) => w2 !== wall && w2 !== opp[wall]);
+      for (const w2 of sides) {
+        const d = perimOf(cc, w2);
+        // The side wall that's at this wall's left end (along = 0) or its right end
+        const atLeft = proj(...(w2 === 'left' ? [0, room.depth / 2] : w2 === 'right' ? [room.width, room.depth / 2] : w2 === 'back' ? [room.width / 2, 0] : [room.width / 2, room.depth]) as [number, number])[0] < Lw / 2;
+        items.push({ x: atLeft ? 0 : Lw - d, y: H - fh, w: d, h: fh, z: 1e4, cls: mode === 'section' ? 'sec' : 'o' });
+      }
+    }
+  }
+  return items.sort((a, b) => a.z - b.z);
+}
+
 /** A wall elevation: the room's wall, openings, trim and cabinets, dimensioned for the customer or the shop. */
-export function wallElevation(p: Project, wall: WallId, frame: Frame, mode: 'customer' | 'shop', cuts: { at: number; ref: string }[] = []): { svg: string; scale: number } {
+export function wallElevation(p: Project, wall: WallId, frame: Frame, mode: 'customer' | 'shop', cuts: { at: number; ref: string }[] = [], sides?: SideMode): { svg: string; scale: number } {
   const L = wallLength(p.room, wall);
   const H = p.room.height;
   const margin = mode === 'shop' ? 1.5 : 1.25;
@@ -140,13 +209,29 @@ export function wallElevation(p: Project, wall: WallId, frame: Frame, mode: 'cus
   // The wall's accent (wainscot, shiplap, slats...) behind everything in front of it
   for (const b of wallAccentBoxes(p, wall)) v.rect(b.min[0], b.min[1], b.size[0], b.size[1], 'thin');
   drawItems(v, elevationItems(p, wall));
+  // How far the work on the side walls comes out, for the dimension chain along the floor
+  const sideDepth: number[] = [];
+  if (sides) {
+    const si = sideItems(p, wall, sides);
+    const work = si.filter((i) => i.z < 1e4);
+    const lft = work.filter((i) => i.x < 1), rgt = work.filter((i) => i.x + i.w > L - 1);
+    if (lft.length) sideDepth.push(Math.max(...lft.map((i) => i.x + i.w)));
+    if (rgt.length) sideDepth.push(Math.min(...rgt.map((i) => i.x)));
+    if (sides === 'section') {
+      // Ceiling and floor cut too, then the work: drawn outlined, then filled again without the
+      // outline, so only its outside edge shows and the insides stay out of it
+      v.rect(-4.5, H, L + 9, 6, 'wall');
+      for (const i of si) v.rect(i.x, i.y, i.w, i.h, 'sec-o');
+      for (const i of si) v.rect(i.x, i.y, i.w, i.h, 'sec');
+    } else drawItems(v, si);
+  }
   v.line(-4.5, 0, L + 4.5, 0, 'heavy');
 
   const cabs = cabinetsOn(p, wall);
   const floor = cabs.filter(isFloor);
   const uppers = cabs.filter((c) => !isFloor(c));
   // Widths along the bottom (base and tall) and the top (uppers), then the whole wall
-  v.chainH([0, L, ...floor.flatMap((c) => [c.offset, c.offset + c.width])], 0, -0.48);
+  v.chainH([0, L, ...floor.flatMap((c) => [c.offset, c.offset + c.width]), ...sideDepth], 0, -0.48);
   if (uppers.length) v.chainH([0, L, ...uppers.flatMap((c) => [c.offset, c.offset + c.width])], H, 0.35);
   v.dimH(0, L, 0, -0.83, undefined, true);
   // Heights up the right side: counter, bottom and top of the uppers, ceiling

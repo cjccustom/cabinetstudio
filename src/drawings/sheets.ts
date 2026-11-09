@@ -80,6 +80,8 @@ export interface DrawingSettings {
   /** Ceiling plan: show the recessed lights (default) and the beam centerline dimensions. */
   rcpLights?: boolean;
   rcpCenters?: boolean;
+  /** Customer elevations: what's built on the side walls and ceiling, cut in section (shaded) or seen from the side. */
+  sides?: Partial<Record<WallId, 'section' | 'side'>>;
 }
 export const drawingsOf = (p: Project): DrawingSettings => ({ paper: 'tabloid', rev: 0, notes: '', ...p.drawings });
 
@@ -173,7 +175,8 @@ export function customerSet(p: Project, s: DrawingSettings): Sheet[] {
 }
 function customerSheets(p: Project, s: DrawingSettings): Sheet[] {
   const A = area(s.paper);
-  const walls = wallsWithWork(p);
+  // A wall with nothing on it still gets an elevation when it's asked to show the side walls in section
+  const walls = wallOrder.filter((w) => cabinetsOn(p, w).length > 0 || !!s.sides?.[w]);
   const sheets: Sheet[] = [];
   const ceiling = cofferOf(p).on;
   const first = ceiling ? 3 : 2;
@@ -214,7 +217,7 @@ function customerSheets(p: Project, s: DrawingSettings): Sheet[] {
     sheets.push(sheet(p, s, 'A2', 'Ceiling plan', scaleName(rcp.scale), rcp.svg + notes));
   }
   walls.forEach((w, i) => {
-    const e = inView(`elev:${w}`, `${wallNames[w]} elevation`, () => wallElevation(p, w, { ...A, w: A.w * 0.74 }, 'customer', cutsOn(p, placed, w)));
+    const e = inView(`elev:${w}`, `${wallNames[w]} elevation`, () => wallElevation(p, w, { ...A, w: A.w * 0.74 }, 'customer', cutsOn(p, placed, w), s.sides?.[w]));
     const notes = html({ x: A.x + A.w * 0.76, y: A.y, w: A.w * 0.24, h: A.h }, wallNotes(p, w, 'customer'), s.paper === 'tabloid' ? 0.11 : 0.09);
     sheets.push(sheet(p, s, `A${i + first}`, `${wallNames[w]} elevation`, scaleName(e.scale), e.svg + notes));
   });

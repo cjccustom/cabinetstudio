@@ -2098,6 +2098,15 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   eq('edge: wood top edge priced', estimateHours(job, quoteOf(job)).some((l) => /Top edge: roman ogee/.test(l.label)), true);
 }
 
+// Section elevations: a wall with nothing on it gets one when asked, with the side walls shaded
+{
+  const job = { ...p, drawings: { ...(p.drawings ?? {}), sides: { front: 'section' as const } } };
+  const cs = customerSet(job, drawingsOf(job));
+  const front = cs.find((x) => /Front wall elevation/.test(x.title));
+  eq('section: the empty wall gets an elevation', !!front, true);
+  eq('section: side-wall work drawn shaded', /class="sec"/.test(front?.svg ?? ''), true);
+}
+
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');
 
 console.log(failed ? `${failed} check(s) failed` : 'All model checks passed');

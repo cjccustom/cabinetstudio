@@ -11,6 +11,7 @@ import { asciiHtml, writeFile } from '../dropbox';
 import { Field, Section } from './fields';
 import { DetailsSection } from './DetailsSection';
 import { cofferOf } from '../model/coffer';
+import { wallNames, wallOrder } from '../model/layout';
 
 type SetKind = 'customer' | 'shop';
 const useSetKind = create<{ kind: SetKind; set: (k: SetKind) => void }>((set) => ({ kind: 'customer', set: (kind) => set({ kind }) }));
@@ -127,6 +128,21 @@ export function DrawingsSide() {
         {kind === 'customer' && (
           <Section title="Notes on the cover">
             <textarea id="dw-notes" rows={4} value={d.notes} placeholder="Paint color, hardware, anything to point out" onChange={(e) => put({ notes: e.target.value })} />
+          </Section>
+        )}
+
+        {kind === 'customer' && (
+          <Section title="Side walls on the elevations">
+            {wallOrder.map((w) => (
+              <Field key={w} label={wallNames[w]} htmlFor={`dw-sides-${w}`}>
+                <select id={`dw-sides-${w}`} value={d.sides?.[w] ?? ''} onChange={(e) => put({ sides: { ...d.sides, [w]: (e.target.value || undefined) as 'section' | 'side' | undefined } })}>
+                  <option value="">Just this wall</option>
+                  <option value="section">With the side walls and ceiling in section (shaded)</option>
+                  <option value="side">With the side walls as seen from here</option>
+                </select>
+              </Field>
+            ))}
+            <p className="hint">In section, what's built on the side walls and the coffered ceiling is cut and shaded solid, so the customer sees how far everything comes out into the room without its insides. Seen from here shows the side of anything exposed: end panels, crown and base returns.</p>
           </Section>
         )}
 

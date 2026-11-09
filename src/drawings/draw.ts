@@ -211,6 +211,8 @@ export const drawingCss = `
 .dwg .wall{fill:#d9d6cf;stroke:#111;stroke-width:.012}
 .dwg .cut{fill:#ece9e2;stroke:#111;stroke-width:.012}
 .dwg .ghost{fill:#f2f1ee;stroke:#888;stroke-width:.006}
+.dwg .sec-o{fill:#cfccc4;stroke:#111;stroke-width:.02}
+.dwg .sec{fill:#cfccc4;stroke:none}
 .dwg .hid{fill:none;stroke:#555;stroke-width:.007;stroke-dasharray:.05 .035}
 .dwg .thin{fill:none;stroke:#666;stroke-width:.005}
 .dwg .glass{fill:#e8eef3;stroke:#111;stroke-width:.007}
