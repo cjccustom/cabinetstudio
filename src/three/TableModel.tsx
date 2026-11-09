@@ -2,21 +2,25 @@
 import { useMemo } from 'react';
 import * as THREE from 'three';
 import type { Project } from '../model/types';
+import type { DiningTable } from '../model/furniture';
 import { tablesOf, type TablePart } from '../model/tableParts';
 import { woodColor } from '../model/woodColors';
 import { grainUVs, longAxis, woodTexture } from './woodTexture';
 
 export function TableModels({ project, hidden }: { project: Project; hidden: string[] }) {
   const tables = tablesOf(project).filter(({ t }) => !hidden.includes(t.id));
-  return <>{tables.map(({ t, parts, place }) => {
-    const color = t.finish === 'paint' ? '#ece8df' : woodColor(t.species) ?? '#b98a5a';
-    const map = t.finish === 'paint' ? null : woodTexture(t.species, color);
-    return (
-      <group key={t.id} position={[place.x, 0, place.z]} rotation-y={place.turned ? Math.PI / 2 : 0}>
-        {parts.flatMap((part, i) => part.boxes.map((b, j) => <PartMesh key={`${i}-${j}`} part={part} b={b} color={part.role === 'cushion' ? '#9aa3ad' : color} map={part.role === 'cushion' ? null : map} seed={i * 7 + j * 3} />))}
-      </group>
-    );
-  })}</>;
+  return <>{tables.map(({ t, parts, place }) => (
+    <group key={t.id} position={[place.x, 0, place.z]} rotation-y={place.turned ? Math.PI / 2 : 0}>
+      <TablePiece t={t} parts={parts} />
+    </group>
+  ))}</>;
+}
+
+/** One table or bench, centered on its own origin. */
+export function TablePiece({ t, parts }: { t: DiningTable; parts: TablePart[] }) {
+  const color = t.finish === 'paint' ? '#ece8df' : woodColor(t.species) ?? '#b98a5a';
+  const map = t.finish === 'paint' ? null : woodTexture(t.species, color);
+  return <>{parts.flatMap((part, i) => part.boxes.map((b, j) => <PartMesh key={`${i}-${j}`} part={part} b={b} color={part.role === 'cushion' ? '#9aa3ad' : color} map={part.role === 'cushion' ? null : map} seed={i * 7 + j * 3} />))}</>;
 }
 
 function PartMesh({ part, b, color, map, seed }: { part: TablePart; b: TablePart['boxes'][number]; color: string; map: THREE.Texture | null; seed: number }) {

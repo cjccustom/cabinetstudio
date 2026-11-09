@@ -727,6 +727,7 @@ textarea.text-input { resize: vertical; }
 .sched-row{border-bottom:1px solid var(--line,#e3e0da);padding-bottom:10px}
 .sched-top{display:flex;gap:6px;align-items:center}
 .sched-top input{flex:1;min-width:0}
+.sched-top input[type=checkbox]{flex:none;width:16px;height:16px}
 .sched-amt{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:8px;align-items:center;margin-top:6px}
 .sched-amt select{min-width:0}
 .sched-val{display:inline-flex;align-items:center;gap:3px}
