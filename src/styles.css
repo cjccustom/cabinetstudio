@@ -789,3 +789,8 @@ textarea.text-input { resize: vertical; }
 .site-row.issue .site-label b { color: #b04a1c; }
 .site-label { display: flex; flex-direction: column; }
 @media (max-width: 700px) { .site-row { grid-template-columns: 1fr; } }
+.markup-wrap { width: 100%; }
+.markup-wrap canvas { display: block; border-radius: 6px; }
+.summary-box { margin-top: 18px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+.summary-box h4 { margin: 10px 0 4px; }
+.summary-box ul { margin: 0; padding-left: 20px; }

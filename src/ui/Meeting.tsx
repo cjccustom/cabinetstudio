@@ -5,6 +5,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from '../store';
 import { clientName, clientOf, type ClientInfo } from '../model/client';
+import { readSummary, summaryRequest } from '../model/meeting';
+import { useCapability } from './Rendering';
+import type { Sample } from '../runtime';
+import { PhotoMarkup } from './PhotoMarkup';
 import { newVisit, parseMeasure, siteChecks, utilityKinds, visitToday, type SiteState, type Utility, type UtilityKind, type Visit } from '../model/meeting';
 import { newOpening, openingKinds } from '../model/room';
 import { wallNames, wallOrder } from '../model/layout';
@@ -69,7 +73,7 @@ export function Meeting() {
           : tab === 'sketch' ? <SketchTab v={v} put={put} folder={project.dropbox?.path} who={who} />
           : tab === 'measure' ? <MeasureTab v={v} put={put} />
           : tab === 'site' ? <SiteTab v={v} put={put} />
-          : <div className="meeting-pad"><ClientPhotos /><p className="hint">Inspiration pictures the customer shows you: AirDrop or save them to the iPad, then <b>Choose photos</b> with “Inspiration” in the box.</p></div>}
+          : <div className="meeting-pad"><ClientPhotos /><PhotoMarkup folder={project.dropbox?.path} /><p className="hint">Inspiration pictures the customer shows you: AirDrop or save them to the iPad, then <b>Choose photos</b> with “Inspiration” in the box.</p></div>}
       </main>
     </div>
   );
@@ -86,7 +90,65 @@ function NotesTab({ c, v, put }: { c: ClientInfo; v: Visit; put: Put }) {
       <label className="meeting-label" htmlFor="mt-scope">What they want (the project scope)</label>
       <textarea id="mt-scope" rows={5} value={c.scope} placeholder="Rooms, built-ins, style, finish, budget, timing…" onChange={(e) => commit((p) => ({ ...p, client: { ...clientOf(p), scope: e.target.value } }))} />
       <p className="hint">Both save with the client’s file when you tap Done.</p>
+      <SummaryPanel c={c} v={v} put={put} />
     </div>
+  );
+}
+
+/** Claude reads the notes (and what was measured and checked) and drafts scope lines, questions and follow-ups. */
+function SummaryPanel({ c, v, put }: { c: ClientInfo; v: Visit; put: Put }) {
+  const project = useStore((s) => s.project);
+  const commit = useStore((s) => s.commit);
+  const sample = useCapability<Sample>('sample');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const [added, setAdded] = useState('');
+  const s = v.summary;
+  const run = async () => {
+    if (!sample) return;
+    setBusy(true); setErr(''); setAdded('');
+    try {
+      const raw = await sample.json(summaryRequest(v, c.scope, project.room, (project.openings ?? []).length), { modelTier: 'default', cache: false });
+      const got = readSummary(raw);
+      if (!got) throw new Error('Claude didn’t send back a summary. Try again.');
+      put({ summary: got });
+    } catch (e) {
+      const code = (e as { code?: string }).code;
+      setErr(code === 'not_granted' ? 'Allow Claude for this page when claude.ai asks, then try again.' : code === 'rate_limited' ? 'Too many requests just now; wait a minute and try again.' : (e as Error).message || 'Something went wrong.');
+    } finally { setBusy(false); }
+  };
+  const addScope = () => {
+    commit((p) => { const cc = clientOf(p); return { ...p, client: { ...cc, scope: [cc.scope.trim(), ...s!.scope.map((x) => `- ${x}`)].filter(Boolean).join('\n') } }; });
+    setAdded('Added to the project scope.');
+  };
+  const addTodos = () => {
+    commit((p) => { const cc = clientOf(p); return { ...p, client: { ...cc, todos: [...cc.todos, ...[...s!.questions, ...s!.followUps].map((t) => ({ id: uid('t'), text: t, done: false }))] } }; });
+    setAdded('Added to the client’s to do list.');
+  };
+  return (
+    <section className="summary-box">
+      <div className="sec-head">
+        <h3>Claude’s summary</h3>
+        <button className={s ? '' : 'primary'} onClick={run} disabled={!sample || busy || !v.notes.trim()}>{busy ? 'Reading your notes…' : s ? 'Summarize again' : 'Summarize my notes'}</button>
+      </div>
+      {!sample && <p className="hint">Needs the app open on claude.ai.</p>}
+      {sample && !v.notes.trim() && !s && <p className="hint">Write or dictate some notes first. Claude reads them with the scope, the site checklist and what you measured, and drafts scope lines, open questions and follow-ups for you to check.</p>}
+      {err && <p className="warn">{err}</p>}
+      {s && (
+        <>
+          {s.summary && <p>{s.summary}</p>}
+          {s.scope.length > 0 && <><h4>Scope lines</h4><ul>{s.scope.map((x, i) => <li key={i}>{x}</li>)}</ul></>}
+          {s.questions.length > 0 && <><h4>Still to decide</h4><ul>{s.questions.map((x, i) => <li key={i}>{x}</li>)}</ul></>}
+          {s.followUps.length > 0 && <><h4>Follow-ups</h4><ul>{s.followUps.map((x, i) => <li key={i}>{x}</li>)}</ul></>}
+          <div className="order-actions">
+            {s.scope.length > 0 && <button onClick={addScope}>Add scope lines to the project scope</button>}
+            {(s.questions.length > 0 || s.followUps.length > 0) && <button onClick={addTodos}>Add questions and follow-ups to the to do list</button>}
+          </div>
+          {added && <p className="ok">{added}</p>}
+          <p className="hint">A draft from your notes: check it before it goes anywhere near a proposal.</p>
+        </>
+      )}
+    </section>
   );
 }
 

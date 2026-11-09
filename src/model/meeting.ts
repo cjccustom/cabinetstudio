@@ -20,7 +20,10 @@ export interface Visit {
   utilities: Utility[];
   /** Sketches saved to the client's folder (Dropbox paths). */
   sketches: string[];
+  /** Claude's read of the notes: a short summary, scope lines, questions to answer, follow-ups. */
+  summary?: VisitSummary;
 }
+export interface VisitSummary { summary: string; scope: string[]; questions: string[]; followUps: string[] }
 
 /** What to look at on site: things that change the price, the schedule or install day. */
 export const siteChecks: { group: string; items: { id: string; label: string; hint?: string }[] }[] = [
@@ -87,12 +90,46 @@ export function parseMeasure(text: string): number | null {
 
 const wallWord: Record<WallId, string> = { back: 'Back wall', left: 'Left wall', right: 'Right wall', front: 'Front wall' };
 
+/** What Claude gets to summarize a visit: the notes and everything measured and checked, and what to give back. */
+export function summaryRequest(v: Visit, scope: string, room: { width: number; depth: number; height: number }, openings: number): string {
+  const flagged = siteChecks.flatMap((g) => g.items).filter((i) => v.site[i.id]?.state === 'issue' || v.site[i.id]?.note?.trim())
+    .map((i) => `- ${i.label}${v.site[i.id]?.state === 'issue' ? ' (CONCERN)' : ''}${v.site[i.id]?.note?.trim() ? `: ${v.site[i.id]!.note!.trim()}` : ''}`);
+  const walls = v.utilities.map((u) => `- ${utilityKinds[u.kind]} on the ${wallWord[u.wall].toLowerCase()}${u.offset != null ? `, ${fmt(u.offset)} from the left corner` : ''}${u.height != null ? `, ${fmt(u.height)} up` : ''}${u.note ? ` (${u.note})` : ''}`);
+  return [
+    'You help a one-man custom cabinetry and finish carpentry shop (CJC Custom Carpentry, Massachusetts) after a site visit with a homeowner.',
+    'From the notes below, write:',
+    '- "summary": two or three plain sentences on what the customer wants.',
+    '- "scope": short lines for the project scope, in the shop owner\'s plain trade wording (e.g. "Painted built-in bookcases either side of the fireplace, adjustable shelves"). Only what the notes support; no prices.',
+    '- "questions": what still has to be decided or asked before a proposal (finish, hardware, timing, budget, unclear sizes...).',
+    '- "followUps": things the shop has to do next (order samples, check with the electrician, send photos...).',
+    'Keep every line short. Use the customer\'s own words where they matter. Do not invent sizes, products or prices that are not in the notes.',
+    'Answer with JSON only: {"summary": string, "scope": string[], "questions": string[], "followUps": string[]}.',
+    '',
+    '## Notes from the visit', v.notes.trim() || '(none)',
+    '', '## Project scope written so far', scope.trim() || '(none)',
+    '', '## Room', `${fmt(room.width)} back wall, ${fmt(room.depth)} side walls, ${fmt(room.height)} ceiling; ${openings} windows/doors entered`,
+    ...(flagged.length ? ['', '## Site conditions noted', ...flagged] : []),
+    ...(walls.length ? ['', '## On the walls', ...walls] : []),
+  ].join('\n');
+}
+
+/** Claude's answer, made safe to use. */
+export function readSummary(raw: unknown): VisitSummary | null {
+  const o = (raw && typeof raw === 'object' ? raw : null) as Record<string, unknown> | null;
+  if (!o) return null;
+  const list = (x: unknown) => (Array.isArray(x) ? x.filter((s) => typeof s === 'string' && s.trim()).map((s) => (s as string).trim()) : []);
+  const out = { summary: typeof o.summary === 'string' ? o.summary.trim() : '', scope: list(o.scope), questions: list(o.questions), followUps: list(o.followUps) };
+  return out.summary || out.scope.length || out.questions.length || out.followUps.length ? out : null;
+}
+
 /** The visits, for the client info sheet in Dropbox. */
 export function visitsDoc(visits: Visit[] | undefined): string[] {
   const out: string[] = [];
   for (const v of [...(visits ?? [])].sort((a, b) => b.at - a.at)) {
     out.push('', `## Visit ${new Date(v.at).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}`);
+    if (v.summary?.summary) out.push('', `_Summary:_ ${v.summary.summary}`);
     if (v.notes.trim()) out.push('', v.notes.trim());
+    if (v.summary?.questions.length) out.push('', '### Still to decide', ...v.summary.questions.map((q) => `- ${q}`));
     const flagged = siteChecks.flatMap((g) => g.items).filter((i) => v.site[i.id]?.state === 'issue' || v.site[i.id]?.note?.trim());
     if (flagged.length) {
       out.push('', '### Site conditions', ...flagged.map((i) => `- ${v.site[i.id]?.state === 'issue' ? '**' + i.label + '**' : i.label}${v.site[i.id]?.note?.trim() ? `: ${v.site[i.id]!.note!.trim()}` : ''}`));

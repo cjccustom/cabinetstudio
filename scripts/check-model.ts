@@ -59,7 +59,7 @@ import { fieldChecks, releaseStatus } from "../src/model/release";
 import { eagleFraction, eagleRequests, requestText } from "../src/model/eagleRequest";
 import { hardwareOrder, tierPrice } from "../src/model/hardware";
 import { hardwareScope, pullSpots } from "../src/model/pulls";
-import { parseMeasure, visitsDoc, newVisit } from "../src/model/meeting";
+import { parseMeasure, visitsDoc, newVisit, readSummary, summaryRequest } from "../src/model/meeting";
 import { hardwareItems } from "../src/drawings/views";
 import { defaultSupplies, supplyDrivers, supplyLines } from "../src/model/supplies";
 import { jobNumbers, phaseOf, starterTodos } from "../src/shop/fromDesign";
@@ -2051,6 +2051,15 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   const v = { ...newVisit('v1'), at: Date.UTC(2026, 10, 9, 15), notes: 'Wants painted built-ins', site: { pre1978: { state: 'issue' as const, note: 'Built 1950' } }, utilities: [{ id: 'u1', kind: 'outlet' as const, wall: 'back' as const, offset: 30, height: 18, note: 'Moves' }] };
   const doc = visitsDoc([v]).join('\n');
   eq('meeting: notes, concerns and outlets in the sheet', [/Wants painted built-ins/.test(doc), /\*\*Built before 1978\*\*: Built 1950/.test(doc), /\| Outlet \| Back wall \| 30" \| 18" \| Moves \|/.test(doc)].join(), 'true,true,true');
+}
+
+// Claude's visit summary: the request carries the notes and concerns; a bad answer is refused
+{
+  const v = { ...newVisit('v2'), notes: 'Bookcases both sides of fireplace, painted', site: { electrician: { state: 'issue' as const, note: 'Wants sconces' } } };
+  const req = summaryRequest(v, '', { width: 144, depth: 120, height: 96 }, 2);
+  eq('summary: request has the notes and the concern', [/Bookcases both sides/.test(req), /Electrician needed \(CONCERN\): Wants sconces/.test(req), /JSON only/.test(req)].join(), 'true,true,true');
+  eq('summary: reads a good answer', readSummary({ summary: 'Two bookcases.', scope: ['Painted bookcases', ''], questions: ['Finish?'], followUps: [] })?.scope.join(), 'Painted bookcases');
+  eq('summary: refuses junk', readSummary('nope'), null);
 }
 
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');
