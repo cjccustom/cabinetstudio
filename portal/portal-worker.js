@@ -470,6 +470,39 @@ async function dbxUpload(env, folder, name, bytes) {
   const j = JSON.parse(text2);
   return { path: j.path_display, size: j.size };
 }
+async function dbxChunk(env, a) {
+  const conn = await getDbx(env);
+  if (!conn) throw new Error("Dropbox isn\u2019t connected to the portal yet. Open the portal\u2019s /dropbox page to connect it.");
+  const token = await accessToken(env, conn);
+  const call = async (endpoint, arg) => {
+    const res = await fetch(`https://content.dropboxapi.com/2/files/${endpoint}`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${token}`, "content-type": "application/octet-stream", "Dropbox-API-Arg": asciiJson(arg), ...rootHeader(conn) },
+      body: a.bytes
+    });
+    const text2 = await res.text();
+    if (!res.ok) throw new Error(`Dropbox didn\u2019t take that piece of the video: ${text2.slice(0, 200) || res.status}`);
+    return text2 ? JSON.parse(text2) : {};
+  };
+  let session = a.session;
+  if (!session) {
+    if (a.offset !== 0) throw new Error("A new upload has to start at the beginning of the file.");
+    if (a.finish) {
+      const r2 = await dbxUpload(env, a.finish.folder, a.finish.name, a.bytes);
+      return { session: "", offset: a.bytes.length, ...r2 };
+    }
+    const r = await call("upload_session/start", { close: false });
+    return { session: r.session_id, offset: a.bytes.length };
+  }
+  if (a.finish) {
+    const clean = (s) => s.replace(/[\\:*?"<>|]/g, "-").trim();
+    const path = `/${a.finish.folder.split("/").filter(Boolean).map(clean).join("/")}/${clean(a.finish.name)}`;
+    const r = await call("upload_session/finish", { cursor: { session_id: session, offset: a.offset }, commit: { path, mode: "add", autorename: true, mute: true } });
+    return { session, offset: a.offset + a.bytes.length, path: r.path_display, size: r.size };
+  }
+  await call("upload_session/append_v2", { cursor: { session_id: session, offset: a.offset }, close: false });
+  return { session, offset: a.offset + a.bytes.length };
+}
 
 // portal/src/qb.ts
 var defaultQbSettings = { autoDeposit: true, email: true };
@@ -1041,6 +1074,11 @@ var TOOLS = [
     description: "Save one photo (base64 JPEG/PNG/HEIC) into a Dropbox folder, e.g. a client's folder plus /Photos. Never replaces a file: a taken name gets a number added. Up to about 15 MB.",
     inputSchema: { type: "object", properties: { folder: { type: "string", description: "Dropbox path of the folder, like /CJC/Jobs/To quote/Smith, Jane/Photos. Made if missing." }, name: { type: "string", description: "File name, like 2026-10-27 0915 Kitchen.jpg" }, data: { type: "string", description: "Base64 bytes." } }, required: ["folder", "name", "data"] }
   },
+  {
+    name: "save_video_chunk",
+    description: "Save a video into a Dropbox folder in pieces of a few MB: send the first piece with offset 0 (no session) to start; send each next piece with the session and the offset so far; send the last piece with folder and name to finish (a video that fits in one piece can go with folder and name straight away). Never replaces a file.",
+    inputSchema: { type: "object", properties: { session: { type: "string", description: "From the first piece." }, offset: { type: "number", description: "Bytes sent before this piece." }, data: { type: "string", description: "This piece, base64." }, folder: { type: "string", description: "With the last piece: the Dropbox folder, like /CJC/Jobs/To quote/Smith, Jane/Videos." }, name: { type: "string", description: "With the last piece: the file name, like 2026-11-09 1015 walkthrough.mov" } }, required: ["offset", "data"] }
+  },
   { name: "qb_items", description: "The QuickBooks products/services (type Service) an invoice line can use.", inputSchema: { type: "object", properties: {} } },
   {
     name: "qb_settings",
@@ -1231,6 +1269,14 @@ ${shop.terms}`);
       if (!bytes.length) throw new Error("The photo came through empty.");
       if (bytes.length > 15e6) throw new Error("That photo is over 15 MB.");
       return await dbxUpload(env, folder, name2, bytes);
+    }
+    case "save_video_chunk": {
+      const bytes = new Uint8Array(b64ToBytes(str("data") || ""));
+      if (bytes.length > 12e6) throw new Error("Send the video in pieces of a few MB.");
+      const folder = str("folder"), fname = str("name");
+      if (fname !== void 0 && !/\.(mov|mp4|m4v|3gp|webm)$/i.test(fname)) throw new Error("Only videos (mov, mp4, m4v) can be saved this way.");
+      if (folder !== void 0 && !folder.startsWith("/")) throw new Error("The folder has to start with /.");
+      return await dbxChunk(env, { session: str("session") || void 0, offset: Number(a.offset) || 0, bytes, finish: folder && fname ? { folder, name: fname } : void 0 });
     }
     case "qb_items":
       return { items: await listItems(env) };

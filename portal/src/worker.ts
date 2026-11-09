@@ -15,7 +15,7 @@ import { type DrawingSheets, type Env, type Job, type PortalComment, type Shop, 
 import { agreementPage, clientName, drawingsPage, esc, projectPage, simplePage } from './pages';
 import { canCancel, cancelDeadline, easternYmd } from './cancel';
 import { calendar, deleteAppt, feedCode, listAppts, saveAppt, apptLabel, type Appointment } from './calendar';
-import { dbxConnectUrl, dbxDisconnect, dbxFinish, dbxReady, dbxRedirect, dbxUpload, getDbx } from './dbx';
+import { dbxChunk, dbxConnectUrl, dbxDisconnect, dbxFinish, dbxReady, dbxRedirect, dbxUpload, getDbx } from './dbx';
 import { connectUrl, disconnect, finishConnect, getConn, getQbSettings, listItems, makeInvoice, putQbSettings, qbReady, recordPayment, refreshInvoice, type QbInvoice } from './qb';
 
 const html = (body: string, status = 200) => new Response(body, { status, headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', 'x-robots-tag': 'noindex', 'referrer-policy': 'no-referrer' } });
@@ -373,6 +373,10 @@ const TOOLS = [
     name: 'save_photo', description: 'Save one photo (base64 JPEG/PNG/HEIC) into a Dropbox folder, e.g. a client\'s folder plus /Photos. Never replaces a file: a taken name gets a number added. Up to about 15 MB.',
     inputSchema: { type: 'object', properties: { folder: { type: 'string', description: 'Dropbox path of the folder, like /CJC/Jobs/To quote/Smith, Jane/Photos. Made if missing.' }, name: { type: 'string', description: 'File name, like 2026-10-27 0915 Kitchen.jpg' }, data: { type: 'string', description: 'Base64 bytes.' } }, required: ['folder', 'name', 'data'] },
   },
+  {
+    name: 'save_video_chunk', description: 'Save a video into a Dropbox folder in pieces of a few MB: send the first piece with offset 0 (no session) to start; send each next piece with the session and the offset so far; send the last piece with folder and name to finish (a video that fits in one piece can go with folder and name straight away). Never replaces a file.',
+    inputSchema: { type: 'object', properties: { session: { type: 'string', description: 'From the first piece.' }, offset: { type: 'number', description: 'Bytes sent before this piece.' }, data: { type: 'string', description: 'This piece, base64.' }, folder: { type: 'string', description: 'With the last piece: the Dropbox folder, like /CJC/Jobs/To quote/Smith, Jane/Videos.' }, name: { type: 'string', description: 'With the last piece: the file name, like 2026-11-09 1015 walkthrough.mov' } }, required: ['offset', 'data'] },
+  },
   { name: 'qb_items', description: 'The QuickBooks products/services (type Service) an invoice line can use.', inputSchema: { type: 'object', properties: {} } },
   {
     name: 'qb_settings', description: 'Change the invoice settings. Only the fields sent change.',
@@ -548,6 +552,15 @@ async function tool(name: string, a: Record<string, unknown>, env: Env, url: URL
       if (!bytes.length) throw new Error('The photo came through empty.');
       if (bytes.length > 15e6) throw new Error('That photo is over 15 MB.');
       return await dbxUpload(env, folder, name, bytes);
+    }
+    case 'save_video_chunk': {
+      // A video in pieces of a few MB: start, add, finish (with the folder and name)
+      const bytes = new Uint8Array(b64ToBytes(str('data') || ''));
+      if (bytes.length > 12e6) throw new Error('Send the video in pieces of a few MB.');
+      const folder = str('folder'), fname = str('name');
+      if (fname !== undefined && !/\.(mov|mp4|m4v|3gp|webm)$/i.test(fname)) throw new Error('Only videos (mov, mp4, m4v) can be saved this way.');
+      if (folder !== undefined && !folder.startsWith('/')) throw new Error('The folder has to start with /.');
+      return await dbxChunk(env, { session: str('session') || undefined, offset: Number(a.offset) || 0, bytes, finish: folder && fname ? { folder, name: fname } : undefined });
     }
     case 'qb_items': return { items: await listItems(env) };
     case 'qb_settings': {

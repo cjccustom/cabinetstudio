@@ -106,6 +106,8 @@ export interface DbxStatus { configured: boolean; connected: boolean; name: stri
 export const dropboxStatus = () => call<DbxStatus>('dropbox_status');
 /** One photo into a Dropbox folder, through the portal (Cabinet Studio's own Dropbox connector can't write pictures). */
 export const savePhoto = (folder: string, name: string, data: string) => call<{ path: string; size: number }>('save_photo', { folder, name, data });
+/** One piece of a video: start (no session), add, or finish (with the folder and name). */
+export const saveVideoChunk = (a: { session?: string; offset: number; data: string; folder?: string; name?: string }) => call<{ session: string; offset: number; path?: string; size?: number }>('save_video_chunk', a);
 
 export const qbStatus = () => call<QbStatus>('qb_status');
 export const qbItems = async () => (await call<{ items: { id: string; name: string }[] }>('qb_items')).items;

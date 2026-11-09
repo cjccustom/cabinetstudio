@@ -794,3 +794,7 @@ textarea.text-input { resize: vertical; }
 .summary-box { margin-top: 18px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
 .summary-box h4 { margin: 10px 0 4px; }
 .summary-box ul { margin: 0; padding-left: 20px; }
+
+.video-job { display: grid; grid-template-columns: minmax(0, 1fr) 160px auto; gap: 8px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--line); }
+.video-job progress { width: 100%; }
+.video-job.saved span:first-child { color: var(--muted); }

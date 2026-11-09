@@ -9,6 +9,7 @@ import { readSummary, summaryRequest } from '../model/meeting';
 import { useCapability } from './Rendering';
 import type { Sample } from '../runtime';
 import { PhotoMarkup } from './PhotoMarkup';
+import { VideoUpload } from './VideoUpload';
 import { newVisit, parseMeasure, siteChecks, utilityKinds, visitToday, type SiteState, type Utility, type UtilityKind, type Visit } from '../model/meeting';
 import { newOpening, openingKinds } from '../model/room';
 import { wallNames, wallOrder } from '../model/layout';
@@ -21,7 +22,7 @@ import { PortalError, blobToBase64, savePhoto } from '../portal';
 
 type Tab = 'notes' | 'sketch' | 'measure' | 'site' | 'photos';
 const tabs: { id: Tab; label: string }[] = [
-  { id: 'notes', label: 'Notes' }, { id: 'sketch', label: 'Sketch' }, { id: 'measure', label: 'Measure' }, { id: 'site', label: 'Site' }, { id: 'photos', label: 'Photos' },
+  { id: 'notes', label: 'Notes' }, { id: 'sketch', label: 'Sketch' }, { id: 'measure', label: 'Measure' }, { id: 'site', label: 'Site' }, { id: 'photos', label: 'Photos & video' },
 ];
 
 /** Today's visit for this client, and a way to change it (started the first time the screen opens today). */
@@ -73,7 +74,7 @@ export function Meeting() {
           : tab === 'sketch' ? <SketchTab v={v} put={put} folder={project.dropbox?.path} who={who} />
           : tab === 'measure' ? <MeasureTab v={v} put={put} />
           : tab === 'site' ? <SiteTab v={v} put={put} />
-          : <div className="meeting-pad"><ClientPhotos /><PhotoMarkup folder={project.dropbox?.path} /><p className="hint">Inspiration pictures the customer shows you: AirDrop or save them to the iPad, then <b>Choose photos</b> with “Inspiration” in the box.</p></div>}
+          : <div className="meeting-pad"><ClientPhotos /><PhotoMarkup folder={project.dropbox?.path} /><VideoUpload folder={project.dropbox?.path} /><p className="hint">Inspiration pictures the customer shows you: AirDrop or save them to the iPad, then <b>Choose photos</b> with “Inspiration” in the box.</p></div>}
       </main>
     </div>
   );

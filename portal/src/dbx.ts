@@ -103,3 +103,43 @@ export async function dbxUpload(env: Env, folder: string, name: string, bytes: U
   const j = JSON.parse(text) as { path_display: string; size: number };
   return { path: j.path_display, size: j.size };
 }
+
+/**
+ * A large file (a video) in pieces: the first piece starts an upload session, the next ones add to
+ * it, and the last one (with the folder and name) finishes it into the folder, never replacing a
+ * file. Each call carries its own piece, so no one request is too big.
+ */
+export async function dbxChunk(env: Env, a: { session?: string; offset: number; bytes: Uint8Array; finish?: { folder: string; name: string } }): Promise<{ session: string; offset: number; path?: string; size?: number }> {
+  const conn = await getDbx(env);
+  if (!conn) throw new Error('Dropbox isn’t connected to the portal yet. Open the portal’s /dropbox page to connect it.');
+  const token = await accessToken(env, conn);
+  const call = async (endpoint: string, arg: unknown) => {
+    const res = await fetch(`https://content.dropboxapi.com/2/files/${endpoint}`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/octet-stream', 'Dropbox-API-Arg': asciiJson(arg), ...rootHeader(conn) },
+      body: a.bytes,
+    });
+    const text = await res.text();
+    if (!res.ok) throw new Error(`Dropbox didn’t take that piece of the video: ${text.slice(0, 200) || res.status}`);
+    return text ? JSON.parse(text) : {};
+  };
+  let session = a.session;
+  if (!session) {
+    if (a.offset !== 0) throw new Error('A new upload has to start at the beginning of the file.');
+    if (a.finish) {
+      // Small enough to go in one piece
+      const r = await dbxUpload(env, a.finish.folder, a.finish.name, a.bytes);
+      return { session: '', offset: a.bytes.length, ...r };
+    }
+    const r = await call('upload_session/start', { close: false });
+    return { session: r.session_id, offset: a.bytes.length };
+  }
+  if (a.finish) {
+    const clean = (s: string) => s.replace(/[\\:*?"<>|]/g, '-').trim();
+    const path = `/${a.finish.folder.split('/').filter(Boolean).map(clean).join('/')}/${clean(a.finish.name)}`;
+    const r = await call('upload_session/finish', { cursor: { session_id: session, offset: a.offset }, commit: { path, mode: 'add', autorename: true, mute: true } });
+    return { session, offset: a.offset + a.bytes.length, path: r.path_display, size: r.size };
+  }
+  await call('upload_session/append_v2', { cursor: { session_id: session, offset: a.offset }, close: false });
+  return { session, offset: a.offset + a.bytes.length };
+}
