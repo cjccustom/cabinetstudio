@@ -17,6 +17,13 @@ export interface DiningTable {
   /** Bench: a lower shelf on rails between the legs (shoes, baskets), slatted or a solid panel, and the height of its top off the floor. */
   shelf?: 'none' | 'slats' | 'solid';
   shelfHeight?: number;
+  /**
+   * Four-leg bases: low stretchers between the legs to stiffen them. H: one across each end and one
+   * down the middle between them; box: one on every side. A bench's shelf rails already do this.
+   */
+  stretchers?: 'none' | 'h' | 'box';
+  /** Top of the stretchers off the floor. Unset = 6". */
+  stretcherHeight?: number;
   /** Bench: an upholstered cushion on the seat, by the upholsterer, and its thickness. */
   cushion?: boolean;
   cushionThick?: number;
@@ -73,6 +80,9 @@ export const newBench = (): DiningTable => ({
   leg: 'square', legSize: 2, apron: 3, shelf: 'none', shelfHeight: 5, cushion: false, cushionThick: 2,
 });
 export const isBench = (t: DiningTable) => t.kind === 'bench';
+/** The stretchers a table or bench actually gets: four-leg bases only, and not under a bench shelf (its rails brace the legs). */
+export const stretchersOf = (t: DiningTable): 'none' | 'h' | 'box' => (t.base !== 'legs' || (isBench(t) && t.shelf && t.shelf !== 'none') ? 'none' : t.stretchers ?? 'none');
+const stretcherWords = (t: DiningTable) => ({ none: '', h: ' and an H stretcher', box: ' and stretchers all around' })[stretchersOf(t)];
 /** Where you sit: the seat, plus the cushion. */
 export const seatHeight = (t: DiningTable) => t.height + (t.cushion ? t.cushionThick ?? 2 : 0);
 
@@ -98,6 +108,8 @@ export const tableStandards = {
   delivery: 2,
   // Bench lower shelf: four rails tenoned into the legs, then slats or a solid panel on cleats
   shelfRails: 3, shelfSlats: 2, shelfSolid: 1.5,
+  // Low stretchers between the legs, mortise and tenon, each
+  stretcherEach: 1,
 };
 
 /** Tangential shrinkage per 1% change in moisture content (flatsawn), from the USDA Wood Handbook. */
@@ -187,6 +199,8 @@ export function tableEstimate(t: DiningTable, p: Project): { hours: TableLine[];
   } else {
     hours.push({ label: tableBaseLabel[t.base] + ' base', hours: t.base === 'trestle' ? s.trestle : t.base === 'pedestal' ? s.pedestal : s.doublePedestal });
   }
+  const st = stretchersOf(t);
+  if (st !== 'none') hours.push({ label: st === 'h' ? 'H stretcher: two end stretchers and a center one, mortise and tenon' : 'Four stretchers around the legs, mortise and tenon', hours: 3 * s.stretcherEach + (st === 'box' ? s.stretcherEach : 0) });
   if (isBench(t) && t.shelf && t.shelf !== 'none') hours.push({ label: `Lower shelf: rails and ${t.shelf === 'slats' ? 'slats' : 'a solid panel'}`, hours: s.shelfRails + (t.shelf === 'slats' ? s.shelfSlats : s.shelfSolid) });
   hours.push(
     { label: 'Top attachment', hours: s.attach },
@@ -238,7 +252,7 @@ export function tableScope(t: DiningTable): string {
   if (isBench(t)) return [
     `${t.name}: solid ${/sapele/i.test(t.species) ? 'sapele mahogany' : t.species.toLowerCase()} ${t.use || 'bench'}, approx ${fmt(t.length)}L x ${fmt(t.width)}D x ${fmt(seatHeight(t))} seat height`,
     `${fmt(t.top)} thick seat${t.edge === 'profile' ? ', profiled edge' : ''}`,
-    `${t.leg} legs with aprons`,
+    `${t.leg} legs with aprons${stretcherWords(t)}`,
     ...(t.shelf && t.shelf !== 'none' ? [`${t.shelf === 'slats' ? 'slatted' : 'solid'} lower shelf for shoes`] : []),
     ...(t.cushion ? [`upholstered ${fmt(t.cushionThick ?? 2)} seat cushion (fabric to be selected)`] : []),
     t.finish === 'painter' ? 'finish by others' : tableFinishLabel[t.finish].replace(' (shop)', '').toLowerCase() + ' finish',
@@ -248,7 +262,7 @@ export function tableScope(t: DiningTable): string {
     `${t.name}: solid ${/sapele/i.test(t.species) ? "sapele mahogany" : t.species.toLowerCase()} ${t.use || 'dining table'}, approx ${fmt(t.length)}L x ${fmt(t.width)}W x ${fmt(t.height)}H`,
     `${fmt(t.top)} thick top${t.breadboard ? ' with breadboard ends' : ''}${t.edge === 'profile' ? ', profiled edge' : t.edge === 'live' ? ', live edge' : ''}`,
     ...(t.lip ? [`raised ${fmt(t.lipHeight ?? 0.75)} lip around the perimeter${t.lipStyle === 'onTop' ? '' : ' (applied to the edge of the top)'}, mitered corners`] : []),
-    t.base === 'legs' ? `${t.leg} legs with aprons` : tableBaseLabel[t.base].toLowerCase() + ' base',
+    t.base === 'legs' ? `${t.leg} legs with aprons${stretcherWords(t)}` : tableBaseLabel[t.base].toLowerCase() + ' base',
     ...(/dining/i.test(t.use ?? 'dining table') ? [t.leaves ? `(${t.leaves}) ${fmt(t.leafWidth)} extension ${t.leaves > 1 ? 'leaves' : 'leaf'}; seats ${seats(t)}–${seats(t, true)}` : `seats ${seats(t)}`] : t.leaves ? [`(${t.leaves}) ${fmt(t.leafWidth)} extension ${t.leaves > 1 ? 'leaves' : 'leaf'}`] : []),
     t.finish === 'painter' ? 'finish by others' : tableFinishLabel[t.finish].replace(' (shop)', '').toLowerCase() + ' finish',
     'delivered and set in place',

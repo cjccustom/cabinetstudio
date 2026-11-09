@@ -2,7 +2,7 @@
 // the price that goes on the proposal, with a plan and side view to show the client.
 import { useMemo } from 'react';
 import { useStore } from '../store';
-import { furnitureOf, isBench, newBench, newTable, seatHeight, seats, tableBaseLabel, tableChecks, tableEstimate, tableFinishLabel, type DiningTable, type TableBase, type TableFinish, type TableLeg } from '../model/furniture';
+import { furnitureOf, isBench, stretchersOf, newBench, newTable, seatHeight, seats, tableBaseLabel, tableChecks, tableEstimate, tableFinishLabel, type DiningTable, type TableBase, type TableFinish, type TableLeg } from '../model/furniture';
 import { priceQuote, quoteOf } from '../model/quote';
 import { tableSpecies } from '../model/tableParts';
 import { Field, LengthInput, Section } from './fields';
@@ -54,6 +54,17 @@ function TableEditor({ t, put, remove }: { t: DiningTable; put: (p: Partial<Dini
         <datalist id="bench-uses">{['bench', 'closet bench', 'entry bench', 'dressing bench', 'end-of-bed bench', 'window bench'].map((u) => <option key={u} value={u} />)}</datalist>
       </Field>
       {bench && <p className="hint">Seat height {fmt(seatHeight(t))}{t.cushion ? ' with the cushion' : ''}.</p>}
+      {t.base === 'legs' && !(bench && t.shelf && t.shelf !== 'none') && (
+        <div className="grid3">
+          <Field label="Stretchers" htmlFor={id('str')}>
+            <select id={id('str')} value={t.stretchers ?? 'none'} onChange={(e) => put({ stretchers: e.target.value as DiningTable['stretchers'] })}>
+              <option value="none">None</option><option value="h">H (ends and center)</option><option value="box">All four sides</option>
+            </select>
+          </Field>
+          {t.stretchers && t.stretchers !== 'none' && <Field label="Top off the floor" htmlFor={id('sth')}><LengthInput id={id('sth')} value={t.stretcherHeight ?? 6} onChange={(v) => v != null && put({ stretcherHeight: v })} /></Field>}
+        </div>
+      )}
+      {bench && t.shelf && t.shelf !== 'none' && t.stretchers && t.stretchers !== 'none' && <p className="hint">The shelf rails brace the legs, so no separate stretchers.</p>}
       {bench && (
         <>
           <div className="grid3">
@@ -185,6 +196,7 @@ export function TableSketch({ t }: { t: DiningTable }) {
       {t.leaves > 0 && <line className="ts-line dash" x1={x0 + (t.length / 2) * k} y1={yPlan} x2={x0 + (t.length / 2) * k} y2={yPlan + planH} />}
       <g className="ts-base">{base}</g>
       <rect className="ts-top" x={x0} y={ySide} width={t.length * k} height={top} />
+      {stretchersOf(t) !== 'none' && <rect className="ts-top" x={x0 + inset + legW / 2} y={floor - (t.stretcherHeight ?? 6) * k} width={t.length * k - 2 * inset - legW} height={1.75 * k} />}
       {shelfY != null && <rect className="ts-top" x={x0 + inset + legW} y={shelfY} width={t.length * k - 2 * (inset + legW)} height={0.75 * k} />}
       {cush > 0 && <rect className="ts-chairs" x={x0 + 0.25 * k} y={ySide - cush} width={(t.length - 0.5) * k} height={cush} rx={2} />}
       <line className="ts-line" x1={0} y1={floor} x2={W} y2={floor} />

@@ -2016,6 +2016,17 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   eq('lift: pull at the bottom of the door', sp.every((h) => h.y - d0 < 3), true);
 }
 
+// Bench stretchers: H or all around, priced and in the scope; none under a shelf
+{
+  const b = { ...newBench(), stretchers: 'h' as const };
+  const parts = tableParts(b);
+  eq('stretchers: H is two ends and a center', parts.filter((x) => x.role === 'stretcher').map((x) => `${x.name} x${x.qty}`).join(', '), 'Stretcher, end x2, Stretcher, center x1');
+  eq('stretchers: in the scope', /H stretcher/.test(tableScope(b)), true);
+  const box4 = tableParts({ ...b, stretchers: 'box' }).filter((x) => x.role === 'stretcher');
+  eq('stretchers: box is four', box4.reduce((t, x) => t + x.qty, 0), 4);
+  eq('stretchers: none under a shelf', tableParts({ ...b, shelf: 'slats' }).some((x) => /^Stretcher/.test(x.name)), false);
+}
+
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');
 
 console.log(failed ? `${failed} check(s) failed` : 'All model checks passed');

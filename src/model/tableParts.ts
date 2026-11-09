@@ -3,7 +3,7 @@
 // the floor, z across the width (0 at the middle).
 import type { Project } from './types';
 import { fmt } from '../units';
-import { furnitureOf, isBench, lipStock, type DiningTable } from './furniture';
+import { furnitureOf, isBench, lipStock, stretchersOf, type DiningTable } from './furniture';
 import { amSizes, boardSize } from './amLumber';
 
 export type TableRole = 'top' | 'breadboard' | 'lip' | 'leg' | 'apron' | 'post' | 'foot' | 'cleat' | 'stretcher' | 'column' | 'leaf' | 'shelf' | 'slat' | 'cushion';
@@ -58,6 +58,17 @@ export function tableParts(t: DiningTable): TablePart[] {
     const longA = between(L), endA = between(W);
     out.push({ role: 'apron', name: 'Apron, long side', qty: 2, length: longA + 2, width: t.apron, thick: APRON_T, note: `${longA.toFixed(2).replace(/\.00$/, '')}" between legs plus 1" tenons each end`, boxes: [-1, 1].map((b) => box(-L / 2 + LEG_INSET + s, ay0, b * (W / 2 - LEG_INSET - APRON_SET), L / 2 - LEG_INSET - s, topY, b * (W / 2 - LEG_INSET - APRON_SET - APRON_T))) });
     out.push({ role: 'apron', name: 'Apron, end', qty: 2, length: endA + 2, width: t.apron, thick: APRON_T, note: `${endA.toFixed(2).replace(/\.00$/, '')}" between legs plus 1" tenons each end`, boxes: [-1, 1].map((a) => box(a * (L / 2 - LEG_INSET - APRON_SET), ay0, -W / 2 + LEG_INSET + s, a * (L / 2 - LEG_INSET - APRON_SET - APRON_T), topY, W / 2 - LEG_INSET - s)) });
+    // Low stretchers to stiffen the legs: tenoned into the legs, centered on them
+    const stv = stretchersOf(t);
+    if (stv !== 'none') {
+      const SH = 1.75, ST = 1, top = Math.min(t.stretcherHeight ?? 6, legH - t.apron - 2), y0 = top - SH;
+      const xi = L / 2 - LEG_INSET - s, zi = W / 2 - LEG_INSET - s;
+      const xc = L / 2 - LEG_INSET - s / 2, zc = W / 2 - LEG_INSET - s / 2;
+      out.push({ role: 'stretcher', name: 'Stretcher, end', qty: 2, length: endA + 2, width: SH, thick: ST, note: '1" tenons each end into the legs, centered on the leg', boxes: [-1, 1].map((a) => box(a * xc - ST / 2, y0, -zi, a * xc + ST / 2, top, zi)) });
+      if (stv === 'h') out.push({ role: 'stretcher', name: 'Stretcher, center', qty: 1, length: 2 * (xc - ST / 2) + 2, width: SH, thick: ST, note: '1" tenons each end into the middle of the end stretchers', boxes: [box(-xc + ST / 2, y0, -ST / 2, xc - ST / 2, top, ST / 2)] });
+      // The long ones 1 1/2" lower, so their mortises miss the end stretchers' in the leg
+      else out.push({ role: 'stretcher', name: 'Stretcher, long side', qty: 2, length: longA + 2, width: SH, thick: ST, note: '1" tenons each end into the legs, centered on the leg, 1 1/2" below the end stretchers so the mortises don\'t meet', boxes: [-1, 1].map((b) => box(-xi, y0 - 1.5, b * zc - ST / 2, xi, top - 1.5, b * zc + ST / 2)) });
+    }
     // A bench's lower shelf: rails between the legs, then slats along its length or a solid panel
     if (isBench(t) && t.shelf && t.shelf !== 'none') {
       const RH = 2, RT = 0.875, sy = (t.shelfHeight ?? 5) - 0.75, ry0 = sy - RH + 0.75;
