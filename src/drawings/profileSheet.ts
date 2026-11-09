@@ -6,6 +6,8 @@ import type { Project, WallPanel } from '../model/types';
 import { moldLabel, moldingOrder, mountShape, profileLabel } from '../model/moldings';
 import { optionOf, productOf } from '../model/panels';
 import { fmt as fmtIn } from '../units';
+import { edgeLabel, isRouted, topSection, type EdgeProfile } from '../model/edgeProfiles';
+import { furnitureOf } from '../model/furniture';
 import { View, type Frame } from './draw';
 
 interface Item { title: string; sub: string; w: number; h: number; draw: (v: View) => void }
@@ -48,6 +50,24 @@ export function profileItems(p: Project): Item[] {
     items.push({
       title: `${kinds}: ${profileLabel(l.profile)}`, sub: `${fmtIn(m.height)} high × ${fmtIn(m.depth)} projection`, w: m.depth, h: m.height,
       draw: (v) => { v.poly(m.pts, 'cut'); v.dimH(0, m.depth, 0, -0.22); v.dimV(0, m.height, 0, -0.22); },
+    });
+  }
+  // Routed edges on wood tops, tables and benches: a short section of the top with the edge on its right
+  const edges = new Map<string, { who: string[]; prof: EdgeProfile; t: number }>();
+  const addEdge = (who: string, prof: EdgeProfile | undefined, t: number) => {
+    if (!isRouted(prof)) return;
+    const k = `${prof}:${t}`;
+    const e = edges.get(k) ?? { who: [], prof: prof!, t };
+    if (!e.who.includes(who)) e.who.push(who);
+    edges.set(k, e);
+  };
+  for (const c of p.cabinets) if (c.countertop && c.topKind === 'wood') addEdge('Wood top', c.topProfile, c.topThickness ?? 1.25);
+  for (const t of furnitureOf(p)) if (t.edge === 'profile' && !t.lip) addEdge(t.name, t.edgeProfile ?? 'round14', t.top);
+  for (const e of edges.values()) {
+    const w = 3, pts = topSection(w, e.t, e.prof, 'square');
+    items.push({
+      title: `${e.who.join(', ')} edge: ${edgeLabel(e.prof).toLowerCase()}`, sub: `${fmtIn(e.t)} thick`, w, h: e.t,
+      draw: (v) => { v.poly(pts, 'cut'); v.dimV(0, e.t, 0, -0.22); },
     });
   }
   // One section per beadboard product and thickness on the job

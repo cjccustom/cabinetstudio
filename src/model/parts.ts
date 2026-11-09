@@ -5,6 +5,7 @@ import { buildCornerParts } from './corner';
 import { pilasterOf, pilasterParts } from './pilaster';
 import { floatingShelfParts } from './floatingShelf';
 import { fmt as fmtShort, fmt } from '../units';
+import { isRouted, topSection } from './edgeProfiles';
 import { baseLayout, boardT, cutShape, archShapes, fridgeBelow } from './cabinetBase';
 import { mountShape, profileByNum } from './moldings';
 import type { CutShape } from './types';
@@ -1079,6 +1080,8 @@ export function topPart(c: Cabinet, s: ShopSettings, W: number, frontFace: numbe
         ...(c.topSpecies && c.topSpecies !== s.woodSpecies ? { species: c.topSpecies } : {}),
         note: `${c.topSpecies ?? s.woodSpecies}, glued up; ${fmt(front)} front overhang${backReach != null ? `, ${fmt(c.topBack ?? front)} past the far side's fronts` : c.island ? `, ${fmt(back - s.endPanelThickness)} past the back panel` : ''}`,
         boxes: [vb(-left, c.height, -back, len, t, depth)],
+        // A routed edge: the top drawn as its section, run the length (the ends stay square in 3D)
+        ...(isRouted(c.topProfile) ? { shapesOnly: true, shapes: [{ along: 'z' as const, min: [-left, c.height, -back] as [number, number, number], thickness: len, outline: topSection(depth, t, c.topProfile!, c.island ? c.topProfile! : 'square') }] } : {}),
       }
     : {
         name: 'Countertop', role: 'counter', material: 'counter', length: len, width: depth, thickness: t, cut: false,

@@ -59,6 +59,8 @@ import { fieldChecks, releaseStatus } from "../src/model/release";
 import { eagleFraction, eagleRequests, requestText } from "../src/model/eagleRequest";
 import { hardwareOrder, tierPrice } from "../src/model/hardware";
 import { hardwareScope, pullSpots } from "../src/model/pulls";
+import { topSection, edgeCurve } from "../src/model/edgeProfiles";
+import { profileItems } from "../src/drawings/profileSheet";
 import { parseMeasure, visitsDoc, newVisit, readSummary, summaryRequest } from "../src/model/meeting";
 import { hardwareItems } from "../src/drawings/views";
 import { defaultSupplies, supplyDrivers, supplyLines } from "../src/model/supplies";
@@ -2076,6 +2078,24 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   eq('seam: priced', estimateHours(job, quoteOf(job)).some((l) => /Seam battens/.test(l.label)), true);
   const free = { ...cab, offset: 0, wall: 'front' as const };
   eq('seam: none on an exposed end', buildParts(free, job.settings, { left: true, right: true }).some((x) => x.name === 'Seam batten'), false);
+}
+
+// Edge profiles: the section closes, the top draws it, the sheet and the scope name it
+{
+  for (const pr of ['eased', 'round12', 'chamfer', 'cove', 'ogee', 'thumbnail', 'halfBull', 'bullnose'] as const) {
+    const c = edgeCurve(pr, 1.25);
+    eq(`edge ${pr}: runs top to bottom inside the edge`, [Math.abs(c[0][1] - 1.25) < 0.08, c[c.length - 1][1] < 0.08, c.every(([i, y]) => i >= -1e-9 && i <= 0.7 && y >= -1e-9 && y <= 1.25 + 1e-9)].join(), 'true,true,true');
+  }
+  const sec = topSection(25, 1.25, 'round12');
+  eq('edge: section spans the top', [Math.min(...sec.map((q) => q[0])), Math.max(...sec.map((q) => q[0]))].join(), '0,25');
+  const base = p.cabinets.find((c) => c.kind === 'base')!;
+  const cab = { ...base, countertop: true, topKind: 'wood' as const, topProfile: 'ogee' as const };
+  const job = { ...p, cabinets: p.cabinets.map((c) => (c.id === base.id ? cab : c)), furniture: [{ ...newBench(), edge: 'profile' as const, edgeProfile: 'round12' as const }] };
+  const top = buildParts(cab, job.settings, resolveEnds(job.room, job.cabinets, cab)).find((x) => x.role === 'woodTop')!;
+  eq('edge: wood top drawn by its section', [!!top.shapesOnly, top.shapes?.length].join(), 'true,1');
+  eq('edge: on the profiles sheet', profileItems(job).filter((i) => /edge:/.test(i.title)).map((i) => i.title).join(' | '), 'Wood top edge: roman ogee | Bench edge: 1/2" roundover');
+  eq('edge: bench scope names it', /1\/2" roundover edge/.test(tableScope(job.furniture[0])), true);
+  eq('edge: wood top edge priced', estimateHours(job, quoteOf(job)).some((l) => /Top edge: roman ogee/.test(l.label)), true);
 }
 
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');

@@ -132,6 +132,8 @@ export interface Cabinet {
   slopeTop?: { back: number };
   /** What sits on top of a base cabinet: stone (by others) or a solid wood top/bench seat built in the shop. */
   topKind?: 'stone' | 'wood' | 'paint';
+  /** A solid wood top's edge profile (front, and the ends that overhang). Unset = eased. */
+  topProfile?: import('./edgeProfiles').EdgeProfile;
   /** A paint-grade top's edging species (poplar or maple). */
   topEdge?: string;
   topThickness?: number;
@@ -568,6 +570,7 @@ export interface CutShape {
   outline: [number, number][];
 }
 
+
 export interface VisualBox {
   min: [number, number, number];
   size: [number, number, number];
@@ -599,4 +602,6 @@ export interface Part {
   /** Geometry in cabinet-local inches: x = left→right, y = up, z = wall→front. */
   boxes: VisualBox[];
   shapes?: CutShape[];
+  /** The 3D view draws only the shapes (a profiled top); the boxes stay for the drawings and layout. */
+  shapesOnly?: boolean;
 }

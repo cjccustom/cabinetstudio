@@ -2,6 +2,7 @@
 // the price that goes on the proposal, with a plan and side view to show the client.
 import { useMemo } from 'react';
 import { useStore } from '../store';
+import { edgeProfiles, type EdgeProfile } from '../model/edgeProfiles';
 import { furnitureOf, isBench, stretchersOf, newBench, newTable, seatHeight, seats, tableBaseLabel, tableChecks, tableEstimate, tableFinishLabel, type DiningTable, type TableBase, type TableFinish, type TableLeg } from '../model/furniture';
 import { priceQuote, quoteOf } from '../model/quote';
 import { tableSpecies } from '../model/tableParts';
@@ -115,7 +116,10 @@ function TableEditor({ t, put, remove }: { t: DiningTable; put: (p: Partial<Dini
         </Field>}
         {t.leaves > 0 && len('leafWidth', 'Leaf width')}
         <Field label="Edge" htmlFor={id('edge')}>
-          <select id={id('edge')} value={t.edge} onChange={(e) => put({ edge: e.target.value as DiningTable['edge'] })}><option value="eased">Eased</option><option value="profile">Profiled</option><option value="live">Live edge</option></select>
+          <select id={id('edge')} value={t.edge === 'profile' ? t.edgeProfile ?? 'round14' : t.edge} onChange={(e) => { const v = e.target.value; put(v === 'eased' || v === 'live' ? { edge: v, edgeProfile: undefined } : { edge: 'profile', edgeProfile: v as EdgeProfile }); }}>
+            {edgeProfiles.filter((x) => x.v !== 'square').map((x) => <option key={x.v} value={x.v}>{x.label}</option>)}
+            <option value="live">Live edge</option>
+          </select>
         </Field>
       </div>
       {!bench && <label className="chk-row"><input type="checkbox" checked={t.breadboard} onChange={(e) => put({ breadboard: e.target.checked })} /> Breadboard ends</label>}

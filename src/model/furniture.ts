@@ -5,6 +5,7 @@ import type { Project } from './types';
 import { uid } from './defaults';
 import { roughQuarters } from './faceframe';
 import { tableStock } from './tableParts';
+import { edgeLabel } from './edgeProfiles';
 
 export type TableBase = 'legs' | 'trestle' | 'pedestal' | 'double-pedestal';
 export type TableLeg = 'square' | 'tapered' | 'turned';
@@ -46,6 +47,8 @@ export interface DiningTable {
   leaves: number;
   leafWidth: number;
   edge: 'eased' | 'profile' | 'live';
+  /** The routed profile when edge is 'profile'. Unset = 1/4" roundover. */
+  edgeProfile?: import('./edgeProfiles').EdgeProfile;
   finish: TableFinish;
   /** A painter's or finisher's price, when finish is "painter". */
   finishPrice: number;
@@ -190,7 +193,7 @@ export function tableEstimate(t: DiningTable, p: Project): { hours: TableLine[];
   ];
   if (t.breadboard) hours.push({ label: 'Breadboard ends', hours: s.breadboard });
   if (t.lip) hours.push({ label: `Raised lip around the top, mitered corners (${Math.round(perimeter(t) / 12)} lf)`, hours: s.lipBase + s.lipPerFt * perimeter(t) / 12 });
-  if (t.edge === 'profile') hours.push({ label: 'Edge profile', hours: s.edgeProfile });
+  if (t.edge === 'profile') hours.push({ label: `Edge profile: ${edgeLabel(t.edgeProfile ?? 'round14').toLowerCase()}`, hours: s.edgeProfile });
   if (t.edge === 'live') hours.push({ label: 'Live edge cleanup', hours: s.liveEdge });
   if (t.leaves) hours.push({ label: `${t.leaves} ${t.leaves > 1 ? 'leaves' : 'leaf'} and table slides`, hours: s.leafEach * t.leaves + s.slides + s.topPerSqFt * leafSqft(t) });
   if (t.base === 'legs') {
@@ -251,7 +254,7 @@ const gcd = (a: number, b: number): number => (b ? gcd(b, a % b) : a);
 export function tableScope(t: DiningTable): string {
   if (isBench(t)) return [
     `${t.name}: solid ${/sapele/i.test(t.species) ? 'sapele mahogany' : t.species.toLowerCase()} ${t.use || 'bench'}, approx ${fmt(t.length)}L x ${fmt(t.width)}D x ${fmt(seatHeight(t))} seat height`,
-    `${fmt(t.top)} thick seat${t.edge === 'profile' ? ', profiled edge' : ''}`,
+    `${fmt(t.top)} thick seat${t.edge === 'profile' ? `, ${edgeLabel(t.edgeProfile ?? 'round14').toLowerCase()} edge` : ''}`,
     `${t.leg} legs with aprons${stretcherWords(t)}`,
     ...(t.shelf && t.shelf !== 'none' ? [`${t.shelf === 'slats' ? 'slatted' : 'solid'} lower shelf for shoes`] : []),
     ...(t.cushion ? [`upholstered ${fmt(t.cushionThick ?? 2)} seat cushion (fabric to be selected)`] : []),
@@ -260,7 +263,7 @@ export function tableScope(t: DiningTable): string {
   ].join('; ');
   const bits = [
     `${t.name}: solid ${/sapele/i.test(t.species) ? "sapele mahogany" : t.species.toLowerCase()} ${t.use || 'dining table'}, approx ${fmt(t.length)}L x ${fmt(t.width)}W x ${fmt(t.height)}H`,
-    `${fmt(t.top)} thick top${t.breadboard ? ' with breadboard ends' : ''}${t.edge === 'profile' ? ', profiled edge' : t.edge === 'live' ? ', live edge' : ''}`,
+    `${fmt(t.top)} thick top${t.breadboard ? ' with breadboard ends' : ''}${t.edge === 'profile' ? `, ${edgeLabel(t.edgeProfile ?? 'round14').toLowerCase()} edge` : t.edge === 'live' ? ', live edge' : ''}`,
     ...(t.lip ? [`raised ${fmt(t.lipHeight ?? 0.75)} lip around the perimeter${t.lipStyle === 'onTop' ? '' : ' (applied to the edge of the top)'}, mitered corners`] : []),
     t.base === 'legs' ? `${t.leg} legs with aprons${stretcherWords(t)}` : tableBaseLabel[t.base].toLowerCase() + ' base',
     ...(/dining/i.test(t.use ?? 'dining table') ? [t.leaves ? `(${t.leaves}) ${fmt(t.leafWidth)} extension ${t.leaves > 1 ? 'leaves' : 'leaf'}; seats ${seats(t)}–${seats(t, true)}` : `seats ${seats(t)}`] : t.leaves ? [`(${t.leaves}) ${fmt(t.leafWidth)} extension ${t.leaves > 1 ? 'leaves' : 'leaf'}`] : []),

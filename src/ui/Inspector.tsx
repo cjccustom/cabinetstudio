@@ -17,6 +17,7 @@ import { panelLabel } from '../model/eagle';
 import { nextName, uid } from '../model/defaults';
 import { fmt } from '../units';
 import { Field, LengthInput, Section } from './fields';
+import { edgeProfiles, type EdgeProfile } from '../model/edgeProfiles';
 import { OrderList, PartsTable } from './PartsTable';
 import { OverridesSection } from './Overrides';
 import { MoldSlot } from './ProfilePicker';
@@ -387,6 +388,13 @@ export function Inspector({ cab, issues, tab }: { cab: Cabinet; issues: string[]
               <Field label="Wood species" htmlFor="cab-topsp" hint="Priced from A&M">
                 <select id="cab-topsp" value={cab.topSpecies ?? settings.woodSpecies} onChange={(e) => set({ topSpecies: e.target.value === settings.woodSpecies ? undefined : e.target.value })}>
                   {[...new Set([settings.woodSpecies, ...lumberNames()])].map((x) => <option key={x}>{x}</option>)}
+                </select>
+              </Field>
+            )}
+            {cab.countertop && cab.topKind === 'wood' && (
+              <Field label="Edge profile" htmlFor="cab-topprof">
+                <select id="cab-topprof" value={cab.topProfile ?? 'eased'} onChange={(e) => set({ topProfile: e.target.value === 'eased' ? undefined : e.target.value as EdgeProfile })}>
+                  {edgeProfiles.map((x) => <option key={x.v} value={x.v}>{x.label}</option>)}
                 </select>
               </Field>
             )}

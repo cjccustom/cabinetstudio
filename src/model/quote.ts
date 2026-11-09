@@ -16,6 +16,7 @@ import { uid } from './defaults';
 import { eaglePrice, centersOf, eagleWood, hingeTypes } from './eagle';
 import { hardwareOrder } from './hardware';
 import { pullStyleOf } from './pulls';
+import { edgeLabel, isRouted } from './edgeProfiles';
 import { bracketCount, bracketLength, bracketProduct, finishedEnds, floatingOf } from './floatingShelf';
 import { doorOrder } from './doorOrder';
 import { baseLabel } from './cabinetBase';
@@ -113,6 +114,8 @@ export interface LaborStandards {
   fingerPull?: number;
   /** A batten over the joint between two cases, each. */
   seamBatten?: number;
+  /** Rout an edge profile on a solid wood top, per top. */
+  topEdge?: number;
 }
 
 export const defaultStandards: LaborStandards = {
@@ -165,6 +168,7 @@ export const defaultStandards: LaborStandards = {
   pullInstall: 0.15,
   fingerPull: 0.3,
   seamBatten: 0.5,
+  topEdge: 0.5,
 };
 
 export type Workload = 'full' | 'normal' | 'light';
@@ -468,6 +472,7 @@ export function estimateHours(p: Project, q: QuoteSettings): HourLine[] {
       add('Glue-up & finish tops', 1, st.woodTop, 'tops');
       add('Top area (sq ft)', Math.round(sqft(t.length, t.width) * 10) / 10, st.woodTopPerSqFt, 'tops');
       add('Install tops', 1, 0.5, 'tops', true);
+      if (isRouted(c.topProfile)) add(`Top edge: ${edgeLabel(c.topProfile).toLowerCase()}`, 1, st.topEdge ?? 0.5, 'tops');
     }
     for (const t of parts.filter((x) => x.role === 'paintTop')) {
       // Plywood cut to size, edging applied and mitered, sanded for paint: much less than a glue-up

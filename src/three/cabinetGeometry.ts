@@ -13,7 +13,7 @@ export function buildCabinetGeometry(parts: Part[]): CabinetGeometry {
   const groups = new Map<string, { material: Part['material']; shade: number; geos: THREE.BufferGeometry[] }>();
   const edgePts: number[] = [];
   for (const p of parts) {
-    for (const b of p.boxes) {
+    for (const b of p.shapesOnly ? [] : p.boxes) {
       const [sx, sy, sz] = b.size;
       if (sx <= 0 || sy <= 0 || sz <= 0) continue;
       const [x, y, z] = b.min;

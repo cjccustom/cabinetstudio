@@ -12,6 +12,7 @@ import { eff, panelOn } from '../model/parts';
 import { resolveEnds } from '../model/layout';
 import { profileByNum, profileLabel } from '../model/moldings';
 import { fingerPullNote, hasFingerPulls, hasHardware } from '../model/pulls';
+import { edgeLabel } from '../model/edgeProfiles';
 import { baseLabel } from '../model/cabinetBase';
 import { styleById } from '../model/eagle';
 import { fmt } from '../units';
@@ -35,7 +36,7 @@ export function cabinetCallouts(p: Project, c: Cabinet): Callout[] {
   }
   const base = baseLabel(c);
   if (base) out.push({ text: base.charAt(0).toUpperCase() + base.slice(1), for: 'both' });
-  if (c.countertop && c.kind === 'base') out.push({ text: c.topKind === 'wood' ? `${fmt(c.topThickness ?? 1.25)} solid wood top` : c.topKind === 'paint' ? `3/4" paint-grade plywood top, ${(c.topEdge ?? 'poplar').toLowerCase()} edging 3/4" × 1 1/4" dropping 1/2" over the top rail` : 'Stone countertop by others', for: c.topKind === 'stone' || !c.topKind ? 'customer' : 'both' });
+  if (c.countertop && c.kind === 'base') out.push({ text: c.topKind === 'wood' ? `${fmt(c.topThickness ?? 1.25)} solid wood top, ${edgeLabel(c.topProfile).toLowerCase()} edge` : c.topKind === 'paint' ? `3/4" paint-grade plywood top, ${(c.topEdge ?? 'poplar').toLowerCase()} edging 3/4" × 1 1/4" dropping 1/2" over the top rail` : 'Stone countertop by others', for: c.topKind === 'stone' || !c.topKind ? 'customer' : 'both' });
   if (c.crown) out.push({ text: `${c.kind === 'mantel' ? 'Bed moulding under the shelf' : 'Crown'}: ${mold(c.crown)}${c.crownBuild?.subCrown ? ` on a ${fmt(c.crownBuild.subCrown)} flat sub-crown` : ''}`, for: 'both' });
   if (c.seamCover && !ends.right) out.push({ text: `${fmt(c.seamCover.width)} seam batten over the joint with the next cabinet, up ${c.crownBuild?.subCrown ? 'into the sub-crown' : 'to the top'}`, for: 'both' });
   if (c.lightRail) out.push({ text: `Light rail: ${mold(c.lightRail)}`, for: 'both' });
