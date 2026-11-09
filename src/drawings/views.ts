@@ -168,11 +168,22 @@ function sideItems(p: Project, wall: WallId, mode: SideMode): Item[] {
   const cc = cofferOf(p);
   if (cc.on) {
     const L = cofferLayout(p, cc), H = room.height;
-    const across = ax.along[0] !== 0 ? L.beamsX : L.beamsZ;
+    const cls = mode === 'section' ? 'sec' : 'o';
+    const crown = profileByNum(cc.crown), cm = crown ? mountShape(crown) : null;
+    const pic = profileByNum(cc.picture), pm = pic ? mountShape(pic) : null;
+    // A crown against the coffer ceiling on a face at x, running into the coffer on side +1 or -1
+    const crownAt = (x: number, side: 1 | -1) => { if (cm) items.push({ x: 0, y: 0, w: 0, h: 0, z: 1e4 + 1, cls, pts: cm.pts.map(([u, q]) => [x + side * u, H - cm.height + q]) }); };
+    const alongX = ax.along[0] !== 0;
+    const across = alongX ? L.beamsX : L.beamsZ;
+    // Beams running across, beyond the cut: their bottoms, seen
+    const fa = alongX ? [proj(L.field.x0, 0)[0], proj(L.field.x1, 0)[0]] : [proj(0, L.field.z0)[0], proj(0, L.field.z1)[0]];
+    if ((alongX ? L.beamsZ : L.beamsX).length) items.push({ x: Math.min(...fa), y: H - cc.drop, w: Math.abs(fa[1] - fa[0]), h: cc.drop, z: 1e3, cls: 'o' });
     for (const b of across) {
-      const [a0] = ax.along[0] !== 0 ? proj(b.a, 0) : proj(0, b.a);
-      const [a1] = ax.along[0] !== 0 ? proj(b.b, 0) : proj(0, b.b);
-      items.push({ x: Math.min(a0, a1), y: H - cc.drop, w: Math.abs(a1 - a0), h: cc.drop, z: 1e4, cls: mode === 'section' ? 'sec' : 'o' });
+      const [a0] = alongX ? proj(b.a, 0) : proj(0, b.a);
+      const [a1] = alongX ? proj(b.b, 0) : proj(0, b.b);
+      const x0 = Math.min(a0, a1), x1 = Math.max(a0, a1);
+      items.push({ x: x0, y: H - cc.drop, w: x1 - x0, h: cc.drop, z: 1e4, cls });
+      crownAt(x0, -1); crownAt(x1, 1);
     }
     if (cc.perimeter) {
       const Lw = wallLength(room, wall), fh = fasciaHeight(cc);
@@ -181,7 +192,10 @@ function sideItems(p: Project, wall: WallId, mode: SideMode): Item[] {
         const d = perimOf(cc, w2);
         // The side wall that's at this wall's left end (along = 0) or its right end
         const atLeft = proj(...(w2 === 'left' ? [0, room.depth / 2] : w2 === 'right' ? [room.width, room.depth / 2] : w2 === 'back' ? [room.width / 2, 0] : [room.width / 2, room.depth]) as [number, number])[0] < Lw / 2;
-        items.push({ x: atLeft ? 0 : Lw - d, y: H - fh, w: d, h: fh, z: 1e4, cls: mode === 'section' ? 'sec' : 'o' });
+        items.push({ x: atLeft ? 0 : Lw - d, y: H - fh, w: d, h: fh, z: 1e4, cls });
+        // The picture moulding under the fascia, and the crown on its face
+        if (pm) items.push({ x: atLeft ? 0 : Lw - d - pm.depth, y: H - fh - pm.height, w: d + pm.depth, h: pm.height, z: 1e4, cls });
+        crownAt(atLeft ? d : Lw - d, atLeft ? 1 : -1);
       }
     }
   }
@@ -213,7 +227,7 @@ export function wallElevation(p: Project, wall: WallId, frame: Frame, mode: 'cus
   const sideDepth: number[] = [];
   if (sides) {
     const si = sideItems(p, wall, sides);
-    const work = si.filter((i) => i.z < 1e4);
+    const work = si.filter((i) => i.z < 1e3);
     const lft = work.filter((i) => i.x < 1), rgt = work.filter((i) => i.x + i.w > L - 1);
     if (lft.length) sideDepth.push(Math.max(...lft.map((i) => i.x + i.w)));
     if (rgt.length) sideDepth.push(Math.min(...rgt.map((i) => i.x)));
@@ -221,8 +235,11 @@ export function wallElevation(p: Project, wall: WallId, frame: Frame, mode: 'cus
       // Ceiling and floor cut too, then the work: drawn outlined, then filled again without the
       // outline, so only its outside edge shows and the insides stay out of it
       v.rect(-4.5, H, L + 9, 6, 'wall');
-      for (const i of si) v.rect(i.x, i.y, i.w, i.h, 'sec-o');
-      for (const i of si) v.rect(i.x, i.y, i.w, i.h, 'sec');
+      // Seen beyond the cut first (thin), then the cut work: outlined, then filled again without the outline
+      for (const i of si) if (i.cls === 'o') v.rect(i.x, i.y, i.w, i.h, 'thin');
+      const cut = si.filter((i) => i.cls === 'sec');
+      for (const i of cut) i.pts ? v.poly(i.pts, 'sec-o') : v.rect(i.x, i.y, i.w, i.h, 'sec-o');
+      for (const i of cut) i.pts ? v.poly(i.pts, 'sec') : v.rect(i.x, i.y, i.w, i.h, 'sec');
     } else drawItems(v, si);
   }
   v.line(-4.5, 0, L + 4.5, 0, 'heavy');

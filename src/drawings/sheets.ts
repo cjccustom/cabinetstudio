@@ -161,6 +161,8 @@ const html = (f: Frame, inner: string, size = 0.1) =>
 /** The notes column on an elevation: the job's, then each cabinet's on that wall, by tag. */
 function wallNotes(p: Project, wall: WallId, a: Audience): string {
   const items = cabinetsOn(p, wall).flatMap((c) => forAudience(cabinetCallouts(p, c), a).map((n) => `<li><b>${esc(c.name)}</b> ${esc(n.text)}</li>`));
+  // A wall with nothing built on it (drawn for the side walls in section) gets no door or hardware notes
+  if (!cabinetsOn(p, wall).length) return p.drawings?.sides?.[wall] === 'section' ? '<h2>Notes</h2><p>Built-ins on the side walls and the coffered ceiling are shown cut through and shaded, to show how far each comes out into the room.</p>' : '';
   return `<h2>Notes</h2><ul>${jobCallouts(p, a).map((t) => `<li>${esc(t)}</li>`).join('')}${items.join('')}</ul>`;
 }
 
