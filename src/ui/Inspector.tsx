@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { cofferOf, perimOf } from '../model/coffer';
 import { combine, combineAll, stackedPairs, upperOn } from '../model/onePiece';
 import { freeStanding, useStore } from '../store';
-import { useNav } from '../three/navigation';
+import { useNav, isOpenIn } from '../three/navigation';
 import type { CabinetNote, Cabinet, CaseBuild, FrameJoinery, CrownBuild, EndMode, FaceRow, PanelChoice, PanelMode, ShopSettings, WallId } from '../model/types';
 import { CabinetFinishSection } from './CabinetFinish';
 import { SlopeFit } from './SlopeFit';
@@ -564,6 +564,7 @@ export function Inspector({ cab, issues, tab }: { cab: Cabinet; issues: string[]
       <div className="insp-actions">
         <button onClick={() => duplicate(cab.id)}>Duplicate</button>
         <button title="Hide it in the design view to see past it; Show hidden brings it back" onClick={() => { useNav.getState().hide(cab.id); useStore.getState().select(null); useStore.getState().edit(null); }}>Hide in view</button>
+        <OpenButton id={cab.id} />
         <button className="danger" onClick={() => remove(cab.id)}>Delete</button>
       </div>
     </div>
@@ -1502,4 +1503,10 @@ function FitButtons({ cab }: { cab: Cabinet }) {
       )}
     </div>
   );
+}
+
+/** Open this cabinet's doors and drawers in the 3D view, to show what's inside. */
+function OpenButton({ id }: { id: string }) {
+  const open = useNav((n) => isOpenIn(n, id));
+  return <button title="Swing its doors open and pull its drawers out in the 3D view" onClick={() => { useStore.getState().setView('3d'); useNav.getState().toggleOpen(id); }}>{open ? 'Close doors' : 'Open doors'}</button>;
 }

@@ -33,14 +33,23 @@ export const pullColor = (s: ShopSettings) => (pullFinishes.find((f) => f.v === 
  */
 export interface PullSpot { kind: 'knob' | 'bar' | 'finger'; x: number; y: number; z: number; len: number; vertical: boolean }
 
-interface Box { x0: number; x1: number; y0: number; y1: number; z: number }
-const bbox = (part: Part): Box => {
+export interface Box { x0: number; x1: number; y0: number; y1: number; z: number }
+export const bbox = (part: Part): Box => {
   const xs = part.boxes.flatMap((b) => [b.min[0], b.min[0] + b.size[0]]), ys = part.boxes.flatMap((b) => [b.min[1], b.min[1] + b.size[1]]);
   return { x0: Math.min(...xs), x1: Math.max(...xs), y0: Math.min(...ys), y1: Math.max(...ys), z: Math.max(...part.boxes.map((b) => b.min[2] + b.size[2])) };
 };
 
 /** A finger grip's length on a front this wide: the set length, or the full width less 1" each end. */
 const gripLen = (s: ShopSettings, w: number) => { const L = fingerLengthOf(s); return L > 0 ? Math.min(L, w - 2) : w - 2; };
+
+/**
+ * Which edge of a door opens (the other is hinged): a pair opens at the meeting edges; a single
+ * door is hinged toward the nearer end of the wall.
+ */
+export function opensRight(c: Cabinet, wallLen: number, doors: Box[], d: Box): boolean {
+  const mate = doors.find((o) => o !== d && Math.abs(o.y0 - d.y0) < 1 && Math.abs(o.y1 - d.y1) < 1);
+  return mate ? mate.x0 > d.x0 : c.offset + c.width / 2 < wallLen / 2;
+}
 
 /** Where the hardware (or finger pulls) go on a cabinet's doors and drawer fronts. */
 export function pullSpots(p: Project, c: Cabinet, parts: Part[]): PullSpot[] {
@@ -51,9 +60,7 @@ export function pullSpots(p: Project, c: Cabinet, parts: Part[]): PullSpot[] {
   const L = wallLength(p.room, c.wall);
   const upper = c.elevation > 30;
   for (const d of doors) {
-    // A pair: hardware on the meeting edges. A single door: hinges toward the nearer end of the wall.
-    const mate = doors.find((o) => o !== d && Math.abs(o.y0 - d.y0) < 1 && Math.abs(o.y1 - d.y1) < 1);
-    const openRight = mate ? mate.x0 > d.x0 : c.offset + c.width / 2 < L / 2;
+    const openRight = opensRight(c, L, doors, d);
     const h = d.y1 - d.y0, w = d.x1 - d.x0;
     const tall = h > 40;
     if (style === 'finger') {

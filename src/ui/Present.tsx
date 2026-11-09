@@ -39,10 +39,12 @@ export function Present() {
           <button className="icon-btn" aria-label="Zoom out" onClick={() => zoomStep(false)}>−</button>
           <button className="icon-btn" aria-label="Zoom in" onClick={() => zoomStep(true)}>+</button>
           <button onClick={nav.reset}>Reset view</button>
+          {view === '3d' && <button className={nav.allOpen ? 'on' : ''} aria-pressed={nav.allOpen} onClick={() => nav.setAllOpen(!nav.allOpen)} title="Or tap a cabinet to open just that one">{nav.allOpen ? 'Close doors' : 'Open doors'}</button>}
           <button className="primary" onClick={() => setPresent(false)} title="Back to the design (Esc)">Exit</button>
         </div>
       </header>
       <main className="stage present-stage">
+        {view === '3d' && <div className="view-caption">Drag to turn the room · tap a cabinet to open it</div>}
         <Scene issueIds={none} />
       </main>
     </div>

@@ -28,6 +28,13 @@ export const useNav = create<{
   hide: (id: string) => void;
   showAll: () => void;
   setWalls: (on: boolean) => void;
+  /** Cabinets shown with their doors open and drawers out in the 3D view, or all of them. */
+  open: string[];
+  allOpen: boolean;
+  /** Closed again by hand while all are open. */
+  shut: string[];
+  toggleOpen: (id: string) => void;
+  setAllOpen: (on: boolean) => void;
   setMode: (m: 'orbit' | 'pan') => void;
   setPointer: (p: Pointer, byHand?: boolean) => void;
   reset: () => void;
@@ -45,6 +52,13 @@ export const useNav = create<{
   hide: (id) => set((s) => ({ hidden: s.hidden.includes(id) ? s.hidden : [...s.hidden, id] })),
   showAll: () => set({ hidden: [], walls: true }),
   setWalls: (walls) => set({ walls }),
+  open: [],
+  allOpen: false,
+  shut: [],
+  toggleOpen: (id) => set((s) => (s.allOpen
+    ? { shut: s.shut.includes(id) ? s.shut.filter((x) => x !== id) : [...s.shut, id] }
+    : { open: s.open.includes(id) ? s.open.filter((x) => x !== id) : [...s.open, id] })),
+  setAllOpen: (allOpen) => set({ allOpen, open: [], shut: [] }),
   setMode: (mode) => { save('cabinet-studio.nav', mode); set({ mode }); },
   setPointer: (pointer, byHand = false) => {
     save('cabinet-studio.pointer', pointer);
@@ -123,3 +137,6 @@ if (typeof window !== 'undefined' && window.location.hash.includes('debug')) {
     c.update();
   };
 }
+
+/** Is this cabinet shown open? */
+export const isOpenIn = (n: { allOpen: boolean; open: string[]; shut: string[] }, id: string) => (n.allOpen ? !n.shut.includes(id) : n.open.includes(id));

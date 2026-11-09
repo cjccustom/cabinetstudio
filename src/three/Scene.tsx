@@ -2,6 +2,10 @@ import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { Canvas, ThreeEvent, useThree } from '@react-three/fiber';
 import { PullModel } from './PullModel';
+import { fixedParts, frontMotions } from './fronts';
+import { isOpenIn } from './navigation';
+import { useFrame } from '@react-three/fiber';
+import type { CabinetGeometry } from './cabinetGeometry';
 import { pullColor, pullSpots } from '../model/pulls';
 import { Html, Line, OrbitControls, OrthographicCamera, PerspectiveCamera } from '@react-three/drei';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
@@ -285,9 +289,15 @@ function CabinetModel(props: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [cab, settings, ends.left, ends.right],
   );
-  const geo = useMemo(() => buildCabinetGeometry(parts), [parts]);
+  // Doors and drawer fronts drawn on their own, so they can swing open and slide out
+  const geo = useMemo(() => buildCabinetGeometry(fixedParts(parts)), [parts]);
   const project0 = useStore((st) => st.project);
   const spots = useMemo(() => pullSpots(project0, cab, parts), [project0, cab, parts]);
+  const motions = useMemo(() => frontMotions(project0, cab, parts, spots), [project0, cab, parts, spots]);
+  const frontGeos = useMemo(() => motions.map((m) => buildCabinetGeometry([m.part])), [motions]);
+  const fixedSpots = useMemo(() => spots.filter((h) => !motions.some((m) => m.pulls.includes(h))), [spots, motions]);
+  const opened = useNav((n) => isOpenIn(n, cab.id)) && view === '3d';
+  useEffect(() => () => { frontGeos.forEach((g) => { g.meshes.forEach((m) => m.geometry.dispose()); g.edges.dispose(); }); }, [frontGeos]);
   // The cabinet's lighting, lit, in the 3D view (the Lights switch over the view turns it off)
   const lightsOn = useNav((n) => n.lights) && view === '3d' && !!cab.lighting?.length;
   const project = useStore((st) => st.project);
@@ -408,18 +418,9 @@ function CabinetModel(props: {
   };
 
   const edgeColor = issue ? ISSUE : selected ? ACCENT : EDGE;
-  return (
-    <group
-      position={[pos[0], cab.elevation, pos[2]]}
-      rotation-y={rotY}
-      onPointerDown={onDown}
-      onPointerMove={onMove}
-      onPointerUp={onUp}
-      onDoubleClick={(e) => { e.stopPropagation(); useStore.getState().edit({ kind: 'cabinet', id: cab.id }); }}
-      onPointerOver={(e) => { e.stopPropagation(); document.body.style.cursor = 'grab'; }}
-      onPointerOut={() => { document.body.style.cursor = ''; }}
-    >
-      {geo.meshes.map((m) => (
+  const drawGeo = (g: CabinetGeometry) => (
+    <>
+      {g.meshes.map((m) => (
         <mesh key={m.key} geometry={m.geometry} castShadow receiveShadow>
           <meshStandardMaterial
             key={grainFor(m.material) ? 'grain' : 'flat'}
@@ -434,13 +435,35 @@ function CabinetModel(props: {
           />
         </mesh>
       ))}
-      <lineSegments geometry={geo.edges}>
+      <lineSegments geometry={g.edges}>
         <lineBasicMaterial color={edgeColor} transparent opacity={selected || issue ? 0.95 : 0.55} />
       </lineSegments>
+    </>
+  );
+  return (
+    <group
+      position={[pos[0], cab.elevation, pos[2]]}
+      rotation-y={rotY}
+      onPointerDown={onDown}
+      onPointerMove={onMove}
+      onPointerUp={onUp}
+      onClick={(e) => { if (useStore.getState().present && view === '3d' && e.delta < 6) { e.stopPropagation(); useNav.getState().toggleOpen(cab.id); } }}
+      onDoubleClick={(e) => { e.stopPropagation(); useStore.getState().edit({ kind: 'cabinet', id: cab.id }); }}
+      onPointerOver={(e) => { e.stopPropagation(); document.body.style.cursor = 'grab'; }}
+      onPointerOut={() => { document.body.style.cursor = ''; }}
+    >
+      {drawGeo(geo)}
+      {motions.map((m, i) => (
+        <Moving key={i} open={opened} pivot={m.pivot} angle={m.angle} slide={m.slide}>
+          {drawGeo(frontGeos[i])}
+          {m.pulls.length > 0 && <PullModel spots={m.pulls} color={pullColor(s)} />}
+          {m.box && <DrawerBox {...m.box} />}
+        </Moving>
+      ))}
       {(cab.crown || cab.lightRail || cab.baseMold) && (
         <MoldingModel pieces={cabinetMoldings(cab, eff(cab, settings), ends, { noCrown })} color={fc.paint} edgeColor={edgeColor} />
       )}
-      <PullModel spots={spots} color={pullColor(s)} />
+      <PullModel spots={fixedSpots} color={pullColor(s)} />
       <ApplianceModel cab={cab} settings={settings} />
       {lightsOn && <CabinetLights cab={cab} project={project} parts={parts} />}
     </group>
@@ -567,5 +590,43 @@ function SlopedCeiling({ room, color }: { room: Room; color: string }) {
     <mesh geometry={geo}>
       <meshStandardMaterial color={color} emissive="#ffffff" emissiveIntensity={0.18} roughness={0.95} side={THREE.DoubleSide} />
     </mesh>
+  );
+}
+
+/** A door or drawer front that swings on its hinge line, or slides out, easing to where it's going. */
+function Moving({ open, pivot, angle, slide, children }: { open: boolean; pivot: [number, number]; angle: number; slide: number; children: React.ReactNode }) {
+  const ref = useRef<THREE.Group>(null);
+  useFrame((_, dt) => {
+    const g = ref.current;
+    if (!g) return;
+    const k = 1 - Math.exp(-Math.min(dt, 0.1) * 7);
+    const ta = open ? angle : 0, tz = pivot[1] + (open ? slide : 0);
+    if (Math.abs(g.rotation.y - ta) < 1e-4 && Math.abs(g.position.z - tz) < 1e-3) return;
+    g.rotation.y += (ta - g.rotation.y) * k;
+    g.position.z += (tz - g.position.z) * k;
+  });
+  return (
+    <group ref={ref} position={[pivot[0], 0, pivot[1]]}>
+      <group position={[-pivot[0], 0, -pivot[1]]}>{children}</group>
+    </group>
+  );
+}
+
+/** A dovetail drawer box behind its front: sides, back, sub-front and bottom, in clear maple. */
+function DrawerBox({ x0, y0, z0, w, h, d }: { x0: number; y0: number; z0: number; w: number; h: number; d: number }) {
+  const t = 0.5, col = '#dcc39a';
+  const pieces: [number, number, number, number, number, number][] = [
+    [x0, y0, z0, t, h, d], [x0 + w - t, y0, z0, t, h, d],
+    [x0 + t, y0, z0, w - 2 * t, h, t], [x0 + t, y0, z0 + d - t, w - 2 * t, h, t],
+    [x0 + t, y0 + 0.5, z0 + t, w - 2 * t, 0.25, d - 2 * t],
+  ];
+  return (
+    <group>
+      {pieces.map(([x, y, z, sx, sy, sz], i) => (
+        <mesh key={i} position={[x + sx / 2, y + sy / 2, z + sz / 2]} castShadow receiveShadow>
+          <boxGeometry args={[sx, sy, sz]} /><meshStandardMaterial color={col} roughness={0.7} />
+        </mesh>
+      ))}
+    </group>
   );
 }
