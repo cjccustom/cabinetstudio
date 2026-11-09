@@ -2027,6 +2027,16 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   eq('stretchers: none under a shelf', tableParts({ ...b, shelf: 'slats' }).some((x) => /^Stretcher/.test(x.name)), false);
 }
 
+// Check discount switched off for one job: one price, no card or check wording anywhere
+{
+  const off = { ...p, quote: { ...quoteOf(p), checkDiscount: 0 } };
+  const on = { ...p, quote: { ...quoteOf(p), checkDiscount: undefined } };
+  const words = /by card|bank transfer|card price/i;
+  eq('discount off: quote doc has no card/check wording', words.test(quoteDoc(off)), false);
+  eq('discount off: printed quote has none', words.test(printQuote(off, { terms: '' })), false);
+  eq('discount on: quote doc mentions it', words.test(quoteDoc(on)), true);
+}
+
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');
 
 console.log(failed ? `${failed} check(s) failed` : 'All model checks passed');

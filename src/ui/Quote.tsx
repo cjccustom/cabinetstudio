@@ -481,14 +481,14 @@ function ScheduleSection() {
         </div>
       </div>
       <div className="sched-row">
-        <div className="sched-top"><label htmlFor="q-cdisc">Discount for paying by check or bank transfer</label></div>
+        <div className="sched-top"><label className="check-inline" style={{ marginTop: 0 }}><input type="checkbox" checked={checkDiscountOf(project) > 0} onChange={(e) => set({ checkDiscount: e.target.checked ? undefined : 0 })} /> Card price with a discount for paying by check or bank transfer</label></div>
         <div className="sched-amt">
-          <span className="sched-val"><input id="q-cdisc" inputMode="decimal" value={+(checkDiscountOf(project) * 100).toFixed(2)} onChange={(e) => { const v = parseFloat(e.target.value); set({ checkDiscount: Number.isFinite(v) ? Math.max(0, Math.min(10, v)) / 100 : 0 }); }} /><span className="muted">%</span></span>
+          <span className="sched-val" hidden={!checkDiscountOf(project)}><input id="q-cdisc" aria-label="Check / bank transfer discount" inputMode="decimal" value={+(checkDiscountOf(project) * 100).toFixed(2)} onChange={(e) => { const v = parseFloat(e.target.value); set({ checkDiscount: Number.isFinite(v) ? Math.max(0, Math.min(10, v)) / 100 : 0 }); }} /><span className="muted">%</span></span>
           <span />
           <b className="num">{checkDiscountOf(project) ? `card ${money(cardOf(quoteTotals(project).total, checkDiscountOf(project)))}` : 'off'}</b>
         </div>
       </div>
-      {checkDiscountOf(project) > 0 && <p className="hint">Your quote above is the check / bank transfer price. The proposal lists the card price ({money(cardOf(quoteTotals(project).total, checkDiscountOf(project)))}), and paying by check or bank transfer takes {+(checkDiscountOf(project) * 100).toFixed(1)}% off it, back to your price. The client picks how they’ll pay when signing; the invoices follow. Set it to 0 to list one price.</p>}
+      {checkDiscountOf(project) > 0 && <p className="hint">Your quote above is the check / bank transfer price. The proposal lists the card price ({money(cardOf(quoteTotals(project).total, checkDiscountOf(project)))}), and paying by check or bank transfer takes {+(checkDiscountOf(project) * 100).toFixed(1)}% off it, back to your price. The client picks how they’ll pay when signing; the invoices follow. Untick it to list one price with no card or check wording, for this job only.</p>}
       <p className="hint">The first payment is the deposit: it’s what the client portal asks for at signing and what the deposit invoice charges. {q.payments ? <button className="link-btn" onClick={() => set({ payments: undefined, finalPaymentLabel: undefined })}>Back to 30% / balance</button> : null}</p>
     </Section>
   );
