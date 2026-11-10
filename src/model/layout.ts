@@ -285,7 +285,34 @@ export function resolveEnds(room: Room, cabinets: Cabinet[], c: Cabinet): EndInf
     const last = run[run.length - 1];
     ends.topRun = { lead: run[0].id === c.id, span: last.offset + last.width - run[0].offset, last, lastRight: last.id === c.id ? ends.right : resolveEnds(room, cabinets, last).right, gaps: topGaps(run) };
   }
+  const sr = subRun(cabinets, c);
+  if (sr) {
+    const last = sr[sr.length - 1];
+    ends.subRun = { lead: sr[0].id === c.id, span: last.offset + last.width - sr[0].offset, last, lastRight: last.id === c.id ? ends.right : resolveEnds(room, cabinets, last).right };
+  }
   return ends;
+}
+
+/** Same flat sub-crown at the same height and face: it can run through as one piece. */
+const sameSub = (a: Cabinet, b: Cabinet) => {
+  const sa = a.crownBuild?.subCrown ?? 0, sb = b.crownBuild?.subCrown ?? 0;
+  const top = (c: Cabinet) => c.elevation + c.height + (c.crownBuild?.rise ?? 0);
+  const ok = (c: Cabinet) => c.kind !== 'pilaster' && c.kind !== 'mantel' && c.kind !== 'shelf' && !c.island;
+  return ok(a) && ok(b) && sa > 0 && Math.abs(sa - sb) < 1 / 16 && a.wall === b.wall && Math.abs(top(a) - top(b)) < 1 / 16
+    && Math.abs((a.wallInset ?? 0) - (b.wallInset ?? 0)) < 1 / 16 && Math.abs(a.depth - b.depth) < 1 / 16;
+};
+
+/** The cabinets whose sub-crown is one piece with this one's (touching, left to right); null when it stands alone. */
+export function subRun(cabinets: Cabinet[], c: Cabinet): Cabinet[] | null {
+  if (!(c.crownBuild?.subCrown ?? 0)) return null;
+  const row = cabinets.filter((o) => sameSub(o, c)).sort((a, b) => a.offset - b.offset);
+  const runs: Cabinet[][] = [];
+  for (const o of row) {
+    const cur = runs[runs.length - 1], prev = cur?.[cur.length - 1];
+    if (prev && Math.abs(prev.offset + prev.width - o.offset) < 1 / 16) cur.push(o); else runs.push([o]);
+  }
+  const mine = runs.find((r) => r.some((o) => o.id === c.id));
+  return mine && mine.length > 1 ? mine : null;
 }
 
 /** The open spaces a run's top crosses (desk or knee space), left to right: where each starts and how wide. */

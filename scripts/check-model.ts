@@ -2134,6 +2134,17 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   eq('subcrown on top: 1 1/2" shows under the crown (to a 1/16)', Math.abs(L.top - ch - L.subBottom - 1.5) <= 1 / 16, true);
 }
 
+// Sub-crown: one piece across touching uppers, not a joint at every cabinet
+{
+  const ups = p.cabinets.filter((c) => c.wall === 'back' && c.kind === 'wall').sort((a, b) => a.offset - b.offset).slice(0, 2);
+  const job = { ...p, cabinets: p.cabinets.map((c) => (ups.some((u) => u.id === c.id) ? { ...c, crown: '5268', ...subCrownOnTop({ ...c, crown: '5268' }, p.settings, 1.5)! } : c)) };
+  const [a, b] = ups.map((u) => job.cabinets.find((c) => c.id === u.id)!);
+  const pa = buildParts(a, job.settings, resolveEnds(job.room, job.cabinets, a)).filter((x) => x.name === 'Sub-crown');
+  const pb = buildParts(b, job.settings, resolveEnds(job.room, job.cabinets, b)).filter((x) => x.name === 'Sub-crown');
+  eq('sub-crown run: one piece on the first, none on the second', [pa.length, pb.length].join(), '1,0');
+  eq('sub-crown run: spans both cabinets', pa[0].boxes[0].min[0] + pa[0].boxes[0].size[0] >= b.offset + b.width - a.offset - 1e-6, true);
+}
+
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');
 
 console.log(failed ? `${failed} check(s) failed` : 'All model checks passed');

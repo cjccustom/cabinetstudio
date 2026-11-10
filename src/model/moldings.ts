@@ -351,10 +351,16 @@ export function cabinetMoldings(c: Cabinet, s: ShopSettings, ends: EndInfo, opts
     const carries = (side: 'left' | 'right') => {
       if (ends[side] || (side === 'left' ? cl : cr) != null) return false;
       const o = ends.beside?.(side);
-      if (!o || o.depth !== c.depth || o.elevation !== c.elevation) return false;
+      if (!o) return false;
+      // Crown: the same profile at the same height off the floor on the same face, whatever the cabinets' own sizes
+      if (r.kind === 'crown') {
+        if (o.crown !== r.num) return false;
+        const Lo = crownLayout(o, s), Lc = crownLayout(c, s);
+        return Math.abs(o.elevation + Lo.crownTop - (c.elevation + Lc.crownTop)) < 1 / 32 && Math.abs(Lo.face + (o.wallInset ?? 0) - (Lc.face + (c.wallInset ?? 0))) < 1 / 32;
+      }
+      if (o.depth !== c.depth || o.elevation !== c.elevation) return false;
       if (r.kind === 'baseMold') return o.baseMold === r.num && baseLayout(o, s).flat === bl.flat && baseLayout(o, s).style === bl.style;
       if (r.kind === 'lightRail') return o.lightRail === r.num;
-      if (r.kind === 'crown') return o.crown === r.num && o.height === c.height && JSON.stringify(o.crownBuild ?? null) === JSON.stringify(c.crownBuild ?? null);
       return false;
     };
     out.push({ kind: r.kind, num: p.num, along: 'x', facing: 'front', x: sx0, y, z: r.z, length: sx1 - sx0, hang: r.hang, cut: [corner('left'), corner('right')], joined: [carries('left'), carries('right')] });

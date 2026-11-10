@@ -232,6 +232,8 @@ export interface EndInfo {
   /** The cabinet touching this end on the same wall, if any (a run's mouldings carry on into it). */
   beside?: (side: 'left' | 'right') => Cabinet | null;
   topRun?: { lead: boolean; span: number; last: Cabinet; lastRight: boolean; /** Open spaces the top crosses. */ gaps?: { at: number; width: number }[] };
+  /** Sub-crowns on touching cabinets at the same height are one piece: the first cabinet carries it across the run. */
+  subRun?: { lead: boolean; span: number; last: Cabinet; lastRight: boolean };
 }
 
 /**
@@ -1044,9 +1046,14 @@ function crownParts(c: Cabinet, s: ShopSettings, ends: EndInfo): Part[] {
   }
   if (subT > 0) {
     const h = b.subCrown;
-    const xl = x0 - (ends.left ? subT : 0), xr = x1 + (ends.right ? subT : 0);
-    out.push({ name: 'Sub-crown', role: 'trim', material: 'faceframe', length: xr - xl, width: h, thickness: subT, cut: true,
-      note: 'flat, face flush with the doors; crown goes on its face',
+    // One piece across a run of cabinets: the first carries it to the far end of the last
+    const run = ends.subRun;
+    const lastExt = run?.lead ? panelExtents(run.last, s, { left: false, right: run.lastRight }) : null;
+    const xEnd = run?.lead && lastExt ? run.span + lastExt.right : x1;
+    const rightOpen = run?.lead ? run.lastRight : ends.right;
+    const xl = x0 - (ends.left ? subT : 0), xr = xEnd + (rightOpen ? subT : 0);
+    if (!run || run.lead) out.push({ name: 'Sub-crown', role: 'trim', material: 'faceframe', length: xr - xl, width: h, thickness: subT, cut: true,
+      note: ['flat, face flush with the doors; crown goes on its face', run ? `One piece across ${fmt(run.span)}${xr - xl > 96 ? '; longer than 8\': splice it at a cabinet joint with a scarf or spline' : ''}` : ''].filter(Boolean).join(' · '),
       boxes: [vb(xl, L.subBottom, L.back, xr - xl, h, subT)] });
     for (const side of ['left', 'right'] as const) {
       if (!ends[side]) continue;
