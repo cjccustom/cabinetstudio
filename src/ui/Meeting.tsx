@@ -11,6 +11,10 @@ import type { Sample } from '../runtime';
 import { PhotoMarkup } from './PhotoMarkup';
 import { VideoUpload } from './VideoUpload';
 import { ScanImportButton } from './PhotoRoom';
+import { listedPrice, optionDeltas, selectionText, selections, signedPrice, type Selection } from '../model/selections';
+import { priceBook } from '../model/pricebook';
+import { useShop } from '../shop/shop';
+import { PaintColorPicker } from './PaintColorPicker';
 import { newVisit, parseMeasure, siteChecks, utilityKinds, visitToday, type SiteState, type Utility, type UtilityKind, type Visit } from '../model/meeting';
 import { newOpening, openingKinds } from '../model/room';
 import { wallNames, wallOrder } from '../model/layout';
@@ -21,9 +25,9 @@ import { ClientPhotos } from './Photos';
 import { saveToDropbox } from './Clients';
 import { PortalError, blobToBase64, savePhoto } from '../portal';
 
-type Tab = 'notes' | 'sketch' | 'measure' | 'site' | 'photos';
+type Tab = 'notes' | 'sketch' | 'measure' | 'site' | 'selections' | 'photos';
 const tabs: { id: Tab; label: string }[] = [
-  { id: 'notes', label: 'Notes' }, { id: 'sketch', label: 'Sketch' }, { id: 'measure', label: 'Measure' }, { id: 'site', label: 'Site' }, { id: 'photos', label: 'Photos & video' },
+  { id: 'notes', label: 'Notes' }, { id: 'sketch', label: 'Sketch' }, { id: 'measure', label: 'Measure' }, { id: 'site', label: 'Site' }, { id: 'selections', label: 'Selections' }, { id: 'photos', label: 'Photos & video' },
 ];
 
 /** Today's visit for this client, and a way to change it (started the first time the screen opens today). */
@@ -75,6 +79,7 @@ export function Meeting() {
           : tab === 'sketch' ? <SketchTab v={v} put={put} folder={project.dropbox?.path} who={who} />
           : tab === 'measure' ? <MeasureTab v={v} put={put} />
           : tab === 'site' ? <SiteTab v={v} put={put} />
+          : tab === 'selections' ? <SelectionsTab put={put} />
           : <div className="meeting-pad"><ClientPhotos /><PhotoMarkup folder={project.dropbox?.path} /><VideoUpload folder={project.dropbox?.path} /><p className="hint">Inspiration pictures the customer shows you: AirDrop or save them to the iPad, then <b>Choose photos</b> with “Inspiration” in the box.</p></div>}
       </main>
     </div>
@@ -383,6 +388,55 @@ function SiteTab({ v, put }: { v: Visit; put: Put }) {
           })}
         </section>
       ))}
+    </div>
+  );
+}
+
+/* ---------- Selections ---------- */
+
+const money = (n: number) => `$${Math.round(n).toLocaleString('en-US')}`;
+const deltaText = (d: number | undefined) => (d == null ? '' : Math.abs(d) < 5 ? 'same price' : `${d > 0 ? '+' : '−'}${money(Math.abs(d))}`);
+
+function SelectionsTab({ put }: { put: Put }) {
+  const project = useStore((s) => s.project);
+  const commit = useStore((s) => s.commit);
+  const prices = useShop((s) => s.prices);
+  const book = useMemo(() => priceBook(prices), [prices]);
+  // What the price was when this screen opened, so a meeting's choices add up as they're made
+  const [start] = useState(() => listedPrice(project));
+  const now = useMemo(() => listedPrice(project), [project]);
+  const signed = signedPrice(project);
+  const deltas = useMemo(() => new Map(selections.filter((s) => !s.free && s.shown(project)).map((s) => [s.id, optionDeltas(project, s, book)])), [project, book]);
+  const choose = (sel: Selection, v: string) => {
+    commit((p) => sel.apply(p, v, book));
+    // The visit keeps what was picked
+    put(() => ({ selections: selectionText(useStore.getState().project) }));
+  };
+  const diff = signed != null ? now - signed : now - start;
+  return (
+    <div className="meeting-pad">
+      <div className={`sel-total${Math.abs(diff) >= 5 ? ' changed' : ''}`}>
+        <div><span className="muted">{signed != null ? 'Signed price' : 'Price before today’s choices'}</span><b>{money(signed ?? start)}</b></div>
+        <div><span className="muted">With these choices</span><b>{money(now)}</b></div>
+        <div><span className="muted">Difference</span><b>{Math.abs(diff) < 5 ? 'none' : `${diff > 0 ? '+' : '−'}${money(Math.abs(diff))}`}</b></div>
+      </div>
+      {signed != null && Math.abs(diff) >= 5 && <p className="warn">This job is signed: a change in price needs a change order the customer approves before the work changes.</p>}
+      <p className="hint">Each choice shows what it does to the price next to it. The design and the quote change as you pick; a proposal that’s already out doesn’t change until you publish it again.</p>
+      {selections.filter((s) => s.shown(project)).map((s) => {
+        const d = deltas.get(s.id);
+        return (
+          <div className="sel-row" key={s.id}>
+            <label htmlFor={`sel-${s.id}`}>{s.label}</label>
+            <select id={`sel-${s.id}`} value={s.current(project)} onChange={(e) => choose(s, e.target.value)}>
+              {s.options(project).map((o) => <option key={o.v} value={o.v}>{o.label}{d && o.v !== s.current(project) && d.has(o.v) ? `  (${deltaText(d.get(o.v))})` : ''}</option>)}
+            </select>
+          </div>
+        );
+      })}
+      {project.settings.finish !== 'stain' && (
+        <div className="sel-row"><span className="sel-label">Paint color and sheen</span><PaintColorPicker k="paint" /></div>
+      )}
+      <p className="hint">Door styles are priced the same in the quote (Eagle doors are estimated by the square foot), so a style change shows no difference. Knobs and pulls are the customer’s to supply; their color only changes the 3D view.</p>
     </div>
   );
 }

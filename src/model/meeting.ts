@@ -22,6 +22,8 @@ export interface Visit {
   sketches: string[];
   /** Claude's read of the notes: a short summary, scope lines, questions to answer, follow-ups. */
   summary?: VisitSummary;
+  /** What the customer picked on the Selections tab. */
+  selections?: string[];
 }
 export interface VisitSummary { summary: string; scope: string[]; questions: string[]; followUps: string[] }
 
@@ -138,6 +140,7 @@ export function visitsDoc(visits: Visit[] | undefined): string[] {
       out.push('', '### On the walls', '', '| What | Wall | From left | Height | Notes |', '|---|---|---|---|---|',
         ...v.utilities.map((u) => `| ${utilityKinds[u.kind]} | ${wallWord[u.wall]} | ${u.offset != null ? fmt(u.offset) : ''} | ${u.height != null ? fmt(u.height) : ''} | ${u.note} |`));
     }
+    if (v.selections?.length) out.push('', '### Selections', ...v.selections.map((x) => `- ${x}`));
     if (v.sketches.length) out.push('', '### Sketches', ...v.sketches.map((p) => `- ${p.slice(p.lastIndexOf('/') + 1)}`));
   }
   return out;

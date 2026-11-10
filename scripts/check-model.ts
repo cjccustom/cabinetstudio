@@ -61,6 +61,7 @@ import { eagleFraction, eagleRequests, requestText } from "../src/model/eagleReq
 import { hardwareOrder, tierPrice } from "../src/model/hardware";
 import { hardwareScope, pullSpots } from "../src/model/pulls";
 import { topSection, edgeCurve } from "../src/model/edgeProfiles";
+import { selections as selList, optionDeltas, listedPrice, selectionText } from "../src/model/selections";
 import { profileItems } from "../src/drawings/profileSheet";
 import { parseMeasure, visitsDoc, newVisit, readSummary, summaryRequest } from "../src/model/meeting";
 import { hardwareItems } from "../src/drawings/views";
@@ -2153,6 +2154,18 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   eq('furniture lines: one per piece, old name on the first', f.map((l) => l.label).join(' | '), 'Puzzle Table | Bench');
   eq('furniture lines: still add up to the total', lines.reduce((t, l) => t + l.price, 0), priceQuote(job).total);
   eq('furniture lines: table costs more than the bench', f[0].price > f[1].price, true);
+}
+
+// Selections: each choice shows its effect on the listed price, and the visit gets them in words
+{
+  const mount = selList.find((x) => x.id === 'mount')!;
+  const d = optionDeltas(p, mount);
+  const other = p.settings.doorMount === 'inset' ? 'overlay' : 'inset';
+  eq('selections: current choice is no change', d.get(p.settings.doorMount), 0);
+  eq('selections: the other mounting is priced', (p.settings.doorMount === 'overlay' ? d.get(other)! > 0 : d.get(other)! < 0), true);
+  const applied = mount.apply(p, other, []);
+  eq('selections: the price moves by what was shown', Math.abs(listedPrice(applied) - listedPrice(p) - d.get(other)!) < 1, true);
+  eq('selections: in words for the visit', selectionText(applied).some((t) => /^Doors and drawer fronts: /.test(t)), true);
 }
 
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');

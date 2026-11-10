@@ -803,3 +803,12 @@ textarea.text-input { resize: vertical; }
 .scan-row .hint { flex: 1 1 300px; }
 
 .export-stage { position: fixed; left: -10000px; top: 0; width: 1200px; height: 800px; pointer-events: none; }
+
+.sel-total { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); margin-bottom: 10px; }
+.sel-total > div { display: flex; flex-direction: column; }
+.sel-total b { font-size: 20px; }
+.sel-total.changed { border-color: #b26a00; }
+.sel-row { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 10px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.sel-row label, .sel-label { font-weight: 600; }
+.sel-row select { font-size: 17px; padding: 8px; }
+@media (max-width: 700px) { .sel-row { grid-template-columns: 1fr; } }
