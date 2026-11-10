@@ -16,8 +16,11 @@ import { edgeLabel } from '../model/edgeProfiles';
 import { baseLabel } from '../model/cabinetBase';
 import { styleById } from '../model/eagle';
 import { fmt } from '../units';
+import { cabinetSwings, RESTRICT_TO } from '../model/doorSwing';
 
 export type Audience = 'customer' | 'shop';
+/** How the shop note for a hinge restrictor starts: it's hardware, so cabinets built alike still share a drawing. */
+export const RESTRICTOR_NOTE = 'Hinge opening restrictor';
 export interface Callout { text: string; for: CabinetNote['for'] }
 
 const panelWords: Record<string, string> = { flush: 'flush with the doors', reveal: 'held back from the door face', inset: 'inset in the face frame' };
@@ -41,6 +44,10 @@ export function cabinetCallouts(p: Project, c: Cabinet): Callout[] {
   if (c.countertop && c.kind === 'base') out.push({ text: c.topKind === 'wood' ? `${fmt(c.topThickness ?? 1.25)} solid wood top, ${edgeLabel(c.topProfile).toLowerCase()} edge` : c.topKind === 'paint' ? `3/4" paint-grade plywood top, ${(c.topEdge ?? 'poplar').toLowerCase()} edging 3/4" × 1 1/4" dropping 1/2" over the top rail` : 'Stone countertop by others', for: c.topKind === 'stone' || !c.topKind ? 'customer' : 'both' });
   if (c.crown) out.push({ text: `${c.kind === 'mantel' ? 'Bed moulding under the shelf' : 'Crown'}: ${mold(c.crown)}${c.crownBuild?.subCrown ? ` on a ${fmt(c.crownBuild.subCrown)} flat sub-crown` : ''}`, for: 'both' });
   if (c.seamCover && !ends.right) out.push({ text: `${fmt(c.seamCover.width)} seam batten over the joint with the next cabinet, up ${c.crownBuild?.subCrown ? 'into the sub-crown' : 'to the top'}`, for: 'both' });
+  for (const d of cabinetSwings(p, c).filter((x) => x.fix === 'restrictor')) {
+    out.push({ text: `${RESTRICTOR_NOTE} on the ${d.label}: stops it at ${RESTRICT_TO}° (it would hit ${d.hits} at about ${d.at}°)`, for: 'shop' });
+    out.push({ text: `The ${d.label} opens to ${RESTRICT_TO}° so it clears ${d.hits}`, for: 'customer' });
+  }
   if (c.lightRail) out.push({ text: `Light rail: ${mold(c.lightRail)}`, for: 'both' });
   const fin = cabinetFinishOf(p, c);
   if (fin.accent && c.kind !== 'pilaster' && c.kind !== 'mantel' && c.kind !== 'shelf') out.push({ text: `Finish: ${fin.text}${fin.finish === 'stain' ? ` (doors ${eff(c, p.settings).doorMaterial.toLowerCase()})` : ''}`, for: 'both' });

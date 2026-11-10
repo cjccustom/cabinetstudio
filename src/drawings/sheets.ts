@@ -21,7 +21,7 @@ import { cofferOf, cofferParts } from '../model/coffer';
 import { fuelLabel, mantelOf } from '../model/mantel';
 import { cofferScope } from '../model/quote';
 import { beginEdits, drawingCss, endEdits, inView, scaleName, takeViews, type DrawingEdits, type Frame, type ViewInfo } from './draw';
-import { cabinetCallouts, forAudience, jobCallouts, type Audience } from './notes';
+import { RESTRICTOR_NOTE, cabinetCallouts, forAudience, jobCallouts, type Audience } from './notes';
 import { LOGO, LOGO_ASPECT } from './logo';
 import { tableViews } from './tableViews';
 import { tableParts } from '../model/tableParts';
@@ -293,7 +293,11 @@ function cabinetHeader(p: Project, c: Cabinet, same: Cabinet[] = [c]): string {
     c.kind === 'mantel' ? `${mantelOf(c).species}, paint grade; ${fuelLabel[mantelOf(c).fuel].toLowerCase()}` : `${style.name} ${s.doorMount === 'inset' ? 'inset' : 'overlay'}; face frame ${fmt(s.ffThickness)} ${p.settings.woodSpecies}`,
     baseLabel(c) ?? (c.kind === 'base' || c.kind === 'tall' ? `${fmt(s.toeKickHeight)} toe kick` : ''),
   ].filter(Boolean);
-  const notes = forAudience(cabinetCallouts(p, c), 'shop');
+  // Restrictors are per cabinet (hardware, not the build): each one named on a shared drawing
+  const notes = [
+    ...forAudience(cabinetCallouts(p, c), 'shop').filter((n) => !n.text.startsWith(RESTRICTOR_NOTE)),
+    ...same.flatMap((x) => forAudience(cabinetCallouts(p, x), 'shop').filter((n) => n.text.startsWith(RESTRICTOR_NOTE)).map((n) => ({ ...n, text: same.length > 1 ? `${x.name}: ${n.text}` : n.text }))),
+  ];
   const make = same.length > 1 ? `<p class="big">Make ${same.length}</p><ul>${same.map((x) => `<li><b>${esc(x.name)}</b>: ${esc(where(x))}</li>`).join('')}</ul>` : `<p>${esc(where(c))}</p>`;
   return `<h2>${esc(same.map((x) => x.name).join(', '))}</h2>${make}<p>${bits.map(esc).join('<br>')}</p>${notes.length ? `<h3>Notes</h3><ul>${notes.map((n) => `<li>${esc(n.text)}</li>`).join('')}</ul>` : ''}`;
 }
@@ -306,7 +310,7 @@ export function shopGroups(p: Project): Cabinet[][] {
   const groups = new Map<string, Cabinet[]>();
   for (const w of wallOrder) for (const c of cabinetsOn(p, w)) {
     const parts = partRows(partsOf(p, c)).map(({ part, qty }) => [qty, part.name, part.role, part.length, part.width, part.thickness, part.material, part.species ?? '', part.sheet ?? '', part.note ?? '', part.order ? JSON.stringify(part.order) : ''].join('|'));
-    const notes = forAudience(cabinetCallouts(p, c), 'shop').map((n) => n.text);
+    const notes = forAudience(cabinetCallouts(p, c), 'shop').map((n) => n.text).filter((t) => !t.startsWith(RESTRICTOR_NOTE));
     const key = [c.kind, c.width, c.height, c.depth, baseLabel(c) ?? '', ...parts.sort(), ...notes].join('\n');
     const g = groups.get(key);
     if (g) g.push(c); else groups.set(key, [c]);

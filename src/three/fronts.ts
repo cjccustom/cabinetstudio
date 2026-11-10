@@ -4,6 +4,7 @@
 import type { Cabinet, Part, Project } from '../model/types';
 import { bbox, opensRight, type Box, type PullSpot } from '../model/pulls';
 import { wallLength } from '../model/layout';
+import { cabinetSwings } from '../model/doorSwing';
 
 export interface FrontMotion {
   part: Part;
@@ -26,6 +27,8 @@ export function frontMotions(p: Project, c: Cabinet, parts: Part[], spots: PullS
   const doors = parts.filter((x) => x.role === 'door' && x.boxes.length);
   const doorBoxes = doors.map(bbox);
   const out: FrontMotion[] = [];
+  const stops = new Map(cabinetSwings(p, c).map((d) => [d.door, (d.stop * Math.PI) / 180]));
+  let hinged = 0;
   doors.forEach((part, i) => {
     const b = doorBoxes[i];
     const back = Math.min(...part.boxes.map((x) => x.min[2]));
@@ -34,8 +37,9 @@ export function frontMotions(p: Project, c: Cabinet, parts: Part[], spots: PullS
       return;
     }
     const right = opensRight(c, L, doorBoxes.filter((_, j) => doors[j].name !== 'Lift-up door'), b);
-    // Hinged on the far edge from the pull, swinging out toward the room
-    out.push({ part, pivot: [right ? b.x0 : b.x1, back], angle: right ? -SWING : SWING, slide: 0, pulls: spots.filter((h) => inside(h, b)) });
+    // Hinged on the far edge from the pull, swinging out toward the room, as far as it can go
+    const swing = Math.min(SWING, stops.get(hinged++) ?? SWING);
+    out.push({ part, pivot: [right ? b.x0 : b.x1, back], angle: right ? -swing : swing, slide: 0, pulls: spots.filter((h) => inside(h, b)) });
   });
   // Each drawer box follows its front in the parts list
   const boxes = parts.filter((x) => x.role === 'drawerBox');

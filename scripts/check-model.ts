@@ -61,6 +61,8 @@ import { eagleFraction, eagleRequests, requestText } from "../src/model/eagleReq
 import { hardwareOrder, tierPrice } from "../src/model/hardware";
 import { hardwareScope, pullSpots } from "../src/model/pulls";
 import { topSection, edgeCurve } from "../src/model/edgeProfiles";
+import { doorSwings, doorSwingIssues, RESTRICT_TO } from "../src/model/doorSwing";
+import { frontMotions } from "../src/three/fronts";
 import { selections as selList, optionDeltas, listedPrice, selectionText } from "../src/model/selections";
 import { profileItems } from "../src/drawings/profileSheet";
 import { parseMeasure, visitsDoc, newVisit, readSummary, summaryRequest } from "../src/model/meeting";
@@ -2174,6 +2176,32 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   const applied = mount.apply(p, other, []);
   eq('selections: the price moves by what was shown', Math.abs(listedPrice(applied) - listedPrice(p) - d.get(other)!) < 1, true);
   eq('selections: in words for the visit', selectionText(applied).some((t) => /^Doors and drawer fronts: /.test(t)), true);
+}
+
+// Doors that swing into a wall or a deeper neighbour: a restrictor just past square, a problem before it
+{
+  const sw = doorSwings(p);
+  const w1 = p.cabinets.find((c) => c.name === 'W1')!;
+  const at = sw.find((d) => d.cabinetId === w1.id);
+  eq('swing: W1 (hinged at the left wall) gets a restrictor', at ? `${at.fix} ${at.hits}` : 'none', 'restrictor left wall');
+  eq('swing: it hits just past square', at!.at >= 87 && at!.at <= 100, true);
+  eq('swing: doors in the middle of a run swing free', sw.some((d) => p.cabinets.find((c) => c.id === d.cabinetId)!.name === 'B3'), false);
+  // Moved 4" off the wall, it opens well past square
+  const off = { ...p, cabinets: p.cabinets.map((c) => (c.id === w1.id ? { ...c, offset: c.offset + 4 } : c)) };
+  eq('swing: 4" off the wall, no restrictor', doorSwings(off).some((d) => d.cabinetId === w1.id), false);
+  // Finger pulls stand nothing off the face, so the door alone decides
+  const fing = { ...p, settings: { ...p.settings, pulls: 'finger' as const } };
+  const f1 = doorSwings(fing).find((d) => d.cabinetId === w1.id);
+  eq('swing: with finger pulls it gets further before it touches', !f1 || f1.at > at!.at, true);
+  // The quote counts them, the problems list says so, the 3D door stops there, the drawings note it
+  const n = sw.filter((d) => d.fix === 'restrictor').length;
+  const line = estimateMaterials(p, quoteOf(p)).find((l) => l.label.startsWith('Hinge opening restrictors'));
+  eq('swing: restrictors in the quote', line?.detail.startsWith(`${n} door`), true);
+  eq('swing: in the problems list', doorSwingIssues(p).some((i) => i.cabinetId === w1.id && i.message.includes(`stop it at ${RESTRICT_TO}°`)), true);
+  const parts = buildParts(w1, p.settings, resolveEnds(p.room, p.cabinets, w1));
+  const mot = frontMotions(p, w1, parts, []).filter((m) => m.part.role === 'door');
+  eq('swing: the 3D door stops at the restrictor', mot.some((m) => Math.abs(Math.abs(m.angle) - (RESTRICT_TO * Math.PI) / 180) < 1e-6), true);
+  eq('swing: shop note on the cabinet', cabinetCallouts(p, w1).some((c) => c.for === 'shop' && c.text.startsWith('Hinge opening restrictor')), true);
 }
 
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');
