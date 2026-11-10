@@ -25,6 +25,8 @@ function b64ToBytes(b64) {
   for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
   return out.buffer;
 }
+var approvedChanges = (j) => (j.changeOrders ?? []).filter((c) => c.signature && !c.voided).reduce((t, c) => t + c.amount, 0);
+var adjustedTotal = (j) => signedTotals(j).total + approvedChanges(j);
 function signedTotals(j) {
   const s = j.signature;
   return s?.total != null ? { total: s.total, deposit: s.deposit ?? j.proposal.deposit } : { total: j.proposal.total, deposit: j.proposal.deposit };
@@ -247,6 +249,64 @@ function payBlock(j, shop) {
 ${i.link ? `<div class="row"><a class="btn" href="${esc(i.link)}" target="_blank" rel="noopener">Pay by card or bank transfer</a></div>` : ""}
 <p class="muted">${i.link ? "Or pay" : "Pay"} by check to <b>${esc(payee)}</b>${shop.company[1] ? `, ${esc(shop.company[1])}` : ""}, or in person.</p>`).join("")}</div>`;
 }
+var padScript = (formId, busy) => `<script>(()=>{const c=document.getElementById('pad'),x=c.getContext('2d');let drawn=false,down=false;
+const fit=()=>{const r=c.getBoundingClientRect(),k=devicePixelRatio||1;c.width=r.width*k;c.height=r.height*k;x.scale(k,k);x.lineWidth=2.2;x.lineCap='round';x.strokeStyle='#111'};fit();
+const p=e=>{const r=c.getBoundingClientRect();return[e.clientX-r.left,e.clientY-r.top]};
+const go=document.getElementById('go'),f=document.getElementById('${formId}');const ready=()=>{go.disabled=!(drawn&&f.checkValidity())};f.addEventListener('input',ready);f.addEventListener('change',ready);
+c.addEventListener('pointerdown',e=>{down=true;c.setPointerCapture(e.pointerId);x.beginPath();x.moveTo(...p(e))});
+c.addEventListener('pointermove',e=>{if(!down)return;x.lineTo(...p(e));x.stroke();drawn=true});
+c.addEventListener('pointerup',()=>{down=false;ready()});
+document.getElementById('clear').onclick=()=>{x.clearRect(0,0,c.width,c.height);drawn=false;ready()};
+f.addEventListener('submit',()=>{document.getElementById('image').value=c.toDataURL('image/png');go.disabled=true;go.textContent='${busy}'});})();</script>`;
+var signedMoney = (n) => `${n < 0 ? "\u2212" : ""}${money(Math.abs(n))}`;
+var coState = (c) => c.signature ? `Approved ${longDate(easternYmd(c.signature.at))}` : c.declined ? `Declined ${longDate(easternYmd(c.declined.at))}` : "Waiting for your approval";
+function changeOrderPage(j, c, shop, token, flash = "") {
+  const base = `/p/${token}/change/${c.id}`;
+  const signedAt = j.signature.at;
+  const earlier = (j.changeOrders ?? []).filter((x) => x.id !== c.id && x.signature && !x.voided && (!c.signature || x.signature.at < c.signature.at)).reduce((t, x) => t + x.amount, 0);
+  const before = signedTotals(j).total + earlier;
+  const sched = c.days == null ? "" : c.days === 0 ? "No change to the schedule." : c.days > 0 ? `Adds about ${c.days} working day${c.days === 1 ? "" : "s"} to the schedule.` : `Takes about ${-c.days} working day${c.days === -1 ? "" : "s"} off the schedule.`;
+  const bill = c.amount <= 0 ? c.amount < 0 ? "The credit comes off your final payment." : "" : c.billing === "now" ? "Invoiced once you approve it." : "Added to your final payment.";
+  const payBy = j.signature?.payBy === "check" && j.proposal.pay ? `<p class="muted">Prices are at your check or bank transfer rate, as in your agreement.</p>` : "";
+  const doc = `<section class="card"><h2>Change order ${c.number}: ${esc(c.title)}</h2>
+<p class="muted">A change to the agreement for ${esc(j.project)} signed ${esc(longDate(easternYmd(signedAt)))}. Issued ${esc(longDate(easternYmd(c.publishedAt)))}.</p>
+<table class="lines">${c.lines.map((l) => `<tr><td>${esc(l.label)}</td><td class="num">${signedMoney(l.amount)}</td></tr>`).join("")}
+<tr class="sub"><td>${c.amount < 0 ? "Credit" : "This change"}</td><td class="num">${signedMoney(c.amount)}</td></tr></table>
+${payBy}
+<div class="price"><div><span class="muted">Contract total before this change</span><b>${money(before)}</b></div><div><span class="muted">New contract total</span><b>${money(before + c.amount)}</b></div></div>
+${sched ? `<p>${esc(sched)}</p>` : ""}${bill ? `<p>${esc(bill)}</p>` : ""}${c.note ? paras(c.note) : ""}
+<p class="muted">Everything else in your agreement, including the Terms and Conditions, stays the same.</p></section>`;
+  const open = !c.signature && !c.declined;
+  const s = c.signature;
+  const answer = s ? `<section class="card"><h2>Approved</h2><div class="ok">Approved by <b>${esc(s.name)}</b> on ${esc(new Date(s.at).toLocaleString("en-US", { timeZone: "America/New_York", dateStyle: "long", timeStyle: "short" }))} (Eastern). Thank you!</div>
+<p><img src="${esc(s.image)}" alt="Signature of ${esc(s.name)}" style="max-width:320px;border-bottom:1px solid #111"></p>
+<p class="muted" style="font-size:12px">Signed electronically from ${esc(s.ip)}. Change order fingerprint (SHA-256) ${esc(c.hash.slice(0, 32))}.</p>
+<div class="row noprint"><button class="btn ghost" onclick="print()">Print or save</button><a class="btn ghost" href="/p/${token}">Back to your project</a></div></section>` : c.declined ? `<section class="card"><h2>Declined</h2><p class="warn">You declined this change on ${esc(longDate(easternYmd(c.declined.at)))}. The work goes ahead as in your agreement.</p>${c.declined.reason ? `<p class="muted">Your note: ${esc(c.declined.reason)}</p>` : ""}<p class="row"><a class="btn ghost" href="/p/${token}">Back to your project</a></p></section>` : `<section class="card" id="signing"><h2>Approve this change</h2>
+<form id="cosign" method="post" action="${base}/sign">
+<label class="chk"><input type="checkbox" name="consent" required> <span>I agree to sign this change order electronically. I can save or print it, and ask CJC Custom Carpentry for a paper copy at any time.</span></label>
+<label class="chk"><input type="checkbox" name="agree" required> <span>I approve this change to my agreement, at the price and schedule above.</span></label>
+<p><input type="text" name="name" placeholder="Your full name" autocomplete="name" required></p>
+<p class="muted" style="margin:0 0 6px">Sign with your finger or mouse:</p>
+<canvas class="pad" id="pad"></canvas><input type="hidden" name="image" id="image">
+<div class="row"><button class="btn" id="go" disabled>Approve and sign</button><button type="button" class="btn ghost" id="clear">Clear</button></div>
+</form>${padScript("cosign", "Signing\u2026")}
+<details class="more"><summary class="btn ghost">Decline this change</summary>
+<form method="post" action="${base}/decline"><p>If you decline, the work goes ahead as in your agreement.</p>
+<textarea name="reason" rows="3" placeholder="Anything you\u2019d like Cody to know (optional)"></textarea>
+<div class="row"><button class="btn ghost">Decline the change</button></div></form></details></section>`;
+  const body = `${flash ? `<p class="warn">${esc(flash)}</p>` : ""}<h1>${esc(j.project)}</h1><p class="muted">For ${esc(clientName(j))}${j.client.address ? ` \xB7 ${esc(j.client.address)}` : ""}${open ? "" : ` \xB7 ${esc(coState(c))}`}</p>${doc}${answer}`;
+  return shell(`Change order ${c.number} \xB7 ${j.project}`, body, shop, esc(clientName(j)));
+}
+function changeOrdersBlock(j, base) {
+  const list = (j.changeOrders ?? []).filter((c) => !c.voided);
+  if (!list.length || !j.signature || j.cancelled) return "";
+  const approved = list.filter((c) => c.signature).reduce((t, c) => t + c.amount, 0);
+  const waiting = list.filter((c) => !c.signature && !c.declined).length;
+  return `<section class="card" id="changes"><h2>Change orders</h2>${waiting ? `<p class="warn"><b>${waiting === 1 ? "A change is" : `${waiting} changes are`} waiting for your approval.</b></p>` : ""}
+<table class="lines">${list.map((c) => `<tr><td><a href="${base}/change/${esc(c.id)}">${c.number}. ${esc(c.title)}</a><br><span class="muted">${esc(coState(c))}</span></td><td class="num">${signedMoney(c.amount)}</td></tr>`).join("")}</table>
+<div class="price"><div><span class="muted">Signed contract</span><b>${money(signedTotals(j).total)}</b></div><div><span class="muted">With approved changes</span><b>${money(signedTotals(j).total + approved)}</b></div></div>
+${list.filter((c) => !c.signature && !c.declined).map((c) => `<p class="row"><a class="btn" href="${base}/change/${esc(c.id)}">Review change order ${c.number}</a></p>`).join("")}</section>`;
+}
 function projectPage(j, shop, token, flash = "", visits = [], sent = false) {
   const base = `/p/${token}`;
   const s = j.signature;
@@ -307,6 +367,7 @@ ${build}${mats}${price}
 ${docs.length ? `<section class="card"><h2>Licenses and insurance</h2><ul class="docs">${docs.map((d) => `<li><a href="${base}/doc/${esc(d.id)}" target="_blank" rel="noopener">${esc(d.title)}</a>${d.expires ? `<span class="muted">valid through ${esc((/* @__PURE__ */ new Date(`${d.expires}T12:00:00Z`)).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" }))}</span>` : ""}</li>`).join("")}</ul></section>` : ""}
 ${shop.about ? `<section class="card"><h2>About CJC Custom Carpentry</h2>${paras(shop.about)}</section>` : ""}
 <section class="card" id="signing"><h2>${s ? "Signed" : "Sign the agreement"}</h2>${signBlock}</section>
+${changeOrdersBlock(j, base)}
 ${s && !j.cancelled ? `<section class="card"><h2>Your drawings</h2>${j.drawings ? `<p>Version ${j.drawings.version} is ready for your review (${esc(longDate(easternYmd(j.drawings.publishedAt)))}).</p><p class="row"><a class="btn" href="${base}/drawings">Review the drawings</a>${j.model ? ` <a class="btn ghost" href="${base}/model">Look around in 3D</a>` : ""}</p>` : '<p class="muted">Your detailed drawings come next, with every size, for you to review and approve here.</p>'}</section>` : ""}
 ${commentsBlock(j, base, "proposal", s ? "Questions about your project? Write here and Cody will answer on this page." : "Questions about the proposal, or something you\u2019d like changed? Write here and Cody will answer on this page.", sent)}`;
   return shell(`${j.project} \xB7 CJC Custom Carpentry`, body, shop, esc(clientName(j)));
@@ -326,7 +387,7 @@ ${s.total != null ? `<p>${j.proposal.options?.length ? `<b>Options chosen:</b> $
 <title>${esc(j.project)} agreement</title><style>body{font:11pt/1.45 Georgia,serif;max-width:7.5in;margin:.5in auto;padding:0 16px;color:#111}${style}${noticeCss}
 .terms p{font-size:10pt}</style></head><body>${inner}
 ${termsOf(j, shop) ? `<section class="terms" style="page-break-before:always"><h2>Terms and Conditions</h2>${termsHtml(termsOf(j, shop), s?.at, shop.company[0] || void 0, shop.company[1] || "")}</section>` : s ? noticeOfCancellation(easternYmd(s.at), shop.company[0] || "CJC Custom Carpentry LLC", shop.company[1] || "") : ""}
-${signed}</body></html>`;
+${signed}${(j.changeOrders ?? []).some((c) => c.signature && !c.voided) ? `<section><h2>Approved change orders</h2>${(j.changeOrders ?? []).filter((c) => c.signature && !c.voided).map((c) => `<p><b>${c.number}. ${esc(c.title)}</b>: ${signedMoney(c.amount)}, approved by ${esc(c.signature.name)} on ${esc(longDate(easternYmd(c.signature.at)))}.</p>`).join("")}<p><b>Contract total with approved changes: ${money(signedTotals(j).total + (j.changeOrders ?? []).filter((c) => c.signature && !c.voided).reduce((t, c) => t + c.amount, 0))}</b></p></section>` : ""}</body></html>`;
 }
 function commentsBlock(j, base, about, intro, sent = false) {
   const all = (j.comments ?? []).filter((c) => about === "drawings" ? c.about.startsWith("drawings") : about === "model" ? c.about.startsWith("model") : !c.about.startsWith("drawings") && !c.about.startsWith("model"));
@@ -763,6 +824,8 @@ var worker_default = {
     if (!env.PORTAL) return setupPage("Almost there", "<p>The portal is running, but its storage isn\u2019t connected. In Cloudflare open this worker\u2019s <b>Settings \u2192 Bindings</b>, add a <b>KV namespace</b> binding named <code>PORTAL</code> (create a namespace called <b>cjc-portal</b> if you don\u2019t have one), then reload this page.</p>");
     const m = path.match(/^\/p\/([A-Za-z0-9_-]+)(?:\/(img|doc|visit)\/([A-Za-z0-9_-]+)(?:\.ics)?|\/(agreement|sign|cancel|drawings|comment|model|model\.glb))?$/);
     if (m) return client(request, env, m[1], m[2] ?? m[4] ?? "", m[3] ?? "");
+    const co = path.match(/^\/p\/([A-Za-z0-9_-]+)\/change\/([A-Za-z0-9_-]+)(?:\/(sign|decline))?$/);
+    if (co) return changeOrder(request, env, co[1], co[2], co[3] ?? "");
     const key = String(env.SHOP_KEY || "").trim();
     const cal = path.match(/^\/cal\/([a-f0-9]{32})\.ics$/);
     if (cal) {
@@ -935,6 +998,78 @@ async function client(request, env, token, what, id) {
   await freshInvoices(env, job, 5 * 6e4);
   await putJob(env, job);
   return html(projectPage(job, shop, token, "", await visitsFor(env, job.jobId), new URL(request.url).searchParams.has("sent")));
+}
+async function changeOrder(request, env, token, id, what) {
+  const job = await jobByToken(env, token);
+  const shop = await getShop(env);
+  const c = job?.changeOrders?.find((x) => x.id === id && !x.voided);
+  if (!job || !c || !job.signature || job.cancelled) return html(simplePage("Change order not found", "This change order isn\u2019t available. Contact CJC Custom Carpentry if you have questions.", shop), 404);
+  const here = new URL(`/p/${token}/change/${c.id}`, request.url).href;
+  const open = !c.signature && !c.declined;
+  const ip = request.headers.get("cf-connecting-ip") || "";
+  if (what === "sign" && request.method === "POST") {
+    if (!open) return Response.redirect(here, 303);
+    const f = await request.formData();
+    const name = String(f.get("name") || "").trim().slice(0, 120);
+    const image = String(f.get("image") || "");
+    if (!name || f.get("consent") !== "on" || f.get("agree") !== "on" || !/^data:image\/png;base64,/.test(image) || image.length > 4e5) {
+      return html(changeOrderPage(job, c, shop, token, "Please check both boxes, type your name and sign in the box."), 400);
+    }
+    c.signature = { name, image, at: Date.now(), ip, ua: (request.headers.get("user-agent") || "").slice(0, 200) };
+    await putJob(env, job);
+    await autoChangeInvoice(env, job, c);
+    try {
+      await mail(env, shop, `${name} approved change order ${c.number} on ${job.project}`, `Change order ${c.number}: ${c.title}
+${c.amount >= 0 ? "Adds" : "Credits"} $${Math.abs(c.amount).toLocaleString("en-US")}. Contract total now $${adjustedTotal(job).toLocaleString("en-US")}.
+
+${here}`);
+    } catch {
+    }
+    return Response.redirect(here, 303);
+  }
+  if (what === "decline" && request.method === "POST") {
+    if (!open) return Response.redirect(here, 303);
+    const f = await request.formData();
+    const reason = String(f.get("reason") || "").trim().slice(0, 1e3);
+    c.declined = { at: Date.now(), ...reason ? { reason } : {} };
+    await putJob(env, job);
+    try {
+      await mail(env, shop, `Change order ${c.number} on ${job.project} was declined`, `Change order ${c.number}: ${c.title}${reason ? `
+
+Their note: ${reason}` : ""}
+
+${here}`);
+    } catch {
+    }
+    return Response.redirect(here, 303);
+  }
+  return html(changeOrderPage(job, c, shop, token));
+}
+async function autoChangeInvoice(env, job, c) {
+  if (c.billing !== "now" || !(c.amount > 0) || c.invoiceId || !qbReady(env)) return;
+  const [conn, s] = [await getConn(env), await getQbSettings(env)];
+  if (!conn || !s.autoDeposit) return;
+  try {
+    await billChange(env, job, c);
+  } catch (e) {
+    job.invoiceError = `Change order ${c.number}: ${String(e.message || e).slice(0, 280)}`;
+  }
+  await putJob(env, job);
+}
+async function billChange(env, job, c) {
+  const inv = await makeInvoice(env, job, "change", c.amount, `Change order ${c.number} on ${job.project}: ${c.title}. Approved ${new Date(c.signature.at).toLocaleDateString("en-US", { timeZone: "America/New_York" })}.`);
+  job.invoices = [...job.invoices ?? [], inv];
+  c.invoiceId = inv.id;
+}
+async function mail(env, shop, subject, text2) {
+  const key = String(env.RESEND_API_KEY || "").trim();
+  const to = shop.contactEmail?.trim();
+  if (!key || !to) return;
+  await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: { authorization: `Bearer ${key}`, "content-type": "application/json" },
+    body: JSON.stringify({ from: env.MAIL_FROM?.trim() || "CJC Portal <onboarding@resend.dev>", to: [to], subject, text: text2 })
+  });
 }
 var visitsFor = async (env, jobId) => {
   const now = new Date(Date.now() - 2 * 36e5).toISOString();
@@ -1128,6 +1263,12 @@ var TOOLS = [
     description: "Share the drawing set (one HTML document) on a signed job\u2019s page, for the client to review and comment on. Refused before the agreement is signed.",
     inputSchema: { type: "object", properties: { job_id: { type: "string" }, html: { type: "string" }, title: { type: "string" }, css: { type: "string", description: "Styles for the sheets" }, sheets: { type: "array", description: "The sheets one by one (number, title, svg) so the client can mark changes on them", items: { type: "object", properties: { number: { type: "string" }, title: { type: "string" }, svg: { type: "string" } } } } }, required: ["job_id", "html"] }
   },
+  {
+    name: "publish_change_order",
+    description: "Put a change order on a signed job\u2019s page for the client to approve (sign) or decline: what changes, a price for each line (negative for a credit), the working days it adds, and whether it\u2019s invoiced when approved or added to the final payment.",
+    inputSchema: { type: "object", properties: { job_id: { type: "string" }, title: { type: "string" }, lines: { type: "array", items: { type: "object", properties: { label: { type: "string" }, amount: { type: "number" } }, required: ["label", "amount"] } }, days: { type: "number" }, note: { type: "string" }, billing: { type: "string", enum: ["now", "final"] } }, required: ["job_id", "title", "lines"] }
+  },
+  { name: "void_change_order", description: "Take back a change order the client hasn\u2019t answered yet.", inputSchema: { type: "object", properties: { job_id: { type: "string" }, id: { type: "string" } }, required: ["job_id", "id"] } },
   { name: "reply_comment", description: "Answer the client on their page. Marks their comments read.", inputSchema: { type: "object", properties: { job_id: { type: "string" }, text: { type: "string" }, about: { type: "string" } }, required: ["job_id", "text"] } },
   { name: "mark_comments_read", description: "Mark the client\u2019s comments on a job as read.", inputSchema: { type: "object", properties: { job_id: { type: "string" } }, required: ["job_id"] } },
   { name: "list_jobs", description: "Every job on the portal with its status.", inputSchema: { type: "object", properties: {} } },
@@ -1161,8 +1302,8 @@ var TOOLS = [
   },
   {
     name: "create_invoice",
-    description: "Make a QuickBooks invoice for a job (with card/ACH payment on), and email it when that is on. Deposit defaults to the proposal deposit; final defaults to the total less what was invoiced before.",
-    inputSchema: { type: "object", properties: { job_id: { type: "string" }, kind: { type: "string", enum: ["deposit", "final", "change"] }, amount: { type: "number" }, description: { type: "string" } }, required: ["job_id", "kind"] }
+    description: "Make a QuickBooks invoice for a job (with card/ACH payment on), and email it when that is on. Deposit defaults to the proposal deposit; final defaults to the total with approved change orders, less what was invoiced before. For an approved change order billed on its own, send kind change with change_order_id.",
+    inputSchema: { type: "object", properties: { job_id: { type: "string" }, kind: { type: "string", enum: ["deposit", "final", "change"] }, amount: { type: "number" }, description: { type: "string" }, change_order_id: { type: "string" } }, required: ["job_id", "kind"] }
   },
   {
     name: "record_payment",
@@ -1202,7 +1343,7 @@ var status = (j, url) => ({
   publishedAt: j.proposal.publishedAt,
   views: (j.views ?? []).length,
   lastViewed: j.views?.length ? j.views[j.views.length - 1] : null,
-  signed: j.signature ? { name: j.signature.name, at: j.signature.at, version: j.signature.version, current: j.signature.hash === j.proposal.hash, ...j.signature.total != null ? { options: (j.proposal.options ?? []).filter((o) => j.signature.options?.includes(o.id)).map((o) => o.label), total: j.signature.total, deposit: j.signature.deposit } : {} } : null,
+  signed: j.signature ? { name: j.signature.name, at: j.signature.at, version: j.signature.version, current: j.signature.hash === j.proposal.hash, ...j.signature.total != null ? { options: (j.proposal.options ?? []).filter((o) => j.signature.options?.includes(o.id)).map((o) => o.label), total: j.signature.total, deposit: j.signature.deposit } : {}, ...j.signature.payBy ? { payBy: j.signature.payBy } : {} } : null,
   cancelDeadline: j.signature ? cancelDeadline(easternYmd(j.signature.at)) : null,
   cancelled: j.cancelled ? { at: j.cancelled.at } : null,
   invoices: (j.invoices ?? []).map((i) => ({ id: i.id, kind: i.kind, number: i.docNumber ?? null, amount: i.amount, balance: i.balance, paid: i.balance <= 0, emailed: !!i.emailed, payLink: !!i.link, createdAt: i.createdAt, payments: i.payments ?? [] })),
@@ -1210,7 +1351,9 @@ var status = (j, url) => ({
   drawings: j.drawings ?? null,
   model: j.model ?? null,
   comments: j.comments ?? [],
-  unread: (j.comments ?? []).filter((c) => c.from === "client" && !c.read).length
+  unread: (j.comments ?? []).filter((c) => c.from === "client" && !c.read).length,
+  change_orders: (j.changeOrders ?? []).map((c) => ({ id: c.id, number: c.number, title: c.title, lines: c.lines, amount: c.amount, days: c.days ?? null, note: c.note ?? null, billing: c.billing, publishedAt: c.publishedAt, url: `${url.origin}/p/${j.token}/change/${c.id}`, approved: c.signature ? { name: c.signature.name, at: c.signature.at } : null, declined: c.declined ?? null, voided: c.voided ?? null, invoiceId: c.invoiceId ?? null })),
+  adjusted_total: j.signature ? adjustedTotal(j) : null
 });
 async function fetchDropbox(src) {
   const u = new URL(src);
@@ -1370,10 +1513,22 @@ ${shop.terms}`);
       const j = await getJob(env, String(a.job_id || ""));
       if (!j) throw new Error("No portal page for that job yet.");
       const kind = str("kind") || "deposit";
-      const before = (j.invoices ?? []).filter((i) => i.kind !== "change").reduce((t2, i) => t2 + i.amount, 0);
-      const t = signedTotals(j);
-      const amount = typeof a.amount === "number" ? a.amount : kind === "deposit" ? t.deposit : kind === "final" ? t.total - before : 0;
-      const description = str("description") || (kind === "deposit" ? depositLine(j) : kind === "final" ? `Final payment on ${j.project}: project total $${t.total.toLocaleString("en-US")} less $${before.toLocaleString("en-US")} invoiced before.` : `Change order on ${j.project}.`);
+      if (!j.signature && kind !== "deposit" && !a.amount) throw new Error("This job isn\u2019t signed yet.");
+      if (kind === "change" && str("change_order_id")) {
+        const c = (j.changeOrders ?? []).find((x) => x.id === str("change_order_id") && !x.voided);
+        if (!c?.signature) throw new Error("That change order isn\u2019t approved yet.");
+        if (c.invoiceId) throw new Error("That change order is already invoiced.");
+        if (!(c.amount > 0)) throw new Error("A credit comes off the final payment; there\u2019s nothing to invoice.");
+        await billChange(env, j, c);
+        await putJob(env, j);
+        return status(j, url);
+      }
+      const coInv = new Set((j.changeOrders ?? []).map((c) => c.invoiceId).filter(Boolean));
+      const before = (j.invoices ?? []).filter((i) => i.kind !== "change" || coInv.has(i.id)).reduce((t2, i) => t2 + i.amount, 0);
+      const t = signedTotals(j), total = adjustedTotal(j), changes = approvedChanges(j);
+      const amount = typeof a.amount === "number" ? a.amount : kind === "deposit" ? t.deposit : kind === "final" ? total - before : 0;
+      const fm = (n) => `$${n.toLocaleString("en-US")}`;
+      const description = str("description") || (kind === "deposit" ? depositLine(j) : kind === "final" ? `Final payment on ${j.project}: project total ${fm(total)}${changes ? ` (${fm(t.total)} signed, ${changes > 0 ? "+" : "\u2212"}${fm(Math.abs(changes))} in approved change orders)` : ""} less ${fm(before)} invoiced before.` : `Change order on ${j.project}.`);
       const inv = await makeInvoice(env, j, kind, amount, description);
       j.invoices = [...j.invoices ?? [], inv];
       if (kind === "deposit") j.invoiceError = void 0;
@@ -1444,6 +1599,33 @@ ${shop.terms}`);
       j.model = { publishedAt: Date.now(), version: (j.model?.version ?? 0) + 1 };
       await putJob(env, j);
       return { ...status(j, url), modelBytes: all.length };
+    }
+    case "publish_change_order": {
+      const j = await getJob(env, String(a.job_id || ""));
+      if (!j) throw new Error("No portal page for that job.");
+      if (!j.signature || j.cancelled) throw new Error("Change orders are for signed jobs. Before signing, publish a new version of the proposal instead.");
+      const title = String(a.title || "").trim().slice(0, 160);
+      const lines = (Array.isArray(a.lines) ? a.lines : []).map((l) => ({ label: String(l.label ?? "").trim().slice(0, 300), amount: Math.round(Number(l.amount) * 100) / 100 })).filter((l) => l.label && Number.isFinite(l.amount)).slice(0, 40);
+      if (!title || !lines.length) throw new Error("A change order needs a title and at least one line with a price.");
+      if ((j.changeOrders?.length ?? 0) >= 60) throw new Error("This job has too many change orders.");
+      const amount = Math.round(lines.reduce((t, l) => t + l.amount, 0) * 100) / 100;
+      const days = typeof a.days === "number" && Number.isFinite(a.days) ? Math.max(-60, Math.min(120, Math.round(a.days))) : void 0;
+      const note = String(a.note || "").trim().slice(0, 2e3) || void 0;
+      const billing = a.billing === "now" && amount > 0 ? "now" : "final";
+      const number = (j.changeOrders ?? []).reduce((n, c2) => Math.max(n, c2.number), 0) + 1;
+      const c = { id: randomToken(9), number, title, lines, amount, ...days != null ? { days } : {}, ...note ? { note } : {}, billing, publishedAt: Date.now(), hash: await sha256(JSON.stringify({ title, lines, days, note, billing })) };
+      j.changeOrders = [...j.changeOrders ?? [], c];
+      await putJob(env, j);
+      return { ...status(j, url), change_order_url: `${url.origin}/p/${j.token}/change/${c.id}` };
+    }
+    case "void_change_order": {
+      const j = await getJob(env, String(a.job_id || ""));
+      const c = j?.changeOrders?.find((x) => x.id === str("id"));
+      if (!j || !c) throw new Error("That change order isn\u2019t on this job.");
+      if (c.signature) throw new Error("The client already approved it. Make a new change order to undo it.");
+      c.voided = Date.now();
+      await putJob(env, j);
+      return status(j, url);
     }
     case "reply_comment": {
       const j = await getJob(env, String(a.job_id || ""));
