@@ -13,7 +13,7 @@ import { ceilingKinds, moldLabel, moldingOrder, profileByNum, profileLabel, room
 import { chimneysOn, cofferFeet, cofferLayout, cofferMoldings, cofferOf, cofferParts, perimOf } from './coffer';
 import { panelOrder } from './panels';
 import { uid } from './defaults';
-import { eaglePrice, centersOf, eagleWood, hingeTypes } from './eagle';
+import { eaglePrice, centersOf, eagleWood, eagleWoodFactor, hingeTypes } from './eagle';
 import { hardwareOrder } from './hardware';
 import { pullStyleOf } from './pulls';
 import { edgeLabel, isRouted } from './edgeProfiles';
@@ -606,6 +606,7 @@ export function estimateMaterials(p: Project, q: QuoteSettings): MaterialLine[] 
   const est = { doors: 0, fronts: 0 };
   const hingeKinds = new Set<string>();
   const k = 1 + q.eagleAdjust;
+  const wood = eagleWoodFactor[p.settings.doorMaterial] ?? 1;
   for (const c of p.cabinets) {
     for (const part of buildParts(c, p.settings, resolveEnds(p.room, p.cabinets, c))) {
       const o = part.order;
@@ -616,7 +617,7 @@ export function estimateMaterials(p: Project, q: QuoteSettings): MaterialLine[] 
       } else {
         fronts++;
         frontArea += sqft(o.w, o.h);
-        est[o.item === 'drawerFront' ? 'fronts' : 'doors'] += eaglePrice(o.item, o.w, o.h, 0, centersOf(o)) * k;
+        est[o.item === 'drawerFront' ? 'fronts' : 'doors'] += eaglePrice(o.item, o.w, o.h, 0, centersOf(o)) * k * wood;
         if (o.item === 'door') {
           doors++;
           hingeKinds.add(hingeTypes[eff(c, p.settings).hingeType].name);
@@ -629,7 +630,7 @@ export function estimateMaterials(p: Project, q: QuoteSettings): MaterialLine[] 
   const quoted = (['doors', 'fronts'] as const).filter((kind) => est[kind] > 0 && eq[kind] != null);
   const frontCost = (eq.doors != null && est.doors > 0 ? eq.doors : est.doors) + (eq.fronts != null && est.fronts > 0 ? eq.fronts : est.fronts);
   const eWood = eagleWood[p.settings.doorMaterial] ?? p.settings.doorMaterial;
-  const qNote = (n: number, of: number) => (n === of ? ', Eagle’s quote' : n ? ', partly Eagle’s quote' : `, estimate${p.settings.doorMaterial === 'Paint-grade maple' || p.settings.doorMaterial === 'MDF' ? '' : ` (${eWood}: check with Eagle)`}`);
+  const qNote = (n: number, of: number) => (n === of ? ', Eagle’s quote' : n ? ', partly Eagle’s quote' : `, estimate${p.settings.doorMaterial === 'Paint-grade maple' || p.settings.doorMaterial === 'MDF' ? '' : eagleWoodFactor[p.settings.doorMaterial] ? ` (${eWood}, from Eagle's last quote)` : ` (${eWood}: check with Eagle)`}`);
   if (fronts) out.push({ group: 'cabinets', label: 'Eagle doors, fronts & end panels', cost: frontCost, detail: `${fronts} pcs, ${frontArea.toFixed(1)} sq ft${qNote(quoted.length, (['doors', 'fronts'] as const).filter((kind) => est[kind] > 0).length)}` });
   if (drawers) out.push({ group: 'cabinets', label: 'Eagle dovetail drawer boxes', cost: eq.boxes ?? boxCost, detail: `${drawers} boxes${eq.boxes != null ? ', Eagle’s quote' : ''}` });
   // Brackets by length: a 12" shelf takes the 10" bracket

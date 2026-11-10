@@ -324,6 +324,9 @@ function ShopPanel() {
               </select>
             </Field>
           )}
+          {style.panelChoice && settings.finish === 'stain' && [settings.centerPanel, settings.frontPanel].some((c) => centerPanels.find((x) => x.code === c)?.line === 'MDF') && (
+            <p className="warn" style={{ gridColumn: '1 / -1' }}>Stained doors with an MDF panel: MDF can’t take stain. Eagle’s stained default is VNR-01 (1/4" veneer flat panel).</p>
+          )}
           {style.profile !== 'slab' && (
             <Field label="Outside edge" htmlFor="door-edge">
               <select id="door-edge" value={settings.outsideEdge} onChange={(e) => set({ outsideEdge: e.target.value as OutsideEdge })}>

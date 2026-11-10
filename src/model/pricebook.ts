@@ -5,6 +5,7 @@
 import type { MaterialKey, Project } from './types';
 import type { PriceItem } from '../shop/shop';
 import { fmt } from '../units';
+import { panelForFinish } from './eagle';
 import { defaultFaceFrameStock } from './faceframe';
 import { amLumber, amSizes, boardSize, defaultBoard } from './amLumber';
 
@@ -175,7 +176,7 @@ const woodStyleFor: Record<string, string> = { jefferson: 'boston', monroe: 'bar
 export function setJobFinish(p: Project, finish: 'paint' | 'stain', species: string, book: PriceItem[], doorMaterials: string[], moldSpecies: string[]): Project {
   const s = p.settings;
   if (finish === 'paint') {
-    return { ...p, settings: { ...s, finish: undefined as never, doorMaterial: s.doorMaterial === 'MDF' ? 'MDF' : 'Paint-grade maple' } };
+    return { ...p, settings: { ...s, finish: undefined as never, doorMaterial: s.doorMaterial === 'MDF' ? 'MDF' : 'Paint-grade maple', centerPanel: panelForFinish(s.centerPanel, 'paint'), frontPanel: panelForFinish(s.frontPanel, 'paint') } };
   }
   const q = chooseSpecies(p, species, book);
   const word = species.toLowerCase().replace(/^hard\s+/, '').replace(/\s+/g, '');
@@ -185,6 +186,6 @@ export function setJobFinish(p: Project, finish: 'paint' | 'stain', species: str
   const mold = match(moldSpecies);
   const ply = book.find((x) => x.kind === 'plywood' && same(x.name, species)) ?? book.find((x) => x.kind === 'plywood' && x.name.toLowerCase().replace(/\s+/g, '').includes(word));
   const style = woodStyleFor[s.doorStyleId];
-  const next = { ...q, settings: { ...q.settings, finish: 'stain' as const, ...(door ? { doorMaterial: door } : {}), ...(mold ? { moldSpecies: mold } : {}), ...(style ? { doorStyleId: style } : {}) } };
+  const next = { ...q, settings: { ...q.settings, finish: 'stain' as const, centerPanel: panelForFinish(s.centerPanel, 'stain'), frontPanel: panelForFinish(s.frontPanel, 'stain'), ...(door ? { doorMaterial: door } : {}), ...(mold ? { moldSpecies: mold } : {}), ...(style ? { doorStyleId: style } : {}) } };
   return ply ? choosePlywood(next, 'exposedPlywood', ply.name, book) : next;
 }

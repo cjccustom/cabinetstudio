@@ -53,7 +53,7 @@ import { cabinetMoldings, moldingOrder, mountShape, priceOf, profileByNum, profi
 import { closetRods, estimateHours, estimateMaterials, extraFinishes, paintCalculated, paintEstimate, priceQuote, proposalScope, quoteOf, scopeLine } from "../src/model/quote";
 import { cutStock, defaultCutlist, designParts, optimizerParts } from "../src/model/cutlist";
 import { applyBook, choosePlywood, chooseSpecies, priceBook, setJobFinish, stalePrices } from "../src/model/pricebook";
-import { doorMaterials as eagleDoorMaterials } from "../src/model/eagle";
+import { doorMaterials as eagleDoorMaterials, eagleWoodFactor } from "../src/model/eagle";
 import { amSpecies as moldSpeciesList } from "../src/model/moldings";
 import { normalize, reachesCeiling } from "../src/store";
 import { fieldChecks, releaseStatus } from "../src/model/release";
@@ -1166,7 +1166,15 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   eq('price book: updating brings it in', applyBook(oak, later).cutlist!.stock[0].price, 125);
   const doorLine = (x: typeof oak) => estimateMaterials(x, quoteOf(x)).find((l) => l.label.startsWith('Eagle doors'))!;
   const estd = doorLine({ ...oak, settings: { ...oak.settings, doorMaterial: 'Red oak' } });
-  eq('eagle: red oak doors are an estimate to check', estd.detail.includes('Red Oak: check with Eagle') || estd.detail.includes('check with Eagle'), true);
+  eq('eagle: red oak doors priced from Eagle\'s red oak quote', estd.detail.includes('Red Oak, from Eagle'), true);
+  const maple = doorLine({ ...oak, settings: { ...oak.settings, doorMaterial: 'Paint-grade maple' } });
+  eq('eagle: red oak doors cost about 47% more than paint-grade maple', Math.abs(estd.cost / maple.cost - 1.473) < 0.01, true);
+  eq('eagle: cherry is still an estimate to check', doorLine({ ...oak, settings: { ...oak.settings, doorMaterial: 'Cherry' } }).detail.includes('check with Eagle'), true);
+  eq('eagle: Eagle\'s red oak door A58745 (14-15/16 x 24) at $73.09', Math.abs(eaglePrice('door', 14.938, 24) * eagleWoodFactor['Red oak'] - 73.09) < 0.01, true);
+  const stained = setJobFinish({ ...oak, settings: { ...oak.settings, finish: undefined as never, centerPanel: 'MDF-07', frontPanel: 'MDF-10' } }, 'stain', 'Red oak', book, eagleDoorMaterials, []);
+  eq('stain: MDF panels become veneer', `${stained.settings.centerPanel} ${stained.settings.frontPanel}`, 'VNR-01 VNR-03');
+  const painted = setJobFinish(stained, 'paint', 'Red oak', book, eagleDoorMaterials, []);
+  eq('paint: veneer panels go back to MDF', `${painted.settings.centerPanel} ${painted.settings.frontPanel}`, 'MDF-07 MDF-01');
   const withDoors = doorLine({ ...oak, eagleQuotes: { doors: 1234.5 } });
   eq('eagle quote: doors replaced, fronts still estimated', withDoors.cost > 1234.5 - 0.01 && withDoors.detail.includes('partly Eagle’s quote'), true);
 }

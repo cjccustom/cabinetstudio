@@ -182,6 +182,16 @@ export const eagleRates = {
   box: { base: 43.85, perGirthInch: 0.1458, perBottomSqIn: 0.0168, rip: 1.933, tallPerGirthInch: 0.0879 },
 };
 
+/** Wood doors cost more than the paint-grade maple the rates are fitted to: what Eagle quoted over our estimate.
+ *  Red oak: quote A58745 (Nov 3, 2026), 10 Portsmouth doors 14-15/16" x 24" with veneer panels at $73.09 each
+ *  against $49.62 estimated in paint-grade maple. Other woods aren't fitted yet. */
+export const eagleWoodFactor: Record<string, number> = { 'Red oak': 73.09 / 49.62 };
+
+/** The panel a stained door takes in place of a painted MDF one, and back. */
+const toStain: Record<string, string> = { 'MDF-07': 'VNR-01', 'MDF-08': 'VNR-01', 'MDF-09': 'VNR-01', 'MDF-02': 'VNR-02', 'MDF-01': 'VNR-03', 'MDF-10': 'VNR-03', 'MDF-03': 'WD-03', 'MDF-06': 'WD-03', 'MDF-04': 'WD-04', 'MDF-05': 'WD-05' };
+const toPaint: Record<string, string> = { 'VNR-01': 'MDF-07', 'VNR-02': 'MDF-02', 'VNR-03': 'MDF-01', 'WD-01': 'MDF-01', 'WD-03': 'MDF-03', 'WD-04': 'MDF-04', 'WD-05': 'MDF-05' };
+export const panelForFinish = (code: string, finish: 'paint' | 'stain') => (finish === 'stain' ? toStain[code] : toPaint[code]) ?? code;
+
 export type EagleItem = 'door' | 'drawerFront' | 'endPanel' | 'drawerBox';
 
 /** Hinges per door by height, from Eagle's hinge boring table. */
