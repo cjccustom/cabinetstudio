@@ -314,7 +314,9 @@ function CabinetModel(props: {
   const fc = finishColors(eff(cab, settings), finishes, cab.paint);
   // A chimney face left as wall between upper pilasters takes the wall's color
   const wallTint = project.wallFinishes?.[cab.wall]?.color ?? finishes.wall ?? '#f1efea';
+  const plain = useNav((n) => n.plain) && !useStore.getState().present;
   const colorFor = (material: string, shade: number) => {
+    if (plain && material !== 'counter' && material !== 'hardware') return new THREE.Color(material === 'box' || material === 'back' ? '#f2f0eb' : '#e6e3dc').multiplyScalar(shade);
     const base = material === 'wall' ? wallTint : material === 'hardware' ? '#c9ccd1' : material === 'upholstery' ? '#9aa3ad' : material === 'box' || material === 'back' ? fc.box : material === 'counter' ? finishes.counter : material === 'solidWood' ? woodColor(cab.topSpecies) ?? finishes.wood ?? '#b9875a' : fc.paint;
     return new THREE.Color(base).multiplyScalar(shade);
   };
@@ -322,6 +324,7 @@ function CabinetModel(props: {
   const s = eff(cab, settings);
   const ply = settings.plywood && !/prefinished|paint-grade|mdf/i.test(settings.plywood) ? settings.plywood : undefined;
   const grainFor = (material: string) => {
+    if (plain) return null;
     if (material === 'hardware' || material === 'upholstery' || material === 'counter' || material === 'wall') return null;
     if (material === 'solidWood') { const sp = cab.topSpecies ?? settings.woodSpecies; return woodTexture(sp, woodColor(cab.topSpecies) ?? finishes.wood ?? '#b9875a'); }
     if (material === 'box' || material === 'back') return ply ? woodTexture(ply, fc.box) : null;
@@ -461,7 +464,7 @@ function CabinetModel(props: {
         </Moving>
       ))}
       {(cab.crown || cab.lightRail || cab.baseMold) && (
-        <MoldingModel pieces={cabinetMoldings(cab, eff(cab, settings), ends, { noCrown })} color={fc.paint} edgeColor={edgeColor} />
+        <MoldingModel pieces={cabinetMoldings(cab, eff(cab, settings), ends, { noCrown })} color={plain ? '#e6e3dc' : fc.paint} edgeColor={edgeColor} />
       )}
       <PullModel spots={fixedSpots} color={pullColor(s)} />
       <ApplianceModel cab={cab} settings={settings} />

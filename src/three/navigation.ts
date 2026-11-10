@@ -22,6 +22,9 @@ export const useNav = create<{
   /** Show the cabinet lighting lit in the 3D view. */
   lights: boolean;
   setLights: (on: boolean) => void;
+  /** Flat light gray instead of wood grain and finish colors, to see the build while editing. */
+  plain: boolean;
+  setPlain: (on: boolean) => void;
   /** Hidden in the 3D view to see past them (this browser session only): items by id, and the walls. */
   hidden: string[];
   walls: boolean;
@@ -47,6 +50,8 @@ export const useNav = create<{
   setCeiling: (on) => { save('cabinet-studio.ceiling', on ? 'on' : 'off'); set({ ceiling: on }); },
   lights: load('cabinet-studio.lights', ['on', 'off'], 'on') === 'on',
   setLights: (on) => { save('cabinet-studio.lights', on ? 'on' : 'off'); set({ lights: on }); },
+  plain: false,
+  setPlain: (plain) => set({ plain }),
   hidden: [],
   walls: true,
   hide: (id) => set((s) => ({ hidden: s.hidden.includes(id) ? s.hidden : [...s.hidden, id] })),
