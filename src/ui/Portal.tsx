@@ -399,8 +399,8 @@ function ChangeOrders({ st, project, busy, run, keep, copy }: { st: JobStatus; p
           <div className="grid2">
             <Field label="Time it adds (blank: don’t say)" htmlFor="co-days">
               <div style={{ display: 'flex', gap: 8 }}>
-                <input id="co-days" inputMode="decimal" style={{ flex: 1 }} value={draft.time} onChange={(e) => { const v = e.target.value; setDraft({ ...draft, time: v, unit: /hour|hr/i.test(v) ? 'hours' : /day/i.test(v) ? 'days' : draft.unit }); }} />
-                <select aria-label="Hours or working days" value={draft.unit} onChange={(e) => setDraft({ ...draft, unit: e.target.value as 'days' | 'hours' })}><option value="hours">hours of work</option><option value="days">working days</option></select>
+                <input id="co-days" inputMode="decimal" placeholder="e.g. 2" style={{ flex: '1 1 80px', width: 'auto' }} value={draft.time} onChange={(e) => { const v = e.target.value; setDraft({ ...draft, time: v, unit: /hour|hr/i.test(v) ? 'hours' : /day/i.test(v) ? 'days' : draft.unit }); }} />
+                <select aria-label="Hours or working days" style={{ flex: '0 0 auto', width: 'auto' }} value={draft.unit} onChange={(e) => setDraft({ ...draft, unit: e.target.value as 'days' | 'hours' })}><option value="hours">hours of work</option><option value="days">working days</option></select>
               </div>
             </Field>
             <Field label="Billing" htmlFor="co-bill">
