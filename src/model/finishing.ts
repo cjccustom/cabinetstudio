@@ -53,7 +53,16 @@ export function defaultFinishing(p: Project): string[] {
     site
       ? 'Painted on site after installation: filled, caulked, sanded, primed and finished with two coats of cabinet-grade paint'
       : 'Sprayed before installation: sanded, primed and finished with two coats of cabinet-grade paint; nail holes, caulk and touch-up after install',
-    ...(/prefinished/i.test(p.settings.plywood ?? 'Prefinished birch') ? [`Cabinet interiors are ${(p.settings.plywood ?? 'Prefinished birch').toLowerCase()} plywood, left in their clear factory finish`] : []),
+    // Interiors: left in their factory finish, unless the open sections are painted to match (all, or some)
+    ...(() => {
+      const ply = p.settings.plywood ?? 'Prefinished birch';
+      if (!/prefinished/i.test(ply)) return [];
+      const cases = p.cabinets.filter((c) => c.kind === 'base' || c.kind === 'wall' || c.kind === 'tall');
+      const painted = cases.filter((c) => c.build?.interior === 'paint');
+      if (cases.length && painted.length === cases.length) return ['Open sections and hanging areas painted inside to match'];
+      if (painted.length) return [`Open sections painted inside to match where noted; other cabinet interiors are ${ply.toLowerCase()} plywood, left in their clear factory finish`];
+      return [`Cabinet interiors are ${ply.toLowerCase()} plywood, left in their clear factory finish`];
+    })(),
   ];
 }
 
