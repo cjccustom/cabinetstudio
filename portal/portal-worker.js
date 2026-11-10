@@ -750,6 +750,7 @@ var worker_default = {
     if (path === "/qb" || path === "/qb/connect" || path === "/qb/callback") return qbPage(request, env, url, key, path);
     if (path === "/dropbox" || path === "/dropbox/callback") return dbxPage(request, env, url, key, path);
     if (path === "/legal/eula" || path === "/legal/privacy") return html(legalPage(path.endsWith("eula")));
+    if (path === "/studio") return html(studioPage());
     const code = key ? await shopCode(key) : "";
     let p = path;
     try {
@@ -980,6 +981,14 @@ var dbxKeysForm = (t, url) => `<ol>
 <form method="post" action="/dropbox/start?t=${t}"><input name="app_key" placeholder="App key" autocomplete="off" required><input name="app_secret" type="password" placeholder="App secret" autocomplete="off" required><p><button>Save and connect Dropbox</button></p></form>
 <p style="color:#666;font-size:14px">Dropbox then asks you to sign in and allow it. This page works for 15 minutes.</p>`;
 var dbxForm = (connected = false) => `<form method="post" action="/dropbox"><input name="key" type="password" placeholder="SHOP_KEY" autocomplete="off" required><p><button name="action" value="connect">${connected ? "Reconnect" : "Connect to Dropbox"}</button>${connected ? ' <button name="action" value="disconnect" style="background:#8a2a1e">Disconnect</button>' : ""}</p></form>`;
+var STUDIO = "https://claude.ai/artifact/R7gZ2f9VoeAAY4SNccn7KD";
+function studioPage() {
+  const icon = `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180"><rect width="180" height="180" fill="#2b4a3c"/><rect x="40" y="38" width="100" height="104" rx="6" fill="none" stroke="#fff" stroke-width="10"/><line x1="90" y1="38" x2="90" y2="142" stroke="#fff" stroke-width="8"/><line x1="40" y1="78" x2="140" y2="78" stroke="#fff" stroke-width="8"/></svg>')}`;
+  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Cabinet Studio</title><meta name="apple-mobile-web-app-title" content="Cabinet Studio"><link rel="apple-touch-icon" href="${icon}"><link rel="icon" href="${icon}">
+<style>body{font:17px/1.5 -apple-system,system-ui,sans-serif;max-width:520px;margin:20vh auto;padding:0 16px;color:#1d2127;text-align:center}a{display:inline-block;margin-top:12px;padding:12px 22px;background:#2b4a3c;color:#fff;border-radius:8px;text-decoration:none}</style></head>
+<body><h1>Cabinet Studio</h1><div id="add"><p>To put Cabinet Studio on the Home Screen: tap <b>Share</b>, then <b>Add to Home Screen</b>, then <b>Add</b>.</p><p style="color:#646d78;font-size:15px">The icon opens Cabinet Studio in Safari. Sign in to claude.ai in Safari once if it asks.</p></div><p id="go" style="display:none">Opening Cabinet Studio\u2026</p>
+<script>if(/[?&]go/.test(location.search)){document.getElementById('add').style.display='none';document.getElementById('go').style.display='';location.replace(${JSON.stringify(STUDIO)})}else{history.replaceState(null,'',location.pathname+'?go')}</script></body></html>`;
+}
 function legalPage(eula) {
   const body = eula ? "<p>This portal is used only by CJC Custom Carpentry LLC to share proposals, agreements and invoices with its own clients. It is provided as is. Clients use it to view and sign their own project documents and to reach QuickBooks\u2019 payment page for their invoices.</p>" : "<p>The portal keeps what CJC Custom Carpentry LLC publishes for each client (proposal, renderings, documents), the client\u2019s signature with its time, IP address and browser, and page view times. QuickBooks is used only to make and track the shop\u2019s own invoices; no QuickBooks data is shared with anyone else. Data is stored with Cloudflare. Contact the shop to have a record removed where the law allows.</p>";
   return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${eula ? "End-user agreement" : "Privacy"}</title><style>body{font:16px/1.55 system-ui,sans-serif;max-width:640px;margin:8vh auto;padding:0 16px}</style></head><body><h1>${eula ? "End-user license agreement" : "Privacy policy"}</h1>${body}</body></html>`;
