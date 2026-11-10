@@ -15,6 +15,7 @@ import { listedPrice, optionDeltas, selectionText, selections, signedPrice, type
 import { priceBook } from '../model/pricebook';
 import { useShop } from '../shop/shop';
 import { PaintColorPicker } from './PaintColorPicker';
+import { doorDrawings } from '../model/eagleDrawings';
 import { newVisit, parseMeasure, siteChecks, utilityKinds, visitToday, type SiteState, type Utility, type UtilityKind, type Visit } from '../model/meeting';
 import { newOpening, openingKinds } from '../model/room';
 import { wallNames, wallOrder } from '../model/layout';
@@ -433,6 +434,11 @@ function SelectionsTab({ put }: { put: Put }) {
           </div>
         );
       })}
+      {doorDrawings(project.settings).length > 0 && (
+        <div className="door-pics">
+          {doorDrawings(project.settings).map((d) => <figure key={d.what}><img src={d.src} alt={`${d.what}: ${d.label}`} /><figcaption><b>{d.what}</b>{d.label ? `: ${d.label}` : ''}</figcaption></figure>)}
+        </div>
+      )}
       {project.settings.finish !== 'stain' && (
         <div className="sel-row"><span className="sel-label">Paint color and sheen</span><PaintColorPicker k="paint" /></div>
       )}

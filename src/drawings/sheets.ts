@@ -1,6 +1,7 @@
 // Drawing sets: the customer's (cover, floor plan, wall elevations) and the shop's (a wall
 // assembly sheet per wall, then a sheet per cabinet), on 11×17 or letter, each with CJC's title
 // block. Every sheet is one SVG at true size, so it prints to scale.
+import { doorDrawings } from '../model/eagleDrawings';
 import { forCustomer } from '../model/moldings';
 import type { Cabinet, Part, Project, WallId } from '../model/types';
 import { wallOrder, wallNames, wallLength } from '../model/layout';
@@ -229,7 +230,15 @@ function customerSheets(p: Project, s: DrawingSettings): Sheet[] {
     if (dv) {
       const label = (x: number, w: number, t: string) => `<text x="${x + w / 2}" y="${A.y + A.h * 0.62 + 0.15}" font-size="0.11" font-weight="700" text-anchor="middle">${esc(t)}</text>`;
       const notes = html({ x: A.x + A.w * 0.76, y: A.y, w: A.w * 0.24, h: A.h }, `<h2>Door style</h2><ul>${dv.notes.map((n) => `<li>${esc(n)}</li>`).join('')}</ul>`, s.paper === 'tabloid' ? 0.11 : 0.09);
-      sheets.push(sheet(p, s, doorNo, 'Door style', 'As noted', dv.svg + label(A.x, A.w * 0.5, 'FRAMING BEAD, SECTION (FULL SIZE)') + label(A.x + A.w * 0.5, A.w * 0.24, 'DOOR (1-1/2" = 1\'-0")') + notes));
+      // The door maker's drawings of the bead, panel and edge, in a row underneath
+      const dd = doorDrawings(p.settings);
+      const rowY = A.y + A.h * 0.7, rowH = A.h * 0.24, colW = (A.w * 0.74) / Math.max(1, dd.length);
+      const pics = dd.map((d, i) => {
+        const x = A.x + i * colW + 0.1;
+        return `<image href="${d.src}" x="${x}" y="${rowY}" width="${colW - 0.2}" height="${rowH - 0.3}" preserveAspectRatio="xMidYMid meet"/>`
+          + `<text x="${x + (colW - 0.2) / 2}" y="${rowY + rowH - 0.12}" font-size="0.1" font-weight="700" text-anchor="middle">${esc(d.what.toUpperCase())}${d.label ? `: ${esc(d.label)}` : ''}</text>`;
+      }).join('');
+      sheets.push(sheet(p, s, doorNo, 'Door style', 'As noted', dv.svg + label(A.x, A.w * 0.5, 'FRAMING BEAD, SECTION (FULL SIZE)') + label(A.x + A.w * 0.5, A.w * 0.24, 'DOOR (1-1/2" = 1\'-0")') + pics + notes));
     }
   }
   if (profiles.length) sheets.push(sheet(p, s, profNo, 'Moulding & beadboard profiles', 'As noted', profileViews(profiles, A)));

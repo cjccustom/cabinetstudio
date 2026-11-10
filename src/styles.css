@@ -812,3 +812,8 @@ textarea.text-input { resize: vertical; }
 .sel-row label, .sel-label { font-weight: 600; }
 .sel-row select { font-size: 17px; padding: 8px; }
 @media (max-width: 700px) { .sel-row { grid-template-columns: 1fr; } }
+
+.door-pics { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.door-pics figure { margin: 0; background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 8px; text-align: center; }
+.door-pics img { width: 100%; height: 110px; object-fit: contain; }
+.door-pics figcaption { font-size: 13px; margin-top: 4px; }
