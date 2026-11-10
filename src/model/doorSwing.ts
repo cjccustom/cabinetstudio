@@ -139,7 +139,7 @@ export const restrictorCount = (p: Project) => doorSwings(p).filter((d) => d.fix
 /** For the problems list. */
 export function doorSwingIssues(p: Project): Issue[] {
   const name = new Map(p.cabinets.map((c) => [c.id, c.name]));
-  return doorSwings(p).map((d) => ({
+  return doorSwings(p).filter((d) => d.fix === 'blocked').map((d) => ({
     cabinetId: d.cabinetId,
     message: d.fix === 'restrictor'
       ? `${name.get(d.cabinetId)}: the ${d.label} hits ${d.hits} at about ${d.at}°. It gets a hinge opening restrictor to stop it at ${RESTRICT_TO}° (in the quote and the drawings).`

@@ -162,8 +162,10 @@ export function materialsOf(p: Project): { label: string; value: string }[] {
   const style = styleById(s.doorStyleId);
   const material = style.line === 'MDF' ? 'MDF' : s.doorMaterial;
   const out: { label: string; value: string }[] = [];
-  const doors = p.cabinets.some((c) => c.rows.some((r) => r.type === 'doors' || r.type === 'drawer' || r.covered));
-  if (doors) out.push({ label: 'Doors & drawer fronts', value: `${style.name}${style.bead ? ` (${style.bead.toLowerCase()})` : ''}, ${material.toLowerCase()}, ${s.doorMount === 'inset' ? 'inset' : 'overlay'}` });
+  const doors = p.cabinets.some((c) => c.rows.some((r) => r.type === 'doors' || r.covered));
+  const drawers = p.cabinets.some((c) => c.rows.some((r) => r.type === 'drawer'));
+  // The style by name only: the bead code ("5pc - C") is the door maker's catalog number
+  if (doors || drawers) out.push({ label: doors && drawers ? 'Doors & drawer fronts' : doors ? 'Doors' : 'Drawer fronts', value: `${style.name}, ${material.toLowerCase()}, ${s.doorMount === 'inset' ? 'inset' : 'overlay'}` });
   const when = p.quote?.paintWhen === 'site' ? ', finished on site after install' : p.quote?.paintWhen === 'none' ? '; painting by others' : '';
   const pc = p.finishes.named?.paint;
   out.push({ label: 'Finish', value: (s.finish !== 'stain' && pc ? `Paint grade, painted ${colorText(pc)}${p.finishes.paintSheen ? `, ${p.finishes.paintSheen.toLowerCase()} finish` : ''} (proposed; the final color and sheen are your choice, confirmed before finishing)` : s.finish === 'stain' ? `Stain grade ${s.woodSpecies.toLowerCase()}, ${stainCoatOf(p) === 'clear' ? 'clear coated to keep its natural color' : 'stained in your choice of color and clear coated'}, sheen of your choice` : 'Paint grade, painted in your choice of color and sheen') + when });

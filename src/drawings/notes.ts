@@ -46,7 +46,6 @@ export function cabinetCallouts(p: Project, c: Cabinet): Callout[] {
   if (c.seamCover && !ends.right) out.push({ text: `${fmt(c.seamCover.width)} seam batten over the joint with the next cabinet, up ${c.crownBuild?.subCrown ? 'into the sub-crown' : 'to the top'}`, for: 'both' });
   for (const d of cabinetSwings(p, c).filter((x) => x.fix === 'restrictor')) {
     out.push({ text: `${RESTRICTOR_NOTE} on the ${d.label}: stops it at ${RESTRICT_TO}° (it would hit ${d.hits} at about ${d.at}°)`, for: 'shop' });
-    out.push({ text: `The ${d.label} opens to ${RESTRICT_TO}° so it clears ${d.hits}`, for: 'customer' });
   }
   if (c.lightRail) out.push({ text: `Light rail: ${mold(c.lightRail)}`, for: 'both' });
   const fin = cabinetFinishOf(p, c);

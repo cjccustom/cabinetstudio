@@ -1453,7 +1453,7 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   const bc = { ...cabinetFromPreset(presets.find((x) => x.id === 'tall-pantry')!, 'back', 0, []), id: 'BC', name: 'BC', width: 36, depth: 12, height: 96, rows: [{ id: 'r1', type: 'open', count: 1, shelves: 4 }, { id: 'r2', type: 'doors', height: 30, count: 2, shelves: 1 }], lighting: ['stile', 'puck'] } as any;
   const lp = { ...p, cabinets: [...p.cabinets, bc] };
   const fx = cabinetFixtures(bc, lp);
-  eq('lighting: two vertical strips and pucks', fx.map((f) => `${f.kind}:${f.count}`).join(','), 'stile:2,puck:2');
+  eq('lighting: two vertical strips and one puck (All Star: one 3" light is enough)', fx.map((f) => `${f.kind}:${f.count}`).join(','), 'stile:2,puck:1');
   const L = lightingParts(lp);
   eq('lighting: tape, channel, pucks, a driver, leads and cable', L.parts.map((x) => x.key).join(','), 'tape,channel,puck,driver60,lead,cable');
   eq('lighting: driver has 20% headroom', L.drivers.every((d) => d.size >= d.watts * 1.2), true);
@@ -2194,10 +2194,9 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   const f1 = doorSwings(fing).find((d) => d.cabinetId === w1.id);
   eq('swing: with finger pulls it gets further before it touches', !f1 || f1.at > at!.at, true);
   // The quote counts them, the problems list says so, the 3D door stops there, the drawings note it
-  const n = sw.filter((d) => d.fix === 'restrictor').length;
-  const line = estimateMaterials(p, quoteOf(p)).find((l) => l.label.startsWith('Hinge opening restrictors'));
-  eq('swing: restrictors in the quote', line?.detail.startsWith(`${n} door`), true);
-  eq('swing: in the problems list', doorSwingIssues(p).some((i) => i.cabinetId === w1.id && i.message.includes(`stop it at ${RESTRICT_TO}°`)), true);
+  eq('swing: restrictors stay off the quote (pennies)', estimateMaterials(p, quoteOf(p)).some((l) => /restrictor/i.test(l.label)), false);
+  eq('swing: a restrictor isn\'t a problem; a door that can\'t open square is', doorSwingIssues(p).some((i) => i.cabinetId === w1.id) === false && doorSwingIssues(p).every((i) => i.message.includes('before it\'s open square')), true);
+  eq('swing: the restrictor is a shop note only', cabinetCallouts(p, w1).filter((c) => /restrictor|opens to/i.test(c.text)).every((c) => c.for === 'shop'), true);
   const parts = buildParts(w1, p.settings, resolveEnds(p.room, p.cabinets, w1));
   const mot = frontMotions(p, w1, parts, []).filter((m) => m.part.role === 'door');
   eq('swing: the 3D door stops at the restrictor', mot.some((m) => Math.abs(Math.abs(m.angle) - (RESTRICT_TO * Math.PI) / 180) < 1e-6), true);

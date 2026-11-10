@@ -188,7 +188,8 @@ export function cabinetFixtures(c: Cabinet, p: Project, job = lightingJobOf(p)):
       const h = o.y1 - o.y0;
       const which = spans.length > 1 ? `open section ${i + 1} (from the bottom)` : 'open section';
       if (k === 'puck') {
-        const n = Math.max(1, Math.round(inner / 18));
+        // One 3" puck lights an upper's section (All Star Electric); one per 48" on a very wide one
+        const n = Math.max(1, Math.ceil(inner / 48));
         out.push({ cab: c, kind: k, count: n, length: 0, watts: n * job.puckWatts, leads: 1, system: 'generic', where: `Recessed in the underside of the top of the ${which}, evenly spaced` });
       } else if (k === 'stile') {
         const L = Math.max(6, h - 1);
@@ -354,7 +355,7 @@ export function lightingParts(p: Project): { parts: LightingPart[]; fixtures: Fi
     parts.push({ key: 'accentControl', label: job.accent === 'rgbw' ? 'RGBW controller and remote' : 'Tunable white controller and remote', spec: '24 V DC, rated for the accent run; app or remote dimming', qty: 1, unit: 'ea', search: google(`24V ${job.accent === 'rgbw' ? 'RGBW' : 'CCT'} LED controller remote`) });
   }
   const pucks = ours.filter((f) => f.kind === 'puck').reduce((t, f) => t + f.count, 0);
-  if (pucks) parts.push({ key: 'puck', label: 'Recessed LED puck lights', spec: `24 V DC, ${k}K, CRI 90+, about ${job.puckWatts} W each; note the cutout diameter and depth (must fit the part thickness)`, qty: pucks, unit: 'ea', search: google(`24V recessed LED puck light ${k}K CRI 90 cabinet`) });
+  if (pucks) parts.push({ key: 'puck', label: 'Recessed LED puck lights', spec: `3" recessed, 24 V DC, ${k}K, CRI 90+, about ${job.puckWatts} W each; note the cutout diameter and depth (must fit the part thickness)`, qty: pucks, unit: 'ea', search: google(`24V recessed LED puck light ${k}K CRI 90 cabinet`) });
   for (const size of DRIVERS) {
     const n = drivers.filter((d) => d.size === size && d.system === 'generic').length;
     if (n) parts.push({ key: `driver${size}` as PartKey, label: `Driver, ${size} W`, spec: `24 V DC constant-voltage, Class 2${job.control === 'wall' ? ', dimmable with a wall dimmer (ELV/MLV or TRIAC: match the dimmer the electrician installs)' : ''}; plug-in or hard-wired to suit the outlet`, qty: n, unit: 'ea', search: google(`24V ${size}W dimmable LED driver class 2 cabinet lighting`) });
