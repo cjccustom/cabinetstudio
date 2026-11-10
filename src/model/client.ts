@@ -10,6 +10,7 @@ import { eagleRequests, requestText } from './eagleRequest';
 import { hardwareOrder, hardwareText } from './hardware';
 import { hardwareScope, hasHardware } from './pulls';
 import { visitsDoc } from './meeting';
+import { furnitureOf, tableEstimate } from './furniture';
 import { releaseOf } from './release';
 import { LOGO } from '../drawings/logo';
 import { proposalSummary, withOptions } from './proposal';
@@ -127,7 +128,7 @@ export function proposalLines(full: Project): { key: string; label: string; pric
   const adj = 1 + q.workloadAdj[q.workload];
   const named = (key: string, label: string) => q.lineLabels?.[key]?.trim() || label;
   const lines = [
-    ...r.groups.map((g) => ({ key: g.group, label: named(g.group, groupLabel[g.group]), price: g.price * adj })),
+    ...r.groups.flatMap((g) => (g.group === 'furniture' ? furnitureLines(p, g.price * adj, named) : [{ key: g.group, label: named(g.group, groupLabel[g.group]), price: g.price * adj }])),
     ...r.extras.map((e) => ({ key: `extra:${e.id}`, label: named(`extra:${e.id}`, e.label), price: e.price * adj })),
     ...(r.painter ? [{ key: 'painting', label: paintLineLabel(q), price: r.painter }] : []),
   ];
@@ -142,6 +143,19 @@ export function proposalLines(full: Project): { key: string; label: string; pric
   const first = rounded.find((l) => !free.length || !fixed(l));
   if (first) first.price += r.total - rounded.reduce((t, l) => t + l.price, 0);
   return rounded;
+}
+
+/**
+ * Each piece of furniture on its own line, its share of the furniture price by what it takes to
+ * build (hours and materials). A name typed for the old single furniture line stays on the first piece.
+ */
+function furnitureLines(p: Project, price: number, named: (key: string, label: string) => string) {
+  const pieces = furnitureOf(p);
+  if (pieces.length <= 1) return [{ key: 'furniture', label: named('furniture', pieces[0]?.name || groupLabel.furniture), price }];
+  const rate = quoteOf(p).laborCost || 65;
+  const w = pieces.map((t) => { const e = tableEstimate(t, p); return e.hours.reduce((a, h) => a + h.hours, 0) * rate + e.materials.reduce((a, m) => a + m.cost, 0); });
+  const W = w.reduce((a, b) => a + b, 0) || pieces.length;
+  return pieces.map((t, i) => ({ key: `furniture:${t.id}`, label: named(`furniture:${t.id}`, i === 0 ? named('furniture', t.name) : t.name), price: (price * (W === pieces.length && !w[i] ? 1 : w[i])) / W }));
 }
 
 /** What the client sees as the proposal's title: yours, or "Smith Project Proposal" from their last name. */

@@ -2145,6 +2145,16 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   eq('sub-crown run: spans both cabinets', pa[0].boxes[0].min[0] + pa[0].boxes[0].size[0] >= b.offset + b.width - a.offset - 1e-6, true);
 }
 
+// Furniture on the agreement: one line per piece, adding up to the furniture total
+{
+  const job = { ...p, furniture: [{ ...newTable(), name: 'Puzzle table' }, { ...newBench(), name: 'Bench' }], quote: { ...quoteOf(p), lineLabels: { furniture: 'Puzzle Table' } } };
+  const lines = proposalLines(job);
+  const f = lines.filter((l) => l.key.startsWith('furniture'));
+  eq('furniture lines: one per piece, old name on the first', f.map((l) => l.label).join(' | '), 'Puzzle Table | Bench');
+  eq('furniture lines: still add up to the total', lines.reduce((t, l) => t + l.price, 0), priceQuote(job).total);
+  eq('furniture lines: table costs more than the bench', f[0].price > f[1].price, true);
+}
+
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');
 
 console.log(failed ? `${failed} check(s) failed` : 'All model checks passed');
