@@ -963,6 +963,24 @@ function mirrorPart(p: Part, w: number): Part {
 
 export const noCrownBuild: CrownBuild = { subCrown: 0, rise: 0, drop: 0, extra: [] };
 
+/**
+ * The common build in one step: a flat sub-crown standing on top of the case (the face frame's top
+ * rail stays fully exposed), showing a set amount under the crown, with the crown kept where it is
+ * now; the case gets shorter by what the build grows.
+ */
+export function subCrownOnTop(c: Cabinet, s: ShopSettings, exposed: number): Partial<Cabinet> | null {
+  const p = profileByNum(c.crown);
+  if (!p) return null;
+  const ch = mountShape(p).height;
+  const L = crownLayout(c, s);
+  const sub = Math.round((ch + exposed) * 16) / 16;
+  const height = Math.round((L.top - sub) * 16) / 16;
+  if (height < 12) return null;
+  return { height, crownBuild: { ...noCrownBuild, ...c.crownBuild, subCrown: sub, rise: sub, drop: 0 } };
+}
+
+
+
 /** Where the crown build sits on a cabinet: its top, the face the mouldings go on, and the sub-crown. */
 export function crownLayout(c: Cabinet, s: ShopSettings) {
   s = eff(c, s);

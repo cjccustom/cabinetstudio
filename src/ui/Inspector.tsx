@@ -8,7 +8,7 @@ import { CabinetFinishSection } from './CabinetFinish';
 import { SlopeFit } from './SlopeFit';
 import { CasePlywoodField } from './CasePlywood';
 import { takesLightRail } from '../model/moldings';
-import { rowOpenings, buildParts, closetRod, isOpenRow, joineryLabel, PAINT_TOP, topThick, crownFit, crownLayout, crownRoom, layoutRows, noCrownBuild, panelOn } from '../model/parts';
+import { rowOpenings, buildParts, closetRod, isOpenRow, joineryLabel, PAINT_TOP, topThick, crownFit, crownLayout, crownRoom, layoutRows, noCrownBuild, panelOn, subCrownOnTop } from '../model/parts';
 import { defaultPilaster, pilasterOf, pilasterSections } from '../model/pilaster';
 import { bracketCount, bracketGap, bracketLength, bracketProduct, finishedEnds, floatingOf, shelfPly } from '../model/floatingShelf';
 import { topRun } from '../model/layout';
@@ -869,6 +869,7 @@ function CrownBuildEditor({ cab, set, species }: { cab: Cabinet; set: (patch: Pa
           <button className="mini" title="Sub-crown from the top of the doors to the top of the build" onClick={() => put({ subCrown: Math.round((L.top - frontTop) * 16) / 16 })}>Fit sub-crown above doors ({fmt(L.top - frontTop)})</button>
         )}
       </div>
+      <SubCrownOnTop cab={cab} />
       {overlap > 1e-3 && <p className="warn">The sub-crown laps {fmt(overlap)} down over the doors. Make it shorter or raise it.</p>}
       {fit && fit.over > 1e-3 && (
         <div className="warn">
@@ -1534,4 +1535,36 @@ function FitButtons({ cab }: { cab: Cabinet }) {
 function OpenButton({ id }: { id: string }) {
   const open = useNav((n) => isOpenIn(n, id));
   return <button title="Swing its doors open and pull its drawers out in the 3D view" onClick={() => { useStore.getState().setView('3d'); useNav.getState().toggleOpen(id); }}>{open ? 'Close doors' : 'Open doors'}</button>;
+}
+
+function SubCrownOnTop({ cab }: { cab: Cabinet }) {
+  const settings = useStore((s) => s.project.settings);
+  const commit = useStore((s) => s.commit);
+  const [exposed, setExposed] = useState(1.5);
+  const p = profileByNum(cab.crown);
+  if (!p) return null;
+  const next = subCrownOnTop(cab, settings, exposed);
+  const L = crownLayout(cab, settings);
+  const already = next && Math.abs((cab.crownBuild?.subCrown ?? 0) - next.crownBuild!.subCrown) < 1e-3 && Math.abs((cab.crownBuild?.rise ?? 0) - next.crownBuild!.rise) < 1e-3;
+  const apply = (all: boolean) => commit((pr) => ({ ...pr, cabinets: pr.cabinets.map((c) => {
+    if (all ? !(c.wall === cab.wall && c.kind === cab.kind && c.crown) : c.id !== cab.id) return c;
+    const n = subCrownOnTop(c, pr.settings, exposed);
+    return n ? { ...c, ...n } : c;
+  }) }));
+  return (
+    <div className="subcrown-top">
+      <h4>Sub-crown on top of the case</h4>
+      <div className="grid3">
+        <Field label="Showing under the crown" htmlFor="sc-exp"><LengthInput id="sc-exp" value={exposed} min={0.25} onChange={(v) => v && setExposed(v)} /></Field>
+      </div>
+      {next && !already && (
+        <div className="order-actions">
+          <button className="mini" onClick={() => apply(false)}>Build it on {cab.name}</button>
+          <button className="mini" onClick={() => apply(true)}>Every {cab.kind === 'wall' ? 'upper' : cab.kind} with crown on this wall</button>
+        </div>
+      )}
+      {already && <p className="ok">Built: {fmt(next!.crownBuild!.subCrown)} sub-crown on top of the case, {fmt(exposed)} showing under the crown.</p>}
+      {!already && <p className="hint">A {fmt((next?.crownBuild?.subCrown) ?? 0)} flat sub-crown ({fmt((next?.crownBuild?.subCrown ?? exposed) - exposed)} crown + {fmt(exposed)} showing) stands on the case top, so the face frame’s whole top rail still shows below it. The crown stays where it is now (top {fmt(cab.elevation + L.top)} off the floor); the case gets {fmt(Math.max(0, cab.height - (next?.height ?? cab.height)))} shorter to make room, and its openings shrink with it.</p>}
+    </div>
+  );
 }

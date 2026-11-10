@@ -35,6 +35,7 @@ import { defaultPilaster } from "../src/model/pilaster";
 import { combineAll } from "../src/model/onePiece";
 // Sanity checks on the cabinet model: run with `npm test`.
 import { rowOpenings, topThick } from "../src/model/parts";
+import { subCrownOnTop } from "../src/model/parts";
 import { buildParts, eff, crownFit, crownLayout, crownRoom, layoutRows, panelExtents, realOverhang } from "../src/model/parts";
 import { placedAppliances } from "../src/model/appliances";
 import { legWidth, mantelClearances } from "../src/model/mantel";
@@ -2118,6 +2119,19 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   eq('kick base: ladder, no nailer', [parts.filter((x) => /Toe kick base, (front|back) rail/.test(x.name)).length, parts.some((x) => x.name === 'Toe kick nailer'), parts.filter((x) => x.name === 'Toe kick base, cross piece').length >= 2].join(), '2,false,true');
   eq('kick base: not on the customer\'s side', /toe kick base/i.test(quoteDoc(job) + proposalSummary(job).materials.map((m) => m.value).join(' ')), false);
   eq('kick base: shop note', cabinetCallouts(job, cab).some((n) => n.for === 'shop' && /Separate toe kick base/.test(n.text)), true);
+}
+
+// Sub-crown on top of the case: top rail stays exposed, 1 1/2" shows under the crown, crown stays put
+{
+  const up = { ...p.cabinets.find((c) => c.kind === 'wall')!, crown: '5268' };
+  const before = crownLayout(up, p.settings);
+  const n = subCrownOnTop(up, p.settings, 1.5)!;
+  const after = { ...up, ...n };
+  const L = crownLayout(after, p.settings);
+  const ch = mountShape(profileByNum(up.crown)!).height;
+  eq('subcrown on top: crown top unchanged (to a 1/16)', Math.abs(L.crownTop - before.crownTop) <= 1 / 16, true);
+  eq('subcrown on top: sits on the case top', L.subBottom, after.height);
+  eq('subcrown on top: 1 1/2" shows under the crown (to a 1/16)', Math.abs(L.top - ch - L.subBottom - 1.5) <= 1 / 16, true);
 }
 
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');
