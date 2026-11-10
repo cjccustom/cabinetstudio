@@ -503,10 +503,10 @@ export function Inspector({ cab, issues, tab }: { cab: Cabinet; issues: string[]
               <div className="grid3">
                 <Field label="Width" htmlFor="seam-w"><LengthInput id="seam-w" value={cab.seamCover.width} min={0.5} onChange={(v) => v && set({ seamCover: { ...cab.seamCover!, width: v } })} /></Field>
                 <Field label="Thickness" htmlFor="seam-t"><LengthInput id="seam-t" value={cab.seamCover.thickness} min={0.125} onChange={(v) => v && set({ seamCover: { ...cab.seamCover!, thickness: v } })} /></Field>
-                <div className="field"><button className="mini" title="Every cabinet on this wall that meets another on its right" onClick={() => useStore.getState().commit((p) => ({ ...p, cabinets: p.cabinets.map((c) => (c.wall === cab.wall && c.kind !== 'mantel' && c.kind !== 'pilaster' && !resolveEnds(p.room, p.cabinets, c).right ? { ...c, seamCover: cab.seamCover } : c)) }))}>Every seam on this wall</button></div>
+                <div className="field"><button className="mini" title="Every cabinet of this kind on this wall that meets another on its right (uppers stay uppers, bases stay bases)" onClick={() => useStore.getState().commit((p) => ({ ...p, cabinets: p.cabinets.map((c) => (c.wall === cab.wall && c.kind === cab.kind && !resolveEnds(p.room, p.cabinets, c).right ? { ...c, seamCover: cab.seamCover } : c)) }))}>Every {cab.kind === 'wall' ? 'upper' : cab.kind === 'base' ? 'base' : cab.kind} seam on this wall</button></div>
               </div>
             )}
-            <p className="hint">Solid stock centered on the joint, from the top of the base up {cab.crownBuild?.subCrown ? 'into the sub-crown' : 'to the top of the case (add a sub-crown under Crown build to die it into one)'}.</p>
+            <p className="hint">Solid stock centered on the joint, this cabinet’s height only: from {cab.kind === 'wall' ? 'its bottom' : 'the top of its base'} up {cab.crownBuild?.subCrown ? 'into the sub-crown' : 'to its top (add a sub-crown under Crown build to die it into one)'}.</p>
           </div>
         )}
         <p className="hint">Runs across the face and returns to the wall on exposed ends. Lineal footage and cost are on the Orders tab.</p>
@@ -1099,6 +1099,9 @@ function BaseSection({ cab, set }: { cab: Cabinet; set: (patch: Partial<Cabinet>
           </Field>
         )}
       </div>
+      {b.style === 'kick' && cab.kind !== 'wall' && (
+        <label className="check-inline"><input type="checkbox" checked={!!b.separate} onChange={(e) => put({ separate: e.target.checked || undefined })} /> Separate toe kick base (one ladder for the run; the cases sit on it)</label>
+      )}
       {b.style === 'baseboard' && (
         <div className="grid3">
           <label className="check-inline" style={{ display: 'flex', gap: 6, alignItems: 'center', gridColumn: 'span 2' }}><input type="checkbox" checked={(b.platform ?? 0) > 0} onChange={(e) => put({ platform: e.target.checked ? Math.min(3.5, Math.max(1, L.top + s.bottomRailWidth - 1.5)) : undefined })} /> Sit the cases on a leveled platform</label>

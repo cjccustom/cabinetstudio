@@ -116,6 +116,8 @@ export interface LaborStandards {
   seamBatten?: number;
   /** Rout an edge profile on a solid wood top, per top. */
   topEdge?: number;
+  /** Build and level a separate toe kick base, per cabinet it carries. */
+  kickBase?: number;
 }
 
 export const defaultStandards: LaborStandards = {
@@ -169,6 +171,7 @@ export const defaultStandards: LaborStandards = {
   fingerPull: 0.3,
   seamBatten: 0.5,
   topEdge: 0.5,
+  kickBase: 0.4,
 };
 
 export type Workload = 'full' | 'normal' | 'light';
@@ -483,6 +486,7 @@ export function estimateHours(p: Project, q: QuoteSettings): HourLine[] {
     const box = (st.installPerBox + (tall ? st.installTall : 0)) * (stain ? st.stainInstall ?? 1.25 : 1);
     add(stain ? 'Install cabinets, stain grade' : 'Install cabinets', 1, box, 'cabinets', true);
     installHours += box;
+    if (parts.some((x) => x.name === 'Toe kick base, front rail')) addC('Separate toe kick base (ladder, per cabinet)', 1, st.kickBase ?? 0.4);
     const battens = parts.filter((x) => x.name === 'Seam batten').length;
     if (battens) addC('Seam battens (mill, fit, glue)', battens, st.seamBatten ?? 0.5);
     const fronts = n('door') + parts.filter((x) => x.role === 'drawerFront' && x.name !== 'False front').length;

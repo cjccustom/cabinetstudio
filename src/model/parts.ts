@@ -386,11 +386,14 @@ function caseParts(c: Cabinet, s: ShopSettings, ends: EndInfo): Part[] {
   const kickBack = s.toeKickDepth + s.toeKickSkin;
   const notch = Math.max(0, kickBack - s.ffThickness);
   const dados = fmtShort(dd);
+  // A separate toe kick base: the case has no toe notch and sits on a ladder built and leveled once for the run
+  const sep = BL.style === 'kick' && kick > 0 && !!BL.b.separate && !fridge;
 
   // Sides
   const sideShapes = (x: number): CutShape[] => [cutShape('z', [x, 0, 0], boxD, BL.top, ta, BL.b.foot, boxD - Math.max(0.75, BL.b.foot - s.ffThickness), BL.b.shape, BL.rise)];
   const sideBoxes = (x: number, arch = false): VisualBox[] => {
     if (arch) return [vb(x, BL.top, 0, ta, H - BL.top, boxD)];
+    if (sep) return [vb(x, kick, 0, ta, H - kick, boxD)];
     if (kick > 0 && c.island) return [vb(x, kick, 0, ta, H - kick, boxD), vb(x, 0, notch, ta, kick, boxD - 2 * notch)];
     return kick > 0
       ? [vb(x, kick, 0, ta, H - kick, boxD), vb(x, 0, 0, ta, kick, boxD - notch)]
@@ -400,6 +403,7 @@ function caseParts(c: Cabinet, s: ShopSettings, ends: EndInfo): Part[] {
     const notes = [];
     const arch = archSide(exposed, panel);
     if (arch) notes.push(`Cut ${archShapes[BL.b.shape].toLowerCase()} to match the face frame, ${fmtShort(BL.rise)} high`);
+    else if (sep) notes.push(`No toe notch: sits on the ${fmtShort(kick)} toe kick base`);
     else if (kick > 0) notes.push(`Toe notch ${fmtShort(kick)} × ${fmtShort(notch)}${c.island ? ', front and back' : ''}`);
     const bare = exposed && panel === 'none';
     notes.push(sideFastening(c, bare, exposed));
@@ -410,7 +414,7 @@ function caseParts(c: Cabinet, s: ShopSettings, ends: EndInfo): Part[] {
     if (fl) notes.push('Band the front edge');
     if (hfSpans.length) notes.push(hafeleSideNote(hfSpans, false));
     parts.push({
-      name: bare ? 'Side, exposed' : 'Side', role: 'side', material: 'box', length: H - BL.lift, width: boxD, thickness: tn, cut: true, banded: fl || undefined,
+      name: bare ? 'Side, exposed' : 'Side', role: 'side', material: 'box', length: H - BL.lift - (sep ? kick : 0), width: boxD, thickness: tn, cut: true, banded: fl || undefined,
       // A bare exposed side gets the finish (painted, or stained to match), not left as case plywood
       ...(bare ? { look: 'paint' as const } : {}),
       note: notes.join(' · '),
@@ -477,7 +481,23 @@ function caseParts(c: Cabinet, s: ShopSettings, ends: EndInfo): Part[] {
     });
   }
 
-  if (kick > 0) {
+  if (sep) {
+    // A ladder of 3/4" ply rails, front and back, with cross pieces at each end and no more than 24" apart.
+    // Its front stands back where the toe kick nailer would, so the skin lands at the usual depth.
+    const front = D - kickBack - ta, back = s.backThickness > 0 ? 1 : 0, depthIn = front - back - ta;
+    const n = Math.max(2, Math.ceil(W / 24) + 1);
+    const railNote = 'Separate toe kick base: built as one ladder for the run (join rails over a cross piece), set and leveled before the cases go on (on carpet, cut the carpet back under it)';
+    parts.push({ name: 'Toe kick base, front rail', role: 'nailer', material: 'box', length: W, width: kick, thickness: tn, cut: true, note: railNote, boxes: [vb(0, 0, front, W, kick, ta)] });
+    parts.push({ name: 'Toe kick base, back rail', role: 'nailer', material: 'box', length: W, width: kick, thickness: tn, cut: true, note: railNote, boxes: [vb(0, 0, back, W, kick, ta)] });
+    for (let i = 0; i < n; i++) parts.push({ name: 'Toe kick base, cross piece', role: 'nailer', material: 'box', length: depthIn, width: kick, thickness: tn, cut: true,
+      note: `Between the rails, at each end and about every ${fmtShort(Math.round((W - ta) / (n - 1)))}; glued and screwed`,
+      boxes: [vb(i === n - 1 ? W - ta : (i * (W - ta)) / (n - 1), 0, back + ta, ta, kick, depthIn)] });
+    parts.push({
+      name: 'Toe kick skin', role: 'toekick', material: 'toeSkin', length: W, width: kick, thickness: s.toeKickSkin, cut: true,
+      note: 'Applied at install, continuous along the base',
+      boxes: [vb(0, 0, D - s.toeKickDepth - s.toeKickSkin, W, kick, s.toeKickSkin)],
+    });
+  } else if (kick > 0) {
     parts.push({
       name: 'Toe kick nailer', role: 'nailer', material: 'box', length: innerW, width: kick, thickness: tn, cut: true,
       note: 'Scrap 3/4" ply',

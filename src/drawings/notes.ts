@@ -34,6 +34,8 @@ export function cabinetCallouts(p: Project, c: Cabinet): Callout[] {
     const scribe = side === 'left' ? c.scribeLeft : c.scribeRight;
     if (scribe) out.push({ text: `${side === 'left' ? 'Left' : 'Right'} stile extended ${fmt(scribe)}, scribe to the wall`, for: 'shop' });
   }
+  // Shop only: the customer never hears about the separate base
+  if (c.kind !== 'wall' && c.base?.style === 'kick' && c.base.separate) out.push({ text: `Separate toe kick base (ladder, ${fmt(s.toeKickHeight)}): built and leveled once for the run; case has no toe notch and sits on it`, for: 'shop' });
   const base = baseLabel(c);
   if (base) out.push({ text: base.charAt(0).toUpperCase() + base.slice(1), for: 'both' });
   if (c.countertop && c.kind === 'base') out.push({ text: c.topKind === 'wood' ? `${fmt(c.topThickness ?? 1.25)} solid wood top, ${edgeLabel(c.topProfile).toLowerCase()} edge` : c.topKind === 'paint' ? `3/4" paint-grade plywood top, ${(c.topEdge ?? 'poplar').toLowerCase()} edging 3/4" × 1 1/4" dropping 1/2" over the top rail` : 'Stone countertop by others', for: c.topKind === 'stone' || !c.topKind ? 'customer' : 'both' });

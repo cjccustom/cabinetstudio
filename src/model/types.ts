@@ -556,6 +556,8 @@ export interface CabinetBase {
   rise: number;
   /** Foot width at each end, from the outside of the face frame (or end). */
   foot: number;
+  /** Toe kick: a separate ladder base under the run (the cases have no toe notch and sit on it), built and leveled once. */
+  separate?: boolean;
   /** Baseboard wrap: the cases sit on a leveled platform this high (built and leveled once for the run), instead of each being shimmed. */
   platform?: number;
 }

@@ -2107,6 +2107,19 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   eq('section: side-wall work drawn shaded', /class="sec"/.test(front?.svg ?? ''), true);
 }
 
+// Separate toe kick base: no toe notch, a ladder under the case, shop notes only
+{
+  const base = p.cabinets.find((c) => c.kind === 'base' && !c.island)!;
+  const cab = { ...base, base: { ...(base.base ?? { style: 'kick', height: 0, build: 'faceframe', shape: 'straight', rise: 0, foot: 0 }), style: 'kick' as const, separate: true } } as typeof base;
+  const job = { ...p, cabinets: p.cabinets.map((c) => (c.id === base.id ? cab : c)) };
+  const parts = buildParts(cab, job.settings, resolveEnds(job.room, job.cabinets, cab));
+  const side = parts.find((x) => x.role === 'side')!;
+  eq('kick base: sides stop at the base', [side.boxes.length, side.boxes[0].min[1], side.length].join(), `1,${job.settings.toeKickHeight},${cab.height - job.settings.toeKickHeight}`);
+  eq('kick base: ladder, no nailer', [parts.filter((x) => /Toe kick base, (front|back) rail/.test(x.name)).length, parts.some((x) => x.name === 'Toe kick nailer'), parts.filter((x) => x.name === 'Toe kick base, cross piece').length >= 2].join(), '2,false,true');
+  eq('kick base: not on the customer\'s side', /toe kick base/i.test(quoteDoc(job) + proposalSummary(job).materials.map((m) => m.value).join(' ')), false);
+  eq('kick base: shop note', cabinetCallouts(job, cab).some((n) => n.for === 'shop' && /Separate toe kick base/.test(n.text)), true);
+}
+
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');
 
 console.log(failed ? `${failed} check(s) failed` : 'All model checks passed');
