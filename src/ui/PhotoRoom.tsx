@@ -184,7 +184,7 @@ export function ScanImportButton({ className = '' }: { className?: string }) {
   };
   return (
     <>
-      <FileButton className={className} accept=".json,application/json" onFiles={(f) => pick(f?.[0] ?? undefined)}>Import room scan</FileButton>
+      <FileButton className={className} onFiles={(f) => pick(f?.[0] ?? undefined)}>Import room scan</FileButton>
       {msg && <p className="warn">{msg}</p>}
       {scan && <PhotoRoomDialog scan={scan} onClose={() => setScan(null)} />}
     </>

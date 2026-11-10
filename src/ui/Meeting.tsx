@@ -10,6 +10,7 @@ import { useCapability } from './Rendering';
 import type { Sample } from '../runtime';
 import { PhotoMarkup } from './PhotoMarkup';
 import { VideoUpload } from './VideoUpload';
+import { ScanImportButton } from './PhotoRoom';
 import { newVisit, parseMeasure, siteChecks, utilityKinds, visitToday, type SiteState, type Utility, type UtilityKind, type Visit } from '../model/meeting';
 import { newOpening, openingKinds } from '../model/room';
 import { wallNames, wallOrder } from '../model/layout';
@@ -305,6 +306,10 @@ function MeasureTab({ v, put }: { v: Visit; put: Put }) {
   return (
     <div className="meeting-pad">
       <p className="hint">Tap a box and measure. With a laser in keyboard mode, its reading lands in the box and the next box is picked. Typed sizes work too: 92 5/16, 7&apos;8 1/2&quot;, or metric. Distances along a wall are from its left corner, facing the wall.</p>
+      <div className="scan-row">
+        <ScanImportButton className="primary" />
+        <span className="hint">Scanned the room with CJC Room Scan on the iPhone? AirDrop the scan to the iPad (or save it to Files), then import it here: walls, ceiling height, doors and windows fill in below. Measure anything the scan missed.</span>
+      </div>
       <h3>Room</h3>
       <div className="mrow">
         <MeasureBox id="m-w" label="Back wall length" value={room.width} onChange={(x) => x && setRoom({ width: x })} />

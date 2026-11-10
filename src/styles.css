@@ -798,3 +798,6 @@ textarea.text-input { resize: vertical; }
 .video-job { display: grid; grid-template-columns: minmax(0, 1fr) 160px auto; gap: 8px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--line); }
 .video-job progress { width: 100%; }
 .video-job.saved span:first-child { color: var(--muted); }
+
+.scan-row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin: 4px 0 10px; }
+.scan-row .hint { flex: 1 1 300px; }
