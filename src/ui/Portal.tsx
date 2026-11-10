@@ -246,6 +246,12 @@ export function ClientPortal() {
   });
 
   const refresh = () => run('Checking…', async () => { keep(await jobStatus(portal!.jobId), portal!.jobId); });
+  // Opening the job checks the portal, quietly, so signatures and approvals show without a click
+  useEffect(() => {
+    const id = portal?.jobId;
+    if (!id || (portal?.checkedAt && Date.now() - portal.checkedAt < 30e3)) return;
+    jobStatus(id).then((s2) => keep(s2, id), () => { /* offline or not on claude.ai: Check status still works */ });
+  }, [portal?.jobId]); // eslint-disable-line react-hooks/exhaustive-deps
   const copy = (text: string, what: string) => navigator.clipboard.writeText(text).then(() => setNote(`${what} copied.`), () => setNote('Select the link and copy it.'));
   const message = `Hi ${c.first || 'there'}, here’s your project page with the design, proposal and agreement: ${portal?.url ?? ''}`;
 
