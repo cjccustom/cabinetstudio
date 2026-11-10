@@ -11,7 +11,7 @@ export interface KV {
   get(key: string, type: 'json'): Promise<unknown>;
   get(key: string, type: 'arrayBuffer'): Promise<ArrayBuffer | null>;
   getWithMetadata(key: string, type: 'arrayBuffer'): Promise<{ value: ArrayBuffer | null; metadata: unknown }>;
-  put(key: string, value: string | ArrayBuffer, opts?: { metadata?: unknown }): Promise<void>;
+  put(key: string, value: string | ArrayBuffer, opts?: { metadata?: unknown; expirationTtl?: number }): Promise<void>;
   delete(key: string): Promise<void>;
   list(opts?: { prefix?: string; cursor?: string }): Promise<{ keys: { name: string }[]; list_complete: boolean; cursor?: string }>;
 }
@@ -67,6 +67,8 @@ export interface Job {
   invoiceError?: string;
   /** The drawing set, shared once the agreement is signed (its HTML is under dwg:<jobId>). */
   drawings?: { publishedAt: number; version: number; title: string };
+  /** The 3D model shared with the drawings (glb:<jobId>), for the client to look around and comment on. */
+  model?: { publishedAt: number; version: number };
   /** Questions and change requests from the client, and the shop's answers. */
   comments?: PortalComment[];
 }
@@ -75,6 +77,8 @@ export interface PortalComment {
   id: string; at: number; from: 'client' | 'shop'; name: string; text: string; about: string; read?: boolean;
   /** A spot marked on a drawing sheet: the sheet's index and the area, as fractions of the sheet. */
   mark?: { sheet: number; x: number; y: number; w: number; h: number };
+  /** A spot pinned on the 3D model, in the model's own inches. */
+  pin?: [number, number, number];
 }
 /** The drawing set split into sheets, for the proof page (dwgs:<jobId>). */
 export interface DrawingSheets { css: string; sheets: { number: string; title: string; svg: string }[] }

@@ -17,6 +17,7 @@ export interface JobStatus {
   invoices?: Invoice[];
   invoiceError?: string | null;
   drawings?: { publishedAt: number; version: number; title: string } | null;
+  model?: { publishedAt: number; version: number } | null;
   comments?: PortalComment[];
   unread?: number;
 }
@@ -120,6 +121,16 @@ export async function savePhoto(folder: string, name: string, data: string): Pro
     if (last) return { path: r.path ?? `${folder}/${name}`, size: r.size ?? offset };
   }
   throw new PortalError('Nothing to save.', 'empty');
+}
+/** The 3D model (.glb, base64) onto a signed job's page, in pieces under the 1 MB call limit. */
+export async function publishModel(jobId: string, b64: string, onProgress?: (done: number, of: number) => void): Promise<JobStatus> {
+  const parts = Math.max(1, Math.ceil(b64.length / PIECE_B64));
+  let last: unknown = null;
+  for (let i = 0; i < parts; i++) {
+    last = await call('publish_model', { job_id: jobId, part: i, parts, data: b64.slice(i * PIECE_B64, (i + 1) * PIECE_B64) });
+    onProgress?.(i + 1, parts);
+  }
+  return last as JobStatus;
 }
 /** One piece of a video: start (no session), add, or finish (with the folder and name). */
 export const saveVideoChunk = (a: { session?: string; offset: number; data: string; folder?: string; name?: string }) => call<{ session: string; offset: number; path?: string; size?: number }>('save_video_chunk', a);

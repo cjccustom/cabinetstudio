@@ -801,3 +801,5 @@ textarea.text-input { resize: vertical; }
 
 .scan-row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin: 4px 0 10px; }
 .scan-row .hint { flex: 1 1 300px; }
+
+.export-stage { position: fixed; left: -10000px; top: 0; width: 1200px; height: 800px; pointer-events: none; }

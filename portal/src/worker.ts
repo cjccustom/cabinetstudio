@@ -12,7 +12,7 @@
 // for photos, Secrets DBX_APP_KEY and DBX_APP_SECRET; for an email when a client comments, a
 // Secret RESEND_API_KEY (resend.com) and the contact email in Portal settings (MAIL_FROM optional).
 import { type DrawingSheets, type Env, type Job, type PortalComment, type Shop, type ShopDoc, b64ToBytes, getJob, getShop, jobByToken, putJob, putShop, randomToken, sha256, signedTotals } from './store';
-import { agreementPage, clientName, drawingsPage, esc, projectPage, simplePage } from './pages';
+import { agreementPage, clientName, drawingsPage, esc, modelPage, projectPage, simplePage } from './pages';
 import { canCancel, cancelDeadline, easternYmd } from './cancel';
 import { calendar, deleteAppt, feedCode, listAppts, saveAppt, apptLabel, type Appointment } from './calendar';
 import { dbxChunk, dbxConnectUrl, dbxDisconnect, dbxFinish, dbxReady, dbxRedirect, dbxUpload, getDbx } from './dbx';
@@ -33,7 +33,7 @@ export default {
     const url = new URL(request.url);
     const path = url.pathname.replace(/\/+$/, '') || '/';
     if (!env.PORTAL) return setupPage('Almost there', '<p>The portal is running, but its storage isn’t connected. In Cloudflare open this worker’s <b>Settings → Bindings</b>, add a <b>KV namespace</b> binding named <code>PORTAL</code> (create a namespace called <b>cjc-portal</b> if you don’t have one), then reload this page.</p>');
-    const m = path.match(/^\/p\/([A-Za-z0-9_-]+)(?:\/(img|doc|visit)\/([A-Za-z0-9_-]+)(?:\.ics)?|\/(agreement|sign|cancel|drawings|comment))?$/);
+    const m = path.match(/^\/p\/([A-Za-z0-9_-]+)(?:\/(img|doc|visit)\/([A-Za-z0-9_-]+)(?:\.ics)?|\/(agreement|sign|cancel|drawings|comment|model|model\.glb))?$/);
     if (m) return client(request, env, m[1], m[2] ?? m[4] ?? '', m[3] ?? '');
     const key = String(env.SHOP_KEY || '').trim();
     const cal = path.match(/^\/cal\/([a-f0-9]{32})\.ics$/);
@@ -117,17 +117,30 @@ async function client(request: Request, env: Env, token: string, what: string, i
     const split = (await env.PORTAL.get(`dwgs:${job.jobId}`, 'json')) as DrawingSheets | null;
     return html(drawingsPage(job, shop, token, doc, new URL(request.url).searchParams.has('sent'), split));
   }
+  if (what === 'model' || what === 'model.glb') {
+    const ok = job.signature && !job.cancelled && job.model;
+    if (what === 'model.glb') {
+      const glb = ok ? ((await env.PORTAL.get(`glb:${job.jobId}`, 'arrayBuffer')) as ArrayBuffer | null) : null;
+      if (!glb) return new Response('Not found', { status: 404 });
+      return new Response(glb, { headers: { 'content-type': 'model/gltf-binary', 'cache-control': 'private, max-age=300' } });
+    }
+    if (!ok) return html(simplePage('The 3D model isn’t ready yet', 'It will appear here with your drawings.', shop), 404);
+    return html(modelPage(job, shop, token, new URL(request.url).searchParams.has('sent')));
+  }
   if (what === 'comment' && request.method === 'POST') {
     const f = await request.formData();
     const text = String(f.get('text') || '').trim().slice(0, 2000);
     const about = String(f.get('about') || 'proposal').trim().slice(0, 80) || 'proposal';
-    const back = about.startsWith('drawings') ? `/p/${token}/drawings?sent#comments` : `/p/${token}?sent#comments`;
+    const back = about.startsWith('model') ? `/p/${token}/model?sent#comments` : about.startsWith('drawings') ? `/p/${token}/drawings?sent#comments` : `/p/${token}?sent#comments`;
     if (text && (job.comments?.length ?? 0) < 300) {
       // Only a note sent from a sheet carries a mark; empty fields are no mark at all
       const num = (k: string) => { const raw = String(f.get(k) ?? '').trim(); const v = raw ? Number(raw) : NaN; return Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : NaN; };
       const sheet = String(f.get('sheet_i') ?? '').trim() ? Number(f.get('sheet_i')) : NaN;
       const mark = Number.isInteger(sheet) && sheet >= 0 && [num('mx'), num('my'), num('mw'), num('mh')].every((v) => !Number.isNaN(v)) ? { sheet, x: num('mx'), y: num('my'), w: num('mw'), h: num('mh') } : undefined;
-      const c: PortalComment = { id: randomToken(8), at: Date.now(), from: 'client', name: String(f.get('name') || '').trim().slice(0, 80) || clientName(job), text, about, ...(mark ? { mark } : {}) };
+      // A spot on the 3D model: three finite numbers
+      const p3 = ['px', 'py', 'pz'].map((k) => Number(String(f.get(k) ?? '').trim() || NaN));
+      const pin = about.startsWith('model') && p3.every((v) => Number.isFinite(v) && Math.abs(v) < 1e5) ? (p3 as [number, number, number]) : undefined;
+      const c: PortalComment = { id: randomToken(8), at: Date.now(), from: 'client', name: String(f.get('name') || '').trim().slice(0, 80) || clientName(job), text, about, ...(mark ? { mark } : {}), ...(pin ? { pin } : {}) };
       job.comments = [...(job.comments ?? []), c];
       await putJob(env, job);
       try { await notify(env, shop, job, c, new URL(request.url)); } catch { /* the comment is saved; email is a nicety */ }
@@ -189,7 +202,7 @@ async function notify(env: Env, shop: Shop, job: Job, c: PortalComment, url: URL
   const key = String(env.RESEND_API_KEY || '').trim();
   const to = shop.contactEmail?.trim();
   if (!key || !to) return;
-  const link = `${url.origin}/p/${job.token}${c.about.startsWith('drawings') ? '/drawings' : ''}`;
+  const link = `${url.origin}/p/${job.token}${c.about.startsWith('model') ? '/model' : c.about.startsWith('drawings') ? '/drawings' : ''}`;
   await fetch('https://api.resend.com/emails', {
     method: 'POST', headers: { authorization: `Bearer ${key}`, 'content-type': 'application/json' },
     body: JSON.stringify({ from: env.MAIL_FROM?.trim() || 'CJC Portal <onboarding@resend.dev>', to: [to], subject: `${c.name} commented on ${job.project}`, text: `${c.name} wrote about the ${c.about}:\n\n${c.text}\n\nTheir page: ${link}\nAnswer from Cabinet Studio (Clients → Client portal).` }),
@@ -364,6 +377,10 @@ const TOOLS = [
     inputSchema: { type: 'object', properties: { job_id: { type: 'string' }, confirm: { type: 'string' }, even_signed: { type: 'boolean' } }, required: ['job_id', 'confirm'] },
   },
   {
+    name: 'publish_model', description: 'Share the 3D model (a .glb, base64) on a signed job’s page, for the client to look around and pin comments on. Sent in pieces under about 900 KB: part 0..parts-1; the last part puts it together.',
+    inputSchema: { type: 'object', properties: { job_id: { type: 'string' }, part: { type: 'number' }, parts: { type: 'number' }, data: { type: 'string' } }, required: ['job_id', 'part', 'parts', 'data'] },
+  },
+  {
     name: 'publish_drawings', description: 'Share the drawing set (one HTML document) on a signed job’s page, for the client to review and comment on. Refused before the agreement is signed.',
     inputSchema: { type: 'object', properties: { job_id: { type: 'string' }, html: { type: 'string' }, title: { type: 'string' }, css: { type: 'string', description: 'Styles for the sheets' }, sheets: { type: 'array', description: 'The sheets one by one (number, title, svg) so the client can mark changes on them', items: { type: 'object', properties: { number: { type: 'string' }, title: { type: 'string' }, svg: { type: 'string' } } } } }, required: ['job_id', 'html'] },
   },
@@ -436,6 +453,7 @@ const status = (j: Job, url: URL) => ({
   invoices: (j.invoices ?? []).map((i) => ({ id: i.id, kind: i.kind, number: i.docNumber ?? null, amount: i.amount, balance: i.balance, paid: i.balance <= 0, emailed: !!i.emailed, payLink: !!i.link, createdAt: i.createdAt, payments: i.payments ?? [] })),
   invoiceError: j.invoiceError ?? null,
   drawings: j.drawings ?? null,
+  model: j.model ?? null,
   comments: j.comments ?? [],
   unread: (j.comments ?? []).filter((c) => c.from === 'client' && !c.read).length,
 });
@@ -635,6 +653,32 @@ async function tool(name: string, a: Record<string, unknown>, env: Env, url: URL
       j.drawings = { publishedAt: Date.now(), version: (j.drawings?.version ?? 0) + 1, title: String(a.title || 'Drawings').slice(0, 120) };
       await putJob(env, j);
       return status(j, url);
+    }
+    case 'publish_model': {
+      // The 3D model in pieces (each call is limited in size): part i of n, base64; the last one puts it together
+      const j = await getJob(env, String(a.job_id || ''));
+      if (!j) throw new Error('No portal page for that job.');
+      if (!j.signature || j.cancelled) throw new Error('The 3D model goes to the client with the drawings, after the agreement is signed.');
+      const part = Number(a.part), parts = Number(a.parts);
+      if (!Number.isInteger(part) || !Number.isInteger(parts) || parts < 1 || parts > 200 || part < 0 || part >= parts) throw new Error('Send the model as part 0 to n-1 of n (at most 200).');
+      const bytes = new Uint8Array(b64ToBytes(String(a.data || '')));
+      if (!bytes.length || bytes.length > 900_000) throw new Error('Each piece of the model has to be under about 900 KB.');
+      await env.PORTAL.put(`glbp:${j.jobId}:${part}`, bytes.buffer as ArrayBuffer, { expirationTtl: 3600 });
+      if (part < parts - 1) return { received: part + 1, of: parts };
+      const pieces: Uint8Array[] = [];
+      for (let i = 0; i < parts; i++) {
+        const b = (await env.PORTAL.get(`glbp:${j.jobId}:${i}`, 'arrayBuffer')) as ArrayBuffer | null;
+        if (!b) throw new Error(`Piece ${i + 1} of the model is missing; send it again.`);
+        pieces.push(new Uint8Array(b));
+      }
+      const all = new Uint8Array(pieces.reduce((t, b) => t + b.length, 0));
+      let at = 0; for (const b of pieces) { all.set(b, at); at += b.length; }
+      if (new TextDecoder().decode(all.slice(0, 4)) !== 'glTF') throw new Error('That isn’t a 3D model (glb).');
+      await env.PORTAL.put(`glb:${j.jobId}`, all.buffer as ArrayBuffer);
+      for (let i = 0; i < parts; i++) await env.PORTAL.delete(`glbp:${j.jobId}:${i}`);
+      j.model = { publishedAt: Date.now(), version: (j.model?.version ?? 0) + 1 };
+      await putJob(env, j);
+      return { ...status(j, url), modelBytes: all.length };
     }
     case 'reply_comment': {
       const j = await getJob(env, String(a.job_id || ''));

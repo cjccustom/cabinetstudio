@@ -307,7 +307,7 @@ ${build}${mats}${price}
 ${docs.length ? `<section class="card"><h2>Licenses and insurance</h2><ul class="docs">${docs.map((d) => `<li><a href="${base}/doc/${esc(d.id)}" target="_blank" rel="noopener">${esc(d.title)}</a>${d.expires ? `<span class="muted">valid through ${esc((/* @__PURE__ */ new Date(`${d.expires}T12:00:00Z`)).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" }))}</span>` : ""}</li>`).join("")}</ul></section>` : ""}
 ${shop.about ? `<section class="card"><h2>About CJC Custom Carpentry</h2>${paras(shop.about)}</section>` : ""}
 <section class="card" id="signing"><h2>${s ? "Signed" : "Sign the agreement"}</h2>${signBlock}</section>
-${s && !j.cancelled ? `<section class="card"><h2>Your drawings</h2>${j.drawings ? `<p>Version ${j.drawings.version} is ready for your review (${esc(longDate(easternYmd(j.drawings.publishedAt)))}).</p><p><a class="btn" href="${base}/drawings">Review the drawings</a></p>` : '<p class="muted">Your detailed drawings come next, with every size, for you to review and approve here.</p>'}</section>` : ""}
+${s && !j.cancelled ? `<section class="card"><h2>Your drawings</h2>${j.drawings ? `<p>Version ${j.drawings.version} is ready for your review (${esc(longDate(easternYmd(j.drawings.publishedAt)))}).</p><p class="row"><a class="btn" href="${base}/drawings">Review the drawings</a>${j.model ? ` <a class="btn ghost" href="${base}/model">Look around in 3D</a>` : ""}</p>` : '<p class="muted">Your detailed drawings come next, with every size, for you to review and approve here.</p>'}</section>` : ""}
 ${commentsBlock(j, base, "proposal", s ? "Questions about your project? Write here and Cody will answer on this page." : "Questions about the proposal, or something you\u2019d like changed? Write here and Cody will answer on this page.", sent)}`;
   return shell(`${j.project} \xB7 CJC Custom Carpentry`, body, shop, esc(clientName(j)));
 }
@@ -329,7 +329,7 @@ ${termsOf(j, shop) ? `<section class="terms" style="page-break-before:always"><h
 ${signed}</body></html>`;
 }
 function commentsBlock(j, base, about, intro, sent = false) {
-  const all = (j.comments ?? []).filter((c) => about === "drawings" ? c.about.startsWith("drawings") : !c.about.startsWith("drawings"));
+  const all = (j.comments ?? []).filter((c) => about === "drawings" ? c.about.startsWith("drawings") : about === "model" ? c.about.startsWith("model") : !c.about.startsWith("drawings") && !c.about.startsWith("model"));
   const when = (t) => new Date(t).toLocaleString("en-US", { timeZone: "America/New_York", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
   const answered = (i) => all.slice(i + 1).some((c) => c.from === "shop");
   const status2 = (c, i) => c.from === "client" ? `<div class="state">${answered(i) ? "\u2713 Answered below" : "\u2713 Sent to Cody \xB7 waiting for an answer"}</div>` : "";
@@ -341,7 +341,7 @@ ${about === "drawings" ? `<p><input type="text" name="sheet" placeholder="Which 
 <div class="row"><button class="btn">${asked ? "Send this question" : "Send to CJC Custom Carpentry"}</button></div></form>`;
   return `<section class="card" id="comments"><h2>Questions and changes</h2><p class="muted">${esc(intro)}</p>
 ${sent ? '<div class="ok sent">Your question was sent to Cody. The answer will show up right here on this page.</div>' : ""}
-${all.map((c, i) => `<div class="msg ${c.from}" id="c-${esc(c.id)}"><div class="who">${c.mark ? `<a class="pin" href="#sheet-${c.mark.sheet}">${(j.comments ?? []).filter((x) => x.mark).indexOf(c) + 1}</a> ` : ""}${esc(c.from === "shop" ? `${c.name} answered` : c.name)} \xB7 ${esc(when(c.at))}${c.about !== "proposal" && c.about !== "drawings" ? ` \xB7 ${esc(c.about.replace(/^drawings:\s*/, ""))}` : ""}</div>${paras(c.text)}${status2(c, i)}</div>`).join("")}
+${all.map((c, i) => `<div class="msg ${c.from}" id="c-${esc(c.id)}"><div class="who">${c.mark ? `<a class="pin" href="#sheet-${c.mark.sheet}">${(j.comments ?? []).filter((x) => x.mark).indexOf(c) + 1}</a> ` : c.pin ? `<a class="pin" href="#view" data-pin="${esc(c.id)}">${(j.comments ?? []).filter((x) => x.pin).indexOf(c) + 1}</a> ` : ""}${esc(c.from === "shop" ? `${c.name} answered` : c.name)} \xB7 ${esc(when(c.at))}${c.about !== "proposal" && c.about !== "drawings" && c.about !== "model" ? ` \xB7 ${esc(c.about.replace(/^(drawings|model):\s*/, ""))}` : ""}</div>${paras(c.text)}${status2(c, i)}</div>`).join("")}
 ${asked ? `<details class="more"><summary class="btn ghost">Ask another question</summary>${form}</details>` : form}</section>`;
 }
 function drawingsPage(j, shop, token, doc, sent = false, split = null) {
@@ -396,6 +396,54 @@ f.addEventListener('submit',()=>{f.querySelector('button').disabled=true;f.query
   const body = `${top}${sent ? '<div class="ok sent">Your note was sent to Cody, with the spot you marked. The answer will show up on this page.</div>' : ""}${how}${sheets}
 ${commentsBlock(j, base, "drawings", "Your notes on the drawings, and Cody\u2019s answers. Numbers match the marks on the sheets.", false)}${dialog}${script}`;
   return shell(`${d.title} \xB7 ${j.project}`, body, shop, esc(clientName(j)));
+}
+function modelPage(j, shop, token, sent = false) {
+  const base = `/p/${token}`;
+  const pins = (j.comments ?? []).filter((c) => c.pin).map((c, i) => ({ id: c.id, n: i + 1, p: c.pin, from: c.from, text: c.text.slice(0, 80) }));
+  const top = `<p><a href="${base}">\u2190 Back to your project</a> \xB7 <a href="${base}/drawings">Drawings</a></p>
+<h1>Your project in 3D</h1><p class="muted">${esc(j.project)} \xB7 version ${j.model.version}, ${esc(longDate(easternYmd(j.model.publishedAt)))}</p>`;
+  const how = `<section class="card"><h2>How to use it</h2><ol class="items">
+<li><b>Turn</b> the room by dragging with one finger (or the mouse). <b>Zoom</b> by pinching (or scrolling). <b>Slide</b> it with two fingers (or right-drag).</li>
+<li>Want something changed? Tap <b>Mark a change</b>, then tap the spot on the model.</li>
+<li>A box opens: type what you\u2019d like changed and tap <b>Send to Cody</b>. A numbered pin stays on that spot, and Cody\u2019s answer shows up below.</li></ol></section>`;
+  const view = `<section class="card m3d" id="view"><div class="m3d-bar"><button type="button" class="btn ghost" id="m-mark">Mark a change</button><button type="button" class="btn ghost" id="m-reset">Reset view</button><span class="muted" id="m-msg">Loading the model\u2026</span></div>
+<div class="m3d-box" id="m-box"><canvas id="m-canvas"></canvas><div id="m-pins"></div></div></section>`;
+  const dialog = `<form id="markform" class="markform" method="post" action="${base}/comment" hidden>
+<p class="muted">Your pin on the 3D model</p>
+<input type="hidden" name="about" value="model"><input type="hidden" name="px" id="mf-x"><input type="hidden" name="py" id="mf-y"><input type="hidden" name="pz" id="mf-z">
+<textarea name="text" rows="3" required maxlength="2000" placeholder="What would you like changed here?"></textarea>
+<div class="row"><button class="btn">Send to Cody</button><button type="button" class="btn ghost" id="mf-cancel">Cancel</button></div></form>`;
+  const css3 = `<style>.m3d-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px}.m3d-box{position:relative;height:min(70vh,640px);border-radius:8px;overflow:hidden;background:#f3f1ec;touch-action:none}.m3d-box canvas{display:block;width:100%;height:100%}.m3d.marking .m3d-box{outline:3px solid var(--accent);cursor:crosshair}#m-pins{position:absolute;inset:0;pointer-events:none}.p3{position:absolute;transform:translate(-50%,-100%);pointer-events:auto;min-width:24px;height:24px;border-radius:12px 12px 12px 2px;background:#c2410c;color:#fff;font:700 13px/24px system-ui;text-align:center;padding:0 6px;text-decoration:none;box-shadow:0 1px 4px rgba(0,0,0,.35)}.p3.shop{background:var(--accent)}.p3.new{background:#2563eb}</style>`;
+  const script = `<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"}}</script>
+<script type="module">
+import * as THREE from 'three';import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
+const pins=${JSON.stringify(pins).replace(/</g, "\\u003c")};
+const box=document.getElementById('m-box'),cv=document.getElementById('m-canvas'),msg=document.getElementById('m-msg'),layer=document.getElementById('m-pins'),sec=document.getElementById('view'),f=document.getElementById('markform');
+const r=new THREE.WebGLRenderer({canvas:cv,antialias:true});r.setPixelRatio(Math.min(2,devicePixelRatio));r.toneMapping=THREE.NeutralToneMapping;r.toneMappingExposure=0.95;
+const scene=new THREE.Scene();scene.background=new THREE.Color('#f3f1ec');
+scene.add(new THREE.HemisphereLight('#ffffff','#b9b2a6',1.1));const sun=new THREE.DirectionalLight('#ffffff',1.6);sun.position.set(1,2,1.5);scene.add(sun);const fill=new THREE.DirectionalLight('#ffffff',0.4);fill.position.set(-1,1,-1);scene.add(fill);
+const cam=new THREE.PerspectiveCamera(42,1,1,20000);const ctl=new OrbitControls(cam,cv);ctl.enableDamping=true;ctl.screenSpacePanning=true;
+let home=null,model=null;
+const size=()=>{const w=box.clientWidth,h=box.clientHeight;r.setSize(w,h,false);cam.aspect=w/h;cam.updateProjectionMatrix()};addEventListener('resize',size);size();
+const reset=()=>{if(!home)return;cam.position.copy(home.pos);ctl.target.copy(home.target);ctl.update()};
+new GLTFLoader().load('${base}/model.glb',g=>{model=g.scene;scene.add(model);const b=new THREE.Box3().setFromObject(model),c=b.getCenter(new THREE.Vector3()),s=b.getSize(new THREE.Vector3());const d=Math.max(s.x,s.z);
+home={target:new THREE.Vector3(c.x,Math.min(c.y,40),c.z),pos:new THREE.Vector3(c.x+d*0.55,c.y+s.y*0.9,c.z+d*1.15)};reset();msg.textContent=pins.length?pins.length+' note'+(pins.length>1?'s':'')+' pinned':'';},undefined,()=>{msg.textContent='The model didn\u2019t load. Reload the page to try again.'});
+const v=new THREE.Vector3();const tags=pins.map(p=>{const a=document.createElement('a');a.className='p3 '+p.from;a.textContent=p.n;a.href='#c-'+p.id;a.title=p.text;layer.appendChild(a);return{el:a,p:new THREE.Vector3(...p.p)}});
+let pending=null;const place=(t)=>{v.copy(t.p).project(cam);const vis=v.z<1&&v.z>-1;t.el.style.display=vis?'':'none';t.el.style.left=((v.x+1)/2*box.clientWidth)+'px';t.el.style.top=((1-v.y)/2*box.clientHeight)+'px'};
+(function loop(){requestAnimationFrame(loop);ctl.update();r.render(scene,cam);tags.forEach(place);if(pending)place(pending)})();
+let marking=false;const mb=document.getElementById('m-mark');const setMark=on=>{marking=on;sec.classList.toggle('marking',on);mb.textContent=on?'Now tap the spot \xB7 tap here to cancel':'Mark a change'};
+mb.onclick=()=>setMark(!marking);document.getElementById('m-reset').onclick=reset;
+let down=null;cv.addEventListener('pointerdown',e=>{down=[e.clientX,e.clientY]});
+cv.addEventListener('pointerup',e=>{if(!marking||!model||!down)return;if(Math.hypot(e.clientX-down[0],e.clientY-down[1])>8)return;
+const rc=cv.getBoundingClientRect(),m=new THREE.Vector2((e.clientX-rc.left)/rc.width*2-1,-((e.clientY-rc.top)/rc.height)*2+1);const ray=new THREE.Raycaster();ray.setFromCamera(m,cam);const hit=ray.intersectObject(model,true).find(h=>h.object.isMesh);
+if(!hit)return;if(pending)pending.el.remove();const a=document.createElement('span');a.className='p3 new';a.textContent='+';layer.appendChild(a);pending={el:a,p:hit.point.clone()};
+['x','y','z'].forEach(k=>document.getElementById('mf-'+k).value=hit.point[k].toFixed(2));f.hidden=false;f.querySelector('textarea').focus();setMark(false)});
+document.getElementById('mf-cancel').onclick=()=>{f.hidden=true;if(pending){pending.el.remove();pending=null}};
+f.addEventListener('submit',()=>{f.querySelector('button').disabled=true;f.querySelector('button').textContent='Sending\u2026'});
+</script>`;
+  const body = `${css3}${top}${sent ? '<div class="ok sent">Your note was sent to Cody, pinned where you tapped. The answer will show up on this page.</div>' : ""}${how}${view}
+${commentsBlock(j, base, "model", "Your notes on the 3D model, and Cody\u2019s answers. Numbers match the pins.", false)}${dialog}${script}`;
+  return shell(`3D \xB7 ${j.project}`, body, shop, esc(clientName(j)));
 }
 var simplePage = (title, text2, shop) => shell(title, `<h1>${esc(title)}</h1><p>${esc(text2)}</p>`, shop);
 
@@ -713,7 +761,7 @@ var worker_default = {
     const url = new URL(request.url);
     const path = url.pathname.replace(/\/+$/, "") || "/";
     if (!env.PORTAL) return setupPage("Almost there", "<p>The portal is running, but its storage isn\u2019t connected. In Cloudflare open this worker\u2019s <b>Settings \u2192 Bindings</b>, add a <b>KV namespace</b> binding named <code>PORTAL</code> (create a namespace called <b>cjc-portal</b> if you don\u2019t have one), then reload this page.</p>");
-    const m = path.match(/^\/p\/([A-Za-z0-9_-]+)(?:\/(img|doc|visit)\/([A-Za-z0-9_-]+)(?:\.ics)?|\/(agreement|sign|cancel|drawings|comment))?$/);
+    const m = path.match(/^\/p\/([A-Za-z0-9_-]+)(?:\/(img|doc|visit)\/([A-Za-z0-9_-]+)(?:\.ics)?|\/(agreement|sign|cancel|drawings|comment|model|model\.glb))?$/);
     if (m) return client(request, env, m[1], m[2] ?? m[4] ?? "", m[3] ?? "");
     const key = String(env.SHOP_KEY || "").trim();
     const cal = path.match(/^\/cal\/([a-f0-9]{32})\.ics$/);
@@ -803,11 +851,21 @@ async function client(request, env, token, what, id) {
     const split = await env.PORTAL.get(`dwgs:${job.jobId}`, "json");
     return html(drawingsPage(job, shop, token, doc, new URL(request.url).searchParams.has("sent"), split));
   }
+  if (what === "model" || what === "model.glb") {
+    const ok = job.signature && !job.cancelled && job.model;
+    if (what === "model.glb") {
+      const glb = ok ? await env.PORTAL.get(`glb:${job.jobId}`, "arrayBuffer") : null;
+      if (!glb) return new Response("Not found", { status: 404 });
+      return new Response(glb, { headers: { "content-type": "model/gltf-binary", "cache-control": "private, max-age=300" } });
+    }
+    if (!ok) return html(simplePage("The 3D model isn\u2019t ready yet", "It will appear here with your drawings.", shop), 404);
+    return html(modelPage(job, shop, token, new URL(request.url).searchParams.has("sent")));
+  }
   if (what === "comment" && request.method === "POST") {
     const f = await request.formData();
     const text2 = String(f.get("text") || "").trim().slice(0, 2e3);
     const about = String(f.get("about") || "proposal").trim().slice(0, 80) || "proposal";
-    const back = about.startsWith("drawings") ? `/p/${token}/drawings?sent#comments` : `/p/${token}?sent#comments`;
+    const back = about.startsWith("model") ? `/p/${token}/model?sent#comments` : about.startsWith("drawings") ? `/p/${token}/drawings?sent#comments` : `/p/${token}?sent#comments`;
     if (text2 && (job.comments?.length ?? 0) < 300) {
       const num = (k) => {
         const raw = String(f.get(k) ?? "").trim();
@@ -816,7 +874,9 @@ async function client(request, env, token, what, id) {
       };
       const sheet = String(f.get("sheet_i") ?? "").trim() ? Number(f.get("sheet_i")) : NaN;
       const mark = Number.isInteger(sheet) && sheet >= 0 && [num("mx"), num("my"), num("mw"), num("mh")].every((v) => !Number.isNaN(v)) ? { sheet, x: num("mx"), y: num("my"), w: num("mw"), h: num("mh") } : void 0;
-      const c = { id: randomToken(8), at: Date.now(), from: "client", name: String(f.get("name") || "").trim().slice(0, 80) || clientName(job), text: text2, about, ...mark ? { mark } : {} };
+      const p3 = ["px", "py", "pz"].map((k) => Number(String(f.get(k) ?? "").trim() || NaN));
+      const pin = about.startsWith("model") && p3.every((v) => Number.isFinite(v) && Math.abs(v) < 1e5) ? p3 : void 0;
+      const c = { id: randomToken(8), at: Date.now(), from: "client", name: String(f.get("name") || "").trim().slice(0, 80) || clientName(job), text: text2, about, ...mark ? { mark } : {}, ...pin ? { pin } : {} };
       job.comments = [...job.comments ?? [], c];
       await putJob(env, job);
       try {
@@ -884,7 +944,7 @@ async function notify(env, shop, job, c, url) {
   const key = String(env.RESEND_API_KEY || "").trim();
   const to = shop.contactEmail?.trim();
   if (!key || !to) return;
-  const link = `${url.origin}/p/${job.token}${c.about.startsWith("drawings") ? "/drawings" : ""}`;
+  const link = `${url.origin}/p/${job.token}${c.about.startsWith("model") ? "/model" : c.about.startsWith("drawings") ? "/drawings" : ""}`;
   await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: { authorization: `Bearer ${key}`, "content-type": "application/json" },
@@ -1059,6 +1119,11 @@ var TOOLS = [
     inputSchema: { type: "object", properties: { job_id: { type: "string" }, confirm: { type: "string" }, even_signed: { type: "boolean" } }, required: ["job_id", "confirm"] }
   },
   {
+    name: "publish_model",
+    description: "Share the 3D model (a .glb, base64) on a signed job\u2019s page, for the client to look around and pin comments on. Sent in pieces under about 900 KB: part 0..parts-1; the last part puts it together.",
+    inputSchema: { type: "object", properties: { job_id: { type: "string" }, part: { type: "number" }, parts: { type: "number" }, data: { type: "string" } }, required: ["job_id", "part", "parts", "data"] }
+  },
+  {
     name: "publish_drawings",
     description: "Share the drawing set (one HTML document) on a signed job\u2019s page, for the client to review and comment on. Refused before the agreement is signed.",
     inputSchema: { type: "object", properties: { job_id: { type: "string" }, html: { type: "string" }, title: { type: "string" }, css: { type: "string", description: "Styles for the sheets" }, sheets: { type: "array", description: "The sheets one by one (number, title, svg) so the client can mark changes on them", items: { type: "object", properties: { number: { type: "string" }, title: { type: "string" }, svg: { type: "string" } } } } }, required: ["job_id", "html"] }
@@ -1143,6 +1208,7 @@ var status = (j, url) => ({
   invoices: (j.invoices ?? []).map((i) => ({ id: i.id, kind: i.kind, number: i.docNumber ?? null, amount: i.amount, balance: i.balance, paid: i.balance <= 0, emailed: !!i.emailed, payLink: !!i.link, createdAt: i.createdAt, payments: i.payments ?? [] })),
   invoiceError: j.invoiceError ?? null,
   drawings: j.drawings ?? null,
+  model: j.model ?? null,
   comments: j.comments ?? [],
   unread: (j.comments ?? []).filter((c) => c.from === "client" && !c.read).length
 });
@@ -1349,6 +1415,35 @@ ${shop.terms}`);
       j.drawings = { publishedAt: Date.now(), version: (j.drawings?.version ?? 0) + 1, title: String(a.title || "Drawings").slice(0, 120) };
       await putJob(env, j);
       return status(j, url);
+    }
+    case "publish_model": {
+      const j = await getJob(env, String(a.job_id || ""));
+      if (!j) throw new Error("No portal page for that job.");
+      if (!j.signature || j.cancelled) throw new Error("The 3D model goes to the client with the drawings, after the agreement is signed.");
+      const part = Number(a.part), parts = Number(a.parts);
+      if (!Number.isInteger(part) || !Number.isInteger(parts) || parts < 1 || parts > 200 || part < 0 || part >= parts) throw new Error("Send the model as part 0 to n-1 of n (at most 200).");
+      const bytes = new Uint8Array(b64ToBytes(String(a.data || "")));
+      if (!bytes.length || bytes.length > 9e5) throw new Error("Each piece of the model has to be under about 900 KB.");
+      await env.PORTAL.put(`glbp:${j.jobId}:${part}`, bytes.buffer, { expirationTtl: 3600 });
+      if (part < parts - 1) return { received: part + 1, of: parts };
+      const pieces = [];
+      for (let i = 0; i < parts; i++) {
+        const b = await env.PORTAL.get(`glbp:${j.jobId}:${i}`, "arrayBuffer");
+        if (!b) throw new Error(`Piece ${i + 1} of the model is missing; send it again.`);
+        pieces.push(new Uint8Array(b));
+      }
+      const all = new Uint8Array(pieces.reduce((t, b) => t + b.length, 0));
+      let at = 0;
+      for (const b of pieces) {
+        all.set(b, at);
+        at += b.length;
+      }
+      if (new TextDecoder().decode(all.slice(0, 4)) !== "glTF") throw new Error("That isn\u2019t a 3D model (glb).");
+      await env.PORTAL.put(`glb:${j.jobId}`, all.buffer);
+      for (let i = 0; i < parts; i++) await env.PORTAL.delete(`glbp:${j.jobId}:${i}`);
+      j.model = { publishedAt: Date.now(), version: (j.model?.version ?? 0) + 1 };
+      await putJob(env, j);
+      return { ...status(j, url), modelBytes: all.length };
     }
     case "reply_comment": {
       const j = await getJob(env, String(a.job_id || ""));

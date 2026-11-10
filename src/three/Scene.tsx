@@ -138,6 +138,8 @@ function WallTVModel({ t, room }: { t: WallTV; room: Room }) {
 function NavBridge() {
   const controls = useThree((s) => s.controls) as unknown as OrbitControlsImpl | null;
   const gl = useThree((s) => s.gl);
+  const scene = useThree((s) => s.scene);
+  useEffect(() => { live.scene = scene; return () => { if (live.scene === scene) live.scene = null; }; }, [scene]);
   useEffect(() => {
     live.controls = controls;
     live.element = gl.domElement;

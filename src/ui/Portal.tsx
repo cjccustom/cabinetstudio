@@ -1,6 +1,9 @@
 // The client portal from Cabinet Studio's side: publish the proposal and renderings to the
 // client's private page, send them the link, see whether they've looked and signed, and keep
 // the shop profile (about, terms, licenses, insurance) every client page shows.
+import { exportModel } from '../three/exportModel';
+import { Scene } from '../three/Scene';
+const noIssues = new Set<string>();
 import { contractTotal } from '../model/contract';
 import { useEffect, useMemo, useState } from 'react';
 import { useStore } from '../store';
@@ -15,7 +18,7 @@ import { capability, shrinkImage, type Downloads } from '../runtime';
 import { asciiHtml, downloadLink, whereIs, writeFile } from '../dropbox';
 import { printQuote, printQuoteFile } from '../model/printQuote';
 import {
-  blobToBase64, createInvoice, deleteShopDoc, expiring, getShop, jobStatus, PortalError, publishProposal, publishDrawings, replyComment, markCommentsRead, qbItems, qbSettings, qbStatus, recordPayment, updateShop, uploadShopDoc,
+  blobToBase64, publishModel, createInvoice, deleteShopDoc, expiring, getShop, jobStatus, PortalError, publishProposal, publishDrawings, replyComment, markCommentsRead, qbItems, qbSettings, qbStatus, recordPayment, updateShop, uploadShopDoc,
   type Invoice, type JobStatus, type QbStatus, type Shop, type ShopDoc,
 } from '../portal';
 import { askConfirm } from './Confirm';
@@ -132,6 +135,8 @@ async function savePrintCopy(project: Project, version: number): Promise<string>
 }
 
 export function ClientPortal() {
+  // A hidden 3D view, mounted only while the model is exported for the portal
+  const [stage, setStage] = useState(false);
   const project = useStore((s) => s.project);
   const commit = useStore((s) => s.commit);
   const [busy, setBusy] = useState('');
@@ -222,7 +227,18 @@ export function ClientPortal() {
     const sheets = customerSet(project, d);
     const s2 = await publishDrawings(portal!.jobId, setDocument(title, sheets, d.paper), 'Drawings for your review', sheetCss, sheets.map((x) => ({ number: x.number, title: x.title, svg: x.svg })));
     keep(s2, portal!.jobId);
-    setNote(`Drawings version ${s2.drawings?.version ?? 1} are on ${c.first || 'the client'}’s page.`);
+    // The 3D model goes with them, for the customer to look around and pin notes on
+    let sent3d = '';
+    try {
+      setNote('Sending the 3D model…');
+      setStage(true);
+      let glb: ArrayBuffer;
+      try { glb = await exportModel(); } finally { setStage(false); }
+      const s3 = await publishModel(portal!.jobId, await blobToBase64(new Blob([glb], { type: 'model/gltf-binary' })), (d, n) => setNote(`Sending the 3D model… ${Math.round((d / n) * 100)}%`));
+      if (s3) keep(s3, portal!.jobId);
+      sent3d = ' with the 3D model';
+    } catch (e) { sent3d = `; the 3D model didn’t go (${(e as Error).message})`; }
+    setNote(`Drawings version ${s2.drawings?.version ?? 1} are on ${c.first || 'the client'}’s page${sent3d}.`);
   });
 
   const refresh = () => run('Checking…', async () => { keep(await jobStatus(portal!.jobId), portal!.jobId); });
@@ -231,6 +247,7 @@ export function ClientPortal() {
 
   return (
     <section className="sheet-sec">
+      {stage && <div className="export-stage" aria-hidden="true"><Scene issueIds={noIssues} /></div>}
       <div className="sec-head">
         <h3>Client portal</h3>
         <button className="link-btn" onClick={() => setSettings(true)}>Portal settings</button>

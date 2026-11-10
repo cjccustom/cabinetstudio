@@ -163,7 +163,7 @@ ${build}${mats}${price}
 ${docs.length ? `<section class="card"><h2>Licenses and insurance</h2><ul class="docs">${docs.map((d) => `<li><a href="${base}/doc/${esc(d.id)}" target="_blank" rel="noopener">${esc(d.title)}</a>${d.expires ? `<span class="muted">valid through ${esc(new Date(`${d.expires}T12:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' }))}</span>` : ''}</li>`).join('')}</ul></section>` : ''}
 ${shop.about ? `<section class="card"><h2>About CJC Custom Carpentry</h2>${paras(shop.about)}</section>` : ''}
 <section class="card" id="signing"><h2>${s ? 'Signed' : 'Sign the agreement'}</h2>${signBlock}</section>
-${s && !j.cancelled ? `<section class="card"><h2>Your drawings</h2>${j.drawings ? `<p>Version ${j.drawings.version} is ready for your review (${esc(longDate(easternYmd(j.drawings.publishedAt)))}).</p><p><a class="btn" href="${base}/drawings">Review the drawings</a></p>` : '<p class="muted">Your detailed drawings come next, with every size, for you to review and approve here.</p>'}</section>` : ''}
+${s && !j.cancelled ? `<section class="card"><h2>Your drawings</h2>${j.drawings ? `<p>Version ${j.drawings.version} is ready for your review (${esc(longDate(easternYmd(j.drawings.publishedAt)))}).</p><p class="row"><a class="btn" href="${base}/drawings">Review the drawings</a>${j.model ? ` <a class="btn ghost" href="${base}/model">Look around in 3D</a>` : ''}</p>` : '<p class="muted">Your detailed drawings come next, with every size, for you to review and approve here.</p>'}</section>` : ''}
 ${commentsBlock(j, base, 'proposal', s ? 'Questions about your project? Write here and Cody will answer on this page.' : 'Questions about the proposal, or something you’d like changed? Write here and Cody will answer on this page.', sent)}`;
   return shell(`${j.project} · CJC Custom Carpentry`, body, shop, esc(clientName(j)));
 }
@@ -191,7 +191,7 @@ ${signed}</body></html>`;
 
 /** The client's questions and the shop's answers, with a box to write more. */
 export function commentsBlock(j: Job, base: string, about: string, intro: string, sent = false): string {
-  const all = (j.comments ?? []).filter((c) => (about === 'drawings' ? c.about.startsWith('drawings') : !c.about.startsWith('drawings')));
+  const all = (j.comments ?? []).filter((c) => (about === 'drawings' ? c.about.startsWith('drawings') : about === 'model' ? c.about.startsWith('model') : !c.about.startsWith('drawings') && !c.about.startsWith('model')));
   const when = (t: number) => new Date(t).toLocaleString('en-US', { timeZone: 'America/New_York', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
   // Each of the client's messages says whether it's been answered yet
   const answered = (i: number) => all.slice(i + 1).some((c) => c.from === 'shop');
@@ -204,7 +204,7 @@ ${about === 'drawings' ? '<p><input type="text" name="sheet" placeholder="Which 
 <div class="row"><button class="btn">${asked ? 'Send this question' : 'Send to CJC Custom Carpentry'}</button></div></form>`;
   return `<section class="card" id="comments"><h2>Questions and changes</h2><p class="muted">${esc(intro)}</p>
 ${sent ? '<div class="ok sent">Your question was sent to Cody. The answer will show up right here on this page.</div>' : ''}
-${all.map((c, i) => `<div class="msg ${c.from}" id="c-${esc(c.id)}"><div class="who">${c.mark ? `<a class="pin" href="#sheet-${c.mark.sheet}">${(j.comments ?? []).filter((x) => x.mark).indexOf(c) + 1}</a> ` : ''}${esc(c.from === 'shop' ? `${c.name} answered` : c.name)} · ${esc(when(c.at))}${c.about !== 'proposal' && c.about !== 'drawings' ? ` · ${esc(c.about.replace(/^drawings:\s*/, ''))}` : ''}</div>${paras(c.text)}${status(c, i)}</div>`).join('')}
+${all.map((c, i) => `<div class="msg ${c.from}" id="c-${esc(c.id)}"><div class="who">${c.mark ? `<a class="pin" href="#sheet-${c.mark.sheet}">${(j.comments ?? []).filter((x) => x.mark).indexOf(c) + 1}</a> ` : c.pin ? `<a class="pin" href="#view" data-pin="${esc(c.id)}">${(j.comments ?? []).filter((x) => x.pin).indexOf(c) + 1}</a> ` : ''}${esc(c.from === 'shop' ? `${c.name} answered` : c.name)} · ${esc(when(c.at))}${c.about !== 'proposal' && c.about !== 'drawings' && c.about !== 'model' ? ` · ${esc(c.about.replace(/^(drawings|model):\s*/, ''))}` : ''}</div>${paras(c.text)}${status(c, i)}</div>`).join('')}
 ${asked ? `<details class="more"><summary class="btn ghost">Ask another question</summary>${form}</details>` : form}</section>`;
 }
 
@@ -268,6 +268,59 @@ f.addEventListener('submit',()=>{f.querySelector('button').disabled=true;f.query
   const body = `${top}${sent ? '<div class="ok sent">Your note was sent to Cody, with the spot you marked. The answer will show up on this page.</div>' : ''}${how}${sheets}
 ${commentsBlock(j, base, 'drawings', 'Your notes on the drawings, and Cody’s answers. Numbers match the marks on the sheets.', false)}${dialog}${script}`;
   return shell(`${d.title} · ${j.project}`, body, shop, esc(clientName(j)));
+}
+
+/**
+ * The 3D model, to look around and pin notes on: turn it with a finger (or mouse), pinch or scroll to
+ * zoom, and in "Mark a change" mode tap a spot to pin a note there. Pins already sent show as numbers.
+ */
+export function modelPage(j: Job, shop: Shop, token: string, sent = false): string {
+  const base = `/p/${token}`;
+  const pins = (j.comments ?? []).filter((c) => c.pin).map((c, i) => ({ id: c.id, n: i + 1, p: c.pin!, from: c.from, text: c.text.slice(0, 80) }));
+  const top = `<p><a href="${base}">← Back to your project</a> · <a href="${base}/drawings">Drawings</a></p>
+<h1>Your project in 3D</h1><p class="muted">${esc(j.project)} · version ${j.model!.version}, ${esc(longDate(easternYmd(j.model!.publishedAt)))}</p>`;
+  const how = `<section class="card"><h2>How to use it</h2><ol class="items">
+<li><b>Turn</b> the room by dragging with one finger (or the mouse). <b>Zoom</b> by pinching (or scrolling). <b>Slide</b> it with two fingers (or right-drag).</li>
+<li>Want something changed? Tap <b>Mark a change</b>, then tap the spot on the model.</li>
+<li>A box opens: type what you’d like changed and tap <b>Send to Cody</b>. A numbered pin stays on that spot, and Cody’s answer shows up below.</li></ol></section>`;
+  const view = `<section class="card m3d" id="view"><div class="m3d-bar"><button type="button" class="btn ghost" id="m-mark">Mark a change</button><button type="button" class="btn ghost" id="m-reset">Reset view</button><span class="muted" id="m-msg">Loading the model…</span></div>
+<div class="m3d-box" id="m-box"><canvas id="m-canvas"></canvas><div id="m-pins"></div></div></section>`;
+  const dialog = `<form id="markform" class="markform" method="post" action="${base}/comment" hidden>
+<p class="muted">Your pin on the 3D model</p>
+<input type="hidden" name="about" value="model"><input type="hidden" name="px" id="mf-x"><input type="hidden" name="py" id="mf-y"><input type="hidden" name="pz" id="mf-z">
+<textarea name="text" rows="3" required maxlength="2000" placeholder="What would you like changed here?"></textarea>
+<div class="row"><button class="btn">Send to Cody</button><button type="button" class="btn ghost" id="mf-cancel">Cancel</button></div></form>`;
+  const css3 = `<style>.m3d-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px}.m3d-box{position:relative;height:min(70vh,640px);border-radius:8px;overflow:hidden;background:#f3f1ec;touch-action:none}.m3d-box canvas{display:block;width:100%;height:100%}.m3d.marking .m3d-box{outline:3px solid var(--accent);cursor:crosshair}#m-pins{position:absolute;inset:0;pointer-events:none}.p3{position:absolute;transform:translate(-50%,-100%);pointer-events:auto;min-width:24px;height:24px;border-radius:12px 12px 12px 2px;background:#c2410c;color:#fff;font:700 13px/24px system-ui;text-align:center;padding:0 6px;text-decoration:none;box-shadow:0 1px 4px rgba(0,0,0,.35)}.p3.shop{background:var(--accent)}.p3.new{background:#2563eb}</style>`;
+  const script = `<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"}}</script>
+<script type="module">
+import * as THREE from 'three';import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
+const pins=${JSON.stringify(pins).replace(/</g, '\\u003c')};
+const box=document.getElementById('m-box'),cv=document.getElementById('m-canvas'),msg=document.getElementById('m-msg'),layer=document.getElementById('m-pins'),sec=document.getElementById('view'),f=document.getElementById('markform');
+const r=new THREE.WebGLRenderer({canvas:cv,antialias:true});r.setPixelRatio(Math.min(2,devicePixelRatio));r.toneMapping=THREE.NeutralToneMapping;r.toneMappingExposure=0.95;
+const scene=new THREE.Scene();scene.background=new THREE.Color('#f3f1ec');
+scene.add(new THREE.HemisphereLight('#ffffff','#b9b2a6',1.1));const sun=new THREE.DirectionalLight('#ffffff',1.6);sun.position.set(1,2,1.5);scene.add(sun);const fill=new THREE.DirectionalLight('#ffffff',0.4);fill.position.set(-1,1,-1);scene.add(fill);
+const cam=new THREE.PerspectiveCamera(42,1,1,20000);const ctl=new OrbitControls(cam,cv);ctl.enableDamping=true;ctl.screenSpacePanning=true;
+let home=null,model=null;
+const size=()=>{const w=box.clientWidth,h=box.clientHeight;r.setSize(w,h,false);cam.aspect=w/h;cam.updateProjectionMatrix()};addEventListener('resize',size);size();
+const reset=()=>{if(!home)return;cam.position.copy(home.pos);ctl.target.copy(home.target);ctl.update()};
+new GLTFLoader().load('${base}/model.glb',g=>{model=g.scene;scene.add(model);const b=new THREE.Box3().setFromObject(model),c=b.getCenter(new THREE.Vector3()),s=b.getSize(new THREE.Vector3());const d=Math.max(s.x,s.z);
+home={target:new THREE.Vector3(c.x,Math.min(c.y,40),c.z),pos:new THREE.Vector3(c.x+d*0.55,c.y+s.y*0.9,c.z+d*1.15)};reset();msg.textContent=pins.length?pins.length+' note'+(pins.length>1?'s':'')+' pinned':'';},undefined,()=>{msg.textContent='The model didn’t load. Reload the page to try again.'});
+const v=new THREE.Vector3();const tags=pins.map(p=>{const a=document.createElement('a');a.className='p3 '+p.from;a.textContent=p.n;a.href='#c-'+p.id;a.title=p.text;layer.appendChild(a);return{el:a,p:new THREE.Vector3(...p.p)}});
+let pending=null;const place=(t)=>{v.copy(t.p).project(cam);const vis=v.z<1&&v.z>-1;t.el.style.display=vis?'':'none';t.el.style.left=((v.x+1)/2*box.clientWidth)+'px';t.el.style.top=((1-v.y)/2*box.clientHeight)+'px'};
+(function loop(){requestAnimationFrame(loop);ctl.update();r.render(scene,cam);tags.forEach(place);if(pending)place(pending)})();
+let marking=false;const mb=document.getElementById('m-mark');const setMark=on=>{marking=on;sec.classList.toggle('marking',on);mb.textContent=on?'Now tap the spot · tap here to cancel':'Mark a change'};
+mb.onclick=()=>setMark(!marking);document.getElementById('m-reset').onclick=reset;
+let down=null;cv.addEventListener('pointerdown',e=>{down=[e.clientX,e.clientY]});
+cv.addEventListener('pointerup',e=>{if(!marking||!model||!down)return;if(Math.hypot(e.clientX-down[0],e.clientY-down[1])>8)return;
+const rc=cv.getBoundingClientRect(),m=new THREE.Vector2((e.clientX-rc.left)/rc.width*2-1,-((e.clientY-rc.top)/rc.height)*2+1);const ray=new THREE.Raycaster();ray.setFromCamera(m,cam);const hit=ray.intersectObject(model,true).find(h=>h.object.isMesh);
+if(!hit)return;if(pending)pending.el.remove();const a=document.createElement('span');a.className='p3 new';a.textContent='+';layer.appendChild(a);pending={el:a,p:hit.point.clone()};
+['x','y','z'].forEach(k=>document.getElementById('mf-'+k).value=hit.point[k].toFixed(2));f.hidden=false;f.querySelector('textarea').focus();setMark(false)});
+document.getElementById('mf-cancel').onclick=()=>{f.hidden=true;if(pending){pending.el.remove();pending=null}};
+f.addEventListener('submit',()=>{f.querySelector('button').disabled=true;f.querySelector('button').textContent='Sending…'});
+</script>`;
+  const body = `${css3}${top}${sent ? '<div class="ok sent">Your note was sent to Cody, pinned where you tapped. The answer will show up on this page.</div>' : ''}${how}${view}
+${commentsBlock(j, base, 'model', 'Your notes on the 3D model, and Cody’s answers. Numbers match the pins.', false)}${dialog}${script}`;
+  return shell(`3D · ${j.project}`, body, shop, esc(clientName(j)));
 }
 
 export const simplePage = (title: string, text: string, shop: Shop) => shell(title, `<h1>${esc(title)}</h1><p>${esc(text)}</p>`, shop);
