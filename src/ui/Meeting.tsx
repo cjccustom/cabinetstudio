@@ -88,7 +88,8 @@ function NotesTab({ c, v, put }: { c: ClientInfo; v: Visit; put: Put }) {
   return (
     <div className="meeting-pad">
       <label className="meeting-label" htmlFor="mt-notes">Notes from today</label>
-      <textarea id="mt-notes" className="meeting-notes" value={v.notes} placeholder="Type, or tap the microphone on the keyboard to talk…" onChange={(e) => put({ notes: e.target.value })} />
+      <textarea id="mt-notes" className="meeting-notes" value={v.notes} placeholder="Write here with the Apple Pencil (it turns into typed text), type, or tap the microphone on the keyboard to talk…" onChange={(e) => put({ notes: e.target.value })} />
+      <p className="hint">Apple Pencil: write right in the box and it becomes typed text as you go (Scribble). Scratch out a word to delete it; draw a vertical line between words to join or split them. Turn it on in Settings → Apple Pencil → Scribble.</p>
       <label className="meeting-label" htmlFor="mt-scope">What they want (the project scope)</label>
       <textarea id="mt-scope" rows={5} value={c.scope} placeholder="Rooms, built-ins, style, finish, budget, timing…" onChange={(e) => commit((p) => ({ ...p, client: { ...clientOf(p), scope: e.target.value } }))} />
       <p className="hint">Both save with the client’s file when you tap Done.</p>
