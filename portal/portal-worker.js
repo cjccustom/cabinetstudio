@@ -265,7 +265,7 @@ function changeOrderPage(j, c, shop, token, flash = "") {
   const signedAt = j.signature.at;
   const earlier = (j.changeOrders ?? []).filter((x) => x.id !== c.id && x.signature && !x.voided && (!c.signature || x.signature.at < c.signature.at)).reduce((t, x) => t + x.amount, 0);
   const before = signedTotals(j).total + earlier;
-  const sched = c.days == null ? "" : c.days === 0 ? "No change to the schedule." : c.days > 0 ? `Adds about ${c.days} working day${c.days === 1 ? "" : "s"} to the schedule.` : `Takes about ${-c.days} working day${c.days === -1 ? "" : "s"} off the schedule.`;
+  const sched = c.hours ? `Adds about ${c.hours} hour${c.hours === 1 ? "" : "s"} of work.` : c.days == null ? "" : c.days === 0 ? "No change to the schedule." : c.days > 0 ? `Adds about ${c.days} working day${c.days === 1 ? "" : "s"} to the schedule.` : `Takes about ${-c.days} working day${c.days === -1 ? "" : "s"} off the schedule.`;
   const bill = c.amount <= 0 ? c.amount < 0 ? "The credit comes off your final payment." : "" : c.billing === "now" ? "Invoiced once you approve it." : "Added to your final payment.";
   const payBy = j.signature?.payBy === "check" && j.proposal.pay ? `<p class="muted">Prices are at your check or bank transfer rate, as in your agreement.</p>` : "";
   const doc = `<section class="card"><h2>Change order ${c.number}: ${esc(c.title)}</h2>
@@ -1265,8 +1265,8 @@ var TOOLS = [
   },
   {
     name: "publish_change_order",
-    description: "Put a change order on a signed job\u2019s page for the client to approve (sign) or decline: what changes, a price for each line (negative for a credit), the working days it adds, and whether it\u2019s invoiced when approved or added to the final payment.",
-    inputSchema: { type: "object", properties: { job_id: { type: "string" }, title: { type: "string" }, lines: { type: "array", items: { type: "object", properties: { label: { type: "string" }, amount: { type: "number" } }, required: ["label", "amount"] } }, days: { type: "number" }, note: { type: "string" }, billing: { type: "string", enum: ["now", "final"] } }, required: ["job_id", "title", "lines"] }
+    description: "Put a change order on a signed job\u2019s page for the client to approve (sign) or decline: what changes, a price for each line (negative for a credit), the working days it adds (or hours of work, for a small change), and whether it\u2019s invoiced when approved or added to the final payment.",
+    inputSchema: { type: "object", properties: { job_id: { type: "string" }, title: { type: "string" }, lines: { type: "array", items: { type: "object", properties: { label: { type: "string" }, amount: { type: "number" } }, required: ["label", "amount"] } }, days: { type: "number" }, hours: { type: "number" }, note: { type: "string" }, billing: { type: "string", enum: ["now", "final"] } }, required: ["job_id", "title", "lines"] }
   },
   { name: "void_change_order", description: "Take back a change order the client hasn\u2019t answered yet.", inputSchema: { type: "object", properties: { job_id: { type: "string" }, id: { type: "string" } }, required: ["job_id", "id"] } },
   { name: "reply_comment", description: "Answer the client on their page. Marks their comments read.", inputSchema: { type: "object", properties: { job_id: { type: "string" }, text: { type: "string" }, about: { type: "string" } }, required: ["job_id", "text"] } },
@@ -1343,7 +1343,7 @@ var status = (j, url) => ({
   publishedAt: j.proposal.publishedAt,
   views: (j.views ?? []).length,
   lastViewed: j.views?.length ? j.views[j.views.length - 1] : null,
-  signed: j.signature ? { name: j.signature.name, at: j.signature.at, version: j.signature.version, current: j.signature.hash === j.proposal.hash, ...j.signature.total != null ? { options: (j.proposal.options ?? []).filter((o) => j.signature.options?.includes(o.id)).map((o) => o.label), total: j.signature.total, deposit: j.signature.deposit } : {}, ...j.signature.payBy ? { payBy: j.signature.payBy } : {} } : null,
+  signed: j.signature ? { name: j.signature.name, at: j.signature.at, version: j.signature.version, current: j.signature.hash === j.proposal.hash, total: signedTotals(j).total, deposit: signedTotals(j).deposit, ...j.signature.total != null ? { options: (j.proposal.options ?? []).filter((o) => j.signature.options?.includes(o.id)).map((o) => o.label) } : {}, ...j.signature.payBy ? { payBy: j.signature.payBy } : {} } : null,
   cancelDeadline: j.signature ? cancelDeadline(easternYmd(j.signature.at)) : null,
   cancelled: j.cancelled ? { at: j.cancelled.at } : null,
   invoices: (j.invoices ?? []).map((i) => ({ id: i.id, kind: i.kind, number: i.docNumber ?? null, amount: i.amount, balance: i.balance, paid: i.balance <= 0, emailed: !!i.emailed, payLink: !!i.link, createdAt: i.createdAt, payments: i.payments ?? [] })),
@@ -1352,7 +1352,7 @@ var status = (j, url) => ({
   model: j.model ?? null,
   comments: j.comments ?? [],
   unread: (j.comments ?? []).filter((c) => c.from === "client" && !c.read).length,
-  change_orders: (j.changeOrders ?? []).map((c) => ({ id: c.id, number: c.number, title: c.title, lines: c.lines, amount: c.amount, days: c.days ?? null, note: c.note ?? null, billing: c.billing, publishedAt: c.publishedAt, url: `${url.origin}/p/${j.token}/change/${c.id}`, approved: c.signature ? { name: c.signature.name, at: c.signature.at } : null, declined: c.declined ?? null, voided: c.voided ?? null, invoiceId: c.invoiceId ?? null })),
+  change_orders: (j.changeOrders ?? []).map((c) => ({ id: c.id, number: c.number, title: c.title, lines: c.lines, amount: c.amount, days: c.days ?? null, hours: c.hours ?? null, note: c.note ?? null, billing: c.billing, publishedAt: c.publishedAt, url: `${url.origin}/p/${j.token}/change/${c.id}`, approved: c.signature ? { name: c.signature.name, at: c.signature.at } : null, declined: c.declined ?? null, voided: c.voided ?? null, invoiceId: c.invoiceId ?? null })),
   adjusted_total: j.signature ? adjustedTotal(j) : null
 });
 async function fetchDropbox(src) {
@@ -1610,10 +1610,11 @@ ${shop.terms}`);
       if ((j.changeOrders?.length ?? 0) >= 60) throw new Error("This job has too many change orders.");
       const amount = Math.round(lines.reduce((t, l) => t + l.amount, 0) * 100) / 100;
       const days = typeof a.days === "number" && Number.isFinite(a.days) ? Math.max(-60, Math.min(120, Math.round(a.days))) : void 0;
+      const hours = days == null && typeof a.hours === "number" && Number.isFinite(a.hours) && a.hours > 0 ? Math.min(200, Math.round(a.hours * 2) / 2) : void 0;
       const note = String(a.note || "").trim().slice(0, 2e3) || void 0;
       const billing = a.billing === "now" && amount > 0 ? "now" : "final";
       const number = (j.changeOrders ?? []).reduce((n, c2) => Math.max(n, c2.number), 0) + 1;
-      const c = { id: randomToken(9), number, title, lines, amount, ...days != null ? { days } : {}, ...note ? { note } : {}, billing, publishedAt: Date.now(), hash: await sha256(JSON.stringify({ title, lines, days, note, billing })) };
+      const c = { id: randomToken(9), number, title, lines, amount, ...days != null ? { days } : {}, ...hours != null ? { hours } : {}, ...note ? { note } : {}, billing, publishedAt: Date.now(), hash: await sha256(JSON.stringify({ title, lines, days, hours, note, billing })) };
       j.changeOrders = [...j.changeOrders ?? [], c];
       await putJob(env, j);
       return { ...status(j, url), change_order_url: `${url.origin}/p/${j.token}/change/${c.id}` };

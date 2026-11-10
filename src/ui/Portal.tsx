@@ -326,7 +326,11 @@ const signedMoney = (v: number) => `${v < 0 ? '−' : ''}${money(Math.abs(v))}`;
 
 /** Changes to a signed job: written up here, approved (signed) or declined by the client on their page. */
 function ChangeOrders({ st, project, busy, run, keep, copy }: { st: JobStatus; project: Project; busy: boolean; run: (label: string, fn: () => Promise<void>) => Promise<void>; keep: (s: JobStatus) => void; copy: (text: string, what: string) => void }) {
-  type Draft = { title: string; lines: { label: string; amount: string }[]; days: string; note: string; billing: 'now' | 'final' };
+  type Draft = { title: string; lines: { label: string; amount: string }[]; time: string; unit: 'days' | 'hours'; note: string; billing: 'now' | 'final' };
+  // Prices as typed: "$1,200", "-400", "−$400"
+  const amt = (v: string) => { const t = v.replace(/[$,\s]/g, '').replace(/^[−–]/, '-'); return t === '' || t === '-' ? NaN : Number(t); };
+  // "2", "2 hours", "3 days": the number, and the unit if they wrote one
+  const timeOf = (d: Draft) => { const n = parseFloat(d.time.replace(/[^\d.\-]/g, ' ').trim()); return Number.isFinite(n) ? n : null; };
   const [draft, setDraft] = useState<Draft | null>(null);
   const list = (st.change_orders ?? []).filter((c) => !c.voided);
   const signedTotal = st.signed?.total ?? 0;
@@ -336,12 +340,18 @@ function ChangeOrders({ st, project, busy, run, keep, copy }: { st: JobStatus; p
   const approved = list.filter((c) => c.approved).reduce((t, c) => t + c.amount, 0);
   const pending = list.filter((c) => !c.approved && !c.declined).reduce((t, c) => t + c.amount, 0);
   const unbilled = designNow != null && st.signed?.total != null ? Math.round(designNow - signedTotal - approved - pending) : null;
-  const sum = (d: Draft) => d.lines.reduce((t, l) => t + (Number(l.amount) || 0), 0);
-  const ok = (d: Draft) => d.title.trim() && d.lines.length && d.lines.every((l) => l.label.trim() && l.amount.trim() !== '' && Number.isFinite(Number(l.amount)));
-  const start = () => setDraft({ title: '', lines: [{ label: '', amount: unbilled ? String(unbilled) : '' }], days: '', note: '', billing: 'final' });
+  const sum = (d: Draft) => d.lines.reduce((t, l) => t + (amt(l.amount) || 0), 0);
+  const ok = (d: Draft) => d.title.trim() && d.lines.length && d.lines.every((l) => l.label.trim() && Number.isFinite(amt(l.amount)));
+  // What's missing, said plainly, so a grey button explains itself
+  const why = (d: Draft) => !d.title.trim() ? 'Give it a title.' : d.lines.some((l) => !l.label.trim()) ? 'Each line needs a description.' : d.lines.some((l) => !Number.isFinite(amt(l.amount))) ? 'Each line needs a price, like 500 or -400 for a credit.' : '';
+  // Totals come from the portal: check them fresh when starting one
+  const start = () => run('Checking the job…', async () => {
+    keep(await jobStatus(st.job_id));
+    setDraft({ title: '', lines: [{ label: '', amount: unbilled ? String(unbilled) : '' }], time: '', unit: 'days', note: '', billing: 'final' });
+  });
   const send = () => run('Putting the change order on their page…', async () => {
     const d = draft!;
-    const r = await publishChangeOrder(st.job_id, { title: d.title.trim(), lines: d.lines.map((l) => ({ label: l.label.trim(), amount: Number(l.amount) })), ...(d.days.trim() !== '' && Number.isFinite(Number(d.days)) ? { days: Math.round(Number(d.days)) } : {}), ...(d.note.trim() ? { note: d.note.trim() } : {}), billing: d.billing });
+    const r = await publishChangeOrder(st.job_id, { title: d.title.trim(), lines: d.lines.map((l) => ({ label: l.label.trim(), amount: amt(l.amount) })), ...(timeOf(d) != null ? (d.unit === 'hours' ? { hours: timeOf(d)! } : { days: Math.round(timeOf(d)!) }) : {}), ...(d.note.trim() ? { note: d.note.trim() } : {}), billing: d.billing });
     keep(r);
     setDraft(null);
     copy(`Hi${st.signed?.name ? ` ${st.signed.name.split(' ')[0]}` : ''}, here’s the change order for your project to review and approve: ${r.change_order_url}`, 'Message with the link');
@@ -357,7 +367,7 @@ function ChangeOrders({ st, project, busy, run, keep, copy }: { st: JobStatus; p
           <tbody>
             {list.map((c) => (
               <tr key={c.id}>
-                <td><b>{c.number}. {c.title}</b><div className="hint">{c.lines.map((l) => `${l.label} ${signedMoney(l.amount)}`).join(' · ')}{c.days ? ` · ${c.days > 0 ? '+' : ''}${c.days} working days` : ''}</div></td>
+                <td><b>{c.number}. {c.title}</b><div className="hint">{c.lines.map((l) => `${l.label} ${signedMoney(l.amount)}`).join(' · ')}{c.hours ? ` · ${c.hours} hours of work` : c.days ? ` · ${c.days > 0 ? '+' : ''}${c.days} working days` : ''}</div></td>
                 <td>{signedMoney(c.amount)}</td>
                 <td className={c.approved ? 'ok' : c.declined ? 'warn' : ''}>{state(c)}{c.approved && c.amount > 0 ? (c.invoiceId ? ' · invoiced' : c.billing === 'final' ? ' · with the final' : '') : ''}</td>
                 <td>
@@ -387,7 +397,12 @@ function ChangeOrders({ st, project, busy, run, keep, copy }: { st: JobStatus; p
           ))}
           <div className="order-actions"><button onClick={() => setDraft({ ...draft, lines: [...draft.lines, { label: '', amount: '' }] })}>Add a line</button>{unbilled ? <span className="hint">The first line starts at the design’s difference, {signedMoney(unbilled)}{byCheck ? ', at their check price' : ''}.</span> : null}</div>
           <div className="grid2">
-            <Field label="Working days it adds (blank: don’t say)" htmlFor="co-days"><input id="co-days" inputMode="numeric" value={draft.days} onChange={(e) => setDraft({ ...draft, days: e.target.value })} /></Field>
+            <Field label="Time it adds (blank: don’t say)" htmlFor="co-days">
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input id="co-days" inputMode="decimal" style={{ flex: 1 }} value={draft.time} onChange={(e) => { const v = e.target.value; setDraft({ ...draft, time: v, unit: /hour|hr/i.test(v) ? 'hours' : /day/i.test(v) ? 'days' : draft.unit }); }} />
+                <select aria-label="Hours or working days" value={draft.unit} onChange={(e) => setDraft({ ...draft, unit: e.target.value as 'days' | 'hours' })}><option value="hours">hours of work</option><option value="days">working days</option></select>
+              </div>
+            </Field>
             <Field label="Billing" htmlFor="co-bill">
               <select id="co-bill" value={sum(draft) > 0 ? draft.billing : 'final'} disabled={!(sum(draft) > 0)} onChange={(e) => setDraft({ ...draft, billing: e.target.value as 'now' | 'final' })}>
                 <option value="final">{sum(draft) < 0 ? 'Credit off the final payment' : 'Add to the final payment'}</option>
@@ -400,6 +415,7 @@ function ChangeOrders({ st, project, busy, run, keep, copy }: { st: JobStatus; p
           <div className="order-actions">
             <button className="primary" disabled={busy || !ok(draft)} onClick={send}>Put it on their page</button>
             <button onClick={() => setDraft(null)}>Cancel</button>
+            {!ok(draft) && <span className="hint">{why(draft)}</span>}
           </div>
         </div>
       )}

@@ -447,8 +447,8 @@ const TOOLS = [
     inputSchema: { type: 'object', properties: { job_id: { type: 'string' }, html: { type: 'string' }, title: { type: 'string' }, css: { type: 'string', description: 'Styles for the sheets' }, sheets: { type: 'array', description: 'The sheets one by one (number, title, svg) so the client can mark changes on them', items: { type: 'object', properties: { number: { type: 'string' }, title: { type: 'string' }, svg: { type: 'string' } } } } }, required: ['job_id', 'html'] },
   },
   {
-    name: 'publish_change_order', description: 'Put a change order on a signed job’s page for the client to approve (sign) or decline: what changes, a price for each line (negative for a credit), the working days it adds, and whether it’s invoiced when approved or added to the final payment.',
-    inputSchema: { type: 'object', properties: { job_id: { type: 'string' }, title: { type: 'string' }, lines: { type: 'array', items: { type: 'object', properties: { label: { type: 'string' }, amount: { type: 'number' } }, required: ['label', 'amount'] } }, days: { type: 'number' }, note: { type: 'string' }, billing: { type: 'string', enum: ['now', 'final'] } }, required: ['job_id', 'title', 'lines'] },
+    name: 'publish_change_order', description: 'Put a change order on a signed job’s page for the client to approve (sign) or decline: what changes, a price for each line (negative for a credit), the working days it adds (or hours of work, for a small change), and whether it’s invoiced when approved or added to the final payment.',
+    inputSchema: { type: 'object', properties: { job_id: { type: 'string' }, title: { type: 'string' }, lines: { type: 'array', items: { type: 'object', properties: { label: { type: 'string' }, amount: { type: 'number' } }, required: ['label', 'amount'] } }, days: { type: 'number' }, hours: { type: 'number' }, note: { type: 'string' }, billing: { type: 'string', enum: ['now', 'final'] } }, required: ['job_id', 'title', 'lines'] },
   },
   { name: 'void_change_order', description: 'Take back a change order the client hasn’t answered yet.', inputSchema: { type: 'object', properties: { job_id: { type: 'string' }, id: { type: 'string' } }, required: ['job_id', 'id'] } },
   { name: 'reply_comment', description: 'Answer the client on their page. Marks their comments read.', inputSchema: { type: 'object', properties: { job_id: { type: 'string' }, text: { type: 'string' }, about: { type: 'string' } }, required: ['job_id', 'text'] } },
@@ -514,7 +514,7 @@ async function rpc(raw: unknown, env: Env, url: URL) {
 const status = (j: Job, url: URL) => ({
   job_id: j.jobId, project: j.project, url: `${url.origin}/p/${j.token}`, version: j.proposal.version, publishedAt: j.proposal.publishedAt,
   views: (j.views ?? []).length, lastViewed: j.views?.length ? j.views[j.views.length - 1] : null,
-  signed: j.signature ? { name: j.signature.name, at: j.signature.at, version: j.signature.version, current: j.signature.hash === j.proposal.hash, ...(j.signature.total != null ? { options: (j.proposal.options ?? []).filter((o) => j.signature!.options?.includes(o.id)).map((o) => o.label), total: j.signature.total, deposit: j.signature.deposit } : {}), ...(j.signature.payBy ? { payBy: j.signature.payBy } : {}) } : null,
+  signed: j.signature ? { name: j.signature.name, at: j.signature.at, version: j.signature.version, current: j.signature.hash === j.proposal.hash, total: signedTotals(j).total, deposit: signedTotals(j).deposit, ...(j.signature.total != null ? { options: (j.proposal.options ?? []).filter((o) => j.signature!.options?.includes(o.id)).map((o) => o.label) } : {}), ...(j.signature.payBy ? { payBy: j.signature.payBy } : {}) } : null,
   cancelDeadline: j.signature ? cancelDeadline(easternYmd(j.signature.at)) : null,
   cancelled: j.cancelled ? { at: j.cancelled.at } : null,
   invoices: (j.invoices ?? []).map((i) => ({ id: i.id, kind: i.kind, number: i.docNumber ?? null, amount: i.amount, balance: i.balance, paid: i.balance <= 0, emailed: !!i.emailed, payLink: !!i.link, createdAt: i.createdAt, payments: i.payments ?? [] })),
@@ -523,7 +523,7 @@ const status = (j: Job, url: URL) => ({
   model: j.model ?? null,
   comments: j.comments ?? [],
   unread: (j.comments ?? []).filter((c) => c.from === 'client' && !c.read).length,
-  change_orders: (j.changeOrders ?? []).map((c) => ({ id: c.id, number: c.number, title: c.title, lines: c.lines, amount: c.amount, days: c.days ?? null, note: c.note ?? null, billing: c.billing, publishedAt: c.publishedAt, url: `${url.origin}/p/${j.token}/change/${c.id}`, approved: c.signature ? { name: c.signature.name, at: c.signature.at } : null, declined: c.declined ?? null, voided: c.voided ?? null, invoiceId: c.invoiceId ?? null })),
+  change_orders: (j.changeOrders ?? []).map((c) => ({ id: c.id, number: c.number, title: c.title, lines: c.lines, amount: c.amount, days: c.days ?? null, hours: c.hours ?? null, note: c.note ?? null, billing: c.billing, publishedAt: c.publishedAt, url: `${url.origin}/p/${j.token}/change/${c.id}`, approved: c.signature ? { name: c.signature.name, at: c.signature.at } : null, declined: c.declined ?? null, voided: c.voided ?? null, invoiceId: c.invoiceId ?? null })),
   adjusted_total: j.signature ? adjustedTotal(j) : null,
 });
 
@@ -775,10 +775,11 @@ async function tool(name: string, a: Record<string, unknown>, env: Env, url: URL
       if ((j.changeOrders?.length ?? 0) >= 60) throw new Error('This job has too many change orders.');
       const amount = Math.round(lines.reduce((t, l) => t + l.amount, 0) * 100) / 100;
       const days = typeof a.days === 'number' && Number.isFinite(a.days) ? Math.max(-60, Math.min(120, Math.round(a.days))) : undefined;
+      const hours = days == null && typeof a.hours === 'number' && Number.isFinite(a.hours) && a.hours > 0 ? Math.min(200, Math.round(a.hours * 2) / 2) : undefined;
       const note = String(a.note || '').trim().slice(0, 2000) || undefined;
       const billing = a.billing === 'now' && amount > 0 ? 'now' as const : 'final' as const;
       const number = (j.changeOrders ?? []).reduce((n, c) => Math.max(n, c.number), 0) + 1;
-      const c: ChangeOrder = { id: randomToken(9), number, title, lines, amount, ...(days != null ? { days } : {}), ...(note ? { note } : {}), billing, publishedAt: Date.now(), hash: await sha256(JSON.stringify({ title, lines, days, note, billing })) };
+      const c: ChangeOrder = { id: randomToken(9), number, title, lines, amount, ...(days != null ? { days } : {}), ...(hours != null ? { hours } : {}), ...(note ? { note } : {}), billing, publishedAt: Date.now(), hash: await sha256(JSON.stringify({ title, lines, days, hours, note, billing })) };
       j.changeOrders = [...(j.changeOrders ?? []), c];
       await putJob(env, j);
       return { ...status(j, url), change_order_url: `${url.origin}/p/${j.token}/change/${c.id}` };

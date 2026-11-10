@@ -102,7 +102,7 @@ export function changeOrderPage(j: Job, c: ChangeOrder, shop: Shop, token: strin
   // The total before this one counts only change orders approved before it
   const earlier = (j.changeOrders ?? []).filter((x) => x.id !== c.id && x.signature && !x.voided && (!c.signature || x.signature.at < c.signature.at)).reduce((t, x) => t + x.amount, 0);
   const before = signedTotals(j).total + earlier;
-  const sched = c.days == null ? '' : c.days === 0 ? 'No change to the schedule.' : c.days > 0 ? `Adds about ${c.days} working day${c.days === 1 ? '' : 's'} to the schedule.` : `Takes about ${-c.days} working day${c.days === -1 ? '' : 's'} off the schedule.`;
+  const sched = c.hours ? `Adds about ${c.hours} hour${c.hours === 1 ? '' : 's'} of work.` : c.days == null ? '' : c.days === 0 ? 'No change to the schedule.' : c.days > 0 ? `Adds about ${c.days} working day${c.days === 1 ? '' : 's'} to the schedule.` : `Takes about ${-c.days} working day${c.days === -1 ? '' : 's'} off the schedule.`;
   const bill = c.amount <= 0 ? (c.amount < 0 ? 'The credit comes off your final payment.' : '') : c.billing === 'now' ? 'Invoiced once you approve it.' : 'Added to your final payment.';
   const payBy = j.signature?.payBy === 'check' && j.proposal.pay ? `<p class="muted">Prices are at your check or bank transfer rate, as in your agreement.</p>` : '';
   const doc = `<section class="card"><h2>Change order ${c.number}: ${esc(c.title)}</h2>

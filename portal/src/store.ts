@@ -83,6 +83,8 @@ export interface ChangeOrder {
   amount: number;
   /** Working days it adds to the schedule (0: none; unset: not stated). */
   days?: number;
+  /** Or, for a small change, the hours of work it adds. */
+  hours?: number;
   note?: string;
   /** Invoiced on its own once approved, or carried into the final payment. Credits always go to the final. */
   billing: 'now' | 'final';

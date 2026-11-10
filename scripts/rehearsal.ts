@@ -128,11 +128,16 @@ async function portal() {
       check('a credit goes to the final payment', c2.change_orders[1].billing === 'final');
       await call(new URL(c2.change_order_url).pathname + '/decline', { method: 'POST', body: new URLSearchParams({ reason: 'Keep the crown' }), redirect: 'manual' });
       const c3 = await mcp('publish_change_order', { job_id: id, title: 'Taken back', lines: [{ label: 'x', amount: 50 }] }) as { change_orders: { id: string }[]; change_order_url: string };
+      const hrs = await (await call(new URL(c3.change_order_url).pathname)).text();
+      check('change order: no time given says nothing about the schedule', !/working day|hours? of work/.test(hrs));
       await mcp('void_change_order', { job_id: id, id: c3.change_orders[2].id });
       check('a change order taken back is gone from their page', (await call(new URL(c3.change_order_url).pathname)).status === 404);
       let late = false;
       try { await mcp('void_change_order', { job_id: id, id: c3.change_orders[0].id }); } catch { late = true; }
       check('an approved change order can’t be taken back', late);
+      const c4 = await mcp('publish_change_order', { job_id: id, title: 'Add a shelf', lines: [{ label: 'Shelf', amount: 120 }], hours: 2 }) as { change_order_url: string; change_orders: { id: string }[] };
+      check('change order: hours of work', (await (await call(new URL(c4.change_order_url).pathname)).text()).includes('Adds about 2 hours of work.'));
+      await mcp('void_change_order', { job_id: id, id: c4.change_orders[3].id });
       const s3 = await mcp('job_status', { job_id: id }) as { adjusted_total: number; change_orders: { approved: unknown; declined: { reason?: string } | null }[] };
       check('contract total counts only the approved change', s3.adjusted_total === 27500 && !!s3.change_orders[0].approved && s3.change_orders[1].declined?.reason === 'Keep the crown', `$${s3.adjusted_total}`);
       const ag2 = await (await call(`/p/${tk}/agreement`)).text();
