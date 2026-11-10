@@ -5,7 +5,8 @@ import { useRef, useState } from 'react';
 import { FileButton } from './FileButton';
 import { PortalError, blobToBase64, saveVideoChunk } from '../portal';
 
-const PIECE = 2 * 1024 * 1024;
+// Each call from the page is limited to 1 MB, base64 included
+const PIECE = 450 * 1024;
 const mb = (n: number) => `${(n / 1048576).toFixed(n < 10 * 1048576 ? 1 : 0)} MB`;
 
 interface Job { key: string; name: string; size: number; sent: number; status: 'sending' | 'saved' | 'failed'; error?: string; path?: string }

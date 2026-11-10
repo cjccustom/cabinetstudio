@@ -105,7 +105,22 @@ export const calendarFeed = () => call<{ url: string; webcal: string }>('calenda
 export interface DbxStatus { configured: boolean; connected: boolean; name: string | null; email: string | null; connectPage: string; redirectUri: string }
 export const dropboxStatus = () => call<DbxStatus>('dropbox_status');
 /** One photo into a Dropbox folder, through the portal (Cabinet Studio's own Dropbox connector can't write pictures). */
-export const savePhoto = (folder: string, name: string, data: string) => call<{ path: string; size: number }>('save_photo', { folder, name, data });
+/**
+ * A file's base64 into a Dropbox folder: in one call when it's small, otherwise in pieces (each
+ * call from the page is limited to 1 MB). Pieces are a multiple of 4 characters, so each decodes alone.
+ */
+const PIECE_B64 = 600_000;
+export async function savePhoto(folder: string, name: string, data: string): Promise<{ path: string; size: number }> {
+  if (data.length <= PIECE_B64) return call<{ path: string; size: number }>('save_photo', { folder, name, data });
+  let session: string | undefined, offset = 0;
+  for (let i = 0; i < data.length; i += PIECE_B64) {
+    const last = i + PIECE_B64 >= data.length;
+    const r = await saveVideoChunk({ session, offset, data: data.slice(i, i + PIECE_B64), ...(last ? { folder, name } : {}) });
+    session = r.session || session; offset = r.offset;
+    if (last) return { path: r.path ?? `${folder}/${name}`, size: r.size ?? offset };
+  }
+  throw new PortalError('Nothing to save.', 'empty');
+}
 /** One piece of a video: start (no session), add, or finish (with the folder and name). */
 export const saveVideoChunk = (a: { session?: string; offset: number; data: string; folder?: string; name?: string }) => call<{ session: string; offset: number; path?: string; size?: number }>('save_video_chunk', a);
 

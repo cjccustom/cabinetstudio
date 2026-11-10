@@ -1283,7 +1283,7 @@ ${shop.terms}`);
       const bytes = new Uint8Array(b64ToBytes(str("data") || ""));
       if (bytes.length > 12e6) throw new Error("Send the video in pieces of a few MB.");
       const folder = str("folder"), fname = str("name");
-      if (fname !== void 0 && !/\.(mov|mp4|m4v|3gp|webm)$/i.test(fname)) throw new Error("Only videos (mov, mp4, m4v) can be saved this way.");
+      if (fname !== void 0 && !/\.(mov|mp4|m4v|3gp|webm|jpe?g|png|heic|heif|webp)$/i.test(fname)) throw new Error("Only videos and photos can be saved this way.");
       if (folder !== void 0 && !folder.startsWith("/")) throw new Error("The folder has to start with /.");
       return await dbxChunk(env, { session: str("session") || void 0, offset: Number(a.offset) || 0, bytes, finish: folder && fname ? { folder, name: fname } : void 0 });
     }
