@@ -8,6 +8,7 @@ import { fmt } from '../units';
 import { panelForFinish } from './eagle';
 import { defaultFaceFrameStock } from './faceframe';
 import { amLumber, amSizes, boardSize, defaultBoard } from './amLumber';
+import { sheetPrice } from './cutlist';
 
 export function priceId(kind: PriceItem['kind'], name: string) {
   return `${kind === 'plywood' ? 'ply' : 'lum'}-${name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}`;
@@ -87,7 +88,7 @@ export function stalePrices(p: Project, book: PriceItem[]): { label: string; job
   for (const sh of jobSheets(p)) {
     const b = bookSheetPrice(book, sh.plywood, sh.thickness);
     const stock = p.cutlist?.stock.find((x) => x.material === sh.material);
-    const j = stock ? stock.price : p.sheetPrices?.[sh.material];
+    const j = stock ? stock.price : p.sheetPrices?.[sh.material] ?? (sheetPrice(sh.material) || undefined);
     if (b != null && Math.abs((j ?? 0) - b) > 0.005) out.push({ label: `${sh.material}, per sheet`, job: j, book: b });
   }
   const species = p.settings.woodSpecies;

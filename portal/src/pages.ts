@@ -1,7 +1,7 @@
 // The pages a client sees from their private link: a phone-first project page (renderings,
 // proposal, terms, licenses and insurance, about the shop, and signing), and the signed agreement
 // as one printable document, the Notice of Cancellation inside the terms with its dates filled in.
-import type { DrawingSheets, Job, PortalComment, Shop } from './store';
+import { type ChangeOrder, type DrawingSheets, type Job, type PortalComment, type Shop, signedTotals } from './store';
 import { apptLabel, whenEastern, type Appointment } from './calendar';
 import { cancelDeadline, easternYmd, longDate, noticeOfCancellation } from './cancel';
 import { LOGO } from '../../src/drawings/logo';
@@ -79,6 +79,76 @@ function payBlock(j: Job, shop: Shop): string {
     : `<p><b>${label[i.kind]} due: ${money(i.balance)}</b>${i.docNumber ? ` <span class="muted">(invoice ${esc(i.docNumber)})</span>` : ''}</p>
 ${i.link ? `<div class="row"><a class="btn" href="${esc(i.link)}" target="_blank" rel="noopener">Pay by card or bank transfer</a></div>` : ''}
 <p class="muted">${i.link ? 'Or pay' : 'Pay'} by check to <b>${esc(payee)}</b>${shop.company[1] ? `, ${esc(shop.company[1])}` : ''}, or in person.</p>`).join('')}</div>`;
+}
+
+/** The signing box's script: draw with a finger or mouse, and the form sends the drawing as a PNG. */
+const padScript = (formId: string, busy: string) => `<script>(()=>{const c=document.getElementById('pad'),x=c.getContext('2d');let drawn=false,down=false;
+const fit=()=>{const r=c.getBoundingClientRect(),k=devicePixelRatio||1;c.width=r.width*k;c.height=r.height*k;x.scale(k,k);x.lineWidth=2.2;x.lineCap='round';x.strokeStyle='#111'};fit();
+const p=e=>{const r=c.getBoundingClientRect();return[e.clientX-r.left,e.clientY-r.top]};
+const go=document.getElementById('go'),f=document.getElementById('${formId}');const ready=()=>{go.disabled=!(drawn&&f.checkValidity())};f.addEventListener('input',ready);f.addEventListener('change',ready);
+c.addEventListener('pointerdown',e=>{down=true;c.setPointerCapture(e.pointerId);x.beginPath();x.moveTo(...p(e))});
+c.addEventListener('pointermove',e=>{if(!down)return;x.lineTo(...p(e));x.stroke();drawn=true});
+c.addEventListener('pointerup',()=>{down=false;ready()});
+document.getElementById('clear').onclick=()=>{x.clearRect(0,0,c.width,c.height);drawn=false;ready()};
+f.addEventListener('submit',()=>{document.getElementById('image').value=c.toDataURL('image/png');go.disabled=true;go.textContent='${busy}'});})();</script>`;
+
+const signedMoney = (n: number) => `${n < 0 ? '−' : ''}${money(Math.abs(n))}`;
+const coState = (c: ChangeOrder) => c.signature ? `Approved ${longDate(easternYmd(c.signature.at))}` : c.declined ? `Declined ${longDate(easternYmd(c.declined.at))}` : 'Waiting for your approval';
+
+/** One change order: what changes, the price and schedule effect, and approving (signing) or declining it. */
+export function changeOrderPage(j: Job, c: ChangeOrder, shop: Shop, token: string, flash = ''): string {
+  const base = `/p/${token}/change/${c.id}`;
+  const signedAt = j.signature!.at;
+  // The total before this one counts only change orders approved before it
+  const earlier = (j.changeOrders ?? []).filter((x) => x.id !== c.id && x.signature && !x.voided && (!c.signature || x.signature.at < c.signature.at)).reduce((t, x) => t + x.amount, 0);
+  const before = signedTotals(j).total + earlier;
+  const sched = c.days == null ? '' : c.days === 0 ? 'No change to the schedule.' : c.days > 0 ? `Adds about ${c.days} working day${c.days === 1 ? '' : 's'} to the schedule.` : `Takes about ${-c.days} working day${c.days === -1 ? '' : 's'} off the schedule.`;
+  const bill = c.amount <= 0 ? (c.amount < 0 ? 'The credit comes off your final payment.' : '') : c.billing === 'now' ? 'Invoiced once you approve it.' : 'Added to your final payment.';
+  const payBy = j.signature?.payBy === 'check' && j.proposal.pay ? `<p class="muted">Prices are at your check or bank transfer rate, as in your agreement.</p>` : '';
+  const doc = `<section class="card"><h2>Change order ${c.number}: ${esc(c.title)}</h2>
+<p class="muted">A change to the agreement for ${esc(j.project)} signed ${esc(longDate(easternYmd(signedAt)))}. Issued ${esc(longDate(easternYmd(c.publishedAt)))}.</p>
+<table class="lines">${c.lines.map((l) => `<tr><td>${esc(l.label)}</td><td class="num">${signedMoney(l.amount)}</td></tr>`).join('')}
+<tr class="sub"><td>${c.amount < 0 ? 'Credit' : 'This change'}</td><td class="num">${signedMoney(c.amount)}</td></tr></table>
+${payBy}
+<div class="price"><div><span class="muted">Contract total before this change</span><b>${money(before)}</b></div><div><span class="muted">New contract total</span><b>${money(before + c.amount)}</b></div></div>
+${sched ? `<p>${esc(sched)}</p>` : ''}${bill ? `<p>${esc(bill)}</p>` : ''}${c.note ? paras(c.note) : ''}
+<p class="muted">Everything else in your agreement, including the Terms and Conditions, stays the same.</p></section>`;
+  const open = !c.signature && !c.declined;
+  const s = c.signature;
+  const answer = s
+    ? `<section class="card"><h2>Approved</h2><div class="ok">Approved by <b>${esc(s.name)}</b> on ${esc(new Date(s.at).toLocaleString('en-US', { timeZone: 'America/New_York', dateStyle: 'long', timeStyle: 'short' }))} (Eastern). Thank you!</div>
+<p><img src="${esc(s.image)}" alt="Signature of ${esc(s.name)}" style="max-width:320px;border-bottom:1px solid #111"></p>
+<p class="muted" style="font-size:12px">Signed electronically from ${esc(s.ip)}. Change order fingerprint (SHA-256) ${esc(c.hash.slice(0, 32))}.</p>
+<div class="row noprint"><button class="btn ghost" onclick="print()">Print or save</button><a class="btn ghost" href="/p/${token}">Back to your project</a></div></section>`
+    : c.declined
+      ? `<section class="card"><h2>Declined</h2><p class="warn">You declined this change on ${esc(longDate(easternYmd(c.declined.at)))}. The work goes ahead as in your agreement.</p>${c.declined.reason ? `<p class="muted">Your note: ${esc(c.declined.reason)}</p>` : ''}<p class="row"><a class="btn ghost" href="/p/${token}">Back to your project</a></p></section>`
+      : `<section class="card" id="signing"><h2>Approve this change</h2>
+<form id="cosign" method="post" action="${base}/sign">
+<label class="chk"><input type="checkbox" name="consent" required> <span>I agree to sign this change order electronically. I can save or print it, and ask CJC Custom Carpentry for a paper copy at any time.</span></label>
+<label class="chk"><input type="checkbox" name="agree" required> <span>I approve this change to my agreement, at the price and schedule above.</span></label>
+<p><input type="text" name="name" placeholder="Your full name" autocomplete="name" required></p>
+<p class="muted" style="margin:0 0 6px">Sign with your finger or mouse:</p>
+<canvas class="pad" id="pad"></canvas><input type="hidden" name="image" id="image">
+<div class="row"><button class="btn" id="go" disabled>Approve and sign</button><button type="button" class="btn ghost" id="clear">Clear</button></div>
+</form>${padScript('cosign', 'Signing…')}
+<details class="more"><summary class="btn ghost">Decline this change</summary>
+<form method="post" action="${base}/decline"><p>If you decline, the work goes ahead as in your agreement.</p>
+<textarea name="reason" rows="3" placeholder="Anything you’d like Cody to know (optional)"></textarea>
+<div class="row"><button class="btn ghost">Decline the change</button></div></form></details></section>`;
+  const body = `${flash ? `<p class="warn">${esc(flash)}</p>` : ''}<h1>${esc(j.project)}</h1><p class="muted">For ${esc(clientName(j))}${j.client.address ? ` · ${esc(j.client.address)}` : ''}${open ? '' : ` · ${esc(coState(c))}`}</p>${doc}${answer}`;
+  return shell(`Change order ${c.number} · ${j.project}`, body, shop, esc(clientName(j)));
+}
+
+/** The change orders on the client's project page, with the contract total they come to. */
+function changeOrdersBlock(j: Job, base: string): string {
+  const list = (j.changeOrders ?? []).filter((c) => !c.voided);
+  if (!list.length || !j.signature || j.cancelled) return '';
+  const approved = list.filter((c) => c.signature).reduce((t, c) => t + c.amount, 0);
+  const waiting = list.filter((c) => !c.signature && !c.declined).length;
+  return `<section class="card" id="changes"><h2>Change orders</h2>${waiting ? `<p class="warn"><b>${waiting === 1 ? 'A change is' : `${waiting} changes are`} waiting for your approval.</b></p>` : ''}
+<table class="lines">${list.map((c) => `<tr><td><a href="${base}/change/${esc(c.id)}">${c.number}. ${esc(c.title)}</a><br><span class="muted">${esc(coState(c))}</span></td><td class="num">${signedMoney(c.amount)}</td></tr>`).join('')}</table>
+<div class="price"><div><span class="muted">Signed contract</span><b>${money(signedTotals(j).total)}</b></div><div><span class="muted">With approved changes</span><b>${money(signedTotals(j).total + approved)}</b></div></div>
+${list.filter((c) => !c.signature && !c.declined).map((c) => `<p class="row"><a class="btn" href="${base}/change/${esc(c.id)}">Review change order ${c.number}</a></p>`).join('')}</section>`;
 }
 
 /** The client's project page. */
@@ -163,6 +233,7 @@ ${build}${mats}${price}
 ${docs.length ? `<section class="card"><h2>Licenses and insurance</h2><ul class="docs">${docs.map((d) => `<li><a href="${base}/doc/${esc(d.id)}" target="_blank" rel="noopener">${esc(d.title)}</a>${d.expires ? `<span class="muted">valid through ${esc(new Date(`${d.expires}T12:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' }))}</span>` : ''}</li>`).join('')}</ul></section>` : ''}
 ${shop.about ? `<section class="card"><h2>About CJC Custom Carpentry</h2>${paras(shop.about)}</section>` : ''}
 <section class="card" id="signing"><h2>${s ? 'Signed' : 'Sign the agreement'}</h2>${signBlock}</section>
+${changeOrdersBlock(j, base)}
 ${s && !j.cancelled ? `<section class="card"><h2>Your drawings</h2>${j.drawings ? `<p>Version ${j.drawings.version} is ready for your review (${esc(longDate(easternYmd(j.drawings.publishedAt)))}).</p><p class="row"><a class="btn" href="${base}/drawings">Review the drawings</a>${j.model ? ` <a class="btn ghost" href="${base}/model">Look around in 3D</a>` : ''}</p>` : '<p class="muted">Your detailed drawings come next, with every size, for you to review and approve here.</p>'}</section>` : ''}
 ${commentsBlock(j, base, 'proposal', s ? 'Questions about your project? Write here and Cody will answer on this page.' : 'Questions about the proposal, or something you’d like changed? Write here and Cody will answer on this page.', sent)}`;
   return shell(`${j.project} · CJC Custom Carpentry`, body, shop, esc(clientName(j)));
@@ -186,7 +257,7 @@ ${s.total != null ? `<p>${j.proposal.options?.length ? `<b>Options chosen:</b> $
 <title>${esc(j.project)} agreement</title><style>body{font:11pt/1.45 Georgia,serif;max-width:7.5in;margin:.5in auto;padding:0 16px;color:#111}${style}${noticeCss}
 .terms p{font-size:10pt}</style></head><body>${inner}
 ${termsOf(j, shop) ? `<section class="terms" style="page-break-before:always"><h2>Terms and Conditions</h2>${termsHtml(termsOf(j, shop), s?.at, shop.company[0] || undefined, shop.company[1] || '')}</section>` : s ? noticeOfCancellation(easternYmd(s.at), shop.company[0] || 'CJC Custom Carpentry LLC', shop.company[1] || '') : ''}
-${signed}</body></html>`;
+${signed}${(j.changeOrders ?? []).some((c) => c.signature && !c.voided) ? `<section><h2>Approved change orders</h2>${(j.changeOrders ?? []).filter((c) => c.signature && !c.voided).map((c) => `<p><b>${c.number}. ${esc(c.title)}</b>: ${signedMoney(c.amount)}, approved by ${esc(c.signature!.name)} on ${esc(longDate(easternYmd(c.signature!.at)))}.</p>`).join('')}<p><b>Contract total with approved changes: ${money(signedTotals(j).total + (j.changeOrders ?? []).filter((c) => c.signature && !c.voided).reduce((t, c) => t + c.amount, 0))}</b></p></section>` : ''}</body></html>`;
 }
 
 /** The client's questions and the shop's answers, with a box to write more. */

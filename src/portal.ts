@@ -11,7 +11,7 @@ export interface Shop { company: string[]; about: string; terms: string; docs: S
 export interface JobStatus {
   job_id: string; project: string; url: string; version: number; publishedAt: number;
   views: number; lastViewed: number | null;
-  signed: { name: string; at: number; version: number; current: boolean; /** Options ticked, and the total and deposit signed for. */ options?: string[]; total?: number; deposit?: number } | null;
+  signed: { name: string; at: number; version: number; current: boolean; /** Options ticked, and the total and deposit signed for. */ options?: string[]; total?: number; deposit?: number; payBy?: 'card' | 'check' } | null;
   cancelDeadline: string | null;
   cancelled: { at: number } | null;
   invoices?: Invoice[];
@@ -20,7 +20,16 @@ export interface JobStatus {
   model?: { publishedAt: number; version: number } | null;
   comments?: PortalComment[];
   unread?: number;
+  change_orders?: ChangeOrderStatus[];
+  /** The signed total plus approved change orders. */
+  adjusted_total?: number | null;
 }
+export interface ChangeOrderStatus {
+  id: string; number: number; title: string; lines: { label: string; amount: number }[]; amount: number;
+  days: number | null; note: string | null; billing: 'now' | 'final'; publishedAt: number; url: string;
+  approved: { name: string; at: number } | null; declined: { at: number; reason?: string } | null; voided: number | null; invoiceId: string | null;
+}
+export interface NewChangeOrder { title: string; lines: { label: string; amount: number }[]; days?: number; note?: string; billing: 'now' | 'final' }
 export interface PortalComment { id: string; at: number; from: 'client' | 'shop'; name: string; text: string; about: string; read?: boolean; mark?: { sheet: number; x: number; y: number; w: number; h: number } }
 export interface Invoice {
   id: string; kind: 'deposit' | 'final' | 'change'; number: string | null; amount: number; balance: number; paid: boolean;
@@ -140,6 +149,9 @@ export const qbItems = async () => (await call<{ items: { id: string; name: stri
 export const qbSettings = (patch: { item_id?: string; item_name?: string; auto_deposit?: boolean; email?: boolean }) => call('qb_settings', patch);
 export const createInvoice = (jobId: string, kind: Invoice['kind'], amount?: number, description?: string) =>
   call<JobStatus>('create_invoice', { job_id: jobId, kind, ...(amount !== undefined ? { amount } : {}), ...(description ? { description } : {}) });
+export const publishChangeOrder = (jobId: string, c: NewChangeOrder) => call<JobStatus & { change_order_url: string }>('publish_change_order', { job_id: jobId, ...c });
+export const voidChangeOrder = (jobId: string, id: string) => call<JobStatus>('void_change_order', { job_id: jobId, id });
+export const billChangeOrder = (jobId: string, id: string) => call<JobStatus>('create_invoice', { job_id: jobId, kind: 'change', change_order_id: id });
 export const recordPayment = (jobId: string, invoiceId: string, method: 'check' | 'cash' | 'other', amount: number, ref?: string) =>
   call<JobStatus>('record_payment', { job_id: jobId, invoice_id: invoiceId, method, amount, ...(ref ? { ref } : {}) });
 

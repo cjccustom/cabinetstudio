@@ -421,7 +421,7 @@ function SelectionsTab({ put }: { put: Put }) {
         <div><span className="muted">With these choices</span><b>{money(now)}</b></div>
         <div><span className="muted">Difference</span><b>{Math.abs(diff) < 5 ? 'none' : `${diff > 0 ? '+' : '−'}${money(Math.abs(diff))}`}</b></div>
       </div>
-      {signed != null && Math.abs(diff) >= 5 && <p className="warn">This job is signed: a change in price needs a change order the customer approves before the work changes.</p>}
+      {signed != null && Math.abs(diff) >= 5 && <p className="warn">This job is signed: a change in price needs a change order the customer approves before the work changes. Write it up under Client portal → Change orders.</p>}
       <p className="hint">Each choice shows what it does to the price next to it. The design and the quote change as you pick; a proposal that’s already out doesn’t change until you publish it again.</p>
       {selections.filter((s) => s.shown(project)).map((s) => {
         const d = deltas.get(s.id);

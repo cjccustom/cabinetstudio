@@ -18,13 +18,15 @@ import { capability, shrinkImage, type Downloads } from '../runtime';
 import { asciiHtml, downloadLink, whereIs, writeFile } from '../dropbox';
 import { printQuote, printQuoteFile } from '../model/printQuote';
 import {
-  blobToBase64, publishModel, createInvoice, deleteShopDoc, expiring, getShop, jobStatus, PortalError, publishProposal, publishDrawings, replyComment, markCommentsRead, qbItems, qbSettings, qbStatus, recordPayment, updateShop, uploadShopDoc,
-  type Invoice, type JobStatus, type QbStatus, type Shop, type ShopDoc,
+  blobToBase64, billChangeOrder, publishChangeOrder, voidChangeOrder, publishModel, createInvoice, deleteShopDoc, expiring, getShop, jobStatus, PortalError, publishProposal, publishDrawings, replyComment, markCommentsRead, qbItems, qbSettings, qbStatus, recordPayment, updateShop, uploadShopDoc,
+  type ChangeOrderStatus, type Invoice, type JobStatus, type QbStatus, type Shop, type ShopDoc,
 } from '../portal';
 import { askConfirm } from './Confirm';
 import { projectPage } from '../../portal/src/pages';
 import { forCustomer } from '../model/moldings';
 import { cardLines, cardOf, checkDiscountOf } from '../model/payDiscount';
+import { priceQuote } from '../model/quote';
+import { listedPrice } from '../model/selections';
 
 /** What goes on the customer's page, with no supplier names. */
 const clean = <T,>(x: T): T => JSON.parse(forCustomer(JSON.stringify(x))) as T;
@@ -301,6 +303,7 @@ export function ClientPortal() {
         </div>
       )}
       {st && <PortalStatus st={st} checkedAt={portal?.checkedAt} />}
+      {st?.signed && !st.cancelled && <ChangeOrders st={st} project={project} busy={!!busy} run={run} keep={(s2) => keep(s2, portal!.jobId)} copy={copy} />}
       {st?.signed && !st.cancelled && <Invoices st={st} total={st ? total : 0} busy={!!busy} run={run} keep={(s2) => keep(s2, portal!.jobId)} />}
       <div className="order-actions">
         {!sold && <button disabled={!!busy} onClick={showPreview}>Preview what they’ll see</button>}
@@ -316,6 +319,91 @@ export function ClientPortal() {
       {settings && <PortalSettings onClose={() => setSettings(false)} />}
       {preview && <ProposalPreview html={preview.html} offline={preview.offline} onClose={() => setPreview(null)} onPublish={() => { setPreview(null); publish(); }} published={!!portal?.url} />}
     </section>
+  );
+}
+
+const signedMoney = (v: number) => `${v < 0 ? '−' : ''}${money(Math.abs(v))}`;
+
+/** Changes to a signed job: written up here, approved (signed) or declined by the client on their page. */
+function ChangeOrders({ st, project, busy, run, keep, copy }: { st: JobStatus; project: Project; busy: boolean; run: (label: string, fn: () => Promise<void>) => Promise<void>; keep: (s: JobStatus) => void; copy: (text: string, what: string) => void }) {
+  type Draft = { title: string; lines: { label: string; amount: string }[]; days: string; note: string; billing: 'now' | 'final' };
+  const [draft, setDraft] = useState<Draft | null>(null);
+  const list = (st.change_orders ?? []).filter((c) => !c.voided);
+  const signedTotal = st.signed?.total ?? 0;
+  const byCheck = st.signed?.payBy === 'check';
+  // The design priced the way they pay, against what they signed for
+  const designNow = useMemo(() => { try { return byCheck ? priceQuote(project).total : listedPrice(project); } catch { return null; } }, [project, byCheck]);
+  const approved = list.filter((c) => c.approved).reduce((t, c) => t + c.amount, 0);
+  const pending = list.filter((c) => !c.approved && !c.declined).reduce((t, c) => t + c.amount, 0);
+  const unbilled = designNow != null && st.signed?.total != null ? Math.round(designNow - signedTotal - approved - pending) : null;
+  const sum = (d: Draft) => d.lines.reduce((t, l) => t + (Number(l.amount) || 0), 0);
+  const ok = (d: Draft) => d.title.trim() && d.lines.length && d.lines.every((l) => l.label.trim() && l.amount.trim() !== '' && Number.isFinite(Number(l.amount)));
+  const start = () => setDraft({ title: '', lines: [{ label: '', amount: unbilled ? String(unbilled) : '' }], days: '', note: '', billing: 'final' });
+  const send = () => run('Putting the change order on their page…', async () => {
+    const d = draft!;
+    const r = await publishChangeOrder(st.job_id, { title: d.title.trim(), lines: d.lines.map((l) => ({ label: l.label.trim(), amount: Number(l.amount) })), ...(d.days.trim() !== '' && Number.isFinite(Number(d.days)) ? { days: Math.round(Number(d.days)) } : {}), ...(d.note.trim() ? { note: d.note.trim() } : {}), billing: d.billing });
+    keep(r);
+    setDraft(null);
+    copy(`Hi${st.signed?.name ? ` ${st.signed.name.split(' ')[0]}` : ''}, here’s the change order for your project to review and approve: ${r.change_order_url}`, 'Message with the link');
+  });
+  const state = (c: ChangeOrderStatus) => c.approved ? `Approved by ${c.approved.name}, ${when(c.approved.at)}` : c.declined ? `Declined ${when(c.declined.at)}${c.declined.reason ? `: “${c.declined.reason}”` : ''}` : 'Waiting for them';
+  const line = (i: number, patch: Partial<Draft['lines'][number]>) => setDraft((d) => d && { ...d, lines: d.lines.map((l, k) => (k === i ? { ...l, ...patch } : l)) });
+  return (
+    <div className="invoices">
+      <h4>Change orders</h4>
+      <p className="hint">Your terms call for changes in writing. Each one goes on their page to approve (sign) or decline. Approved ones change the contract total, and the final invoice includes them.</p>
+      {list.length > 0 && (
+        <table className="doc-table">
+          <tbody>
+            {list.map((c) => (
+              <tr key={c.id}>
+                <td><b>{c.number}. {c.title}</b><div className="hint">{c.lines.map((l) => `${l.label} ${signedMoney(l.amount)}`).join(' · ')}{c.days ? ` · ${c.days > 0 ? '+' : ''}${c.days} working days` : ''}</div></td>
+                <td>{signedMoney(c.amount)}</td>
+                <td className={c.approved ? 'ok' : c.declined ? 'warn' : ''}>{state(c)}{c.approved && c.amount > 0 ? (c.invoiceId ? ' · invoiced' : c.billing === 'final' ? ' · with the final' : '') : ''}</td>
+                <td>
+                  <button onClick={() => copy(c.url, 'Link')}>Copy link</button>
+                  {!c.approved && !c.declined && <button disabled={busy} onClick={async () => { if (await askConfirm(`Take back change order ${c.number}? It comes off their page.`, 'Take it back')) run('Taking it back…', async () => keep(await voidChangeOrder(st.job_id, c.id))); }}>Take back</button>}
+                  {c.approved && c.billing === 'now' && c.amount > 0 && !c.invoiceId && <button disabled={busy} onClick={() => run('Making the invoice in QuickBooks…', async () => keep(await billChangeOrder(st.job_id, c.id)))}>Invoice it</button>}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      {st.signed?.total != null && (
+        <p>Signed {money(signedTotal)}{approved ? <> · approved changes {signedMoney(approved)} · <b>contract now {money(st.adjusted_total ?? signedTotal + approved)}</b></> : null}{pending ? <> · waiting on {signedMoney(pending)}</> : null}</p>
+      )}
+      {unbilled != null && Math.abs(unbilled) >= 5 && !draft && <p className="warn">The design now prices {signedMoney(unbilled)} {unbilled > 0 ? 'over' : 'under'} what they signed for, not counting the change orders above{byCheck ? ' (at their check price)' : ''}. If that’s a change they asked for, write it up.</p>}
+      {!draft && <div className="order-actions"><button disabled={busy} onClick={start}>New change order…</button></div>}
+      {draft && (
+        <div className="pgroup">
+          <Field label="What’s changing (the title they see)" htmlFor="co-title"><input id="co-title" placeholder="e.g. Add lighting to the bookcases" value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} /></Field>
+          {draft.lines.map((l, i) => (
+            <div key={i} className="pay-form">
+              <input aria-label={`Line ${i + 1}`} placeholder="Line (what they see)" style={{ flex: 1 }} value={l.label} onChange={(e) => line(i, { label: e.target.value })} />
+              <input aria-label={`Line ${i + 1} price`} inputMode="decimal" placeholder="$ (− for a credit)" style={{ width: 120 }} value={l.amount} onChange={(e) => line(i, { amount: e.target.value })} />
+              {draft.lines.length > 1 && <button aria-label="Remove line" onClick={() => setDraft({ ...draft, lines: draft.lines.filter((_, k) => k !== i) })}>✕</button>}
+            </div>
+          ))}
+          <div className="order-actions"><button onClick={() => setDraft({ ...draft, lines: [...draft.lines, { label: '', amount: '' }] })}>Add a line</button>{unbilled ? <span className="hint">The first line starts at the design’s difference, {signedMoney(unbilled)}{byCheck ? ', at their check price' : ''}.</span> : null}</div>
+          <div className="grid2">
+            <Field label="Working days it adds (blank: don’t say)" htmlFor="co-days"><input id="co-days" inputMode="numeric" value={draft.days} onChange={(e) => setDraft({ ...draft, days: e.target.value })} /></Field>
+            <Field label="Billing" htmlFor="co-bill">
+              <select id="co-bill" value={sum(draft) > 0 ? draft.billing : 'final'} disabled={!(sum(draft) > 0)} onChange={(e) => setDraft({ ...draft, billing: e.target.value as 'now' | 'final' })}>
+                <option value="final">{sum(draft) < 0 ? 'Credit off the final payment' : 'Add to the final payment'}</option>
+                <option value="now">Invoice when they approve</option>
+              </select>
+            </Field>
+          </div>
+          <Field label="Note for them (optional)" htmlFor="co-note"><textarea id="co-note" rows={2} value={draft.note} onChange={(e) => setDraft({ ...draft, note: e.target.value })} /></Field>
+          <p>This change: <b>{signedMoney(sum(draft))}</b> · contract would be <b>{money((st.adjusted_total ?? signedTotal) + sum(draft))}</b>{byCheck ? <span className="hint"> · they pay by check, so enter check prices</span> : null}</p>
+          <div className="order-actions">
+            <button className="primary" disabled={busy || !ok(draft)} onClick={send}>Put it on their page</button>
+            <button onClick={() => setDraft(null)}>Cancel</button>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 

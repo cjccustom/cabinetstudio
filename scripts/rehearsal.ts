@@ -114,6 +114,32 @@ async function portal() {
     check(`discount (${way}): signed total and deposit`, s2.signed?.total === wantT && s2.signed?.deposit === wantD, `$${s2.signed?.total}, deposit $${s2.signed?.deposit}`);
     const ag = await (await call(`/p/${tk}/agreement`)).text();
     check(`discount (${way}): the signed copy says how they're paying`, ag.includes(way === 'check' ? 'Paying by check or bank transfer' : 'Paying by card'));
+    if (way === 'check') {
+      // Change orders on the signed job: one approved, one declined, one taken back
+      const sign = (u: string) => call(new URL(u).pathname + '/sign', { method: 'POST', body: new URLSearchParams({ consent: 'on', agree: 'on', name: 'Pay Test', image: 'data:image/png;base64,iVBORw0KGgo=' }), redirect: 'manual' });
+      const c1 = await mcp('publish_change_order', { job_id: id, title: 'Add lighting to the bookcases', lines: [{ label: 'LED tape and drivers', amount: 1200 }, { label: 'Wiring and install', amount: 300 }], days: 2, billing: 'final' }) as { change_order_url: string };
+      const cp = await (await call(new URL(c1.change_order_url).pathname)).text();
+      check('change order page: lines, totals before and after, schedule, check rate', cp.includes('Change order 1: Add lighting') && cp.includes('$26,000') && cp.includes('$27,500') && cp.includes('Adds about 2 working days') && cp.includes('check or bank transfer rate'));
+      const proj = await (await call('/p/' + tk)).text();
+      check('project page: the change waits for approval', proj.includes('A change is waiting for your approval') && proj.includes('Review change order 1'));
+      check('change order: signing without the boxes is refused', (await call(new URL(c1.change_order_url).pathname + '/sign', { method: 'POST', body: new URLSearchParams({ name: 'Pay Test', image: 'data:image/png;base64,iVBORw0KGgo=' }), redirect: 'manual' })).status === 400);
+      check('change order: approved', (await sign(c1.change_order_url)).status === 303 && (await (await call(new URL(c1.change_order_url).pathname)).text()).includes('Approved by <b>Pay Test</b>'));
+      const c2 = await mcp('publish_change_order', { job_id: id, title: 'Drop the crown', lines: [{ label: 'Crown moulding', amount: -400 }], billing: 'now' }) as { change_order_url: string; change_orders: { billing: string }[] };
+      check('a credit goes to the final payment', c2.change_orders[1].billing === 'final');
+      await call(new URL(c2.change_order_url).pathname + '/decline', { method: 'POST', body: new URLSearchParams({ reason: 'Keep the crown' }), redirect: 'manual' });
+      const c3 = await mcp('publish_change_order', { job_id: id, title: 'Taken back', lines: [{ label: 'x', amount: 50 }] }) as { change_orders: { id: string }[]; change_order_url: string };
+      await mcp('void_change_order', { job_id: id, id: c3.change_orders[2].id });
+      check('a change order taken back is gone from their page', (await call(new URL(c3.change_order_url).pathname)).status === 404);
+      let late = false;
+      try { await mcp('void_change_order', { job_id: id, id: c3.change_orders[0].id }); } catch { late = true; }
+      check('an approved change order can’t be taken back', late);
+      const s3 = await mcp('job_status', { job_id: id }) as { adjusted_total: number; change_orders: { approved: unknown; declined: { reason?: string } | null }[] };
+      check('contract total counts only the approved change', s3.adjusted_total === 27500 && !!s3.change_orders[0].approved && s3.change_orders[1].declined?.reason === 'Keep the crown', `$${s3.adjusted_total}`);
+      const ag2 = await (await call(`/p/${tk}/agreement`)).text();
+      check('signed copy lists approved change orders and the new total', ag2.includes('Approved change orders') && ag2.includes('$27,500') && !ag2.includes('Drop the crown'));
+      const proj2 = await (await call('/p/' + tk)).text();
+      check('project page: with approved changes', proj2.includes('With approved changes') && proj2.includes('$27,500') && !proj2.includes('Taken back'));
+    }
     await mcp('delete_job', { job_id: id, confirm: id, even_signed: true });
   }
 }

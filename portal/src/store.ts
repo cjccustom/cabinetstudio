@@ -71,6 +71,28 @@ export interface Job {
   model?: { publishedAt: number; version: number };
   /** Questions and change requests from the client, and the shop's answers. */
   comments?: PortalComment[];
+  /** Written changes to the signed agreement, each approved (signed) or declined by the client. */
+  changeOrders?: ChangeOrder[];
+}
+
+/** A change to the signed agreement: what changes, what it costs (or credits), and its effect on the schedule. */
+export interface ChangeOrder {
+  id: string; number: number; title: string;
+  lines: { label: string; amount: number }[];
+  /** The lines added up: positive adds to the contract, negative is a credit. */
+  amount: number;
+  /** Working days it adds to the schedule (0: none; unset: not stated). */
+  days?: number;
+  note?: string;
+  /** Invoiced on its own once approved, or carried into the final payment. Credits always go to the final. */
+  billing: 'now' | 'final';
+  publishedAt: number; hash: string;
+  signature?: { name: string; image: string; at: number; ip: string; ua: string };
+  declined?: { at: number; reason?: string };
+  /** Taken back by the shop before the client answered. */
+  voided?: number;
+  /** The QuickBooks invoice that billed it, when billed on its own. */
+  invoiceId?: string;
 }
 
 export interface PortalComment {
@@ -113,6 +135,11 @@ export function b64ToBytes(b64: string): ArrayBuffer {
   for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
   return out.buffer;
 }
+
+/** Change orders the client approved, added up. */
+export const approvedChanges = (j: Job) => (j.changeOrders ?? []).filter((c) => c.signature && !c.voided).reduce((t, c) => t + c.amount, 0);
+/** The contract total now: what was signed plus approved change orders. */
+export const adjustedTotal = (j: Job) => signedTotals(j).total + approvedChanges(j);
 
 /** What the client signed for: the base proposal plus any options ticked (the proposal itself before signing). */
 export function signedTotals(j: Job): { total: number; deposit: number } {

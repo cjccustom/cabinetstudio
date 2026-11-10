@@ -11,8 +11,8 @@
 // QuickBooks, Secrets QB_CLIENT_ID and QB_CLIENT_SECRET (and QB_ENV = sandbox to test first);
 // for photos, Secrets DBX_APP_KEY and DBX_APP_SECRET; for an email when a client comments, a
 // Secret RESEND_API_KEY (resend.com) and the contact email in Portal settings (MAIL_FROM optional).
-import { type DrawingSheets, type Env, type Job, type PortalComment, type Shop, type ShopDoc, b64ToBytes, getJob, getShop, jobByToken, putJob, putShop, randomToken, sha256, signedTotals } from './store';
-import { agreementPage, clientName, drawingsPage, esc, modelPage, projectPage, simplePage } from './pages';
+import { type DrawingSheets, type Env, type Job, type PortalComment, type Shop, type ShopDoc, type ChangeOrder, adjustedTotal, approvedChanges, b64ToBytes, getJob, getShop, jobByToken, putJob, putShop, randomToken, sha256, signedTotals } from './store';
+import { agreementPage, changeOrderPage, clientName, drawingsPage, esc, modelPage, projectPage, simplePage } from './pages';
 import { canCancel, cancelDeadline, easternYmd } from './cancel';
 import { calendar, deleteAppt, feedCode, listAppts, saveAppt, apptLabel, type Appointment } from './calendar';
 import { dbxChunk, dbxConnectUrl, dbxDisconnect, dbxFinish, dbxReady, dbxRedirect, dbxUpload, getDbx } from './dbx';
@@ -35,6 +35,8 @@ export default {
     if (!env.PORTAL) return setupPage('Almost there', '<p>The portal is running, but its storage isn’t connected. In Cloudflare open this worker’s <b>Settings → Bindings</b>, add a <b>KV namespace</b> binding named <code>PORTAL</code> (create a namespace called <b>cjc-portal</b> if you don’t have one), then reload this page.</p>');
     const m = path.match(/^\/p\/([A-Za-z0-9_-]+)(?:\/(img|doc|visit)\/([A-Za-z0-9_-]+)(?:\.ics)?|\/(agreement|sign|cancel|drawings|comment|model|model\.glb))?$/);
     if (m) return client(request, env, m[1], m[2] ?? m[4] ?? '', m[3] ?? '');
+    const co = path.match(/^\/p\/([A-Za-z0-9_-]+)\/change\/([A-Za-z0-9_-]+)(?:\/(sign|decline))?$/);
+    if (co) return changeOrder(request, env, co[1], co[2], co[3] ?? '');
     const key = String(env.SHOP_KEY || '').trim();
     const cal = path.match(/^\/cal\/([a-f0-9]{32})\.ics$/);
     if (cal) {
@@ -189,6 +191,66 @@ async function client(request: Request, env: Env, token: string, what: string, i
   await freshInvoices(env, job, 5 * 60e3);
   await putJob(env, job);
   return html(projectPage(job, shop, token, '', await visitsFor(env, job.jobId), new URL(request.url).searchParams.has('sent')));
+}
+
+/** A change order's page: read it, then approve (sign) or decline. */
+async function changeOrder(request: Request, env: Env, token: string, id: string, what: string): Promise<Response> {
+  const job = await jobByToken(env, token);
+  const shop = await getShop(env);
+  const c = job?.changeOrders?.find((x) => x.id === id && !x.voided);
+  if (!job || !c || !job.signature || job.cancelled) return html(simplePage('Change order not found', 'This change order isn’t available. Contact CJC Custom Carpentry if you have questions.', shop), 404);
+  const here = new URL(`/p/${token}/change/${c.id}`, request.url).href;
+  const open = !c.signature && !c.declined;
+  const ip = request.headers.get('cf-connecting-ip') || '';
+  if (what === 'sign' && request.method === 'POST') {
+    if (!open) return Response.redirect(here, 303);
+    const f = await request.formData();
+    const name = String(f.get('name') || '').trim().slice(0, 120);
+    const image = String(f.get('image') || '');
+    if (!name || f.get('consent') !== 'on' || f.get('agree') !== 'on' || !/^data:image\/png;base64,/.test(image) || image.length > 400_000) {
+      return html(changeOrderPage(job, c, shop, token, 'Please check both boxes, type your name and sign in the box.'), 400);
+    }
+    c.signature = { name, image, at: Date.now(), ip, ua: (request.headers.get('user-agent') || '').slice(0, 200) };
+    await putJob(env, job);
+    await autoChangeInvoice(env, job, c);
+    try { await mail(env, shop, `${name} approved change order ${c.number} on ${job.project}`, `Change order ${c.number}: ${c.title}\n${c.amount >= 0 ? 'Adds' : 'Credits'} $${Math.abs(c.amount).toLocaleString('en-US')}. Contract total now $${adjustedTotal(job).toLocaleString('en-US')}.\n\n${here}`); } catch { /* signed; email is a nicety */ }
+    return Response.redirect(here, 303);
+  }
+  if (what === 'decline' && request.method === 'POST') {
+    if (!open) return Response.redirect(here, 303);
+    const f = await request.formData();
+    const reason = String(f.get('reason') || '').trim().slice(0, 1000);
+    c.declined = { at: Date.now(), ...(reason ? { reason } : {}) };
+    await putJob(env, job);
+    try { await mail(env, shop, `Change order ${c.number} on ${job.project} was declined`, `Change order ${c.number}: ${c.title}${reason ? `\n\nTheir note: ${reason}` : ''}\n\n${here}`); } catch { /* saved */ }
+    return Response.redirect(here, 303);
+  }
+  return html(changeOrderPage(job, c, shop, token));
+}
+
+/** An approved change order billed on its own, when QuickBooks is connected and invoices go out automatically. */
+async function autoChangeInvoice(env: Env, job: Job, c: ChangeOrder) {
+  if (c.billing !== 'now' || !(c.amount > 0) || c.invoiceId || !qbReady(env)) return;
+  const [conn, s] = [await getConn(env), await getQbSettings(env)];
+  if (!conn || !s.autoDeposit) return;
+  try { await billChange(env, job, c); } catch (e) { job.invoiceError = `Change order ${c.number}: ${String((e as Error).message || e).slice(0, 280)}`; }
+  await putJob(env, job);
+}
+async function billChange(env: Env, job: Job, c: ChangeOrder) {
+  const inv = await makeInvoice(env, job, 'change', c.amount, `Change order ${c.number} on ${job.project}: ${c.title}. Approved ${new Date(c.signature!.at).toLocaleDateString('en-US', { timeZone: 'America/New_York' })}.`);
+  job.invoices = [...(job.invoices ?? []), inv];
+  c.invoiceId = inv.id;
+}
+
+/** Email the shop, when an email service is set up. */
+async function mail(env: Env, shop: Shop, subject: string, text: string) {
+  const key = String(env.RESEND_API_KEY || '').trim();
+  const to = shop.contactEmail?.trim();
+  if (!key || !to) return;
+  await fetch('https://api.resend.com/emails', {
+    method: 'POST', headers: { authorization: `Bearer ${key}`, 'content-type': 'application/json' },
+    body: JSON.stringify({ from: env.MAIL_FROM?.trim() || 'CJC Portal <onboarding@resend.dev>', to: [to], subject, text }),
+  });
 }
 
 /** The client's upcoming visits shown on their page. */
@@ -384,6 +446,11 @@ const TOOLS = [
     name: 'publish_drawings', description: 'Share the drawing set (one HTML document) on a signed job’s page, for the client to review and comment on. Refused before the agreement is signed.',
     inputSchema: { type: 'object', properties: { job_id: { type: 'string' }, html: { type: 'string' }, title: { type: 'string' }, css: { type: 'string', description: 'Styles for the sheets' }, sheets: { type: 'array', description: 'The sheets one by one (number, title, svg) so the client can mark changes on them', items: { type: 'object', properties: { number: { type: 'string' }, title: { type: 'string' }, svg: { type: 'string' } } } } }, required: ['job_id', 'html'] },
   },
+  {
+    name: 'publish_change_order', description: 'Put a change order on a signed job’s page for the client to approve (sign) or decline: what changes, a price for each line (negative for a credit), the working days it adds, and whether it’s invoiced when approved or added to the final payment.',
+    inputSchema: { type: 'object', properties: { job_id: { type: 'string' }, title: { type: 'string' }, lines: { type: 'array', items: { type: 'object', properties: { label: { type: 'string' }, amount: { type: 'number' } }, required: ['label', 'amount'] } }, days: { type: 'number' }, note: { type: 'string' }, billing: { type: 'string', enum: ['now', 'final'] } }, required: ['job_id', 'title', 'lines'] },
+  },
+  { name: 'void_change_order', description: 'Take back a change order the client hasn’t answered yet.', inputSchema: { type: 'object', properties: { job_id: { type: 'string' }, id: { type: 'string' } }, required: ['job_id', 'id'] } },
   { name: 'reply_comment', description: 'Answer the client on their page. Marks their comments read.', inputSchema: { type: 'object', properties: { job_id: { type: 'string' }, text: { type: 'string' }, about: { type: 'string' } }, required: ['job_id', 'text'] } },
   { name: 'mark_comments_read', description: 'Mark the client’s comments on a job as read.', inputSchema: { type: 'object', properties: { job_id: { type: 'string' } }, required: ['job_id'] } },
   { name: 'list_jobs', description: 'Every job on the portal with its status.', inputSchema: { type: 'object', properties: {} } },
@@ -412,8 +479,8 @@ const TOOLS = [
     inputSchema: { type: 'object', properties: { item_id: { type: 'string' }, item_name: { type: 'string' }, auto_deposit: { type: 'boolean', description: 'Make and send the deposit invoice when the client signs.' }, email: { type: 'boolean', description: 'Have QuickBooks email invoices to the client.' } } },
   },
   {
-    name: 'create_invoice', description: 'Make a QuickBooks invoice for a job (with card/ACH payment on), and email it when that is on. Deposit defaults to the proposal deposit; final defaults to the total less what was invoiced before.',
-    inputSchema: { type: 'object', properties: { job_id: { type: 'string' }, kind: { type: 'string', enum: ['deposit', 'final', 'change'] }, amount: { type: 'number' }, description: { type: 'string' } }, required: ['job_id', 'kind'] },
+    name: 'create_invoice', description: 'Make a QuickBooks invoice for a job (with card/ACH payment on), and email it when that is on. Deposit defaults to the proposal deposit; final defaults to the total with approved change orders, less what was invoiced before. For an approved change order billed on its own, send kind change with change_order_id.',
+    inputSchema: { type: 'object', properties: { job_id: { type: 'string' }, kind: { type: 'string', enum: ['deposit', 'final', 'change'] }, amount: { type: 'number' }, description: { type: 'string' }, change_order_id: { type: 'string' } }, required: ['job_id', 'kind'] },
   },
   {
     name: 'record_payment', description: 'Record a check or cash payment against one of the job’s invoices in QuickBooks.',
@@ -447,7 +514,7 @@ async function rpc(raw: unknown, env: Env, url: URL) {
 const status = (j: Job, url: URL) => ({
   job_id: j.jobId, project: j.project, url: `${url.origin}/p/${j.token}`, version: j.proposal.version, publishedAt: j.proposal.publishedAt,
   views: (j.views ?? []).length, lastViewed: j.views?.length ? j.views[j.views.length - 1] : null,
-  signed: j.signature ? { name: j.signature.name, at: j.signature.at, version: j.signature.version, current: j.signature.hash === j.proposal.hash, ...(j.signature.total != null ? { options: (j.proposal.options ?? []).filter((o) => j.signature!.options?.includes(o.id)).map((o) => o.label), total: j.signature.total, deposit: j.signature.deposit } : {}) } : null,
+  signed: j.signature ? { name: j.signature.name, at: j.signature.at, version: j.signature.version, current: j.signature.hash === j.proposal.hash, ...(j.signature.total != null ? { options: (j.proposal.options ?? []).filter((o) => j.signature!.options?.includes(o.id)).map((o) => o.label), total: j.signature.total, deposit: j.signature.deposit } : {}), ...(j.signature.payBy ? { payBy: j.signature.payBy } : {}) } : null,
   cancelDeadline: j.signature ? cancelDeadline(easternYmd(j.signature.at)) : null,
   cancelled: j.cancelled ? { at: j.cancelled.at } : null,
   invoices: (j.invoices ?? []).map((i) => ({ id: i.id, kind: i.kind, number: i.docNumber ?? null, amount: i.amount, balance: i.balance, paid: i.balance <= 0, emailed: !!i.emailed, payLink: !!i.link, createdAt: i.createdAt, payments: i.payments ?? [] })),
@@ -456,6 +523,8 @@ const status = (j: Job, url: URL) => ({
   model: j.model ?? null,
   comments: j.comments ?? [],
   unread: (j.comments ?? []).filter((c) => c.from === 'client' && !c.read).length,
+  change_orders: (j.changeOrders ?? []).map((c) => ({ id: c.id, number: c.number, title: c.title, lines: c.lines, amount: c.amount, days: c.days ?? null, note: c.note ?? null, billing: c.billing, publishedAt: c.publishedAt, url: `${url.origin}/p/${j.token}/change/${c.id}`, approved: c.signature ? { name: c.signature.name, at: c.signature.at } : null, declined: c.declined ?? null, voided: c.voided ?? null, invoiceId: c.invoiceId ?? null })),
+  adjusted_total: j.signature ? adjustedTotal(j) : null,
 });
 
 /** A file from a Dropbox temporary link. Only Dropbox's own download hosts, so the portal can't be pointed elsewhere. */
@@ -605,11 +674,25 @@ async function tool(name: string, a: Record<string, unknown>, env: Env, url: URL
       const j = await getJob(env, String(a.job_id || ''));
       if (!j) throw new Error('No portal page for that job yet.');
       const kind = (str('kind') as QbInvoice['kind']) || 'deposit';
+      if (!j.signature && kind !== 'deposit' && !a.amount) throw new Error('This job isn’t signed yet.');
       // Change orders are billed on their own when approved; the final invoice is the contract total less earlier contract invoices
-      const before = (j.invoices ?? []).filter((i) => i.kind !== 'change').reduce((t, i) => t + i.amount, 0);
-      const t = signedTotals(j);
-      const amount = typeof a.amount === 'number' ? a.amount : kind === 'deposit' ? t.deposit : kind === 'final' ? t.total - before : 0;
-      const description = str('description') || (kind === 'deposit' ? depositLine(j) : kind === 'final' ? `Final payment on ${j.project}: project total $${t.total.toLocaleString('en-US')} less $${before.toLocaleString('en-US')} invoiced before.` : `Change order on ${j.project}.`);
+      // A change order's own invoice
+      if (kind === 'change' && str('change_order_id')) {
+        const c = (j.changeOrders ?? []).find((x) => x.id === str('change_order_id') && !x.voided);
+        if (!c?.signature) throw new Error('That change order isn’t approved yet.');
+        if (c.invoiceId) throw new Error('That change order is already invoiced.');
+        if (!(c.amount > 0)) throw new Error('A credit comes off the final payment; there’s nothing to invoice.');
+        await billChange(env, j, c);
+        await putJob(env, j);
+        return status(j, url);
+      }
+      // Change orders count toward the final once approved; invoices made for one come off it, other change invoices don't
+      const coInv = new Set((j.changeOrders ?? []).map((c) => c.invoiceId).filter(Boolean));
+      const before = (j.invoices ?? []).filter((i) => i.kind !== 'change' || coInv.has(i.id)).reduce((t, i) => t + i.amount, 0);
+      const t = signedTotals(j), total = adjustedTotal(j), changes = approvedChanges(j);
+      const amount = typeof a.amount === 'number' ? a.amount : kind === 'deposit' ? t.deposit : kind === 'final' ? total - before : 0;
+      const fm = (n: number) => `$${n.toLocaleString('en-US')}`;
+      const description = str('description') || (kind === 'deposit' ? depositLine(j) : kind === 'final' ? `Final payment on ${j.project}: project total ${fm(total)}${changes ? ` (${fm(t.total)} signed, ${changes > 0 ? '+' : '−'}${fm(Math.abs(changes))} in approved change orders)` : ''} less ${fm(before)} invoiced before.` : `Change order on ${j.project}.`);
       const inv = await makeInvoice(env, j, kind, amount, description);
       j.invoices = [...(j.invoices ?? []), inv];
       if (kind === 'deposit') j.invoiceError = undefined;
@@ -679,6 +762,35 @@ async function tool(name: string, a: Record<string, unknown>, env: Env, url: URL
       j.model = { publishedAt: Date.now(), version: (j.model?.version ?? 0) + 1 };
       await putJob(env, j);
       return { ...status(j, url), modelBytes: all.length };
+    }
+    case 'publish_change_order': {
+      const j = await getJob(env, String(a.job_id || ''));
+      if (!j) throw new Error('No portal page for that job.');
+      if (!j.signature || j.cancelled) throw new Error('Change orders are for signed jobs. Before signing, publish a new version of the proposal instead.');
+      const title = String(a.title || '').trim().slice(0, 160);
+      const lines = (Array.isArray(a.lines) ? (a.lines as { label?: unknown; amount?: unknown }[]) : [])
+        .map((l) => ({ label: String(l.label ?? '').trim().slice(0, 300), amount: Math.round(Number(l.amount) * 100) / 100 }))
+        .filter((l) => l.label && Number.isFinite(l.amount)).slice(0, 40);
+      if (!title || !lines.length) throw new Error('A change order needs a title and at least one line with a price.');
+      if ((j.changeOrders?.length ?? 0) >= 60) throw new Error('This job has too many change orders.');
+      const amount = Math.round(lines.reduce((t, l) => t + l.amount, 0) * 100) / 100;
+      const days = typeof a.days === 'number' && Number.isFinite(a.days) ? Math.max(-60, Math.min(120, Math.round(a.days))) : undefined;
+      const note = String(a.note || '').trim().slice(0, 2000) || undefined;
+      const billing = a.billing === 'now' && amount > 0 ? 'now' as const : 'final' as const;
+      const number = (j.changeOrders ?? []).reduce((n, c) => Math.max(n, c.number), 0) + 1;
+      const c: ChangeOrder = { id: randomToken(9), number, title, lines, amount, ...(days != null ? { days } : {}), ...(note ? { note } : {}), billing, publishedAt: Date.now(), hash: await sha256(JSON.stringify({ title, lines, days, note, billing })) };
+      j.changeOrders = [...(j.changeOrders ?? []), c];
+      await putJob(env, j);
+      return { ...status(j, url), change_order_url: `${url.origin}/p/${j.token}/change/${c.id}` };
+    }
+    case 'void_change_order': {
+      const j = await getJob(env, String(a.job_id || ''));
+      const c = j?.changeOrders?.find((x) => x.id === str('id'));
+      if (!j || !c) throw new Error('That change order isn’t on this job.');
+      if (c.signature) throw new Error('The client already approved it. Make a new change order to undo it.');
+      c.voided = Date.now();
+      await putJob(env, j);
+      return status(j, url);
     }
     case 'reply_comment': {
       const j = await getJob(env, String(a.job_id || ''));
