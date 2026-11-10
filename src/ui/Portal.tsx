@@ -206,6 +206,8 @@ export function ClientPortal() {
     };
     let html = projectPage(job, shop, 'preview');
     rend.forEach((r, i) => { html = html.split(`/p/preview/img/r${i}`).join(`data:${r.mimeType};base64,${r.data}`); });
+    // Nothing can be signed here: say so where they'd sign
+    html = html.replace('<button class="btn" id="go" disabled>Sign the agreement</button>', '<button class="btn" disabled>Preview only: sign on the real page</button>');
     setPreview({ html, offline });
   });
 
