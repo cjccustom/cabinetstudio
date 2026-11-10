@@ -87,6 +87,12 @@ async function portal() {
   let refused = false;
   try { await mcp('publish_proposal', { job_id: 'rehearsal', project: 'x', agreement_html: 'x', total: 1, deposit: 1 }); } catch { refused = true; }
   check('a signed proposal can’t be replaced by accident', refused);
+  // Replaced on purpose (or by mistake), then put back: the signed version and its change orders return
+  const co = await mcp('publish_change_order', { job_id: 'rehearsal', title: 'Kept', lines: [{ label: 'x', amount: 10 }] }) as { change_orders: unknown[] };
+  const rep = await mcp('publish_proposal', { job_id: 'rehearsal', project: 'Rehearsal kitchen', agreement_html: '<p>New</p>', total: 1, deposit: 1, replace_signed: true }) as { signed: unknown; replaced_signed: { version: number } | null; change_orders: unknown[] };
+  check('replacing a signed agreement keeps it to put back, and keeps the change orders', !rep.signed && rep.replaced_signed?.version === 1 && rep.change_orders.length === co.change_orders.length);
+  const back = await mcp('restore_signed', { job_id: 'rehearsal' }) as { signed: { name: string; version: number } | null; version: number; replaced_signed: unknown };
+  check('undo puts the signed version back', back.signed?.name === 'Test Customer' && back.version === 1 && !back.replaced_signed && (await (await call(`/p/${token}/agreement`)).text()).includes('Electronic signature'));
   check('wrong link shows nothing', (await call('/p/AAAAAAAAAAAAAAAAAAAAAAAA')).status === 404);
   // Clearing out a test job: a signed one needs it said twice
   let kept = false;

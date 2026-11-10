@@ -6,6 +6,7 @@
 //   img:<jobId>:<id>     a rendering's bytes
 //   dwg:<jobId>          the drawing set (HTML, for printing), shared after signing
 //   dwgs:<jobId>         the same set as separate sheets (JSON), for marking up
+//   prev:<jobId>         the signed proposal and signature a new version replaced, to put back
 
 export interface KV {
   get(key: string, type: 'json'): Promise<unknown>;
@@ -73,6 +74,8 @@ export interface Job {
   comments?: PortalComment[];
   /** Written changes to the signed agreement, each approved (signed) or declined by the client. */
   changeOrders?: ChangeOrder[];
+  /** A signed agreement replaced by a new version (kept whole under prev:<jobId>), until the new one is signed: it can be put back. */
+  replacedSigned?: { version: number; name: string; at: number };
 }
 
 /** A change to the signed agreement: what changes, what it costs (or credits), and its effect on the schedule. */

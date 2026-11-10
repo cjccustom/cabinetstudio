@@ -451,6 +451,7 @@ const TOOLS = [
     inputSchema: { type: 'object', properties: { job_id: { type: 'string' }, title: { type: 'string' }, lines: { type: 'array', items: { type: 'object', properties: { label: { type: 'string' }, amount: { type: 'number' } }, required: ['label', 'amount'] } }, days: { type: 'number' }, hours: { type: 'number' }, note: { type: 'string' }, billing: { type: 'string', enum: ['now', 'final'] } }, required: ['job_id', 'title', 'lines'] },
   },
   { name: 'void_change_order', description: 'Take back a change order the client hasn’t answered yet.', inputSchema: { type: 'object', properties: { job_id: { type: 'string' }, id: { type: 'string' } }, required: ['job_id', 'id'] } },
+  { name: 'restore_signed', description: 'Undo replacing a signed agreement: put the signed version and its signature back on the client’s page, while the new version is unsigned.', inputSchema: { type: 'object', properties: { job_id: { type: 'string' } }, required: ['job_id'] } },
   { name: 'reply_comment', description: 'Answer the client on their page. Marks their comments read.', inputSchema: { type: 'object', properties: { job_id: { type: 'string' }, text: { type: 'string' }, about: { type: 'string' } }, required: ['job_id', 'text'] } },
   { name: 'mark_comments_read', description: 'Mark the client’s comments on a job as read.', inputSchema: { type: 'object', properties: { job_id: { type: 'string' } }, required: ['job_id'] } },
   { name: 'list_jobs', description: 'Every job on the portal with its status.', inputSchema: { type: 'object', properties: {} } },
@@ -525,6 +526,7 @@ const status = (j: Job, url: URL) => ({
   unread: (j.comments ?? []).filter((c) => c.from === 'client' && !c.read).length,
   change_orders: (j.changeOrders ?? []).map((c) => ({ id: c.id, number: c.number, title: c.title, lines: c.lines, amount: c.amount, days: c.days ?? null, hours: c.hours ?? null, note: c.note ?? null, billing: c.billing, publishedAt: c.publishedAt, url: `${url.origin}/p/${j.token}/change/${c.id}`, approved: c.signature ? { name: c.signature.name, at: c.signature.at } : null, declined: c.declined ?? null, voided: c.voided ?? null, invoiceId: c.invoiceId ?? null })),
   adjusted_total: j.signature ? adjustedTotal(j) : null,
+  replaced_signed: !j.signature && j.replacedSigned ? j.replacedSigned : null,
 });
 
 /** A file from a Dropbox temporary link. Only Dropbox's own download hosts, so the portal can't be pointed elsewhere. */
@@ -599,12 +601,34 @@ async function tool(name: string, a: Record<string, unknown>, env: Env, url: URL
         invoices: old?.invoices ?? [],
         comments: old?.comments ?? [],
         ...(old?.drawings ? { drawings: old.drawings } : {}),
+        ...(old?.model ? { model: old.model } : {}),
+        ...(old?.changeOrders ? { changeOrders: old.changeOrders } : {}),
+        ...(old?.replacedSigned && !old.signature ? { replacedSigned: old.replacedSigned } : {}),
       };
       // A cancelled or replaced signature leaves the page but stays on record in the job's history
       if (old?.signature) job.history!.push({ ...old.signature, ...(old.cancelled ? { cancelled: old.cancelled } : {}) });
+      // A signed agreement replaced by a new version is kept whole, so a mistake can be undone
+      if (old?.signature && !old.cancelled) {
+        await env.PORTAL.put(`prev:${jobId}`, JSON.stringify({ proposal: old.proposal, signature: old.signature }));
+        job.replacedSigned = { version: old.signature.version, name: old.signature.name, at: Date.now() };
+      }
       await putJob(env, job);
       await env.PORTAL.put(`tok:${token}`, JSON.stringify(jobId));
       return status(job, url);
+    }
+    case 'restore_signed': {
+      const j = await getJob(env, String(a.job_id || ''));
+      if (!j) throw new Error('No portal page for that job.');
+      if (j.signature) throw new Error('The version on the page is signed; there’s nothing to put back.');
+      const prev = (await env.PORTAL.get(`prev:${j.jobId}`, 'json')) as { proposal: Job['proposal']; signature: NonNullable<Job['signature']> } | null;
+      if (!prev || !j.replacedSigned) throw new Error('No replaced signed agreement is kept for this job.');
+      j.proposal = prev.proposal;
+      j.signature = prev.signature;
+      j.history = (j.history ?? []).filter((h) => !(h.at === prev.signature.at && h.hash === prev.signature.hash));
+      delete j.replacedSigned;
+      await putJob(env, j);
+      await env.PORTAL.delete(`prev:${j.jobId}`);
+      return status(j, url);
     }
     case 'job_status': {
       const j = await getJob(env, String(a.job_id || ''));

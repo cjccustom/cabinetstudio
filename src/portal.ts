@@ -23,6 +23,8 @@ export interface JobStatus {
   change_orders?: ChangeOrderStatus[];
   /** The signed total plus approved change orders. */
   adjusted_total?: number | null;
+  /** A signed agreement replaced by the version now on the page, which can be put back. */
+  replaced_signed?: { version: number; name: string; at: number } | null;
 }
 export interface ChangeOrderStatus {
   id: string; number: number; title: string; lines: { label: string; amount: number }[]; amount: number;
@@ -149,6 +151,7 @@ export const qbItems = async () => (await call<{ items: { id: string; name: stri
 export const qbSettings = (patch: { item_id?: string; item_name?: string; auto_deposit?: boolean; email?: boolean }) => call('qb_settings', patch);
 export const createInvoice = (jobId: string, kind: Invoice['kind'], amount?: number, description?: string) =>
   call<JobStatus>('create_invoice', { job_id: jobId, kind, ...(amount !== undefined ? { amount } : {}), ...(description ? { description } : {}) });
+export const restoreSigned = (jobId: string) => call<JobStatus>('restore_signed', { job_id: jobId });
 export const publishChangeOrder = (jobId: string, c: NewChangeOrder) => call<JobStatus & { change_order_url: string }>('publish_change_order', { job_id: jobId, ...c });
 export const voidChangeOrder = (jobId: string, id: string) => call<JobStatus>('void_change_order', { job_id: jobId, id });
 export const billChangeOrder = (jobId: string, id: string) => call<JobStatus>('create_invoice', { job_id: jobId, kind: 'change', change_order_id: id });

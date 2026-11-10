@@ -18,7 +18,7 @@ import { capability, shrinkImage, type Downloads } from '../runtime';
 import { asciiHtml, downloadLink, whereIs, writeFile } from '../dropbox';
 import { printQuote, printQuoteFile } from '../model/printQuote';
 import {
-  blobToBase64, billChangeOrder, publishChangeOrder, voidChangeOrder, publishModel, createInvoice, deleteShopDoc, expiring, getShop, jobStatus, PortalError, publishProposal, publishDrawings, replyComment, markCommentsRead, qbItems, qbSettings, qbStatus, recordPayment, updateShop, uploadShopDoc,
+  blobToBase64, restoreSigned, billChangeOrder, publishChangeOrder, voidChangeOrder, publishModel, createInvoice, deleteShopDoc, expiring, getShop, jobStatus, PortalError, publishProposal, publishDrawings, replyComment, markCommentsRead, qbItems, qbSettings, qbStatus, recordPayment, updateShop, uploadShopDoc,
   type ChangeOrderStatus, type Invoice, type JobStatus, type QbStatus, type Shop, type ShopDoc,
 } from '../portal';
 import { askConfirm } from './Confirm';
@@ -169,7 +169,7 @@ export function ClientPortal() {
     if (!clientName(c).trim()) throw new PortalError('Add the client’s name above first.');
     let replaceSigned = false;
     if (st?.signed && !st.cancelled) {
-      if (!(await askConfirm(`${st.signed.name} already signed version ${st.signed.version}. Put up a new version for them to sign? The signed one stays on record.`, 'Publish new version'))) return;
+      if (!(await askConfirm(`${st.signed.name} already signed version ${st.signed.version}. Replacing it takes the signed agreement off their page and asks them to sign everything again; change orders are for changes after signing. Replace the signed agreement anyway?`, 'Replace the signed agreement'))) return;
       replaceSigned = true;
     }
     const jobId = portal?.jobId ?? newJobId(project);
@@ -303,12 +303,21 @@ export function ClientPortal() {
         </div>
       )}
       {st && <PortalStatus st={st} checkedAt={portal?.checkedAt} />}
+      {st?.replaced_signed && !st.signed && (
+        <div className="warn">
+          <p>Version {st.replaced_signed.version}, signed by {st.replaced_signed.name}, was replaced by this unsigned version {when(st.replaced_signed.at)}. Change orders wait until the page is signed again.</p>
+          <button disabled={!!busy} onClick={async () => { if (await askConfirm(`Put version ${st.replaced_signed!.version} back on the page, signed by ${st.replaced_signed!.name}? The unsigned version comes off.`, 'Put the signed version back')) run('Putting the signed version back…', async () => keep(await restoreSigned(st.job_id), portal!.jobId)); }}>Undo: put the signed version back</button>
+        </div>
+      )}
+      {!sold && st?.signed && !st.cancelled && (
+        <p className="hint">Signed, so the proposal stays as they signed it. Changes go in a change order below. <button disabled={!!busy} onClick={publish}>Replace the signed agreement…</button></p>
+      )}
       {st?.signed && !st.cancelled && <ChangeOrders st={st} project={project} busy={!!busy} run={run} keep={(s2) => keep(s2, portal!.jobId)} copy={copy} />}
       {st?.signed && !st.cancelled && <Invoices st={st} total={st ? total : 0} busy={!!busy} run={run} keep={(s2) => keep(s2, portal!.jobId)} />}
       <div className="order-actions">
         {!sold && <button disabled={!!busy} onClick={showPreview}>Preview what they’ll see</button>}
         {!sold && <button disabled={!!busy} title="The quote in your Word layout with the terms and Notice of Cancellation, to print" onClick={printCopy}>Print copy</button>}
-        {!sold && <button className="primary" disabled={!!busy} onClick={publish}>{portal?.url ? 'Update the client’s page' : 'Publish proposal'}</button>}
+        {!sold && !(st?.signed && !st.cancelled) && <button className="primary" disabled={!!busy} onClick={publish}>{portal?.url ? 'Update the client’s page' : 'Publish proposal'}</button>}
         {portal?.url && <button disabled={!!busy} onClick={refresh}>Check status</button>}
         {portal?.jobId && st?.signed && !st.cancelled && <button disabled={!!busy} title="The customer drawing set (plan and elevations with sizes), for them to review and comment on" onClick={sendDrawings}>{st.drawings ? `Update drawings (v${st.drawings.version})` : 'Send drawings to the client'}</button>}
         {busy && <span className="hint">{busy}</span>}
