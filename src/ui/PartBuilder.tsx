@@ -9,6 +9,7 @@ import { inches, newPart, partArea, partDxf, partOutline, partPresets, partSize,
 import { capability, type Downloads } from '../runtime';
 import { asciiHtml } from '../dropbox';
 import { askConfirm } from './Confirm';
+import { PartScene, type PartView } from '../three/PartScene';
 import { Field } from './fields';
 import { LengthInput } from './fields';
 
@@ -29,6 +30,7 @@ export function PartBuilder() {
   const commit = useStore((s) => s.commit);
   const [draft, setDraft] = useState<CustomPart | null>(null);
   const [sel, setSel] = useState<number | null>(null);
+  const [view, setView] = useState<'profile' | PartView>('profile');
   const [preset, setPreset] = useState(partPresets[0].id);
   const [msg, setMsg] = useState('');
   const saved = draft ? library[draft.id] : undefined;
@@ -92,7 +94,17 @@ export function PartBuilder() {
       {draft ? (
         <>
           <main className="stage part-canvas">
-            <OutlineEditor part={draft} sel={sel} onSelect={setSel} onPoint={putPoint} onInsert={(i, x, y) => { setDraft((d) => d && { ...d, points: [...d.points.slice(0, i + 1), { x, y }, ...d.points.slice(i + 1)] }); setSel(i + 1); }} />
+            <div className="seg part-views" role="tablist" aria-label="View">
+              {([['profile', 'Outline (edit)'], ['3d', '3D'], ['front', 'Front'], ['side', 'Side'], ['top', 'Top']] as const).map(([v, label]) => (
+                <button key={v} role="tab" aria-selected={view === v} className={view === v ? 'on' : ''} onClick={() => setView(v)}>{label}</button>
+              ))}
+            </div>
+            {view !== 'profile' ? (
+              <div className="part-3d">
+                <PartScene part={draft} view={view} />
+                <span className="part-3d-dims">{view === '3d' ? 'Drag to turn it, scroll or pinch to zoom, right-drag to slide' : view === 'front' ? `Front: ${inches(draft.thickness)} W × ${inches(size!.h)} H` : view === 'side' ? `Side: ${inches(size!.w)} D × ${inches(size!.h)} H` : `Top: ${inches(draft.thickness)} W × ${inches(size!.w)} D`}</span>
+              </div>
+            ) : <OutlineEditor part={draft} sel={sel} onSelect={setSel} onPoint={putPoint} onInsert={(i, x, y) => { setDraft((d) => d && { ...d, points: [...d.points.slice(0, i + 1), { x, y }, ...d.points.slice(i + 1)] }); setSel(i + 1); }} />}
             <p className="hint">Drag a corner to move it (it snaps to 1/16"). Double-click an edge to add a corner there. Pick a corner to type its position or curve the edge that leaves it. The back of the part (against the wall) is the left edge; the bottom is the bottom.</p>
           </main>
           <aside className="panel">
