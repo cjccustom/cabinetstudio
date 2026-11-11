@@ -25,6 +25,7 @@ import { fmt } from '../units';
 import { ClientPhotos } from './Photos';
 import { saveToDropbox } from './Clients';
 import { PortalError, blobToBase64, savePhoto } from '../portal';
+import { capability, type Downloads } from '../runtime';
 
 type Tab = 'notes' | 'sketch' | 'measure' | 'site' | 'selections' | 'photos';
 const tabs: { id: Tab; label: string }[] = [
@@ -163,34 +164,72 @@ function SummaryPanel({ c, v, put }: { c: ClientInfo; v: Visit; put: Put }) {
 
 /* ---------- Sketch pad ---------- */
 
-interface Stroke { pts: [number, number, number][]; erase: boolean; width: number }
+/** What's on the sketch: freehand ink (or eraser), a straight line, or a typed note. */
+type Mark =
+  | { kind?: 'ink'; pts: [number, number, number][]; erase: boolean; width: number }
+  | { kind: 'line'; a: [number, number]; b: [number, number]; width: number }
+  | { kind: 'text'; x: number; y: number; text: string; size: number };
+type SketchTool = 'pen' | 'line' | 'text' | 'erase';
+
+/** The sketch in progress survives switching tabs and a reload, until it's saved or cleared. */
+let draftMarks: Mark[] | null = null;
+const DRAFT_KEY = 'cabinet-studio.sketch-draft';
+const PREFS_KEY = 'cabinet-studio.sketch-prefs';
+const readJson = <T,>(key: string, fallback: T): T => { try { const s = localStorage.getItem(key); return s ? (JSON.parse(s) as T) : fallback; } catch { return fallback; } };
+const writeJson = (key: string, v: unknown) => { try { if (v == null) localStorage.removeItem(key); else localStorage.setItem(key, JSON.stringify(v)); } catch { /* storage blocked */ } };
+
+/** A touch this big is a palm or the side of a hand, not a fingertip. */
+const PALM = 34;
 
 function SketchTab({ v, put, folder, who }: { v: Visit; put: Put; folder?: string; who: string }) {
   const wrap = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
-  const [strokes, setStrokes] = useState<Stroke[]>([]);
-  const [erase, setErase] = useState(false);
+  const [marks, setMarksState] = useState<Mark[]>(() => draftMarks ?? readJson<Mark[]>(DRAFT_KEY, []));
+  const setMarks = (f: (m: Mark[]) => Mark[]) => setMarksState((m) => { const n = f(m); draftMarks = n; writeJson(DRAFT_KEY, n.length ? n : null); return n; });
+  const [prefs, setPrefsState] = useState(() => readJson(PREFS_KEY, { pencilOnly: false, grid: true, thick: false }));
+  const setPrefs = (p: Partial<typeof prefs>) => setPrefsState((x) => { const n = { ...x, ...p }; writeJson(PREFS_KEY, n); return n; });
+  const [tool, setTool] = useState<SketchTool>('pen');
   const [label, setLabel] = useState('');
   const [msg, setMsg] = useState('');
-  const live = useRef<Stroke | null>(null);
-  const penSeen = useRef(false);
+  const [typing, setTyping] = useState<{ x: number; y: number; text: string } | null>(null);
+  const live = useRef<Mark | null>(null);
+  /** The one pointer that's drawing; any other touch while it's down is ignored. */
+  const drawing = useRef<number | null>(null);
+  const startedAt = useRef(0);
   const size = useRef({ w: 0, h: 0, dpr: 1 });
+  const width = prefs.thick ? 4.5 : 2.6;
 
-  const draw = (list: Stroke[]) => {
+  const draw = (list: Mark[], forPng = false) => {
     const cv = canvas.current; if (!cv) return;
     const g = cv.getContext('2d')!;
     const { w, h, dpr } = size.current;
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
     g.fillStyle = '#fff'; g.fillRect(0, 0, w, h);
+    // Graph paper, light enough to sketch over (kept faint in the saved picture)
+    if (prefs.grid) {
+      g.lineWidth = 1;
+      for (let x = 0, i = 0; x <= w; x += 20, i++) { g.strokeStyle = i % 5 ? (forPng ? '#f1f3f6' : '#eceff3') : (forPng ? '#e3e7ec' : '#dde2e8'); g.beginPath(); g.moveTo(x + 0.5, 0); g.lineTo(x + 0.5, h); g.stroke(); }
+      for (let y = 0, i = 0; y <= h; y += 20, i++) { g.strokeStyle = i % 5 ? (forPng ? '#f1f3f6' : '#eceff3') : (forPng ? '#e3e7ec' : '#dde2e8'); g.beginPath(); g.moveTo(0, y + 0.5); g.lineTo(w, y + 0.5); g.stroke(); }
+    }
     g.lineCap = 'round'; g.lineJoin = 'round';
-    for (const s of list) {
-      g.strokeStyle = s.erase ? '#fff' : '#1b1d21';
-      for (let i = 1; i < s.pts.length; i++) {
-        const [x0, y0] = s.pts[i - 1], [x1, y1, p] = s.pts[i];
-        g.lineWidth = s.erase ? 22 : s.width * (0.45 + p * 0.9);
-        g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y1); g.stroke();
+    const ink = '#1b1d21';
+    for (const m of list) {
+      if (m.kind === 'line') {
+        g.strokeStyle = ink; g.lineWidth = m.width;
+        g.beginPath(); g.moveTo(m.a[0], m.a[1]); g.lineTo(m.b[0], m.b[1]); g.stroke();
+      } else if (m.kind === 'text') {
+        g.fillStyle = '#1d4f91'; g.font = `600 ${m.size}px -apple-system, system-ui, sans-serif`; g.textBaseline = 'middle';
+        m.text.split('\n').forEach((t, i) => g.fillText(t, m.x, m.y + i * m.size * 1.2));
+      } else {
+        // Eraser: paint the paper back, grid included
+        g.strokeStyle = m.erase ? '#fff' : ink;
+        for (let i = 1; i < m.pts.length; i++) {
+          const [x0, y0] = m.pts[i - 1], [x1, y1, pr] = m.pts[i];
+          g.lineWidth = m.erase ? 26 : m.width * (0.45 + pr * 0.9);
+          g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y1); g.stroke();
+        }
+        if (m.pts.length === 1) { const [x, y] = m.pts[0]; g.fillStyle = m.erase ? '#fff' : ink; g.beginPath(); g.arc(x, y, m.erase ? 13 : m.width / 2, 0, Math.PI * 2); g.fill(); }
       }
-      if (s.pts.length === 1) { const [x, y] = s.pts[0]; g.fillStyle = s.erase ? '#fff' : '#1b1d21'; g.beginPath(); g.arc(x, y, s.erase ? 11 : s.width / 2, 0, Math.PI * 2); g.fill(); }
     }
   };
   useEffect(() => {
@@ -200,65 +239,133 @@ function SketchTab({ v, put, folder, who }: { v: Visit; put: Put; folder?: strin
       size.current = { w, h, dpr };
       cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
       cv.style.width = `${w}px`; cv.style.height = `${h}px`;
-      draw(strokes);
+      draw(draftMarks ?? marks);
     };
     fit();
     window.addEventListener('resize', fit);
     return () => window.removeEventListener('resize', fit);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => draw(strokes), [strokes]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => draw(marks), [marks, prefs.grid]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const at = (e: React.PointerEvent): [number, number, number] => {
+  const at = (e: { clientX: number; clientY: number; pointerType: string; pressure: number }): [number, number, number] => {
     const r = canvas.current!.getBoundingClientRect();
     return [e.clientX - r.left, e.clientY - r.top, e.pointerType === 'pen' ? e.pressure || 0.5 : 0.5];
   };
+  /** Straight lines snap to level, plumb and 45° when they're close. */
+  const snapLine = (a: [number, number], b: [number, number]): [number, number] => {
+    const dx = b[0] - a[0], dy = b[1] - a[1], len = Math.hypot(dx, dy);
+    const ang = Math.atan2(dy, dx), step = Math.PI / 4, near = Math.round(ang / step) * step;
+    return Math.abs(ang - near) < (7 * Math.PI) / 180 ? [a[0] + len * Math.cos(near), a[1] + len * Math.sin(near)] : b;
+  };
+  const ignore = (e: React.PointerEvent) => {
+    if (e.pointerType === 'pen') return false;
+    // Pencil only: the hand never draws
+    if (prefs.pencilOnly) return true;
+    // A palm or the side of the hand: too big for a fingertip
+    return e.pointerType === 'touch' && (e.width > PALM || e.height > PALM);
+  };
   const down = (e: React.PointerEvent) => {
-    // Once the Pencil has been used, a resting palm (touch) doesn't draw
-    if (e.pointerType === 'pen') penSeen.current = true;
-    else if (e.pointerType === 'touch' && penSeen.current) return;
+    if (typing) { placeText(); return; }
+    if (e.pointerType === 'pen' && !prefs.pencilOnly) setPrefs({ pencilOnly: true });
+    if (ignore(e)) return;
+    // Another touch while one is drawing: that's the hand resting, or two fingers. If it lands right
+    // after the stroke started, the stroke was probably the palm too: drop it.
+    if (drawing.current != null) {
+      const s = live.current;
+      const still = !!s && (s.kind === 'line' ? Math.hypot(s.b[0] - s.a[0], s.b[1] - s.a[1]) < 6 : s.kind !== 'text' && s.pts.every((q) => Math.hypot(q[0] - s.pts[0][0], q[1] - s.pts[0][1]) < 6));
+      // The first touch hasn't moved: it was the hand resting. Hand the drawing to this one.
+      if (e.pointerType === 'touch' && still) { live.current = null; drawing.current = null; }
+      else return;
+    }
+    const p = at(e);
+    if (tool === 'text') { setTyping({ x: p[0], y: p[1], text: '' }); return; }
     e.currentTarget.setPointerCapture(e.pointerId);
-    live.current = { pts: [at(e)], erase, width: 2.6 };
-    draw([...strokes, live.current]);
+    drawing.current = e.pointerId; startedAt.current = Date.now();
+    live.current = tool === 'line' ? { kind: 'line', a: [p[0], p[1]], b: [p[0], p[1]], width } : { pts: [p], erase: tool === 'erase', width };
+    draw([...marks, live.current]);
   };
   const move = (e: React.PointerEvent) => {
+    const s = live.current; if (!s || e.pointerId !== drawing.current) return;
+    if (s.kind === 'line') { const p = at(e); s.b = snapLine(s.a, [p[0], p[1]]); }
+    else if (s.kind !== 'text') { const evs = (e.nativeEvent as PointerEvent).getCoalescedEvents?.() ?? [e.nativeEvent]; for (const ev of evs) s.pts.push(at(ev)); }
+    draw([...marks, s]);
+  };
+  const up = (e: React.PointerEvent) => {
+    if (e.pointerId !== drawing.current) return;
+    drawing.current = null;
     const s = live.current; if (!s) return;
-    const evs = (e.nativeEvent as PointerEvent).getCoalescedEvents?.() ?? [e.nativeEvent];
-    for (const ev of evs) { const r = canvas.current!.getBoundingClientRect(); s.pts.push([ev.clientX - r.left, ev.clientY - r.top, ev.pointerType === 'pen' ? ev.pressure || 0.5 : 0.5]); }
-    draw([...strokes, s]);
+    live.current = null;
+    if (s.kind === 'line' && Math.hypot(s.b[0] - s.a[0], s.b[1] - s.a[1]) < 4) { draw(marks); return; }
+    setMarks((all) => [...all, s]);
   };
-  const up = () => { const s = live.current; if (!s) return; live.current = null; setStrokes((all) => [...all, s]); };
+  const placeText = () => {
+    const t = typing; setTyping(null);
+    if (t && t.text.trim()) setMarks((all) => [...all, { kind: 'text', x: t.x, y: t.y, text: t.text.trim(), size: prefs.thick ? 22 : 17 }]);
+  };
 
+  /** Onto the iPad itself: claude.ai's download, else the browser's. */
+  const saveHere = async (name: string, blob: Blob) => {
+    const downloads = await capability<Downloads>('downloads');
+    if (downloads) await downloads.save({ filename: name, data: blob });
+    else { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.click(); }
+  };
   const save = async () => {
-    if (!folder || !canvas.current) return;
+    if (!canvas.current) return;
     setMsg('Saving…');
+    draw(marks, true);
+    const blob = await new Promise<Blob | null>((ok) => canvas.current!.toBlob(ok, 'image/png'));
+    draw(marks);
+    if (!blob) { setMsg('The sketch couldn’t be read. Take a screenshot of it (top button + volume up) so it isn’t lost.'); return; }
+    const d = new Date(), z = (n: number) => String(n).padStart(2, '0');
+    const name = `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())} ${z(d.getHours())}${z(d.getMinutes())} sketch${label.trim() ? ` ${label.trim()}` : ''}.png`.replace(/[\\/:*?"<>|]/g, '');
+    if (folder) {
+      try {
+        const r = await savePhoto(`${folder}/Sketches`, name, await blobToBase64(blob));
+        put((x) => ({ sketches: [...x.sketches, r.path] }));
+        setMsg(`Saved to ${who}’s Sketches folder. Clear it to start the next one.`);
+        return;
+      } catch (e) {
+        setMsg(`Couldn’t reach Dropbox (${e instanceof PortalError ? e.message : (e as Error).message}). Saving it to the iPad instead…`);
+      }
+    }
     try {
-      const blob = await new Promise<Blob | null>((ok) => canvas.current!.toBlob(ok, 'image/png'));
-      if (!blob) throw new Error('The sketch couldn’t be read.');
-      const d = new Date(), z = (n: number) => String(n).padStart(2, '0');
-      const name = `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())} ${z(d.getHours())}${z(d.getMinutes())} sketch${label.trim() ? ` ${label.trim()}` : ''}.png`;
-      const r = await savePhoto(`${folder}/Sketches`, name.replace(/[\\/:*?"<>|]/g, ''), await blobToBase64(blob));
-      put((x) => ({ sketches: [...x.sketches, r.path] }));
-      setMsg(`Saved to ${who}’s Sketches folder.`);
-    } catch (e) { setMsg(e instanceof PortalError ? e.message : `Didn’t save: ${(e as Error).message}`); }
+      await saveHere(name, blob);
+      setMsg(`Saved to the iPad${folder ? '' : ' (this job isn’t linked to a client folder yet)'}. It also stays here until you clear it.`);
+    } catch (e) {
+      const code = (e as { code?: string }).code;
+      setMsg(code === 'declined' || code === 'cancelled' ? 'Not saved. It stays here until you clear it.' : 'Couldn’t save it. It stays here until you clear it; a screenshot (top button + volume up) also works.');
+    }
   };
 
+  const tools: { id: SketchTool; label: string }[] = [{ id: 'pen', label: 'Pen' }, { id: 'line', label: 'Straight line' }, { id: 'text', label: 'Type a note' }, { id: 'erase', label: 'Eraser' }];
   return (
     <div className="sketch">
       <div className="sketch-bar">
-        <div className="seg">
-          <button className={!erase ? 'on' : ''} onClick={() => setErase(false)}>Pen</button>
-          <button className={erase ? 'on' : ''} onClick={() => setErase(true)}>Eraser</button>
+        <div className="seg sketch-tools" role="group" aria-label="Tool">
+          {tools.map((t) => <button key={t.id} className={tool === t.id ? 'on' : ''} aria-pressed={tool === t.id} onClick={() => { if (typing) placeText(); setTool(t.id); }}>{t.label}</button>)}
         </div>
-        <button onClick={() => setStrokes((s) => s.slice(0, -1))} disabled={!strokes.length}>Undo</button>
-        <button onClick={() => { if (strokes.length && confirm('Clear the sketch?')) setStrokes([]); }} disabled={!strokes.length}>Clear</button>
+        <button onClick={() => setMarks((s) => s.slice(0, -1))} disabled={!marks.length}>Undo</button>
+        <button onClick={() => { if (marks.length && confirm('Clear the sketch?')) { setMarks(() => []); setMsg(''); } }} disabled={!marks.length}>Clear</button>
+        <label className="chk-row"><input type="checkbox" checked={prefs.thick} onChange={(e) => setPrefs({ thick: e.target.checked })} /> Bold</label>
+        <label className="chk-row"><input type="checkbox" checked={prefs.grid} onChange={(e) => setPrefs({ grid: e.target.checked })} /> Grid</label>
+        <label className="chk-row" title="Your hand can rest on the screen; only the Apple Pencil draws"><input type="checkbox" checked={prefs.pencilOnly} onChange={(e) => setPrefs({ pencilOnly: e.target.checked })} /> Apple Pencil only</label>
+      </div>
+      <div className="sketch-bar">
         <input aria-label="Sketch name" placeholder="What is it? (sink wall…)" value={label} onChange={(e) => setLabel(e.target.value)} />
-        <button className="primary" onClick={save} disabled={!folder || !strokes.length}>Save sketch</button>
+        <button className="primary" onClick={save} disabled={!marks.length}>{folder ? 'Save sketch' : 'Save sketch to the iPad'}</button>
         {msg && <span className="hint">{msg}</span>}
-        {!folder && <span className="hint">Link the job to a client folder to save sketches.</span>}
         {v.sketches.length > 0 && <span className="hint">{v.sketches.length} saved today</span>}
+        {!msg && <span className="hint">{tool === 'text' ? 'Tap where the note goes, then type or tap the microphone on the keyboard to dictate.' : tool === 'line' ? 'Drag for a straight line; it snaps level, plumb and 45°.' : prefs.pencilOnly ? 'Rest your hand anywhere: only the Pencil draws.' : 'Drawing with a finger: a resting palm is ignored. With an Apple Pencil, the first Pencil stroke turns on Pencil only.'}</span>}
       </div>
       <div className="sketch-wrap" ref={wrap}>
-        <canvas ref={canvas} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} style={{ touchAction: 'none' }} />
+        <canvas ref={canvas} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onContextMenu={(e) => e.preventDefault()} style={{ touchAction: 'none' }} />
+        {typing && (
+          <div className="sketch-note" style={{ left: Math.min(typing.x, (size.current.w || 400) - 260), top: Math.max(0, typing.y - 22) }}>
+            <textarea autoFocus rows={2} value={typing.text} placeholder="Note (36&quot; to the window…)" onChange={(e) => setTyping({ ...typing, text: e.target.value })}
+              onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); placeText(); } if (e.key === 'Escape') setTyping(null); }} />
+            <div className="order-actions"><button className="primary mini" onPointerDown={(e) => e.stopPropagation()} onClick={placeText}>Put it on</button><button className="mini" onPointerDown={(e) => e.stopPropagation()} onClick={() => setTyping(null)}>Cancel</button></div>
+          </div>
+        )}
       </div>
     </div>
   );
