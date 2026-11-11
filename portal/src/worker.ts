@@ -11,7 +11,7 @@
 // QuickBooks, Secrets QB_CLIENT_ID and QB_CLIENT_SECRET (and QB_ENV = sandbox to test first);
 // for photos, Secrets DBX_APP_KEY and DBX_APP_SECRET; for an email when a client comments, a
 // Secret RESEND_API_KEY (resend.com) and the contact email in Portal settings (MAIL_FROM optional).
-import { type DrawingSheets, type Env, type Job, type PortalComment, type Shop, type ShopDoc, type ChangeOrder, adjustedTotal, approvedChanges, b64ToBytes, getJob, getShop, jobByToken, putJob, putShop, randomToken, sha256, signedTotals } from './store';
+import { type DrawingSheets, type Env, type Job, type PortalComment, type Shop, type ShopDoc, type ChangeOrder, adjustedTotal, approvedChanges, b64ToBytes, getJob, getShop, jobByToken, putJob, putShop, randomToken, sha256, signedTotals, canSeeDesign, hasProposal, isDraft } from './store';
 import { agreementPage, changeOrderPage, receiptPage, clientName, drawingsPage, esc, modelPage, projectPage, simplePage } from './pages';
 import { canCancel, cancelDeadline, easternYmd } from './cancel';
 import { calendar, deleteAppt, feedCode, listAppts, saveAppt, apptLabel, type Appointment } from './calendar';
@@ -119,15 +119,16 @@ async function client(request: Request, env: Env, token: string, what: string, i
   }
   if (what === 'agreement') { await freshInvoices(env, job, 5 * 60e3); return html(agreementPage(job, shop)); }
   if (what === 'drawings') {
-    const set = job.signature && !job.cancelled && job.drawings ? ((await env.PORTAL.get(`dwg:${job.jobId}`, 'arrayBuffer')) as ArrayBuffer | null) : null;
+    const set = canSeeDesign(job) && job.drawings ? ((await env.PORTAL.get(`dwg:${job.jobId}`, 'arrayBuffer')) as ArrayBuffer | null) : null;
     if (!set) return html(simplePage('Drawings aren’t ready yet', 'Your drawings will appear here once they’re ready for your review.', shop), 404);
     const doc = new TextDecoder().decode(set);
-    if (new URL(request.url).searchParams.has('print')) return html(doc);
+    // A draft says so on every printed page too
+    if (new URL(request.url).searchParams.has('print')) return html(isDraft(job) ? doc.replace(/<body([^>]*)>/i, `<body$1><div style="position:fixed;top:0;left:0;right:0;z-index:9;text-align:center;font:600 13px system-ui,sans-serif;color:#9a3412;background:#fff7ed;border-bottom:1px solid #fdba74;padding:4px">DRAFT for discussion · not for construction · no price yet</div>`) : doc);
     const split = (await env.PORTAL.get(`dwgs:${job.jobId}`, 'json')) as DrawingSheets | null;
     return html(drawingsPage(job, shop, token, doc, new URL(request.url).searchParams.has('sent'), split));
   }
   if (what === 'model' || what === 'model.glb') {
-    const ok = job.signature && !job.cancelled && job.model;
+    const ok = canSeeDesign(job) && job.model;
     if (what === 'model.glb') {
       const glb = ok ? ((await env.PORTAL.get(`glb:${job.jobId}`, 'arrayBuffer')) as ArrayBuffer | null) : null;
       if (!glb) return new Response('Not found', { status: 404 });
@@ -158,7 +159,7 @@ async function client(request: Request, env: Env, token: string, what: string, i
   }
   const ip = request.headers.get('cf-connecting-ip') || '';
   if (what === 'sign' && request.method === 'POST') {
-    if (job.signature || job.cancelled) return Response.redirect(new URL(`/p/${token}`, request.url).href, 303);
+    if (job.signature || job.cancelled || !hasProposal(job)) return Response.redirect(new URL(`/p/${token}`, request.url).href, 303);
     const f = await request.formData();
     const name = String(f.get('name') || '').trim().slice(0, 120);
     const image = String(f.get('image') || '');
@@ -534,6 +535,7 @@ const status = (j: Job, url: URL) => ({
   change_orders: (j.changeOrders ?? []).map((c) => ({ id: c.id, number: c.number, title: c.title, lines: c.lines, amount: c.amount, days: c.days ?? null, hours: c.hours ?? null, note: c.note ?? null, billing: c.billing, publishedAt: c.publishedAt, url: `${url.origin}/p/${j.token}/change/${c.id}`, approved: c.signature ? { name: c.signature.name, at: c.signature.at } : null, declined: c.declined ?? null, voided: c.voided ?? null, invoiceId: c.invoiceId ?? null })),
   adjusted_total: j.signature ? adjustedTotal(j) : null,
   replaced_signed: !j.signature && j.replacedSigned ? j.replacedSigned : null,
+  design_shared: j.designShared ? { at: j.designShared.at } : null,
 });
 
 /** A file from a Dropbox temporary link. Only Dropbox's own download hosts, so the portal can't be pointed elsewhere. */
@@ -611,6 +613,7 @@ async function tool(name: string, a: Record<string, unknown>, env: Env, url: URL
         ...(old?.model ? { model: old.model } : {}),
         ...(old?.changeOrders ? { changeOrders: old.changeOrders } : {}),
         ...(old?.replacedSigned && !old.signature ? { replacedSigned: old.replacedSigned } : {}),
+        ...(old?.designShared ? { designShared: old.designShared } : {}),
       };
       // A cancelled or replaced signature leaves the page but stays on record in the job's history
       if (old?.signature) job.history!.push({ ...old.signature, ...(old.cancelled ? { cancelled: old.cancelled } : {}) });
@@ -754,10 +757,32 @@ async function tool(name: string, a: Record<string, unknown>, env: Env, url: URL
       return { ok: true, deleted: j.jobId, appointments: appts.length };
     }
     case 'publish_drawings': {
-      const j = await getJob(env, String(a.job_id || ''));
+      let doc = String(a.html || '');
+      // A design draft for a returning client rides inside the document: <!--CJC-DESIGN base64(json)-->
+      const dm = doc.match(/<!--CJC-DESIGN ([A-Za-z0-9+/=]+) -->/);
+      let design: { project?: string; client?: Job['client'] } | null = null;
+      if (dm) {
+        doc = doc.replace(dm[0], '');
+        try { design = JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(dm[1]), (c) => c.charCodeAt(0)))); } catch { design = {}; }
+      }
+      const jobId = String(a.job_id || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 64);
+      let j = await getJob(env, jobId);
+      if (design && !j) {
+        // A page with the design and nothing to sign yet; the proposal comes later to the same link
+        if (!jobId) throw new Error('job_id is needed.');
+        j = {
+          jobId, token: randomToken(18), client: design.client ?? {}, project: String(design.project || 'Your project').slice(0, 160), stage: 'proposal',
+          proposal: { agreementHtml: '', total: 0, deposit: 0, publishedAt: 0, version: 0, hash: '' },
+          renderings: [], views: [], history: [], invoices: [], comments: [], designShared: { at: Date.now() },
+        };
+        await env.PORTAL.put(`tok:${j.token}`, JSON.stringify(jobId));
+      } else if (design && j && !j.signature) {
+        j.designShared = j.designShared ?? { at: Date.now() };
+        if (design.client && !hasProposal(j)) j.client = design.client;
+        if (design.project && !hasProposal(j)) j.project = String(design.project).slice(0, 160);
+      }
       if (!j) throw new Error('No portal page for that job.');
-      if (!j.signature || j.cancelled) throw new Error('Drawings go to the client after the agreement is signed.');
-      const doc = String(a.html || '');
+      if (!canSeeDesign(j)) throw new Error('Drawings go to the client after the agreement is signed. For a returning client, share the design draft from Cabinet Studio instead.');
       if (!doc || doc.length > 20e6) throw new Error('The drawing set is empty or over 20 MB.');
       await env.PORTAL.put(`dwg:${j.jobId}`, new TextEncoder().encode(doc).buffer as ArrayBuffer);
       // The sheets one by one, for the page where the client marks changes on them
@@ -772,7 +797,7 @@ async function tool(name: string, a: Record<string, unknown>, env: Env, url: URL
       // The 3D model in pieces (each call is limited in size): part i of n, base64; the last one puts it together
       const j = await getJob(env, String(a.job_id || ''));
       if (!j) throw new Error('No portal page for that job.');
-      if (!j.signature || j.cancelled) throw new Error('The 3D model goes to the client with the drawings, after the agreement is signed.');
+      if (!canSeeDesign(j)) throw new Error('The 3D model goes to the client with the drawings, after the agreement is signed (or with a design draft).');
       const part = Number(a.part), parts = Number(a.parts);
       if (!Number.isInteger(part) || !Number.isInteger(parts) || parts < 1 || parts > 200 || part < 0 || part >= parts) throw new Error('Send the model as part 0 to n-1 of n (at most 200).');
       const bytes = new Uint8Array(b64ToBytes(String(a.data || '')));

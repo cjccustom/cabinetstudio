@@ -76,7 +76,19 @@ export interface Job {
   changeOrders?: ChangeOrder[];
   /** A signed agreement replaced by a new version (kept whole under prev:<jobId>), until the new one is signed: it can be put back. */
   replacedSigned?: { version: number; name: string; at: number };
+  /**
+   * A returning client sees the design before there's a price: the drawings and 3D go on their page
+   * as a draft, with no proposal (version 0) or before it's signed. Off unless Cody turns it on.
+   */
+  designShared?: { at: number };
 }
+
+/** Whether there's a proposal on the page yet (a design draft can come first). */
+export const hasProposal = (j: Job) => j.proposal.version > 0;
+/** Whether the client can see the drawings and 3D: after signing, or as a draft on a design-first job. */
+export const canSeeDesign = (j: Job) => !j.cancelled && (!!j.signature || !!j.designShared);
+/** Still a draft: shared for discussion, not the drawings they approve after signing. */
+export const isDraft = (j: Job) => !j.signature && !!j.designShared;
 
 /** A change to the signed agreement: what changes, what it costs (or credits), and its effect on the schedule. */
 export interface ChangeOrder {

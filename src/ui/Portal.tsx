@@ -245,6 +245,31 @@ export function ClientPortal() {
     setNote(`Drawings version ${s2.drawings?.version ?? 1} are on ${c.first || 'the client'}’s page${sent3d}.`);
   });
 
+  /** A returning client: the design draft (drawings and 3D) on their page before there's a price. */
+  const shareDraft = () => run('Sharing the design draft…', async () => {
+    if (!clientName(c).trim()) throw new PortalError('Add the client’s name above first.');
+    const jobId = portal?.jobId ?? newJobId(project);
+    const d = drawingsOf(project);
+    const title = `Design draft: ${proposalTitle(project)}`;
+    const sheets = customerSet(project, d);
+    // The request rides inside the document, so a connector that hasn't picked up new fields still carries it
+    const ask = { project: proposalTitle(project), client: { first: c.first, last: c.last, email: c.email, phone: c.phone, address: c.address } };
+    const carried = `<!--CJC-DESIGN ${btoa(String.fromCharCode(...new TextEncoder().encode(JSON.stringify(ask))))} -->`;
+    const s2 = await publishDrawings(jobId, carried + setDocument(title, sheets, d.paper), 'Design draft for discussion', sheetCss, sheets.map((x) => ({ number: x.number, title: x.title, svg: x.svg })));
+    keep(s2, jobId);
+    let sent3d = '';
+    try {
+      setNote('Sending the 3D model…');
+      setStage(true);
+      let glb: ArrayBuffer;
+      try { glb = await exportModel(); } finally { setStage(false); }
+      const s3 = await publishModel(jobId, await blobToBase64(new Blob([glb], { type: 'model/gltf-binary' })), (dn, n) => setNote(`Sending the 3D model… ${Math.round((dn / n) * 100)}%`));
+      if (s3) keep(s3, jobId);
+      sent3d = ' with the 3D model';
+    } catch (e) { sent3d = `; the 3D model didn’t go (${(e as Error).message})`; }
+    setNote(`Design draft ${s2.drawings?.version ?? 1} is on ${c.first || 'the client'}’s page${sent3d}. No price shows until you publish the proposal.`);
+  });
+
   const refresh = () => run('Checking…', async () => { keep(await jobStatus(portal!.jobId), portal!.jobId); });
   // Opening the job checks the portal, quietly, so signatures and approvals show without a click
   useEffect(() => {
@@ -253,7 +278,10 @@ export function ClientPortal() {
     jobStatus(id).then((s2) => keep(s2, id), () => { /* offline or not on claude.ai: Check status still works */ });
   }, [portal?.jobId]); // eslint-disable-line react-hooks/exhaustive-deps
   const copy = (text: string, what: string) => navigator.clipboard.writeText(text).then(() => setNote(`${what} copied.`), () => setNote('Select the link and copy it.'));
-  const message = `Hi ${c.first || 'there'}, here’s your project page with the design, proposal and agreement: ${portal?.url ?? ''}`;
+  const draftOnly = !!st && st.version === 0;
+  const message = draftOnly
+    ? `Hi ${c.first || 'there'}, here’s the first draft of the design to look over. Turn it around in 3D and mark anything you’d change: ${portal?.url ?? ''}`
+    : `Hi ${c.first || 'there'}, here’s your project page with the design, proposal and agreement: ${portal?.url ?? ''}`;
 
   return (
     <section className="sheet-sec">
@@ -289,6 +317,15 @@ export function ClientPortal() {
           </Field>
           <label className="chk-row" style={{ gridColumn: '1 / -1' }}><input type="checkbox" checked={!!project.proposalCombine} onChange={(e) => commit((p) => ({ ...p, proposalCombine: e.target.checked || undefined }))} /> List identical cabinets once ("B1, B2 and B3 (3 alike)"), even when they're on different walls</label>
           <p className="hint" style={{ alignSelf: 'end' }}>{(project.proposalDetail ?? 'plain') === 'plain' ? 'Each cabinet with its approximate size, in plain words. Exact sizes come with the drawings they approve after signing.' : 'Shows every cabinet’s size. Anyone they forward it to can quote from it.'}</p>
+        </div>
+      )}
+      {!sold && !(st?.signed && !st.cancelled) && (
+        <div className="pgroup">
+          <label className="chk-row"><input type="checkbox" checked={!!project.designFirst} onChange={(e) => commit((p) => ({ ...p, designFirst: e.target.checked || undefined }))} /> Returning client: share the design before the proposal</label>
+          <p className="hint">{project.designFirst
+            ? 'The full drawings (with sizes) and the 3D go on their page stamped DRAFT, with no price and nothing to sign, for them to mark up. Each new draft replaces the last. Publish the proposal to the same page once the layout is settled.'
+            : 'Off: drawings and the 3D stay off their page until they sign, so nobody can shop your design around. Turn it on for a client you trust.'}</p>
+          {project.designFirst && <button className="primary" disabled={!!busy} onClick={shareDraft}>{st?.design_shared && st.drawings ? `Update the design draft (now v${st.drawings.version})` : 'Share the design draft'}</button>}
         </div>
       )}
       {!sold && options.length > 0 && <p className="hint">Options they can tick when signing: {options.map((o) => `${o.label} (+${money(o.price)})`).join(', ')}.</p>}
@@ -531,11 +568,11 @@ function PortalComments({ st, busy, run, keep }: { st: JobStatus; busy: boolean;
 function PortalStatus({ st, checkedAt }: { st: JobStatus; checkedAt?: number }) {
   return (
     <ul className="portal-status">
-      <li>Version {st.version}, published {when(st.publishedAt)}</li>
+      <li>{st.version ? <>Proposal version {st.version}, published {when(st.publishedAt)}</> : <>Design draft only{st.drawings ? ` (v${st.drawings.version}, ${when(st.drawings.publishedAt)})` : ''}; no proposal yet</>}</li>
       <li>{st.views ? `Opened ${st.views} time${st.views === 1 ? '' : 's'}, last ${when(st.lastViewed!)}` : 'Not opened yet'}</li>
       {st.cancelled ? <li className="warn">Cancelled {when(st.cancelled.at)}. Return any deposit within 10 business days.</li>
         : st.signed ? <li className="ok">Signed by {st.signed.name}, {when(st.signed.at)}.{st.cancelDeadline ? ` They can cancel through midnight ${day(st.cancelDeadline)}; hold off ordering until then.` : ''}</li>
-        : <li>Not signed yet</li>}
+        : st.version ? <li>Not signed yet</li> : null}
       {checkedAt && <li className="hint">Checked {when(checkedAt)}</li>}
     </ul>
   );

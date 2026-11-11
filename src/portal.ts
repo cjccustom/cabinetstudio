@@ -25,6 +25,8 @@ export interface JobStatus {
   adjusted_total?: number | null;
   /** A signed agreement replaced by the version now on the page, which can be put back. */
   replaced_signed?: { version: number; name: string; at: number } | null;
+  /** The design went up as a draft before signing (a returning client). */
+  design_shared?: { at: number } | null;
 }
 export interface ChangeOrderStatus {
   id: string; number: number; title: string; lines: { label: string; amount: number }[]; amount: number;

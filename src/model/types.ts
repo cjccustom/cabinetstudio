@@ -525,6 +525,8 @@ export interface Project {
   dropbox?: import('./client').DropboxLink;
   /** This job's page on the client portal: its id there and what it last said. */
   portal?: { jobId: string; url?: string; status?: import('../portal').JobStatus; checkedAt?: number };
+  /** A returning client: the design (drawings and 3D) can go on their page as a draft before there's a price. */
+  designFirst?: boolean;
   /** Drawing sets: paper, revision, cover picture, notes. */
   drawings?: Partial<import('../drawings/sheets').DrawingSettings>;
   /** Sections and details for the drawing sets. */

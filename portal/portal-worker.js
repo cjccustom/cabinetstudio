@@ -1,4 +1,7 @@
 // portal/src/store.ts
+var hasProposal = (j) => j.proposal.version > 0;
+var canSeeDesign = (j) => !j.cancelled && (!!j.signature || !!j.designShared);
+var isDraft = (j) => !j.signature && !!j.designShared;
 var emptyShop = { company: [], about: "", terms: "", docs: [] };
 async function getShop(env) {
   return { ...emptyShop, ...await env.PORTAL.get("shop", "json") };
@@ -204,7 +207,7 @@ function termsHtml(text2, signedAt, seller = "CJC Custom Carpentry LLC", address
   return `${paras(filled.slice(0, at))}<section class="notice"><h3>NOTICE OF CANCELLATION</h3>${paras(notice)}</section>`;
 }
 var clientName = (j) => [j.client.first, j.client.last].filter(Boolean).join(" ") || "there";
-var msgCss = `.tip{background:#fff7e6;border:1px solid #f0d9a8;border-radius:8px;padding:10px 12px;margin:0 0 10px}.sheet-head{display:flex;gap:8px;align-items:baseline;margin-bottom:8px}.sheet-head .big-btn{margin-left:auto}button.link{background:none;border:0;color:var(--accent);font:inherit;font-weight:600;cursor:pointer;padding:4px}.sheet-scroll{overflow:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--line);border-radius:6px}.sheet-box{position:relative}.sheet-box img{display:block;width:100%;height:auto}.sheet.big .sheet-box{width:280%}.layer{position:absolute;inset:0}.marking .layer{touch-action:none;cursor:crosshair;background:rgba(194,65,12,.06);outline:2px dashed #c2410c;outline-offset:-2px}.mk{position:absolute;border:2.5px solid #c2410c;border-radius:50%;box-sizing:border-box;display:block}.mk.shop{border-color:var(--accent)}.mk.new{border-style:dashed}.mk .n,.pin{display:inline-block;background:#c2410c;color:#fff;border-radius:50%;width:22px;height:22px;font:700 12px/22px sans-serif;text-align:center;text-decoration:none}.mk .n{position:absolute;top:-11px;left:-11px}.markform{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid var(--line);box-shadow:0 -4px 18px rgba(0,0,0,.15);padding:12px max(16px,env(safe-area-inset-left)) calc(12px + env(safe-area-inset-bottom));z-index:20}.markform textarea{min-height:80px}.msg .state{font-size:13px;color:var(--accent);margin-top:6px}.sent{margin:10px 0}details.more{margin-top:12px}details.more>summary{display:inline-block;list-style:none;cursor:pointer}details.more>summary::-webkit-details-marker{display:none}details.more[open]>summary{display:none}.msg{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:10px 0;background:#fff}.msg.shop{background:#eef3ef;border-color:#cfdcd3}.msg .who{font-size:13px;color:var(--muted);margin-bottom:4px}.msg p{margin:4px 0}textarea{width:100%;font:inherit;padding:10px;border:1px solid var(--line);border-radius:8px}iframe.dwgs{height:80vh}`;
+var msgCss = `.tip{background:#fff7e6;border:1px solid #f0d9a8;border-radius:8px;padding:10px 12px;margin:0 0 10px}.sheet-head{display:flex;gap:8px;align-items:baseline;margin-bottom:8px}.sheet-head .big-btn{margin-left:auto}button.link{background:none;border:0;color:var(--accent);font:inherit;font-weight:600;cursor:pointer;padding:4px}.sheet-scroll{overflow:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--line);border-radius:6px}.sheet-box{position:relative}.sheet-box img{display:block;width:100%;height:auto}.sheet.big .sheet-box{width:280%}.layer{position:absolute;inset:0}.marking .layer{touch-action:none;cursor:crosshair;background:rgba(194,65,12,.06);outline:2px dashed #c2410c;outline-offset:-2px}.mk{position:absolute;border:2.5px solid #c2410c;border-radius:50%;box-sizing:border-box;display:block}.mk.shop{border-color:var(--accent)}.mk.new{border-style:dashed}.mk .n,.pin{display:inline-block;background:#c2410c;color:#fff;border-radius:50%;width:22px;height:22px;font:700 12px/22px sans-serif;text-align:center;text-decoration:none}.mk .n{position:absolute;top:-11px;left:-11px}.markform{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid var(--line);box-shadow:0 -4px 18px rgba(0,0,0,.15);padding:12px max(16px,env(safe-area-inset-left)) calc(12px + env(safe-area-inset-bottom));z-index:20}.markform textarea{min-height:80px}.msg .state{font-size:13px;color:var(--accent);margin-top:6px}.sent{margin:10px 0}details.more{margin-top:12px}details.more>summary{display:inline-block;list-style:none;cursor:pointer}details.more>summary::-webkit-details-marker{display:none}details.more[open]>summary{display:none}.msg{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:10px 0;background:#fff}.msg.shop{background:#eef3ef;border-color:#cfdcd3}.msg .who{font-size:13px;color:var(--muted);margin-bottom:4px}.msg p{margin:4px 0}textarea{width:100%;font:inherit;padding:10px;border:1px solid var(--line);border-radius:8px}iframe.dwgs{height:80vh}.draft-stamp{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;font:800 clamp(40px,12vw,140px)/1 system-ui,sans-serif;letter-spacing:.12em;color:rgba(194,65,12,.13);transform:rotate(-18deg)}`;
 var noticeCss = `.notice{border:1px solid #999;padding:14px;margin:18px 0;font-size:13px;break-inside:avoid}.notice h3{text-align:center;margin:0 0 8px}.sigline{margin-top:28px}.muted{color:#646b73}`;
 var css = `:root{--ink:#1f2328;--muted:#646b73;--line:#e3e0da;--bg:#f7f5f1;--card:#fff;--accent:#2b4a3c;--accent-ink:#fff;--warn:#9a3412}
 *{box-sizing:border-box}body{margin:0;font:16px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;color:var(--ink);background:var(--bg)}
@@ -338,7 +341,17 @@ function projectPage(j, shop, token, flash = "", visits = [], sent = false) {
   const s = j.signature;
   const [hero, ...more] = j.renderings;
   const img = (r, cls = "") => `<a href="${base}/img/${esc(r.id)}" target="_blank" rel="noopener"${cls ? ` class="${cls}"` : ""}><img src="${base}/img/${esc(r.id)}" alt="${esc(r.name)}"${cls ? "" : ' loading="lazy"'}></a>`;
-  const shots = hero ? `<section class="design">${img(hero, "hero")}${more.length ? `<div class="gallery">${more.map((r) => img(r)).join("")}</div>` : ""}<p class="muted">Renderings show the look of the work. Exact sizes come with the shop drawings you approve after signing.</p></section>` : "";
+  const shots = hero ? `<section class="design">${img(hero, "hero")}${more.length ? `<div class="gallery">${more.map((r) => img(r)).join("")}</div>` : ""}<p class="muted">${isDraft(j) ? "Renderings show the look of the work; the design draft below has the sizes." : "Renderings show the look of the work. Exact sizes come with the shop drawings you approve after signing."}</p></section>` : "";
+  const draftCard = isDraft(j) ? `<section class="card"><h2>Your design draft</h2><p>A working draft of the design for us to talk through. Nothing is final${hasProposal(j) ? "" : ", and there\u2019s no price yet: that comes once the layout is settled"}.</p>${j.drawings ? `<p>Version ${j.drawings.version}, ${esc(longDate(easternYmd(j.drawings.publishedAt)))}.</p><p class="row"><a class="btn" href="${base}/drawings">Look over the drawings</a>${j.model ? ` <a class="btn ghost" href="${base}/model">Look around in 3D</a>` : ""}</p><p class="muted">Tap a spot on a drawing or the 3D model to tell Cody what you\u2019d change.</p>` : '<p class="muted">The drawings will appear here shortly.</p>'}</section>` : "";
+  if (!hasProposal(j)) {
+    const body2 = `${flash ? `<p class="ok">${esc(flash)}</p>` : ""}
+<h1>${esc(j.project)}</h1><p class="muted">Prepared for ${esc(clientName(j))}${j.client.address ? ` \xB7 ${esc(j.client.address)}` : ""}</p>
+${visits.length ? `<section class="card"><h2>Coming up</h2>${visits.map((v) => `<p><b>${esc(apptLabel[v.kind])}</b> \xB7 ${esc(whenEastern(v.start))}${v.location ? `<br><span class="muted">${esc(v.location)}</span>` : ""}${v.clientNote ? `<br>${esc(v.clientNote)}` : ""}</p><p><a class="btn ghost" href="${base}/visit/${esc(v.id)}.ics">Add to my calendar</a></p>`).join("")}</section>` : ""}
+${shots}${draftCard}
+${shop.about ? `<section class="card"><h2>About CJC Custom Carpentry</h2>${paras(shop.about)}</section>` : ""}
+${commentsBlock(j, base, "proposal", "Questions about the design, or something you\u2019d like changed? Write here and Cody will answer on this page.", sent)}`;
+    return shell(`${j.project} \xB7 CJC Custom Carpentry`, body2, shop, esc(clientName(j)));
+  }
   const pr = j.proposal;
   const build = pr.summary?.areas.length ? `<section class="card"><h2>What we\u2019ll build</h2>${pr.summary.areas.map((a) => `<h3>${esc(a.title)}</h3><ul class="items">${a.items.map((i) => `<li>${esc(i)}</li>`).join("")}</ul>`).join("")}</section>` : "";
   const mats = pr.summary?.materials.length ? `<section class="card"><h2>Materials &amp; finishes</h2><dl class="mat">${pr.summary.materials.map((m) => `<div><dt>${esc(m.label)}</dt><dd>${esc(m.value)}</dd></div>`).join("")}</dl></section>` : "";
@@ -387,7 +400,7 @@ f.addEventListener('submit',()=>{document.getElementById('image').value=c.toData
   const body = `${flash ? `<p class="ok">${esc(flash)}</p>` : ""}
 <h1>${esc(j.project)}</h1><p class="muted">Prepared for ${esc(clientName(j))}${j.client.address ? ` \xB7 ${esc(j.client.address)}` : ""}</p>
 ${visits.length ? `<section class="card"><h2>Coming up</h2>${visits.map((v) => `<p><b>${esc(apptLabel[v.kind])}</b> \xB7 ${esc(whenEastern(v.start))}${v.location ? `<br><span class="muted">${esc(v.location)}</span>` : ""}${v.clientNote ? `<br>${esc(v.clientNote)}` : ""}</p><p><a class="btn ghost" href="${base}/visit/${esc(v.id)}.ics">Add to my calendar</a></p>`).join("")}</section>` : ""}
-${shots}
+${shots}${draftCard}
 ${build}${mats}${price}
 <section class="card"><h2>Terms and conditions</h2>${termsOf(j, shop) ? `<details><summary>Read the terms</summary>${termsHtml(termsOf(j, shop), j.signature?.at)}</details>` : '<p class="muted">Terms are attached to the agreement.</p>'}${termsDoc ? `<p><a href="${base}/doc/${esc(termsDoc.id)}" target="_blank" rel="noopener">${esc(termsDoc.title)} (PDF)</a></p>` : ""}</section>
 ${docs.length ? `<section class="card"><h2>Licenses and insurance</h2><ul class="docs">${docs.map((d) => `<li><a href="${base}/doc/${esc(d.id)}" target="_blank" rel="noopener">${esc(d.title)}</a>${d.expires ? `<span class="muted">valid through ${esc((/* @__PURE__ */ new Date(`${d.expires}T12:00:00Z`)).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" }))}</span>` : ""}</li>`).join("")}</ul></section>` : ""}
@@ -435,7 +448,7 @@ function drawingsPage(j, shop, token, doc, sent = false, split = null) {
   const base = `/p/${token}`;
   const d = j.drawings;
   const top = `<p><a href="${base}">\u2190 Back to your project</a></p>
-<h1>${esc(d.title)}</h1><p class="muted">${esc(j.project)} \xB7 version ${d.version}, ${esc(longDate(easternYmd(d.publishedAt)))}</p>
+<h1>${esc(d.title)}</h1><p class="muted">${esc(j.project)} \xB7 version ${d.version}, ${esc(longDate(easternYmd(d.publishedAt)))}</p>${isDraft(j) ? `<p class="warn"><b>Draft for discussion.</b> This is a working design for us to talk through: nothing is final, and the price comes once the layout is settled. Mark anything you\u2019d like changed.</p>` : ""}
 <p class="row"><a class="btn ghost" href="${base}/drawings?print" target="_blank" rel="noopener">Open full size to zoom, print or save</a></p>`;
   if (!split?.sheets.length) {
     return shell(`${d.title} \xB7 ${j.project}`, `${top}<section class="card"><iframe class="doc dwgs" title="Drawings" sandbox srcdoc="${esc(doc)}"></iframe></section>
@@ -446,7 +459,7 @@ ${commentsBlock(j, base, "drawings", "Questions or changes about the drawings. S
   const img = (svg) => `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg.replace(/^<svg([^>]*)>/, `<svg$1><style>${split.css}</style>`))}`;
   const sheets = split.sheets.map((sh, i) => `<section class="card sheet" id="sheet-${i}" data-i="${i}" data-label="${esc(`${sh.number} ${sh.title}`.trim())}">
 <div class="sheet-head"><b>${esc(sh.number)}</b> ${esc(sh.title)}<button type="button" class="link big-btn">Enlarge</button></div>
-<div class="sheet-scroll"><div class="sheet-box"><img src="${img(sh.svg)}" alt="Sheet ${esc(sh.number)}: ${esc(sh.title)}"><div class="layer">${markHtml(i)}</div></div></div>
+<div class="sheet-scroll"><div class="sheet-box"><img src="${img(sh.svg)}" alt="Sheet ${esc(sh.number)}: ${esc(sh.title)}">${isDraft(j) ? '<div class="draft-stamp" aria-hidden="true">DRAFT</div>' : ""}<div class="layer">${markHtml(i)}</div></div></div>
 <p class="row"><button type="button" class="btn ghost mark-btn">Mark a change on this sheet</button></p></section>`).join("");
   const how = `<section class="card"><h2>How to review</h2>
 <p class="tip"><b>Tip:</b> drawings are easiest to read on a laptop or computer. On a phone, turn it sideways and use <b>Enlarge</b>.</p>
@@ -488,7 +501,7 @@ function modelPage(j, shop, token, sent = false) {
   const base = `/p/${token}`;
   const pins = (j.comments ?? []).filter((c) => c.pin).map((c, i) => ({ id: c.id, n: i + 1, p: c.pin, from: c.from, text: c.text.slice(0, 80) }));
   const top = `<p><a href="${base}">\u2190 Back to your project</a> \xB7 <a href="${base}/drawings">Drawings</a></p>
-<h1>Your project in 3D</h1><p class="muted">${esc(j.project)} \xB7 version ${j.model.version}, ${esc(longDate(easternYmd(j.model.publishedAt)))}</p>`;
+<h1>Your project in 3D</h1><p class="muted">${esc(j.project)} \xB7 version ${j.model.version}, ${esc(longDate(easternYmd(j.model.publishedAt)))}</p>${isDraft(j) ? `<p class="warn"><b>Draft for discussion.</b> This is a working design for us to talk through: nothing is final, and the price comes once the layout is settled. Mark anything you\u2019d like changed.</p>` : ""}`;
   const how = `<section class="card"><h2>How to use it</h2><ol class="items">
 <li><b>Turn</b> the room by dragging with one finger (or the mouse). <b>Zoom</b> by pinching (or scrolling). <b>Slide</b> it with two fingers (or right-drag).</li>
 <li>Want something changed? Tap <b>Mark a change</b>, then tap the spot on the model.</li>
@@ -940,15 +953,15 @@ async function client(request, env, token, what, id) {
     return html(agreementPage(job, shop));
   }
   if (what === "drawings") {
-    const set = job.signature && !job.cancelled && job.drawings ? await env.PORTAL.get(`dwg:${job.jobId}`, "arrayBuffer") : null;
+    const set = canSeeDesign(job) && job.drawings ? await env.PORTAL.get(`dwg:${job.jobId}`, "arrayBuffer") : null;
     if (!set) return html(simplePage("Drawings aren\u2019t ready yet", "Your drawings will appear here once they\u2019re ready for your review.", shop), 404);
     const doc = new TextDecoder().decode(set);
-    if (new URL(request.url).searchParams.has("print")) return html(doc);
+    if (new URL(request.url).searchParams.has("print")) return html(isDraft(job) ? doc.replace(/<body([^>]*)>/i, `<body$1><div style="position:fixed;top:0;left:0;right:0;z-index:9;text-align:center;font:600 13px system-ui,sans-serif;color:#9a3412;background:#fff7ed;border-bottom:1px solid #fdba74;padding:4px">DRAFT for discussion \xB7 not for construction \xB7 no price yet</div>`) : doc);
     const split = await env.PORTAL.get(`dwgs:${job.jobId}`, "json");
     return html(drawingsPage(job, shop, token, doc, new URL(request.url).searchParams.has("sent"), split));
   }
   if (what === "model" || what === "model.glb") {
-    const ok = job.signature && !job.cancelled && job.model;
+    const ok = canSeeDesign(job) && job.model;
     if (what === "model.glb") {
       const glb = ok ? await env.PORTAL.get(`glb:${job.jobId}`, "arrayBuffer") : null;
       if (!glb) return new Response("Not found", { status: 404 });
@@ -984,7 +997,7 @@ async function client(request, env, token, what, id) {
   }
   const ip = request.headers.get("cf-connecting-ip") || "";
   if (what === "sign" && request.method === "POST") {
-    if (job.signature || job.cancelled) return Response.redirect(new URL(`/p/${token}`, request.url).href, 303);
+    if (job.signature || job.cancelled || !hasProposal(job)) return Response.redirect(new URL(`/p/${token}`, request.url).href, 303);
     const f = await request.formData();
     const name = String(f.get("name") || "").trim().slice(0, 120);
     const image = String(f.get("image") || "");
@@ -1388,7 +1401,8 @@ var status = (j, url) => ({
   unread: (j.comments ?? []).filter((c) => c.from === "client" && !c.read).length,
   change_orders: (j.changeOrders ?? []).map((c) => ({ id: c.id, number: c.number, title: c.title, lines: c.lines, amount: c.amount, days: c.days ?? null, hours: c.hours ?? null, note: c.note ?? null, billing: c.billing, publishedAt: c.publishedAt, url: `${url.origin}/p/${j.token}/change/${c.id}`, approved: c.signature ? { name: c.signature.name, at: c.signature.at } : null, declined: c.declined ?? null, voided: c.voided ?? null, invoiceId: c.invoiceId ?? null })),
   adjusted_total: j.signature ? adjustedTotal(j) : null,
-  replaced_signed: !j.signature && j.replacedSigned ? j.replacedSigned : null
+  replaced_signed: !j.signature && j.replacedSigned ? j.replacedSigned : null,
+  design_shared: j.designShared ? { at: j.designShared.at } : null
 });
 async function fetchDropbox(src) {
   const u = new URL(src);
@@ -1470,7 +1484,8 @@ ${shop.terms}`);
         ...old?.drawings ? { drawings: old.drawings } : {},
         ...old?.model ? { model: old.model } : {},
         ...old?.changeOrders ? { changeOrders: old.changeOrders } : {},
-        ...old?.replacedSigned && !old.signature ? { replacedSigned: old.replacedSigned } : {}
+        ...old?.replacedSigned && !old.signature ? { replacedSigned: old.replacedSigned } : {},
+        ...old?.designShared ? { designShared: old.designShared } : {}
       };
       if (old?.signature) job.history.push({ ...old.signature, ...old.cancelled ? { cancelled: old.cancelled } : {} });
       if (old?.signature && !old.cancelled) {
@@ -1614,10 +1629,43 @@ ${shop.terms}`);
       return { ok: true, deleted: j.jobId, appointments: appts.length };
     }
     case "publish_drawings": {
-      const j = await getJob(env, String(a.job_id || ""));
+      let doc = String(a.html || "");
+      const dm = doc.match(/<!--CJC-DESIGN ([A-Za-z0-9+/=]+) -->/);
+      let design = null;
+      if (dm) {
+        doc = doc.replace(dm[0], "");
+        try {
+          design = JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(dm[1]), (c) => c.charCodeAt(0))));
+        } catch {
+          design = {};
+        }
+      }
+      const jobId = String(a.job_id || "").replace(/[^A-Za-z0-9_-]/g, "").slice(0, 64);
+      let j = await getJob(env, jobId);
+      if (design && !j) {
+        if (!jobId) throw new Error("job_id is needed.");
+        j = {
+          jobId,
+          token: randomToken(18),
+          client: design.client ?? {},
+          project: String(design.project || "Your project").slice(0, 160),
+          stage: "proposal",
+          proposal: { agreementHtml: "", total: 0, deposit: 0, publishedAt: 0, version: 0, hash: "" },
+          renderings: [],
+          views: [],
+          history: [],
+          invoices: [],
+          comments: [],
+          designShared: { at: Date.now() }
+        };
+        await env.PORTAL.put(`tok:${j.token}`, JSON.stringify(jobId));
+      } else if (design && j && !j.signature) {
+        j.designShared = j.designShared ?? { at: Date.now() };
+        if (design.client && !hasProposal(j)) j.client = design.client;
+        if (design.project && !hasProposal(j)) j.project = String(design.project).slice(0, 160);
+      }
       if (!j) throw new Error("No portal page for that job.");
-      if (!j.signature || j.cancelled) throw new Error("Drawings go to the client after the agreement is signed.");
-      const doc = String(a.html || "");
+      if (!canSeeDesign(j)) throw new Error("Drawings go to the client after the agreement is signed. For a returning client, share the design draft from Cabinet Studio instead.");
       if (!doc || doc.length > 2e7) throw new Error("The drawing set is empty or over 20 MB.");
       await env.PORTAL.put(`dwg:${j.jobId}`, new TextEncoder().encode(doc).buffer);
       const sheets = Array.isArray(a.sheets) ? a.sheets.filter((x) => typeof x.svg === "string" && x.svg.startsWith("<svg")).slice(0, 80).map((x) => ({ number: String(x.number || "").slice(0, 12), title: String(x.title || "").slice(0, 120), svg: x.svg })) : [];
@@ -1630,7 +1678,7 @@ ${shop.terms}`);
     case "publish_model": {
       const j = await getJob(env, String(a.job_id || ""));
       if (!j) throw new Error("No portal page for that job.");
-      if (!j.signature || j.cancelled) throw new Error("The 3D model goes to the client with the drawings, after the agreement is signed.");
+      if (!canSeeDesign(j)) throw new Error("The 3D model goes to the client with the drawings, after the agreement is signed (or with a design draft).");
       const part = Number(a.part), parts = Number(a.parts);
       if (!Number.isInteger(part) || !Number.isInteger(parts) || parts < 1 || parts > 200 || part < 0 || part >= parts) throw new Error("Send the model as part 0 to n-1 of n (at most 200).");
       const bytes = new Uint8Array(b64ToBytes(String(a.data || "")));

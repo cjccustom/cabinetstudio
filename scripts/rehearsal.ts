@@ -153,6 +153,36 @@ async function portal() {
     }
     await mcp('delete_job', { job_id: id, confirm: id, even_signed: true });
   }
+
+  // A returning client: the design draft goes up before there's a price, then the proposal joins it
+  {
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><rect width="10" height="10"/></svg>';
+    let refused = '';
+    try { await mcp('publish_drawings', { job_id: 'draft-plain', html: '<html><body>x</body></html>' }); } catch (e) { refused = (e as Error).message; }
+    check('design draft: plain drawings are still refused before signing', /after the agreement is signed|No portal page/.test(refused), refused);
+    const ask = Buffer.from(JSON.stringify({ project: 'Master closet', client: { first: 'Draft', last: 'Client' } })).toString('base64');
+    const d1 = await mcp('publish_drawings', { job_id: 'draft-job', html: `<!--CJC-DESIGN ${ask} --><html><body>sheets</body></html>`, title: 'Design draft for discussion', css: '', sheets: [{ number: 'A1', title: 'Plan', svg }] }) as { url: string; version: number; design_shared: unknown; drawings: { version: number } };
+    check('design draft: a page with no proposal', d1.version === 0 && !!d1.design_shared && d1.drawings.version === 1);
+    const tk = d1.url.split('/p/')[1];
+    const dp = await (await call('/p/' + tk)).text();
+    check('design draft page: the draft, no price, nothing to sign', dp.includes('Your design draft') && dp.includes('no price yet') && !dp.includes('Your investment') && !dp.includes('Sign the agreement') && dp.includes('Master closet'));
+    const dd = await (await call(`/p/${tk}/drawings`)).text();
+    check('design draft drawings: stamped DRAFT', dd.includes('class="draft-stamp"') && dd.includes('Draft for discussion'));
+    const dprint = await (await call(`/p/${tk}/drawings?print`)).text();
+    check('design draft print: banner, carried request taken out', dprint.includes('DRAFT for discussion') && !dprint.includes('CJC-DESIGN'));
+    const sign = await call(`/p/${tk}/sign`, { method: 'POST', body: new URLSearchParams({ consent: 'on', agree: 'on', name: 'X', image: 'data:image/png;base64,iVBORw0KGgo=' }), redirect: 'manual' });
+    const st0 = await mcp('job_status', { job_id: 'draft-job' }) as { signed: unknown };
+    check('design draft: nothing can be signed', sign.status === 303 && !st0.signed);
+    const pub2 = await mcp('publish_proposal', { job_id: 'draft-job', project: 'Master closet', client: { first: 'Draft', last: 'Client' }, agreement_html: '<html><body>Scope</body></html>', total: 9000, deposit: 2700 }) as { url: string; version: number; design_shared: unknown };
+    check('design draft: the proposal joins the same page, the draft stays', pub2.url === d1.url && pub2.version === 1 && !!pub2.design_shared);
+    const pp = await (await call('/p/' + tk)).text();
+    check('design draft + proposal: price, signing and the draft together', pp.includes('Your investment') && pp.includes('Sign the agreement') && pp.includes('Your design draft'));
+    await call(`/p/${tk}/sign`, { method: 'POST', body: new URLSearchParams({ consent: 'on', agree: 'on', name: 'Draft Client', image: 'data:image/png;base64,iVBORw0KGgo=' }), redirect: 'manual' });
+    const ps = await (await call('/p/' + tk)).text();
+    const dsg = await (await call(`/p/${tk}/drawings`)).text();
+    check('design draft: after signing, the drawings are the real ones', !ps.includes('Your design draft') && ps.includes('Your drawings') && !dsg.includes('class="draft-stamp"'), `${ps.includes('Signed by')} ${ps.includes('Your design draft')} ${ps.includes('Your drawings')} ${dsg.includes('class="draft-stamp"')}`);
+    await mcp('delete_job', { job_id: 'draft-job', confirm: 'draft-job', even_signed: true });
+  }
 }
 
 /* ---------- Part 2: the app in a browser ---------- */
