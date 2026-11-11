@@ -55,15 +55,16 @@ export const supplierName: Record<Supplier, string> = { am: 'Anderson & McQuaid'
  * A profile milled to match the house's existing trim, from a sample: no catalog number, just its
  * size as installed and who mills it. Stored in place of a catalog number as custom:<category>:<h>x<d>:<by>.
  */
-export interface CustomProfile { category: string; height: number; projection: number; by: 'shop' | 'supplier'; pts?: [number, number][] }
+export interface CustomProfile { category: string; height: number; projection: number; by: 'shop' | 'supplier'; pts?: [number, number][]; /** Drawn in the part builder: its part id. */ part?: string }
 
 /** The open job's drawings of its custom profiles; the store keeps this in step with the design. */
 let drawn: Project['profiles'] = {};
 export const setCustomDrawings = (p: Project['profiles']) => { drawn = p ?? {}; };
-export const customNum = (c: CustomProfile) => `custom:${c.category}:${c.height}x${c.projection}:${c.by}`;
+export const customNum = (c: CustomProfile) => `custom:${c.category}:${c.height}x${c.projection}:${c.by}${c.part ? `:${c.part}` : ''}`;
 export function parseCustom(num: string): CustomProfile | null {
-  const m = /^custom:([^:]+):([\d.]+)x([\d.]+):(shop|supplier)$/.exec(num);
-  return m ? { category: m[1], height: +m[2], projection: +m[3], by: m[4] as CustomProfile['by'] } : null;
+  // custom:<category>:<h>x<d>:<by>, with the part builder's part id after it for a drawn moulding
+  const m = /^custom:([^:]+):([\d.]+)x([\d.]+):(shop|supplier)(?::([\w-]+))?$/.exec(num);
+  return m ? { category: m[1], height: +m[2], projection: +m[3], by: m[4] as CustomProfile['by'], ...(m[5] ? { part: m[5] } : {}) } : null;
 }
 function customProfile(num: string): Profile | undefined {
   const c = parseCustom(num);
@@ -75,7 +76,7 @@ function customProfile(num: string): Profile | undefined {
 export const catalog: Profile[] = [...amCatalog, ...broscoCatalog, ...nextDayCatalog];
 export const supplierOf = (p: Profile): Supplier => p.supplier ?? 'am';
 /** How a profile is named on an order: "A&M 1827" or "Brosco 8712". */
-export const profileLabel = (p: Profile) => (p.custom ? `Custom ${p.custom.category.toLowerCase()}` : supplierOf(p) === 'brosco' ? `Brosco ${p.code}` : supplierOf(p) === 'nextday' ? `Next Day ${p.code}` : `A&M ${p.num}`);
+export const profileLabel = (p: Profile) => (p.custom ? (p.custom.part && p.name ? p.name : `Custom ${p.custom.category.toLowerCase()}`) : supplierOf(p) === 'brosco' ? `Brosco ${p.code}` : supplierOf(p) === 'nextday' ? `Next Day ${p.code}` : `A&M ${p.num}`);
 
 /** A profile as the customer sees it: its number, not who sells it. */
 export const customerProfile = (p: Profile) => (p.custom ? 'custom profile, milled to match' : `profile ${supplierOf(p) === 'am' ? p.num : p.code}`);

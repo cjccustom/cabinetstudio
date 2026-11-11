@@ -11,6 +11,8 @@ import * as THREE from 'three';
 import { cutDepth, cutInset, normalized, offsetOutline, outlineEdges, partSize, type CustomPart, type EdgeCut } from '../model/customParts';
 
 export type PartView = '3d' | 'front' | 'side' | 'top';
+/** A moulding is shown as a sample this long, its profile on the ends. */
+export const SAMPLE_LENGTH = 24;
 
 function usePartGeometry(part: CustomPart) {
   return useMemo(() => mergeSmooth(partSolid(part)), [part]);
@@ -115,7 +117,9 @@ function PartMesh({ part, color }: { part: CustomPart; color: string }) {
   );
 }
 
-export function PartScene({ part, view, color = '#d8b98a' }: { part: CustomPart; view: PartView; color?: string }) {
+export function PartScene({ part: drawn, view, color = '#d8b98a' }: { part: CustomPart; view: PartView; color?: string }) {
+  // A moulding: its profile run along a sample length, with no router profiles of its own
+  const part = useMemo(() => (drawn.kind === 'moulding' ? { ...drawn, thickness: SAMPLE_LENGTH, points: drawn.points.map(({ cut: _c, ...p }) => p) } : drawn), [drawn]);
   const s = partSize(part);
   const W = part.thickness, H = s.h, D = s.w;
   const r = Math.max(W, H, D);

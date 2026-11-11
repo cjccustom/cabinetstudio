@@ -512,6 +512,9 @@ export function estimateHours(p: Project, q: QuoteSettings): HourLine[] {
     add(`Mouldings: cut & prep (ft)${ms ? ', stain grade' : ''}`, ft, st.moldingPerFt * fs, group);
     add(`Mouldings: install (ft)${ms ? ', stain grade' : ''}`, ft, st.moldingInstallPerFt * fi, group, true);
     installHours += ft * st.moldingInstallPerFt * fi;
+    // A moulding drawn in the part builder: knives ground and the machine set up once per job
+    const drawnMold = profileByNum(m.num)?.custom?.part ? p.profiles?.[m.num] : undefined;
+    if (drawnMold?.setupHours) add(`Mouldings: ${drawnMold.name ?? 'custom profile'}, grind knives & set up (once)`, 1, drawnMold.setupHours, group);
   }
   for (const d of doorOrder(p)) {
     const n = d.qty * d.leaves;

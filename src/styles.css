@@ -844,3 +844,6 @@ textarea.text-input { resize: vertical; }
 .part-3d-dims { position: absolute; left: 10px; bottom: 8px; font-size: 12px; color: #444; background: rgba(255, 255, 255, 0.8); padding: 2px 8px; border-radius: 4px; }
 .outline-editor .cutline { fill: none; stroke: #9a4a10; stroke-width: 1.2px; stroke-dasharray: 5 4; vector-effect: non-scaling-stroke; pointer-events: none; }
 .edge-cut { display: grid; gap: 6px; padding-top: 6px; border-top: 1px solid var(--line); }
+.part-group { margin: 10px 0 4px; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted, #666); }
+.pp-mine { margin: 8px 0 12px; padding-bottom: 10px; border-bottom: 1px solid var(--line, #ddd); }
+.pp-mine > strong { display: block; margin-bottom: 6px; }

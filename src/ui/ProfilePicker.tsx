@@ -1,6 +1,9 @@
 import { useMemo, useState } from 'react';
 import { catalog, customNum, moldCategories, moldLabel, mountShape, parseCustom, priceOf, profileByNum, profileLabel, supplierName, supplierOf, type CustomProfile, type MoldKind, type Profile, type Supplier } from '../model/moldings';
 import { fmt } from '../units';
+import { useShop } from '../shop/shop';
+import { useStore } from '../store';
+import { mouldingDrawing, mouldingNum, normalized, partOutline, partSize, type CustomPart } from '../model/customParts';
 import { LengthInput } from './fields';
 
 /** A small drawing of a profile as it appears in the supplier's catalog. */
@@ -84,6 +87,7 @@ export function ProfilePicker({ kind, current, species, onPick, onClose, maxHeig
           <button className="mini" disabled={!(mine.height > 0 && mine.projection > 0)} onClick={() => { onPick(customNum(mine)); onClose(); }}>Use it</button>
           <span className="muted">{mine.category === 'Crown' ? 'Height is the drop from the ceiling; projection is how far it comes out onto the ceiling.' : 'Height up the wall, projection off it.'}</span>
         </div>
+        <YourMouldings kind={kind} current={current} onPick={(num) => { onPick(num); onClose(); }} />
         <div className="pp-grid">
           {list.map((p) => {
             const pr = priceOf(p, species);
@@ -145,4 +149,41 @@ function customCategory(kind: MoldKind): string {
   if (kind === 'roomBase' || kind === 'baseMold') return 'Base Board and Base Cap';
   if (kind === 'casing') return 'Window and Door Casing';
   return moldCategories[kind][0];
+}
+
+/** Mouldings drawn in the part builder, the ones meant for this kind of moulding first. */
+function YourMouldings({ kind, current, onPick }: { kind: MoldKind; current?: string; onPick: (num: string) => void }) {
+  const lib = useShop((s) => s.parts);
+  const commit = useStore((s) => s.commit);
+  const fits = moldCategories[kind];
+  const rank = (p: CustomPart) => { const i = fits.indexOf(p.category ?? ''); return i < 0 ? 99 : i; };
+  const list = Object.values(lib).filter((p) => p.kind === 'moulding').sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name));
+  if (!list.length) return null;
+  const pick = (part: CustomPart) => {
+    const num = mouldingNum(part);
+    // The job keeps its own copy of the drawing and the price, so it doesn't change under a signed proposal
+    commit((p) => ({ ...p, profiles: { ...p.profiles, [num]: mouldingDrawing(part) }, moldPrices: part.costPerFoot != null ? { ...p.moldPrices, [num]: part.costPerFoot } : p.moldPrices }));
+    onPick(num);
+  };
+  return (
+    <div className="pp-mine">
+      <strong>Your mouldings (Part builder)</strong>
+      <div className="pp-grid">
+        {list.map((part) => {
+          const s = partSize(part);
+          const on = current != null && parseCustom(current)?.part === part.id;
+          const thumb: Profile = { num: mouldingNum(part), category: part.category ?? 'Panel', t: s.w, w: s.h, prices: {}, supplier: 'custom', custom: { category: part.category ?? 'Panel', height: s.h, projection: s.w, by: 'shop', pts: partOutline(normalized(part), 12) } };
+          return (
+            <button key={part.id} className={`pp-item${on ? ' on' : ''}`} onClick={() => pick(part)}>
+              <ProfileThumb p={thumb} />
+              <span className="pp-num">{part.name}</span>
+              <span className="mono">{fmt(s.h)} tall × {fmt(s.w)} proj</span>
+              <span className="muted">{part.category}{rank(part) === 99 ? ' (not usually used here)' : ''}</span>
+              {part.costPerFoot != null && <span className="mono">${part.costPerFoot.toFixed(2)}/ft</span>}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
 }

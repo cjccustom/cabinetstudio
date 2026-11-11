@@ -61,7 +61,7 @@ import { eagleFraction, eagleRequests, requestText } from "../src/model/eagleReq
 import { hardwareOrder, tierPrice } from "../src/model/hardware";
 import { bbox, hardwareScope, pullSpots } from "../src/model/pulls";
 import { topSection, edgeCurve } from "../src/model/edgeProfiles";
-import { cutInset, edgeCutNotes, newPart, offsetOutline, partDxf, partOutline, partSize, templateHtml } from "../src/model/customParts";
+import { cutInset, edgeCutNotes, mouldingDrawing, mouldingNum, newPart, offsetOutline, partDxf, partOutline, partSize, retargetMoulding, templateHtml } from "../src/model/customParts";
 import { doorSwings, doorSwingIssues, RESTRICT_TO } from "../src/model/doorSwing";
 import { frontMotions } from "../src/three/fronts";
 import { selections as selList, optionDeltas, listedPrice, selectionText } from "../src/model/selections";
@@ -2278,6 +2278,27 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   const part = { ...newPart('scroll'), id: 'p2', name: 'Profiled' };
   part.points = part.points.map((p, i) => (i === 4 || i === 5 ? { ...p, cut: { kind: 'roundover' as const, size: 0.25, faces: 'both' as const } } : p));
   eq('cut: shop note', edgeCutNotes(part).join(' | '), '1/4" roundover, both faces: edges 5, 6');
+}
+
+// A moulding drawn in the part builder: its number, the job's copy of the drawing, its price, a new size
+{
+  const m = { ...newPart('m-ogee-crown'), id: 'part-crown1' };
+  const num = mouldingNum(m);
+  eq('moulding: number carries category, size and part', num, 'custom:Crown:3.5x3.5:shop:part-crown1');
+  const c0 = p.cabinets.find((c) => c.kind === 'upper') ?? p.cabinets[0];
+  let job = { ...p, cabinets: p.cabinets.map((c) => ({ ...c, crown: num })), profiles: { [num]: mouldingDrawing(m) }, moldPrices: { [num]: m.costPerFoot! } };
+  setCustomDrawings(job.profiles);
+  const pr = profileByNum(num)!;
+  eq('moulding: profile from the drawing', `${pr.name} ${pr.custom?.part} ${mountShape(pr).height} ${mountShape(pr).depth} ${mountShape(pr).pts.length > 8}`, 'Ogee crown part-crown1 3.5 3.5 true');
+  const line = moldingOrder(job).find((l) => l.num === num)!;
+  eq('moulding: ordered at the shop cost per foot', `${line.price} ${line.cost === line.feet * 7}`, '7 true');
+  const big = { ...m, costPerFoot: 8, points: m.points.map((q) => ({ ...q, x: q.x * 4 / 3.5, y: q.y * 4 / 3.5 })) };
+  job = retargetMoulding(job, [num], big);
+  const n2 = mouldingNum(big);
+  setCustomDrawings(job.profiles);
+  eq('moulding: resized, every use moves to the new number and price', `${n2} ${job.cabinets.find((c) => c.id === c0.id)!.crown === n2} ${job.moldPrices[n2]} ${moldingOrder(job).find((l) => l.num === n2)?.price}`, 'custom:Crown:4x4:shop:part-crown1 true 8 8');
+  eq('moulding: knives & setup once in the quote', estimateHours(job, quoteOf(job)).filter((l) => l.label.includes('grind knives')).map((l) => `${l.label} ${l.qty}`).join(' | '), 'Mouldings: Ogee crown, grind knives & set up (once) 1');
+  setCustomDrawings(undefined);
 }
 
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');

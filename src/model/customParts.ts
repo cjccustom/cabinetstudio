@@ -30,7 +30,12 @@ export interface PartPoint {
 export interface CustomPart {
   id: string;
   name: string;
-  kind: 'cutout';
+  /** cutout: the outline cut through a thickness (a corbel). moulding: the outline is a cross-section run along a length. */
+  kind: 'cutout' | 'moulding';
+  /** Mouldings: which kind of moulding it is, so the pickers offer it in the right places (Crown, Base Board and Base Cap…). */
+  category?: string;
+  /** Mouldings: the shop's cost per lineal foot to mill it (stock and machine time), used as the job's price for it. */
+  costPerFoot?: number;
   /** The outline, closed back to the first point, in inches. */
   points: PartPoint[];
   /** Through the outline (a corbel's width across the front). */
@@ -271,4 +276,39 @@ export const partPresets: { id: string; label: string; make: () => Omit<CustomPa
   },
 ];
 
-export const newPart = (presetId = 'scroll'): CustomPart => ({ ...(partPresets.find((p) => p.id === presetId) ?? partPresets[0]).make(), id: uid('part'), updatedAt: Date.now() });
+// Mouldings, drawn the way they sit: the back (against the cabinet or wall) on the left, the top at the top
+const mould = (name: string, category: string, costPerFoot: number, points: PartPoint[]) => (): Omit<CustomPart, 'id' | 'updatedAt'> =>
+  ({ name, kind: 'moulding', category, costPerFoot, thickness: 0.75, hoursEach: 0, templateHours: 1, points });
+/** The kinds a drawn moulding can be, as the moulding pickers group them. */
+export const mouldingCategories = ['Crown', 'Base Board and Base Cap', 'Shoe Moulding', 'Window and Door Casing', 'Back Band', 'Header Cap', 'Chair Rail', 'Panel', 'Band', 'Scotia', 'Picture Moulding', 'Stool Cap', 'Apron', 'Brick Mould', 'Miscellaneous'];
+export const mouldingPresets: { id: string; label: string; make: () => Omit<CustomPart, 'id' | 'updatedAt'> }[] = [
+  { id: 'm-cove-crown', label: 'Cove crown (sprung, one big cove)', make: mould('Cove crown', 'Crown', 6, [{ x: 0, y: 0 }, { x: 0.625, y: 0, bulge: 0.32 }, { x: 3, y: 2.375 }, { x: 3, y: 3 }, { x: 0, y: 3 }]) },
+  { id: 'm-ogee-crown', label: 'Ogee crown (sprung, S-curve with fillets)', make: mould('Ogee crown', 'Crown', 7, [{ x: 0, y: 0 }, { x: 0.75, y: 0 }, { x: 0.75, y: 0.25, bulge: 0.3 }, { x: 2.25, y: 1.75, bulge: -0.3 }, { x: 3.25, y: 3 }, { x: 3.5, y: 3 }, { x: 3.5, y: 3.5 }, { x: 0, y: 3.5 }]) },
+  { id: 'm-base', label: 'Baseboard with an ogee cap', make: mould('Ogee-cap base', 'Base Board and Base Cap', 5, [{ x: 0, y: 0 }, { x: 0.75, y: 0 }, { x: 0.75, y: 4.25 }, { x: 0.625, y: 4.375, bulge: -0.35 }, { x: 0.3125, y: 4.875, bulge: 0.35 }, { x: 0.25, y: 5.5 }, { x: 0, y: 5.5 }]) },
+  { id: 'm-casing', label: 'Casing with a bead on the inside edge', make: mould('Bead casing', 'Window and Door Casing', 4, [{ x: 0, y: 0 }, { x: 0.6875, y: 0 }, { x: 0.6875, y: 3.25, bulge: 0.75 }, { x: 0.5, y: 3.5 }, { x: 0, y: 3.5 }]) },
+  { id: 'm-cap', label: 'Cap moulding (base cap, chair rail cap)', make: mould('Cap moulding', 'Base Board and Base Cap', 2.5, [{ x: 0, y: 0 }, { x: 0.6875, y: 0, bulge: 0.3 }, { x: 0.375, y: 0.75, bulge: -0.3 }, { x: 0.25, y: 1.125 }, { x: 0, y: 1.125 }]) },
+  { id: 'm-blank', label: 'Rectangle (draw your own cross-section)', make: mould('Custom moulding', 'Panel', 3, [{ x: 0, y: 0 }, { x: 0.75, y: 0 }, { x: 0.75, y: 2 }, { x: 0, y: 2 }]) },
+];
+
+export const newPart = (presetId = 'scroll'): CustomPart => ({ ...([...partPresets, ...mouldingPresets].find((p) => p.id === presetId) ?? partPresets[0]).make(), id: uid('part'), updatedAt: Date.now() });
+
+/** A moulding drawn in the part builder, as Cabinet Studio's moulding number: custom:<category>:<h>x<d>:shop:<part id>. */
+export function mouldingNum(part: CustomPart): string {
+  const s = partSize(part);
+  const r = (v: number) => Math.round(v * 10000) / 10000;
+  return `custom:${part.category ?? 'Panel'}:${r(s.h)}x${r(s.w)}:shop:${part.id}`;
+}
+/** The drawn shape a job keeps for that moulding number (back at 0, up from 0). */
+export const mouldingDrawing = (part: CustomPart) => ({ name: part.name, pts: partOutline(normalized(part), 24), ...(part.templateHours > 0 ? { setupHours: part.templateHours } : {}) });
+
+/**
+ * A moulding from the library changed: everywhere the job uses it takes the new shape and price. Its
+ * number carries its size, so a new size is a new number; every reference to the old one moves over.
+ */
+export function retargetMoulding<T extends { profiles?: Record<string, { name?: string; pts: [number, number][]; setupHours?: number }>; moldPrices?: Record<string, number> }>(p: T, olds: string[], part: CustomPart): T {
+  const num = mouldingNum(part);
+  let json = JSON.stringify(p);
+  for (const o of olds) if (o !== num) json = json.split(JSON.stringify(o)).join(JSON.stringify(num));
+  const next = JSON.parse(json) as T;
+  return { ...next, profiles: { ...next.profiles, [num]: mouldingDrawing(part) }, moldPrices: part.costPerFoot != null ? { ...next.moldPrices, [num]: part.costPerFoot } : next.moldPrices };
+}

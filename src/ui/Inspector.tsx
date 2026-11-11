@@ -1580,7 +1580,7 @@ function SubCrownOnTop({ cab }: { cab: Cabinet }) {
 /** The shop's own parts, as choices in a corbel picker (and the one in use, even if it's left the library). */
 function CustomPartOptions({ current }: { current?: CustomPart }) {
   const lib = useShop((s) => s.parts);
-  const list = Object.values(lib).sort((a, b) => a.name.localeCompare(b.name));
+  const list = Object.values(lib).filter((p) => p.kind !== 'moulding').sort((a, b) => a.name.localeCompare(b.name));
   if (current && !lib[current.id]) list.unshift(current);
   if (!list.length) return null;
   return <optgroup label="Your parts (Part builder)">{list.map((p) => <option key={p.id} value={`part:${p.id}`}>{p.name}: {inches(partSize(p).h)} H × {inches(partSize(p).w)} D × {inches(p.thickness)}</option>)}</optgroup>;

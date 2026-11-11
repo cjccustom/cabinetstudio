@@ -5,11 +5,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from '../store';
 import { useShop, savePart, deletePart } from '../shop/shop';
-import { cutDepth, edgeCutLabel, edgeCutNotes, inches, newPart, offsetOutline, outlineEdges, type EdgeCut, type EdgeCutKind, partArea, partDxf, partOutline, partPresets, partSize, templateHtml, type CustomPart, type PartPoint } from '../model/customParts';
+import { cutDepth, edgeCutLabel, edgeCutNotes, inches, mouldingCategories, mouldingPresets, retargetMoulding, newPart, offsetOutline, outlineEdges, type EdgeCut, type EdgeCutKind, partArea, partDxf, partOutline, partPresets, partSize, templateHtml, type CustomPart, type PartPoint } from '../model/customParts';
 import { capability, type Downloads } from '../runtime';
 import { asciiHtml } from '../dropbox';
 import { askConfirm } from './Confirm';
-import { PartScene, type PartView } from '../three/PartScene';
+import { PartScene, SAMPLE_LENGTH, type PartView } from '../three/PartScene';
 import { Field } from './fields';
 import { LengthInput } from './fields';
 
@@ -48,6 +48,18 @@ export function PartBuilder() {
     const part = { ...draft, updatedAt: Date.now() };
     await savePart(part);
     // Anywhere this job already uses the part, it takes the new shape
+    if (part.kind === 'moulding') {
+      const olds = Object.keys(project.profiles ?? {}).filter((k) => k.endsWith(`:shop:${part.id}`));
+      if (olds.length) {
+        commit((p) => retargetMoulding(p, olds, part));
+        setDraft(part);
+        setMsg('Saved to the parts library; this job’s mouldings updated to the new shape and price.');
+        return;
+      }
+      setDraft(part);
+      setMsg('Saved to the parts library.');
+      return;
+    }
     const uses = project.cabinets.filter((c) => c.mantel?.corbelPart?.id === part.id || c.floating?.corbelPart?.id === part.id);
     if (uses.length) commit((p) => ({ ...p, cabinets: p.cabinets.map((c) => (c.mantel?.corbelPart?.id === part.id ? { ...c, mantel: { ...c.mantel, corbelPart: part } } : c.floating?.corbelPart?.id === part.id ? { ...c, floating: { ...c.floating, corbelPart: part } } : c)) }));
     setDraft(part);
@@ -69,23 +81,31 @@ export function PartBuilder() {
   };
 
   const size = draft ? partSize(draft) : null;
+  const mould = draft?.kind === 'moulding';
   return (
     <>
       <aside className="sidebar">
         <div className="side-body">
           <h3>Parts library</h3>
           <p className="hint">Shop-made parts nobody sells: corbels, brackets, anything cut from a board. Shared by every job.</p>
-          {parts.length ? (
-            <ul className="part-list">
-              {parts.map((p) => {
-                const s = partSize(p);
-                return <li key={p.id}><button className={draft?.id === p.id ? 'on' : ''} onClick={() => open(p)}><PartThumb part={p} /><span><b>{p.name}</b><span className="hint">{inches(s.h)} H × {inches(s.w)} D × {inches(p.thickness)}</span></span></button></li>;
-              })}
-            </ul>
-          ) : <p className="hint">No parts yet.</p>}
+          {parts.length ? (['cutout', 'moulding'] as const).map((k) => {
+            const group = parts.filter((p) => (p.kind ?? 'cutout') === k);
+            return group.length ? (
+              <div key={k}>
+                <h4 className="part-group">{k === 'cutout' ? 'Corbels and brackets' : 'Mouldings'}</h4>
+                <ul className="part-list">
+                  {group.map((p) => {
+                    const s = partSize(p);
+                    return <li key={p.id}><button className={draft?.id === p.id ? 'on' : ''} onClick={() => open(p)}><PartThumb part={p} /><span><b>{p.name}</b><span className="hint">{k === 'moulding' ? `${p.category ?? 'Moulding'}: ${inches(s.h)} × ${inches(s.w)}${p.costPerFoot != null ? `, $${p.costPerFoot.toFixed(2)}/ft` : ''}` : `${inches(s.h)} H × ${inches(s.w)} D × ${inches(p.thickness)}`}</span></span></button></li>;
+                  })}
+                </ul>
+              </div>
+            ) : null;
+          }) : <p className="hint">No parts yet.</p>}
           <Field label="New part, starting from" htmlFor="pb-preset">
             <select id="pb-preset" value={preset} onChange={(e) => setPreset(e.target.value)}>
-              {partPresets.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
+              <optgroup label="Cut from a board (corbels, brackets)">{partPresets.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}</optgroup>
+              <optgroup label="Mouldings (a profile run along a length)">{mouldingPresets.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}</optgroup>
             </select>
           </Field>
           <button className="primary" onClick={() => open(newPart(preset))}>New part</button>
@@ -102,23 +122,45 @@ export function PartBuilder() {
             {view !== 'profile' ? (
               <div className="part-3d">
                 <PartScene part={draft} view={view} />
-                <span className="part-3d-dims">{view === '3d' ? 'Drag to turn it, scroll or pinch to zoom, right-drag to slide' : view === 'front' ? `Front: ${inches(draft.thickness)} W × ${inches(size!.h)} H` : view === 'side' ? `Side: ${inches(size!.w)} D × ${inches(size!.h)} H` : `Top: ${inches(draft.thickness)} W × ${inches(size!.w)} D`}</span>
+                <span className="part-3d-dims">{mould
+                  ? (view === '3d' ? `A ${inches(SAMPLE_LENGTH)} sample length. Drag to turn it, scroll or pinch to zoom, right-drag to slide` : view === 'front' ? `Front: ${inches(SAMPLE_LENGTH)} sample × ${inches(size!.h)} tall` : view === 'side' ? `End (the profile): ${inches(size!.w)} projection × ${inches(size!.h)} tall` : `Top: ${inches(SAMPLE_LENGTH)} sample × ${inches(size!.w)} projection`)
+                  : view === '3d' ? 'Drag to turn it, scroll or pinch to zoom, right-drag to slide' : view === 'front' ? `Front: ${inches(draft.thickness)} W × ${inches(size!.h)} H` : view === 'side' ? `Side: ${inches(size!.w)} D × ${inches(size!.h)} H` : `Top: ${inches(draft.thickness)} W × ${inches(size!.w)} D`}</span>
               </div>
             ) : <OutlineEditor part={draft} sel={sel} onSelect={setSel} onPoint={putPoint} onInsert={(i, x, y) => { setDraft((d) => d && { ...d, points: [...d.points.slice(0, i + 1), { x, y }, ...d.points.slice(i + 1)] }); setSel(i + 1); }} />}
-            <p className="hint">Drag a corner to move it (it snaps to 1/16"). Double-click an edge to add a corner there. Pick a corner to type its position or curve the edge that leaves it. The back of the part (against the wall) is the left edge; the bottom is the bottom.</p>
+            <p className="hint">Drag a corner to move it (it snaps to 1/16"). Double-click an edge to add a corner there. Pick a corner to type its position or curve the edge that leaves it. {mould ? 'This is the end of the moulding as it’s installed: the back (against the cabinet or wall) is the left edge, the top is the top. For crown, draw it as it sits, sprung: the left edge is the drop down the face, the top edge the reach onto the ceiling.' : 'The back of the part (against the wall) is the left edge; the bottom is the bottom.'}</p>
           </main>
           <aside className="panel">
             <div className="panel-body">
               <Field label="Name" htmlFor="pb-name"><input id="pb-name" value={draft.name} onChange={(e) => put({ name: e.target.value })} /></Field>
-              <div className="grid2">
-                <Field label="Size, from the drawing" htmlFor="pb-thick"><b style={{ padding: '6px 0' }}>{inches(size!.h)} H × {inches(size!.w)} D</b></Field>
-                <Field label="Thickness" htmlFor="pb-thick"><LengthInput id="pb-thick" value={draft.thickness} min={0.25} onChange={(v) => put({ thickness: v ?? draft.thickness })} /></Field>
-              </div>
-              <p className="hint">About {(partArea(draft) * draft.thickness / 144).toFixed(2)} board feet in the finished part.</p>
-              <div className="grid2">
-                <Field label="Hours to make each (from the template)" htmlFor="pb-each"><input id="pb-each" inputMode="decimal" value={draft.hoursEach} onChange={(e) => put({ hoursEach: Math.max(0, Number(e.target.value) || 0) })} /></Field>
-                <Field label="Hours for the master template (once)" htmlFor="pb-tpl"><input id="pb-tpl" inputMode="decimal" value={draft.templateHours} onChange={(e) => put({ templateHours: Math.max(0, Number(e.target.value) || 0) })} /></Field>
-              </div>
+              {mould ? (
+                <>
+                  <div className="grid2">
+                    <Field label="Kind of moulding" htmlFor="pb-cat">
+                      <select id="pb-cat" value={draft.category ?? 'Panel'} onChange={(e) => put({ category: e.target.value })}>
+                        {mouldingCategories.map((c) => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                    </Field>
+                    <Field label="Size, from the drawing" htmlFor="pb-cat"><b style={{ padding: '6px 0' }}>{inches(size!.h)} tall × {inches(size!.w)} projection</b></Field>
+                  </div>
+                  <div className="grid2">
+                    <Field label="Your cost per lineal foot ($)" htmlFor="pb-cpf"><input id="pb-cpf" inputMode="decimal" value={draft.costPerFoot ?? ''} placeholder="$/ft" onChange={(e) => put({ costPerFoot: e.target.value.trim() === '' ? undefined : Math.max(0, Number(e.target.value) || 0) })} /></Field>
+                    <Field label="Hours to grind knives or set up (once)" htmlFor="pb-tpl"><input id="pb-tpl" inputMode="decimal" value={draft.templateHours} onChange={(e) => put({ templateHours: Math.max(0, Number(e.target.value) || 0) })} /></Field>
+                  </div>
+                  <p className="hint">The cost per foot is stock and machine time to run it; it becomes this moulding’s price on a job’s Orders tab (you can still change it there per job). About {(partArea(draft) / 144).toFixed(3)} board feet per lineal foot in the finished profile, before waste.</p>
+                </>
+              ) : (
+                <>
+                  <div className="grid2">
+                    <Field label="Size, from the drawing" htmlFor="pb-thick"><b style={{ padding: '6px 0' }}>{inches(size!.h)} H × {inches(size!.w)} D</b></Field>
+                    <Field label="Thickness" htmlFor="pb-thick"><LengthInput id="pb-thick" value={draft.thickness} min={0.25} onChange={(v) => put({ thickness: v ?? draft.thickness })} /></Field>
+                  </div>
+                  <p className="hint">About {(partArea(draft) * draft.thickness / 144).toFixed(2)} board feet in the finished part.</p>
+                  <div className="grid2">
+                    <Field label="Hours to make each (from the template)" htmlFor="pb-each"><input id="pb-each" inputMode="decimal" value={draft.hoursEach} onChange={(e) => put({ hoursEach: Math.max(0, Number(e.target.value) || 0) })} /></Field>
+                    <Field label="Hours for the master template (once)" htmlFor="pb-tpl"><input id="pb-tpl" inputMode="decimal" value={draft.templateHours} onChange={(e) => put({ templateHours: Math.max(0, Number(e.target.value) || 0) })} /></Field>
+                  </div>
+                </>
+              )}
               <Field label="Species (blank: the job's)" htmlFor="pb-sp"><input id="pb-sp" value={draft.species ?? ''} placeholder="Red oak, maple, poplar…" onChange={(e) => put({ species: e.target.value || undefined })} /></Field>
               <Field label="Notes (glue-up, grain direction…)" htmlFor="pb-note"><textarea id="pb-note" rows={2} value={draft.note ?? ''} onChange={(e) => put({ note: e.target.value || undefined })} /></Field>
               {sel != null && draft.points[sel] && (
@@ -136,11 +178,11 @@ export function PartBuilder() {
                     <button className="mini" onClick={() => putPoint(sel, { bulge: -(draft.points[sel].bulge ?? 0) || undefined })}>Flip the curve</button>
                     <button className="mini danger" disabled={draft.points.length <= 3} onClick={() => { setDraft((d) => d && { ...d, points: d.points.filter((_, k) => k !== sel) }); setSel(null); }}>Delete corner</button>
                   </div>
-                  <EdgeCutFields cut={draft.points[sel].cut} edge={sel + 1} onChange={(cut) => putPoint(sel, { cut })}
-                    onAll={(cut) => setDraft((d) => d && { ...d, points: d.points.map((p) => ({ ...p, cut })) })} />
+                  {!mould && <EdgeCutFields cut={draft.points[sel].cut} edge={sel + 1} onChange={(cut) => putPoint(sel, { cut })}
+                    onAll={(cut) => setDraft((d) => d && { ...d, points: d.points.map((p) => ({ ...p, cut })) })} />}
                 </div>
               )}
-              {edgeCutNotes(draft).length > 0 && (
+              {!mould && edgeCutNotes(draft).length > 0 && (
                 <div className="hint"><b>Edge profiles</b>{edgeCutNotes(draft).map((t) => <div key={t}>{t}</div>)}</div>
               )}
               <div className="order-actions">
@@ -150,7 +192,9 @@ export function PartBuilder() {
                 {saved && <button className="danger" onClick={remove}>Delete</button>}
               </div>
               {msg && <p className="ok">{msg}</p>}
-              <p className="hint">To use it: save it, then in Design pick a mantel or floating shelf and choose it under <b>Corbel</b>. It goes into the 3D, the drawings, the cut list and the quote (its hours each, and the template once).</p>
+              {mould
+                ? <p className="hint">To use it: save it, then in Design pick a cabinet (or the room trim) and press its moulding’s profile button, for example <b>Crown</b>, <b>Light rail</b> or <b>Base</b>. It’s listed at the top under <b>Your mouldings</b>. It runs in the 3D and the drawings, and the lineal feet go on the Orders tab at your cost per foot.</p>
+                : <p className="hint">To use it: save it, then in Design pick a mantel or floating shelf and choose it under <b>Corbel</b>. It goes into the 3D, the drawings, the cut list and the quote (its hours each, and the template once).</p>}
             </div>
           </aside>
         </>
@@ -267,3 +311,4 @@ export function cutLine(part: CustomPart): [number, number][] | null {
   const rp = [...pts].reverse(), ri = rp.map((_, i) => (i < n - 1 ? ins[n - 2 - i] : ins[n - 1]));
   return offsetOutline(rp, ri);
 }
+
