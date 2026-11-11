@@ -469,7 +469,7 @@ function Invoices({ st, busy, run, keep }: { st: JobStatus; total: number; busy:
                 <td>{money(i.amount)}</td>
                 <td className={i.paid ? 'ok' : ''}>{i.paid ? 'Paid' : `Open ${money(i.balance)}`}{i.emailed ? ' · emailed' : ''}</td>
                 <td>{i.payments.map((p) => `${p.method}${p.ref ? ` #${p.ref}` : ''} ${money(p.amount)}`).join(', ')}</td>
-                <td>{!i.paid && <button disabled={busy} onClick={() => setPay({ id: i.id, method: 'check', amount: String(i.balance), ref: '' })}>Check or cash…</button>}</td>
+                <td>{!i.paid && <button disabled={busy} onClick={() => setPay({ id: i.id, method: 'check', amount: String(i.balance), ref: '' })}>Check or cash…</button>}{i.balance < i.amount && st.url && <a className="btn" href={`${st.url}/receipt/${i.id}`} target="_blank" rel="noopener noreferrer" title="A receipt for the money received on this invoice, to print or send">Receipt</a>}</td>
               </tr>
             ))}
           </tbody>

@@ -12,7 +12,7 @@
 // for photos, Secrets DBX_APP_KEY and DBX_APP_SECRET; for an email when a client comments, a
 // Secret RESEND_API_KEY (resend.com) and the contact email in Portal settings (MAIL_FROM optional).
 import { type DrawingSheets, type Env, type Job, type PortalComment, type Shop, type ShopDoc, type ChangeOrder, adjustedTotal, approvedChanges, b64ToBytes, getJob, getShop, jobByToken, putJob, putShop, randomToken, sha256, signedTotals } from './store';
-import { agreementPage, changeOrderPage, clientName, drawingsPage, esc, modelPage, projectPage, simplePage } from './pages';
+import { agreementPage, changeOrderPage, receiptPage, clientName, drawingsPage, esc, modelPage, projectPage, simplePage } from './pages';
 import { canCancel, cancelDeadline, easternYmd } from './cancel';
 import { calendar, deleteAppt, feedCode, listAppts, saveAppt, apptLabel, type Appointment } from './calendar';
 import { dbxChunk, dbxConnectUrl, dbxDisconnect, dbxFinish, dbxReady, dbxRedirect, dbxUpload, getDbx } from './dbx';
@@ -35,6 +35,13 @@ export default {
     if (!env.PORTAL) return setupPage('Almost there', '<p>The portal is running, but its storage isn’t connected. In Cloudflare open this worker’s <b>Settings → Bindings</b>, add a <b>KV namespace</b> binding named <code>PORTAL</code> (create a namespace called <b>cjc-portal</b> if you don’t have one), then reload this page.</p>');
     const m = path.match(/^\/p\/([A-Za-z0-9_-]+)(?:\/(img|doc|visit)\/([A-Za-z0-9_-]+)(?:\.ics)?|\/(agreement|sign|cancel|drawings|comment|model|model\.glb))?$/);
     if (m) return client(request, env, m[1], m[2] ?? m[4] ?? '', m[3] ?? '');
+    const rc = path.match(/^\/p\/([A-Za-z0-9_-]+)\/receipt\/([A-Za-z0-9_-]+)$/);
+    if (rc) {
+      const job = await jobByToken(env, rc[1]);
+      const inv = job?.invoices?.find((i) => i.id === rc[2] && i.balance < i.amount);
+      if (!job || !inv) return html(simplePage('Receipt not found', 'There’s no payment on record here yet. Contact CJC Custom Carpentry if you have questions.', await getShop(env)), 404);
+      return html(receiptPage(job, inv, await getShop(env)));
+    }
     const co = path.match(/^\/p\/([A-Za-z0-9_-]+)\/change\/([A-Za-z0-9_-]+)(?:\/(sign|decline))?$/);
     if (co) return changeOrder(request, env, co[1], co[2], co[3] ?? '');
     const key = String(env.SHOP_KEY || '').trim();

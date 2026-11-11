@@ -74,11 +74,12 @@ function payBlock(j: Job, shop: Shop): string {
   if (!invs.length) return '';
   const payee = shop.company[0] || 'CJC Custom Carpentry LLC';
   const label = { deposit: 'Deposit', final: 'Final payment', change: 'Change order' } as const;
+  const receipt = (i: (typeof invs)[number]) => (i.balance < i.amount ? ` <a href="/p/${j.token}/receipt/${esc(i.id)}" target="_blank" rel="noopener">Receipt</a>` : '');
   return `<div class="pay">${invs.map((i) => i.balance <= 0
-    ? `<p class="ok">${label[i.kind]} of ${money(i.amount)} received. Thank you!</p>`
+    ? `<p class="ok">${label[i.kind]} of ${money(i.amount)} received. Thank you!${receipt(i)}</p>`
     : `<p><b>${label[i.kind]} due: ${money(i.balance)}</b>${i.docNumber ? ` <span class="muted">(invoice ${esc(i.docNumber)})</span>` : ''}</p>
 ${i.link ? `<div class="row"><a class="btn" href="${esc(i.link)}" target="_blank" rel="noopener">Pay by card or bank transfer</a></div>` : ''}
-<p class="muted">${i.link ? 'Or pay' : 'Pay'} by check to <b>${esc(payee)}</b>${shop.company[1] ? `, ${esc(shop.company[1])}` : ''}, or in person.</p>`).join('')}</div>`;
+${i.balance < i.amount ? `<p class="muted">${money(i.amount - i.balance)} received so far.${receipt(i)}</p>` : ''}<p class="muted">${i.link ? 'Or pay' : 'Pay'} by check to <b>${esc(payee)}</b>${shop.company[1] ? `, ${esc(shop.company[1])}` : ''}, or in person.</p>`).join('')}</div>`;
 }
 
 /** The signing box's script: draw with a finger or mouse, and the form sends the drawing as a PNG. */
@@ -149,6 +150,33 @@ function changeOrdersBlock(j: Job, base: string): string {
 <table class="lines">${list.map((c) => `<tr><td><a href="${base}/change/${esc(c.id)}">${c.number}. ${esc(c.title)}</a><br><span class="muted">${esc(coState(c))}</span></td><td class="num">${signedMoney(c.amount)}</td></tr>`).join('')}</table>
 <div class="price"><div><span class="muted">Signed contract</span><b>${money(signedTotals(j).total)}</b></div><div><span class="muted">With approved changes</span><b>${money(signedTotals(j).total + approved)}</b></div></div>
 ${list.filter((c) => !c.signature && !c.declined).map((c) => `<p class="row"><a class="btn" href="${base}/change/${esc(c.id)}">Review change order ${c.number}</a></p>`).join('')}</section>`;
+}
+
+/** A receipt for money received on one invoice: each check or cash payment recorded, and anything paid online. */
+export function receiptPage(j: Job, inv: NonNullable<Job['invoices']>[number], shop: Shop): string {
+  const label = { deposit: 'Deposit', final: 'Final payment', change: 'Change order' } as const;
+  const day = (t: number) => new Date(t).toLocaleDateString('en-US', { timeZone: 'America/New_York', month: 'long', day: 'numeric', year: 'numeric' });
+  const recorded = inv.payments ?? [];
+  const paidHere = recorded.reduce((t, x) => t + x.amount, 0);
+  const received = Math.max(0, inv.amount - inv.balance);
+  const online = Math.round((received - paidHere) * 100) / 100;
+  const how = (x: (typeof recorded)[number]) => (x.method === 'check' ? `Check${x.ref ? ` #${esc(x.ref)}` : ''}` : x.method === 'cash' ? 'Cash' : `Payment${x.ref ? ` (${esc(x.ref)})` : ''}`);
+  const rows = [
+    ...recorded.map((x) => `<tr><td>${esc(day(x.at))}</td><td>${how(x)}</td><td class="num">${money(x.amount)}</td></tr>`),
+    ...(online > 0.004 ? [`<tr><td>${esc(day(inv.checkedAt))}</td><td>Paid online (card or bank transfer)</td><td class="num">${money(online)}</td></tr>`] : []),
+  ].join('');
+  const no = `${inv.docNumber ? `${esc(inv.docNumber)}-` : ''}${recorded.length + (online > 0.004 ? 1 : 0)}`;
+  const company = shop.company.length ? shop.company : ['CJC Custom Carpentry LLC'];
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow">
+<title>Receipt · ${esc(j.project)}</title><style>body{font:15px/1.5 system-ui,-apple-system,sans-serif;color:#1f2328;max-width:640px;margin:24px auto;padding:0 16px}h1{font-size:22px;margin:16px 0 4px}.muted{color:#646b73}table{width:100%;border-collapse:collapse;margin:14px 0}td,th{padding:8px 4px;border-bottom:1px solid #e3e0da;text-align:left}.num{text-align:right;white-space:nowrap}.tot td{font-weight:700;border-bottom:0}.head{display:flex;justify-content:space-between;gap:16px;align-items:flex-start}.head img{height:56px}.btn{display:inline-block;padding:10px 16px;border-radius:8px;background:#2b4a3c;color:#fff;border:0;font:inherit;cursor:pointer}@media print{.noprint{display:none}body{margin:0}}</style></head><body>
+<div class="head"><div><b>${esc(company[0])}</b>${company.slice(1).map((l) => `<br><span class="muted">${esc(l)}</span>`).join('')}</div><img src="${LOGO}" alt=""></div>
+<h1>Payment receipt</h1><p class="muted">Receipt ${no} · ${esc(day(Date.now()))}</p>
+<p><b>Received from</b> ${esc(clientName(j))}${j.client.address ? `<br>${esc(j.client.address)}` : ''}<br><b>For</b> ${esc(j.project)}: ${esc(label[inv.kind].toLowerCase())}${inv.docNumber ? ` (invoice ${esc(inv.docNumber)})` : ''}</p>
+<table><thead><tr><th>Date</th><th>Paid by</th><th class="num">Amount</th></tr></thead><tbody>${rows}
+<tr class="tot"><td></td><td>Total received</td><td class="num">${money(received)}</td></tr></tbody></table>
+<p>Invoice amount ${money(inv.amount)} · ${inv.balance <= 0 ? '<b>paid in full</b>' : `balance due ${money(inv.balance)}`}</p>
+<p>Thank you!</p>
+<p class="noprint"><button class="btn" onclick="print()">Print or save as PDF</button></p></body></html>`;
 }
 
 /** The client's project page. */
