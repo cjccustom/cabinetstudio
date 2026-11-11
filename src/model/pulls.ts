@@ -5,6 +5,7 @@ import type { Cabinet, Part, Project, ShopSettings } from './types';
 import { wallLength } from './layout';
 import { eff } from './parts';
 import { fmt } from '../units';
+import { styleById } from './eagle';
 
 export type PullStyle = NonNullable<ShopSettings['pulls']>;
 export type PullFinish = NonNullable<ShopSettings['pullFinish']>;
@@ -55,6 +56,7 @@ export function opensRight(c: Cabinet, wallLen: number, doors: Box[], d: Box): b
 export function pullSpots(p: Project, c: Cabinet, parts: Part[]): PullSpot[] {
   const s = eff(c, p.settings);
   const style = pullStyleOf(s);
+  const doorStyle = styleById(s.doorStyleId);
   const out: PullSpot[] = [];
   const lifts = parts.filter((x) => x.role === 'door' && x.boxes.length && x.name === 'Lift-up door').map((x) => bbox(x));
   for (const d of lifts) {
@@ -82,7 +84,9 @@ export function pullSpots(p: Project, c: Cabinet, parts: Part[]): PullSpot[] {
       }
       continue;
     }
-    const x = openRight ? d.x1 - 2.5 : d.x0 + 2.5;
+    // Centered on the door's stile (a slab door: 1-1/4" in), not over the bead or panel
+    const inset = doorStyle.profile === 'slab' ? 1.25 : (doorStyle.fixedStile ? doorStyle.stile : s.doorStile) / 2;
+    const x = openRight ? d.x1 - inset : d.x0 + inset;
     const y = upper ? d.y0 + 3 : tall ? Math.min(d.y1 - 3, Math.max(d.y0 + 3, 36 - c.elevation)) : d.y1 - 3;
     if (style === 'bars') {
       // A vertical pull running away from the corner it sits in

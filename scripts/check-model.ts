@@ -59,7 +59,7 @@ import { normalize, reachesCeiling } from "../src/store";
 import { fieldChecks, releaseStatus } from "../src/model/release";
 import { eagleFraction, eagleRequests, requestText } from "../src/model/eagleRequest";
 import { hardwareOrder, tierPrice } from "../src/model/hardware";
-import { hardwareScope, pullSpots } from "../src/model/pulls";
+import { bbox, hardwareScope, pullSpots } from "../src/model/pulls";
 import { topSection, edgeCurve } from "../src/model/edgeProfiles";
 import { doorSwings, doorSwingIssues, RESTRICT_TO } from "../src/model/doorSwing";
 import { frontMotions } from "../src/three/fronts";
@@ -2234,6 +2234,16 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   eq('two rods: the lower one about halfway down', ys[1] < ys[0] - 25, true);
   eq('two rods: no fixed shelf between them', buildParts(dh, p.settings).filter((x) => x.name === 'Fixed shelf').length, buildParts(base, p.settings).filter((x) => x.name === 'Fixed shelf').length);
   eq('two rods: said as double hang', scopeLine(dh, { ...p, cabinets: [dh] }).includes('double hang, two closet rods'), true);
+}
+
+// Knobs sit centered on the door stile, not over the bead or the panel
+{
+  const c = p.cabinets.find((x) => x.rows.some((r) => r.type === 'doors') && x.kind === 'base')!;
+  const parts = buildParts(c, p.settings, resolveEnds(p.room, p.cabinets, c));
+  const knobs = pullSpots(p, c, parts).filter((k) => k.kind === 'knob');
+  const doors = parts.filter((x) => x.role === 'door').map(bbox);
+  const half = p.settings.doorStile / 2;
+  eq('knobs: centered on the stile', knobs.length > 0 && knobs.every((k) => doors.some((d) => Math.abs(k.x - d.x0 - half) < 0.01 || Math.abs(d.x1 - k.x - half) < 0.01)), true);
 }
 
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');
