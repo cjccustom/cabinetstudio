@@ -172,8 +172,15 @@ type Mark =
 type SketchTool = 'pen' | 'line' | 'text' | 'erase';
 
 /** The sketch in progress survives switching tabs and a reload, until it's saved or cleared. */
-let draftMarks: Mark[] | null = null;
+let draftPages: { pages: Mark[][]; cur: number } | null = null;
 const DRAFT_KEY = 'cabinet-studio.sketch-draft';
+/** The pages in progress; an older single-page draft becomes page 1. */
+const readDraft = (): { pages: Mark[][]; cur: number } => {
+  const d = readJson<unknown>(DRAFT_KEY, null);
+  if (Array.isArray(d)) return { pages: [d as Mark[]], cur: 0 };
+  const o = d as { pages?: Mark[][]; cur?: number } | null;
+  return o?.pages?.length ? { pages: o.pages, cur: Math.min(o.cur ?? 0, o.pages.length - 1) } : { pages: [[]], cur: 0 };
+};
 const PREFS_KEY = 'cabinet-studio.sketch-prefs';
 const readJson = <T,>(key: string, fallback: T): T => { try { const s = localStorage.getItem(key); return s ? (JSON.parse(s) as T) : fallback; } catch { return fallback; } };
 const writeJson = (key: string, v: unknown) => { try { if (v == null) localStorage.removeItem(key); else localStorage.setItem(key, JSON.stringify(v)); } catch { /* storage blocked */ } };
@@ -184,8 +191,20 @@ const PALM = 34;
 function SketchTab({ v, put, folder, who }: { v: Visit; put: Put; folder?: string; who: string }) {
   const wrap = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
-  const [marks, setMarksState] = useState<Mark[]>(() => draftMarks ?? readJson<Mark[]>(DRAFT_KEY, []));
-  const setMarks = (f: (m: Mark[]) => Mark[]) => setMarksState((m) => { const n = f(m); draftMarks = n; writeJson(DRAFT_KEY, n.length ? n : null); return n; });
+  const [book, setBookState] = useState(() => draftPages ?? readDraft());
+  const setBook = (f: (b: { pages: Mark[][]; cur: number }) => { pages: Mark[][]; cur: number }) => setBookState((b) => {
+    const n = f(b); draftPages = n;
+    writeJson(DRAFT_KEY, n.pages.some((p) => p.length) || n.pages.length > 1 ? n : null);
+    return n;
+  });
+  const marks = book.pages[book.cur] ?? [];
+  const setMarks = (f: (m: Mark[]) => Mark[]) => setBook((b) => ({ ...b, pages: b.pages.map((p, i) => (i === b.cur ? f(p) : p)) }));
+  const goPage = (i: number) => { if (typing) placeText(); setBook((b) => ({ ...b, cur: i })); setMsg(''); };
+  const addPage = () => { if (typing) placeText(); setBook((b) => ({ pages: [...b.pages, []], cur: b.pages.length })); setMsg(''); };
+  const removePage = () => {
+    if (book.pages.length < 2 || (marks.length && !confirm(`Delete page ${book.cur + 1}?`))) return;
+    setBook((b) => ({ pages: b.pages.filter((_, i) => i !== b.cur), cur: Math.max(0, b.cur - 1) }));
+  };
   const [prefs, setPrefsState] = useState(() => readJson(PREFS_KEY, { pencilOnly: false, grid: true, thick: false }));
   const setPrefs = (p: Partial<typeof prefs>) => setPrefsState((x) => { const n = { ...x, ...p }; writeJson(PREFS_KEY, n); return n; });
   const [tool, setTool] = useState<SketchTool>('pen');
@@ -239,7 +258,7 @@ function SketchTab({ v, put, folder, who }: { v: Visit; put: Put; folder?: strin
       size.current = { w, h, dpr };
       cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
       cv.style.width = `${w}px`; cv.style.height = `${h}px`;
-      draw(draftMarks ?? marks);
+      const d = draftPages ?? book; draw(d.pages[d.cur] ?? []);
     };
     fit();
     window.addEventListener('resize', fit);
@@ -311,30 +330,42 @@ function SketchTab({ v, put, folder, who }: { v: Visit; put: Put; folder?: strin
   };
   const save = async () => {
     if (!canvas.current) return;
+    if (typing) placeText();
     setMsg('Saving…');
-    draw(marks, true);
-    const blob = await new Promise<Blob | null>((ok) => canvas.current!.toBlob(ok, 'image/png'));
-    draw(marks);
-    if (!blob) { setMsg('The sketch couldn’t be read. Take a screenshot of it (top button + volume up) so it isn’t lost.'); return; }
+    const used = book.pages.map((p, i) => ({ p, i })).filter((x) => x.p.length);
     const d = new Date(), z = (n: number) => String(n).padStart(2, '0');
-    const name = `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())} ${z(d.getHours())}${z(d.getMinutes())} sketch${label.trim() ? ` ${label.trim()}` : ''}.png`.replace(/[\\/:*?"<>|]/g, '');
+    const stamp = `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())} ${z(d.getHours())}${z(d.getMinutes())}`;
+    const files: { name: string; blob: Blob }[] = [];
+    for (const { p, i } of used) {
+      draw(p, true);
+      const blob = await new Promise<Blob | null>((ok) => canvas.current!.toBlob(ok, 'image/png'));
+      if (blob) files.push({ name: `${stamp} sketch${label.trim() ? ` ${label.trim()}` : ''}${used.length > 1 ? ` page ${i + 1}` : ''}.png`.replace(/[\\/:*?"<>|]/g, ''), blob });
+    }
+    draw(marks);
+    if (files.length < used.length) { setMsg('A page couldn’t be read. Take a screenshot of each page (top button + volume up) so nothing is lost.'); return; }
+    const what = files.length > 1 ? `All ${files.length} pages` : 'The sketch';
     if (folder) {
       try {
-        const r = await savePhoto(`${folder}/Sketches`, name, await blobToBase64(blob));
-        put((x) => ({ sketches: [...x.sketches, r.path] }));
-        setMsg(`Saved to ${who}’s Sketches folder. Clear it to start the next one.`);
+        const paths: string[] = [];
+        for (const f of files) paths.push((await savePhoto(`${folder}/Sketches`, f.name, await blobToBase64(f.blob))).path);
+        put((x) => ({ sketches: [...x.sketches, ...paths] }));
+        setMsg(`${what} saved to ${who}’s Sketches folder. They stay here too until you tap Start over.`);
         return;
       } catch (e) {
-        setMsg(`Couldn’t reach Dropbox (${e instanceof PortalError ? e.message : (e as Error).message}). Saving it to the iPad instead…`);
+        setMsg(`Couldn’t reach Dropbox (${e instanceof PortalError ? e.message : (e as Error).message}). Saving to the iPad instead…`);
       }
     }
     try {
-      await saveHere(name, blob);
-      setMsg(`Saved to the iPad${folder ? '' : ' (this job isn’t linked to a client folder yet)'}. It also stays here until you clear it.`);
+      for (const f of files) await saveHere(f.name, f.blob);
+      setMsg(`${what} saved to the iPad${folder ? '' : ' (this job isn’t linked to a client folder yet)'}. They stay here too until you tap Start over.`);
     } catch (e) {
       const code = (e as { code?: string }).code;
-      setMsg(code === 'declined' || code === 'cancelled' ? 'Not saved. It stays here until you clear it.' : 'Couldn’t save it. It stays here until you clear it; a screenshot (top button + volume up) also works.');
+      setMsg(code === 'declined' || code === 'cancelled' ? 'Not saved. Everything stays here until you tap Start over.' : 'Couldn’t save. Everything stays here until you tap Start over; a screenshot (top button + volume up) also works.');
     }
+  };
+  const startOver = () => {
+    if (book.pages.some((p) => p.length) && !confirm('Start over? Every page is cleared. Save first if you haven’t.')) return;
+    setBook(() => ({ pages: [[]], cur: 0 })); setMsg(''); setLabel('');
   };
 
   const tools: { id: SketchTool; label: string }[] = [{ id: 'pen', label: 'Pen' }, { id: 'line', label: 'Straight line' }, { id: 'text', label: 'Type a note' }, { id: 'erase', label: 'Eraser' }];
@@ -345,14 +376,22 @@ function SketchTab({ v, put, folder, who }: { v: Visit; put: Put; folder?: strin
           {tools.map((t) => <button key={t.id} className={tool === t.id ? 'on' : ''} aria-pressed={tool === t.id} onClick={() => { if (typing) placeText(); setTool(t.id); }}>{t.label}</button>)}
         </div>
         <button onClick={() => setMarks((s) => s.slice(0, -1))} disabled={!marks.length}>Undo</button>
-        <button onClick={() => { if (marks.length && confirm('Clear the sketch?')) { setMarks(() => []); setMsg(''); } }} disabled={!marks.length}>Clear</button>
+        <button onClick={() => { if (marks.length && confirm(`Clear page ${book.cur + 1}?`)) { setMarks(() => []); setMsg(''); } }} disabled={!marks.length}>Clear page</button>
         <label className="chk-row"><input type="checkbox" checked={prefs.thick} onChange={(e) => setPrefs({ thick: e.target.checked })} /> Bold</label>
         <label className="chk-row"><input type="checkbox" checked={prefs.grid} onChange={(e) => setPrefs({ grid: e.target.checked })} /> Grid</label>
         <label className="chk-row" title="Your hand can rest on the screen; only the Apple Pencil draws"><input type="checkbox" checked={prefs.pencilOnly} onChange={(e) => setPrefs({ pencilOnly: e.target.checked })} /> Apple Pencil only</label>
       </div>
       <div className="sketch-bar">
+        <div className="seg sketch-pages" role="tablist" aria-label="Pages">
+          {book.pages.map((p, i) => <button key={i} role="tab" aria-selected={i === book.cur} className={i === book.cur ? 'on' : ''} onClick={() => goPage(i)}>Page {i + 1}{p.length ? '' : ' (blank)'}</button>)}
+        </div>
+        <button onClick={addPage}>+ New page</button>
+        {book.pages.length > 1 && <button onClick={removePage}>Delete page</button>}
+      </div>
+      <div className="sketch-bar">
         <input aria-label="Sketch name" placeholder="What is it? (sink wall…)" value={label} onChange={(e) => setLabel(e.target.value)} />
-        <button className="primary" onClick={save} disabled={!marks.length}>{folder ? 'Save sketch' : 'Save sketch to the iPad'}</button>
+        <button className="primary" onClick={save} disabled={!book.pages.some((p) => p.length)}>{book.pages.filter((p) => p.length).length > 1 ? `Save all ${book.pages.filter((p) => p.length).length} pages` : 'Save sketch'}{folder ? '' : ' to the iPad'}</button>
+        <button onClick={startOver} disabled={!book.pages.some((p) => p.length) && book.pages.length < 2}>Start over</button>
         {msg && <span className="hint">{msg}</span>}
         {v.sketches.length > 0 && <span className="hint">{v.sketches.length} saved today</span>}
         {!msg && <span className="hint">{tool === 'text' ? 'Tap where the note goes, then type or tap the microphone on the keyboard to dictate.' : tool === 'line' ? 'Drag for a straight line; it snaps level, plumb and 45°.' : prefs.pencilOnly ? 'Rest your hand anywhere: only the Pencil draws.' : 'Drawing with a finger: a resting palm is ignored. With an Apple Pencil, the first Pencil stroke turns on Pencil only.'}</span>}

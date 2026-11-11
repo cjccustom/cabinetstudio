@@ -775,7 +775,8 @@ textarea.text-input { resize: vertical; }
 .meeting-label { display: block; font-weight: 600; margin: 8px 0 4px; }
 .meeting-notes { width: 100%; min-height: 45vh; font-size: 17px; line-height: 1.5; }
 .meeting-start { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
-.sketch { display: grid; grid-template-rows: auto minmax(0, 1fr); height: 100%; }
+.sketch { display: flex; flex-direction: column; height: 100%; }
+.sketch-wrap { flex: 1 1 auto; min-height: 0; }
 .sketch-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 8px 16px; }
 .sketch-bar input { width: 220px; max-width: 100%; }
 .sketch-wrap { position: relative; margin: 0 16px 16px; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: #fff; }
