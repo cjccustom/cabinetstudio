@@ -69,7 +69,8 @@ export const isOpenRow = (t: FaceRow['type'], covered?: boolean) => t === 'open'
 export const hasDoors = (r: FaceRow) => r.type === 'doors' || (!!r.covered && (r.type === 'hang' || r.type === 'shoes'));
 /** Shoe shelves: tipped about 15° to the front, a fence on the front edge to stop the heels. */
 export const shoeShelf = { fence: 1.5, lip: 0.75, slope: 0.27, maxDrop: 4 };
-export const closetRod = { diameter: 1.3125, drop: 1.75 };
+/** Closet rods: hangers centered 12" off the wall whatever the case depth (a shallow case lets the clothes stand past the face frame). */
+export const closetRod = { diameter: 1.3125, drop: 1.75, fromWall: 12 };
 
 /** Width of the mid rail above row i (none above the first row). */
 export const railAbove = (c: Cabinet, s: ShopSettings, i: number) => (i <= 0 || i >= c.rows.length ? 0 : c.rows[i].railAbove ?? eff(c, s).midRailWidth);
@@ -788,9 +789,10 @@ function caseParts(c: Cabinet, s: ShopSettings, ends: EndInfo): Part[] {
       const drop = row.rodDrop ?? s.rodDrop ?? closetRod.drop;
       const d = closetRod.diameter;
       const len = innerW - 0.125;
-      const zc = rw + (boxD - rw) / 2;
+      // Centered 12" off the wall, or mid-depth in a case too shallow for that
+      const zc = Math.min(closetRod.fromWall, boxD - d);
       parts.push({ name: 'Closet rod', role: 'rod', material: 'hardware', length: len, width: d, thickness: d, cut: false,
-        note: `${fmtShort(d)} round ${s.closetRod === 'metal' ? 'metal' : 'wood'} rod in 2 sockets, center ${fmtShort(drop)} below the shelf (${fmtShort(c.elevation + under - drop)} off the floor) and ${fmtShort(zc - rw)} off the back; ${fmtShort(r.height - drop - d / 2)} clear below`,
+        note: `${fmtShort(d)} round ${s.closetRod === 'metal' ? 'metal' : 'wood'} rod in 2 sockets, center ${fmtShort(drop)} below the shelf (${fmtShort(c.elevation + under - drop)} off the floor) and ${fmtShort(zc)} off the wall; ${fmtShort(r.height - drop - d / 2)} clear below`,
         boxes: [vb(xi0 + 0.0625, under - drop - d / 2, zc - d / 2, len, d, d, 0.35)] });
     }
     if (row.type === 'shoes' && row.shelves > 0) {

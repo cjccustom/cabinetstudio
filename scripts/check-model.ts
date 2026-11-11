@@ -2203,6 +2203,14 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   eq('swing: shop note on the cabinet', cabinetCallouts(p, w1).some((c) => c.for === 'shop' && c.text.startsWith('Hinge opening restrictor')), true);
 }
 
+// Closet rods: hangers centered 12" off the wall in any case deep enough, an 18" one included
+{
+  const cl = { ...cabinetFromPreset(presets.find((x) => x.id === 'closet-long')!, 'back', 0, []), depth: 18 };
+  const rod = buildParts(cl, p.settings).find((x) => x.role === 'rod')!;
+  eq('closet rod: 12" off the wall in an 18" deep case', rod.note!.includes('12" off the wall'), true);
+  eq('closet rod: drawn there', Math.abs(rod.boxes[0].min[2] + rod.boxes[0].size[2] / 2 - 12) < 0.01, true);
+}
+
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');
 
 console.log(failed ? `${failed} check(s) failed` : 'All model checks passed');
