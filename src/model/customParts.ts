@@ -9,7 +9,24 @@
 // for the CNC, and its hours on the quote.
 import { uid } from './defaults';
 
-export interface PartPoint { x: number; y: number; /** Bow of the edge from here to the next point (0 = straight). */ bulge?: number }
+/** A router or shaper profile run along an edge, on one face of the part or both. */
+export interface EdgeCut {
+  kind: EdgeCutKind;
+  /** The bit's size: the radius of a roundover, cove, bead or ogee, the leg of a chamfer, the width (and depth) of a rabbet. */
+  size: number;
+  /** Which face it's cut on, looking at the part from the front: the left face, the right, or both. */
+  faces: 'both' | 'left' | 'right';
+}
+export type EdgeCutKind = 'chamfer' | 'roundover' | 'cove' | 'ogee' | 'bead' | 'rabbet';
+export const edgeCutLabel: Record<EdgeCutKind, string> = {
+  chamfer: 'Chamfer (45°)', roundover: 'Roundover', cove: 'Cove', ogee: 'Roman ogee', bead: 'Bead (roundover with a quirk)', rabbet: 'Rabbet',
+};
+
+export interface PartPoint {
+  x: number; y: number;
+  /** Bow of the edge from here to the next point (0 = straight). */ bulge?: number;
+  /** A profile run along the edge from here to the next point. */ cut?: EdgeCut;
+}
 export interface CustomPart {
   id: string;
   name: string;
@@ -65,6 +82,81 @@ export function partOutline(part: Pick<CustomPart, 'points'>, perHalfCircle = 24
     out.push(...next);
   });
   return out;
+}
+
+/** The outline as a polyline with, for each piece of it, which drawn edge (corner index) it belongs to. */
+export function outlineEdges(part: Pick<CustomPart, 'points'>, perHalfCircle = 24): { pts: P[]; edgeOf: number[] } {
+  const src = part.points;
+  const pts: P[] = [], edgeOf: number[] = [];
+  src.forEach((p, i) => {
+    const q = src[(i + 1) % src.length];
+    if (i === 0) pts.push([p.x, p.y]);
+    const next = arcPoints([p.x, p.y], [q.x, q.y], p.bulge ?? 0, perHalfCircle);
+    if (i === src.length - 1) next.pop();
+    for (const _ of next) edgeOf.push(i);
+    pts.push(...next);
+  });
+  // The closing piece (last point back to the first) belongs to the last edge
+  edgeOf.push(src.length - 1);
+  return { pts, edgeOf };
+}
+
+/**
+ * How far a profile cuts back from the original edge, at a depth z into the face (0 at the face).
+ * Zero once past the profile's depth.
+ */
+export function cutInset(kind: EdgeCutKind, s: number, z: number): number {
+  if (z < 0) return cutInset(kind, s, 0);
+  switch (kind) {
+    case 'chamfer': return Math.max(0, s - z);
+    case 'roundover': return z >= s ? 0 : s - Math.sqrt(Math.max(0, s * s - (s - z) * (s - z)));
+    case 'cove': return z >= s ? 0 : Math.sqrt(Math.max(0, s * s - z * z));
+    // A roman ogee: an S from the face to the edge, rounding over near the face and coving into the edge
+    case 'ogee': return z >= s ? 0 : s * (0.5 + 0.5 * Math.cos((Math.PI * z) / s));
+    // A bead: a small flat quirk at the face, then a roundover of the bit's radius
+    case 'bead': { const q = s * 0.2; if (z >= s + q) return 0; if (z < q) return s; const t = z - q; return s - Math.sqrt(Math.max(0, s * s - (s - t) * (s - t))); }
+    case 'rabbet': return z >= s ? 0 : s;
+  }
+}
+/** How deep into the face a profile goes. */
+export const cutDepth = (c: EdgeCut) => (c.kind === 'bead' ? c.size * 1.2 : c.size);
+
+/**
+ * The outline moved in by a different amount along each piece (its profile's cut-back at this depth),
+ * the corners found where neighboring pieces' moved lines meet. Counter-clockwise in, counter-clockwise out.
+ */
+export function offsetOutline(pts: P[], insets: number[]): P[] {
+  const n = pts.length;
+  const line = (k: number) => {
+    const a = pts[k], b = pts[(k + 1) % n];
+    const dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy) || 1;
+    const nx = -dy / L, ny = dx / L; // left of travel: inside, for a counter-clockwise outline
+    return { a: [a[0] + nx * insets[k], a[1] + ny * insets[k]] as P, d: [dx / L, dy / L] as P };
+  };
+  return pts.map((p, j) => {
+    const k0 = (j - 1 + n) % n, k1 = j;
+    if (!insets[k0] && !insets[k1]) return p;
+    const l0 = line(k0), l1 = line(k1);
+    const cross = l0.d[0] * l1.d[1] - l0.d[1] * l1.d[0];
+    // Nearly straight on (along a curve, or where two curves meet tangent): meet halfway between the two
+    // moved points rather than at a far-off intersection
+    if (Math.abs(cross) < 0.35) {
+      const n0: P = [-l0.d[1], l0.d[0]], n1: P = [-l1.d[1], l1.d[0]];
+      return [p[0] + (n0[0] * insets[k0] + n1[0] * insets[k1]) / 2, p[1] + (n0[1] * insets[k0] + n1[1] * insets[k1]) / 2] as P;
+    }
+    const t = ((l1.a[0] - l0.a[0]) * l1.d[1] - (l1.a[1] - l0.a[1]) * l1.d[0]) / cross;
+    const q: P = [l0.a[0] + l0.d[0] * t, l0.a[1] + l0.d[1] * t];
+    // A very sharp corner can shoot the point far off: hold it within reach
+    const reach = Math.max(insets[k0], insets[k1]) * 2.5;
+    return Math.hypot(q[0] - p[0], q[1] - p[1]) > reach ? [l1.a[0], l1.a[1]] as P : q;
+  });
+}
+
+/** The profiles on a part, in words for the shop drawing: "1/4" roundover, both faces: edges 4, 5". */
+export function edgeCutNotes(part: CustomPart): string[] {
+  const groups = new Map<string, number[]>();
+  part.points.forEach((p, i) => { if (p.cut) { const k = `${inches(p.cut.size)} ${edgeCutLabel[p.cut.kind].replace(/ \(.*\)$/, '').toLowerCase()}, ${p.cut.faces === 'both' ? 'both faces' : `${p.cut.faces} face`}`; groups.set(k, [...(groups.get(k) ?? []), i + 1]); } });
+  return [...groups].map(([k, e]) => `${k.charAt(0).toUpperCase()}${k.slice(1)}: edge${e.length > 1 ? 's' : ''} ${e.join(', ')}`);
 }
 
 /** Overall size: depth out from the wall (x), height (y). */

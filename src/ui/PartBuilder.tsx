@@ -5,7 +5,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from '../store';
 import { useShop, savePart, deletePart } from '../shop/shop';
-import { inches, newPart, partArea, partDxf, partOutline, partPresets, partSize, templateHtml, type CustomPart, type PartPoint } from '../model/customParts';
+import { cutDepth, edgeCutLabel, edgeCutNotes, inches, newPart, offsetOutline, outlineEdges, type EdgeCut, type EdgeCutKind, partArea, partDxf, partOutline, partPresets, partSize, templateHtml, type CustomPart, type PartPoint } from '../model/customParts';
 import { capability, type Downloads } from '../runtime';
 import { asciiHtml } from '../dropbox';
 import { askConfirm } from './Confirm';
@@ -136,7 +136,12 @@ export function PartBuilder() {
                     <button className="mini" onClick={() => putPoint(sel, { bulge: -(draft.points[sel].bulge ?? 0) || undefined })}>Flip the curve</button>
                     <button className="mini danger" disabled={draft.points.length <= 3} onClick={() => { setDraft((d) => d && { ...d, points: d.points.filter((_, k) => k !== sel) }); setSel(null); }}>Delete corner</button>
                   </div>
+                  <EdgeCutFields cut={draft.points[sel].cut} edge={sel + 1} onChange={(cut) => putPoint(sel, { cut })}
+                    onAll={(cut) => setDraft((d) => d && { ...d, points: d.points.map((p) => ({ ...p, cut })) })} />
                 </div>
+              )}
+              {edgeCutNotes(draft).length > 0 && (
+                <div className="hint"><b>Edge profiles</b>{edgeCutNotes(draft).map((t) => <div key={t}>{t}</div>)}</div>
               )}
               <div className="order-actions">
                 <button className="primary" disabled={!dirty} onClick={save}>{saved ? 'Save changes' : 'Save to library'}</button>
@@ -199,6 +204,7 @@ function OutlineEditor({ part, sel, onSelect, onPoint, onInsert }: { part: Custo
       onPointerUp={() => { drag.current = null; }} onPointerLeave={() => { drag.current = null; }}>
       {lines}
       <path d={path} className="shape" />
+      {(() => { const cl = cutLine(part); return cl ? <path d={`M${cl.map(([x, y]) => toSvg(x, y).map((v) => v.toFixed(4)).join(',')).join(' L')} Z`} className="cutline" /> : null; })()}
       {edges.map((d, i) => (
         <path key={`e${i}`} d={d} className={`edge${sel === i ? ' on' : ''}`} onClick={() => onSelect(i)}
           onDoubleClick={(e) => { const q = fromEvent(e); onInsert(i, snap(q.x), snap(q.y)); }} />
@@ -216,3 +222,48 @@ const frame = (s: { w: number; h: number; minX: number; minY: number }) => {
   const m = Math.max(1.5, Math.max(s.w, s.h) * 0.25);
   return { x0: Math.floor(s.minX - m), y0: Math.floor(s.minY - m), w: Math.ceil(s.w + 2 * m), h: Math.ceil(s.h + 2 * m) };
 };
+
+/** The router or shaper profile on the edge leaving the picked corner. */
+function EdgeCutFields({ cut, edge, onChange, onAll }: { cut?: EdgeCut; edge: number; onChange: (c: EdgeCut | undefined) => void; onAll: (c: EdgeCut | undefined) => void }) {
+  const kinds = Object.keys(edgeCutLabel) as EdgeCutKind[];
+  return (
+    <div className="edge-cut">
+      <Field label={`Edge ${edge}: router or shaper profile`} htmlFor="pb-cut">
+        <select id="pb-cut" value={cut?.kind ?? ''} onChange={(e) => onChange(e.target.value ? { kind: e.target.value as EdgeCutKind, size: cut?.size ?? 0.25, faces: cut?.faces ?? 'both' } : undefined)}>
+          <option value="">Square (no profile)</option>
+          {kinds.map((k) => <option key={k} value={k}>{edgeCutLabel[k]}</option>)}
+        </select>
+      </Field>
+      {cut && (
+        <div className="grid2">
+          <Field label={cut.kind === 'chamfer' ? 'Size (each leg)' : cut.kind === 'rabbet' ? 'Width and depth' : 'Radius'} htmlFor="pb-cut-size">
+            <LengthInput id="pb-cut-size" value={cut.size} min={1 / 16} onChange={(v) => v && onChange({ ...cut, size: v })} />
+          </Field>
+          <Field label="On" htmlFor="pb-cut-faces">
+            <select id="pb-cut-faces" value={cut.faces} onChange={(e) => onChange({ ...cut, faces: e.target.value as EdgeCut['faces'] })}>
+              <option value="both">Both faces</option><option value="left">Left face</option><option value="right">Right face</option>
+            </select>
+          </Field>
+        </div>
+      )}
+      <div className="order-actions">
+        {cut && <button className="mini" onClick={() => onAll(cut)} title="Every edge of the outline gets this profile; set the back and top edges back to Square if they sit against the wall and shelf">Use on every edge</button>}
+        <button className="mini" onClick={() => onAll(undefined)}>Clear all profiles</button>
+      </div>
+    </div>
+  );
+}
+
+/** Where the profiles stop on the face: the outline pulled in by each edge's full profile depth. */
+export function cutLine(part: CustomPart): [number, number][] | null {
+  if (!part.points.some((p) => p.cut)) return null;
+  const { pts, edgeOf } = outlineEdges(part, 32);
+  let area = 0;
+  for (let i = 0; i < pts.length; i++) { const [x1, y1] = pts[i], [x2, y2] = pts[(i + 1) % pts.length]; area += x1 * y2 - x2 * y1; }
+  const ins = edgeOf.map((e) => { const c = part.points[e].cut; return c ? cutDepth(c) : 0; });
+  if (area >= 0) return offsetOutline(pts, ins);
+  // Clockwise: run it backwards so "in" is to the left
+  const n = pts.length;
+  const rp = [...pts].reverse(), ri = rp.map((_, i) => (i < n - 1 ? ins[n - 2 - i] : ins[n - 1]));
+  return offsetOutline(rp, ri);
+}

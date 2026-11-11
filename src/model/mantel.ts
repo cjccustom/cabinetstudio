@@ -5,7 +5,7 @@
 // Cabinet-local coordinates like every cabinet: x across from the left leg, y up, z out from the wall.
 // width is the outside of the legs, height the top of the shelf, depth the wall to the frieze face.
 import { corbelByCode } from './corbels';
-import { partCutShape, partSize } from './customParts';
+import { edgeCutNotes, partCutShape, partSize } from './customParts';
 import type { Cabinet, CutShape, Part, PilasterSpec, ShopSettings, VisualBox } from './types';
 import type { Appliance } from './appliances';
 import { vb } from './parts';
@@ -210,7 +210,7 @@ export function mantelParts(c: Cabinet, s: ShopSettings): Part[] {
     const xs = m.corbels === 2 ? [L.legW / 2, W - L.legW / 2] : [L.legW * 0.28, L.legW * 0.72, W - L.legW * 0.72, W - L.legW * 0.28];
     for (const cx of xs) {
       const shape = part ? partCutShape(part, cx - cw / 2, L.shelfBottom - ch, L.legFace) : corbelShape(cx - cw / 2, L.shelfBottom - ch, L.legFace, cw, ch, d);
-      const p = piece('Corbel', ch, d, cw, [], part ? `${part.name}: shop-made from the template; glued and screwed under the shelf` : bought ? `Next Day ${bought.code} (${bought.name}); glued and screwed under the shelf` : 'shop-made; glued and screwed under the shelf', [shape]);
+      const p = piece('Corbel', ch, d, cw, [], part ? `${part.name}: shop-made from the template${edgeCutNotes(part).length ? ` (${edgeCutNotes(part).join('; ')})` : ''}; glued and screwed under the shelf` : bought ? `Next Day ${bought.code} (${bought.name}); glued and screwed under the shelf` : 'shop-made; glued and screwed under the shelf', [shape]);
       out.push(bought ? { ...p, cut: false } : part?.species ? { ...p, species: part.species } : p);
     }
   }

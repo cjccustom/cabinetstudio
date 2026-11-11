@@ -61,7 +61,7 @@ import { eagleFraction, eagleRequests, requestText } from "../src/model/eagleReq
 import { hardwareOrder, tierPrice } from "../src/model/hardware";
 import { bbox, hardwareScope, pullSpots } from "../src/model/pulls";
 import { topSection, edgeCurve } from "../src/model/edgeProfiles";
-import { newPart, partDxf, partOutline, partSize, templateHtml } from "../src/model/customParts";
+import { cutInset, edgeCutNotes, newPart, offsetOutline, partDxf, partOutline, partSize, templateHtml } from "../src/model/customParts";
 import { doorSwings, doorSwingIssues, RESTRICT_TO } from "../src/model/doorSwing";
 import { frontMotions } from "../src/three/fronts";
 import { selections as selList, optionDeltas, listedPrice, selectionText } from "../src/model/selections";
@@ -2265,6 +2265,19 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   eq('part: hours each on the quote', hrs.some((h) => h.label.startsWith('Custom parts: Test corbel, make') && h.qty === 2 && h.each === part.hoursEach), true);
   eq('part: master template once', hrs.filter((h) => /master template/.test(h.label)).length, 1);
   eq('part: not bought from Next Day', estimateMaterials(job, quoteOf(job)).some((l) => /Next Day/.test(l.label)), false);
+}
+
+// Edge profiles on a custom part: how far each cuts back, the pulled-in outline, and the shop note
+{
+  eq('cut: roundover full at the face, gone at its radius', `${cutInset('roundover', 0.25, 0)} ${cutInset('roundover', 0.25, 0.25)}`, '0.25 0');
+  eq('cut: chamfer halfway', cutInset('chamfer', 0.5, 0.25), 0.25);
+  eq('cut: cove is concave (cuts more than a chamfer midway)', cutInset('cove', 0.5, 0.25) > 0.25, true);
+  const sq: [number, number][] = [[0, 0], [4, 0], [4, 4], [0, 4]];
+  const off = offsetOutline(sq, [0.5, 0.5, 0.5, 0.5]);
+  eq('cut: square pulled in evenly', off.map((p) => p.join(',')).join(' '), '0.5,0.5 3.5,0.5 3.5,3.5 0.5,3.5');
+  const part = { ...newPart('scroll'), id: 'p2', name: 'Profiled' };
+  part.points = part.points.map((p, i) => (i === 4 || i === 5 ? { ...p, cut: { kind: 'roundover' as const, size: 0.25, faces: 'both' as const } } : p));
+  eq('cut: shop note', edgeCutNotes(part).join(' | '), '1/4" roundover, both faces: edges 5, 6');
 }
 
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');
