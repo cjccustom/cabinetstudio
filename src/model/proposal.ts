@@ -25,16 +25,33 @@ const optionId = (name: string) => name.toLowerCase().replace(/[^a-z0-9]+/g, '-'
 
 /** The option names used in a job: cabinets and extras marked as offered on top of the base price. */
 export function optionNames(p: Project): string[] {
-  const names = [...p.cabinets.map((c) => c.option), ...(p.quote?.extras ?? []).map((e) => e.option)].map((n) => n?.trim()).filter((n): n is string => !!n);
+  const names = [...p.cabinets.map((c) => c.option), ...lightingOptions(p).map((o) => o.name), ...(p.quote?.extras ?? []).map((e) => e.option)].map((n) => n?.trim()).filter((n): n is string => !!n);
   return [...new Set(names)];
 }
+
+/** Lighting kinds offered as options, with the cabinets that have them. */
+function lightingOptions(p: Project): { kind: string; name: string; cabs: Cabinet[] }[] {
+  const opts = p.cabLighting?.options ?? {};
+  return Object.entries(opts)
+    .filter(([, name]) => !!name?.trim())
+    .map(([kind, name]) => ({ kind, name: name!.trim(), cabs: p.cabinets.filter((c) => c.lighting?.includes(kind as never)) }))
+    .filter((o) => o.cabs.length);
+}
+
+const lightWords: Record<string, string> = {
+  puck: 'Recessed puck lights', stile: 'Vertical LED strips lighting the shelves', shelfFront: 'LED strip in the top of each open section', under: 'Under-cabinet LED strips',
+  shelves: 'Adjustable shelf lighting: an LED light under every shelf, so the shelves can still be moved', topAccent: 'LED accent uplight on top of the cabinets, washing up the wall',
+};
 
 /** The job with only some options in it (none = the base proposal). */
 export function withOptions(p: Project, keep: string[] = []): Project {
   const on = (n?: string) => !n?.trim() || keep.includes(n.trim());
+  // Lighting kinds offered as options come off the cabinets unless that option is kept
+  const off = Object.entries(p.cabLighting?.options ?? {}).filter(([, n]) => n?.trim() && !on(n)).map(([k]) => k);
+  const unlit = (c: Cabinet): Cabinet => (off.length && c.lighting?.some((k) => off.includes(k)) ? { ...c, lighting: c.lighting.filter((k) => !off.includes(k)) } : c);
   return {
     ...p,
-    cabinets: p.cabinets.filter((c) => on(c.option)),
+    cabinets: p.cabinets.filter((c) => on(c.option)).map(unlit),
     ...(p.quote ? { quote: { ...p.quote, extras: (p.quote.extras ?? []).filter((e) => on(e.option)) } } : {}),
   };
 }
@@ -48,7 +65,8 @@ export function optionPrices(p: Project): ProposalOption[] {
     const price = Math.round((priceQuote(withOptions(p, [name])).total - base) / 10) * 10;
     const only = { ...p, cabinets: p.cabinets.filter((c) => c.option?.trim() === name) };
     const extras = (p.quote?.extras ?? []).filter((e) => e.option?.trim() === name).map((e) => e.label);
-    return { id: optionId(name), label: name, price, items: [...plainItems(withOptions(p, [name]), only.cabinets), ...extras] };
+    const lights = lightingOptions(p).filter((o) => o.name === name).map((o) => `${lightWords[o.kind] ?? 'LED lighting'} (${o.cabs.length === 1 ? o.cabs[0].name : `${o.cabs.map((c) => c.name).join(', ').replace(/, ([^,]*)$/, ' and $1')}`})`);
+    return { id: optionId(name), label: name, price, items: [...plainItems(withOptions(p, [name]), only.cabinets), ...lights, ...extras] };
   });
 }
 

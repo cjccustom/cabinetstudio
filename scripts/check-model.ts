@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { proposalSummary } from "../src/model/proposal";
+import { optionPrices, proposalSummary, withOptions } from "../src/model/proposal";
 import { finishColors } from "../src/model/woodColors";
 import { newTV, tvSize } from "../src/model/tv";
 import { quoteStates } from "../src/model/quoteQueue";
@@ -2209,6 +2209,19 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   const rod = buildParts(cl, p.settings).find((x) => x.role === 'rod')!;
   eq('closet rod: 12" off the wall in an 18" deep case', rod.note!.includes('12" off the wall'), true);
   eq('closet rod: drawn there', Math.abs(rod.boxes[0].min[2] + rod.boxes[0].size[2] / 2 - 12) < 0.01, true);
+}
+
+// Lighting as a proposal option: off the base price and the base scope, priced and listed as its own box to tick
+{
+  const w = p.cabinets.find((c) => c.kind === 'wall')!;
+  const lit = { ...p, cabinets: p.cabinets.map((c) => (c.id === w.id ? { ...c, lighting: ['under' as const] } : c)), cabLighting: { options: { under: 'Cabinet lighting' }, allowance: 300 } };
+  const opts = optionPrices(lit);
+  const o = opts.find((x) => x.label === 'Cabinet lighting');
+  eq('lighting option: offered', !!o, true);
+  eq('lighting option: priced over the base', (o?.price ?? 0) > 0, true);
+  eq('lighting option: said in words', o?.items.some((i) => i.startsWith('Under-cabinet LED strips')), true);
+  eq('lighting option: not in the base', withOptions(lit).cabinets.find((c) => c.id === w.id)!.lighting?.length ?? 0, 0);
+  eq('lighting option: kept when chosen', withOptions(lit, ['Cabinet lighting']).cabinets.find((c) => c.id === w.id)!.lighting?.length, 1);
 }
 
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');

@@ -62,6 +62,8 @@ export interface LightingJob {
   allowance?: number;
   /** The shop already has the bus bar router bit. */
   ownBit?: boolean;
+  /** Lighting offered as an option on the proposal, by kind: shelf lighting, the accent on top... (unset = in the base price). */
+  options?: Partial<Record<CabLightKind, string>>;
 }
 
 /**

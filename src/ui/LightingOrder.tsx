@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useStore } from '../store';
-import { accentLabel, controlLabel, electricianHtml, hafeleOf, type HafeleSpec, lightingJobOf, lightingParts, type Control, type LightingJob, type PartKey , wireRouteLabel, type WireRoute } from '../model/cabinetLighting';
+import { accentLabel, cabLightLabel, controlLabel, electricianHtml, hafeleOf, type HafeleSpec, lightingJobOf, lightingParts, type Control, type LightingJob, type PartKey , wireRouteLabel, type WireRoute } from '../model/cabinetLighting';
 import { capability, type Downloads } from '../runtime';
 import { asciiHtml } from '../dropbox';
 import { clientName, clientOf, COMPANY } from '../model/client';
@@ -88,6 +88,14 @@ export function LightingOrder() {
         </Field>
       </div>
       {job.allowance != null && <p className="hint">The quote uses the {money(job.allowance)} allowance for lighting materials in place of the parts ({money(partsTotal)} priced so far), not on top of them. Tax, freight, tooling, labor and markup are apart.</p>}
+      {/* Each kind of lighting on the job: in the base price, or a box the customer ticks */}
+      <div className="grid2">
+        {[...new Set(L.fixtures.map((f) => f.kind))].map((k) => (
+          <Field key={k} label={`${cabLightLabel[k].replace(/ \(.*\)$/, '')}: offer as an option named (blank = in the base price)`} htmlFor={`cl-opt-${k}`}>
+            <input id={`cl-opt-${k}`} placeholder="In the base price" value={job.options?.[k] ?? ''} onChange={(e) => put({ options: { ...job.options, [k]: e.target.value || undefined } })} />
+          </Field>
+        ))}
+      </div>
       {hasAccent && (
         <div className="grid2">
           <Field label="Accent uplight on top" htmlFor="cl-acc">
