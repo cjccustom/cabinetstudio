@@ -1065,6 +1065,29 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   eq('fireplace: base across the front between the plinths', front.length, 52.625 - 12 - 1.5);
 }
 
+// A classic mantel: flat panel breastboard matching the legs, a neck moulding, an upper section stepped back with a cap
+{
+  const fp = { ...cabinetFromPreset(presets.find((x) => x.id === 'mantel-electric')!, 'front', 55, []), depth: 13.5, width: 47.25, height: 48.5, crown: '5268' };
+  fp.mantel = { openingW: 31.25, openingH: 26.625, openingY: 8, margin: 2, legs: 'pilaster', legBuild: 'pilaster', legProud: 0.75, corbels: 0, chimney: true, shelfThickness: 1.5, shelfDepth: 16.5,
+    frieze: 'panel', neckMold: '7092', baseCapAcross: false,
+    pilaster: { plinth: 0, capital: 0, stile: 1.5, rail: 2, band: 1.5, proud: 0.75 }, upper: { on: true, top: 98.75, plinth: 0, frameStile: 3, frameRail: 3.5, between: 'wall', setback: 1.5, capMold: '5268' }, baseH: 6, baseCapH: 1.5, baseT: 0.75 } as typeof fp.mantel;
+  const parts = buildParts(fp, s);
+  const fr = parts.find((x) => x.name === 'Frieze panel')!;
+  const legPanels = parts.filter((x) => x.name === 'Leg pilaster panel');
+  const upperLeg = legPanels.map((x) => x.boxes[0]).sort((a, b) => b.min[1] - a.min[1])[0];
+  eq('classic mantel: breastboard panel lines up with the legs\' upper panels', `${fr.boxes[0].min[1].toFixed(3)}-${(fr.boxes[0].min[1] + fr.boxes[0].size[1]).toFixed(3)} ${upperLeg.min[1].toFixed(3)}-${(upperLeg.min[1] + upperLeg.size[1]).toFixed(3)}`, '38.625-43.147 38.625-43.147');
+  eq('classic mantel: each leg breaks into two panels', legPanels.length, 4);
+  const molds = cabinetMoldings(fp, s, { left: true, right: true } as never);
+  eq('classic mantel: neck moulding wraps each leg (face and both sides)', molds.filter((m) => m.num === '7092').length, 6);
+  const caps = molds.filter((m) => m.num === '5268' && m.y > 90);
+  eq('classic mantel: cap on the upper pilasters, 1-1/2" back from the legs', `${caps.length} ${caps.find((m) => m.facing === 'front')!.z}`, '6 12.75');
+  eq('classic mantel: bed moulding steps in across the frieze', molds.some((m) => m.num === '5268' && m.facing === 'front' && m.z === 13.5 && m.cut?.[0] === 'in'), true);
+  const sides = parts.filter((x) => x.name === 'Chimney side').map((x) => `${x.length}x${x.width}`).join();
+  eq('classic mantel: chimney steps back above the shelf', sides, '48.5x12.75,50.25x11.25,48.5x12.75,50.25x11.25');
+  eq('classic mantel: base cap wraps the legs, not across under the opening', parts.some((x) => x.name === 'Base cap' && x.note?.startsWith('front')), false);
+  eq('classic mantel: frieze panel in the quote', estimateHours({ ...p, cabinets: [fp] }, quoteOf(p)).some((h) => h.label === 'Mantels: frame-and-panel frieze'), true);
+}
+
 // The ~12" soffit along the fireplace wall with stile-and-rail panels underneath, to either side of the chimney
 {
   const fp = { ...cabinetFromPreset(presets.find((x) => x.id === 'mantel-electric')!, 'front', 55, []), depth: 13.5, width: 47.25, height: 44.625 };

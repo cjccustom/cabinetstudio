@@ -37,7 +37,7 @@ export function pilasterRails(c: Cabinet): { name: string; y0: number; y1: numbe
   // With no plinth block the bottom rail runs down behind the base to the floor
   const out = [{ name: 'Pilaster bottom rail', y0: ps.plinth, y1: pilasterFoot(ps) + ps.rail }];
   for (const sec of secs.slice(1)) out.push({ name: 'Pilaster mid rail', y0: sec.y0 - ps.band, y1: sec.y0 });
-  out.push({ name: 'Pilaster top rail', y0: c.height - ps.capital - ps.rail, y1: c.height - ps.capital });
+  out.push({ name: 'Pilaster top rail', y0: c.height - ps.capital - (ps.topRail ?? ps.rail), y1: c.height - ps.capital });
   return out;
 }
 
@@ -47,7 +47,7 @@ export function pilasterOpenings(c: Cabinet): { y0: number; w: number; h: number
   const secs = pilasterSections(c);
   return secs.map((sec, i) => {
     const y0 = sec.y0 + (i === 0 ? ps.rail : 0);
-    const y1 = sec.y1 - (i === secs.length - 1 ? ps.rail : 0);
+    const y1 = sec.y1 - (i === secs.length - 1 ? ps.topRail ?? ps.rail : 0);
     return { y0, w: c.width - 2 * ps.stile, h: y1 - y0 };
   }).filter((o) => o.h > 0.5 && o.w > 0.5);
 }

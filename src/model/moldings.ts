@@ -1,7 +1,7 @@
 // Mouldings from the Anderson & McQuaid catalog: crown, light rail and base on cabinets, caps on
 // beadboard. Each run follows the cabinet face and returns along exposed ends.
 import type { Cabinet, Project, ShopSettings, WallPanel } from './types';
-import { mantelLayout, mantelOf } from './mantel';
+import { mantelLayout, mantelOf, neckAt, upperSetback, upperTop } from './mantel';
 import { amCatalog, type AMProfile } from './andersonMcquaid';
 import { broscoCatalog } from './brosco';
 import { nextDayCatalog } from './nextDay';
@@ -385,8 +385,37 @@ function mantelMoldings(c: Cabinet, ends: EndInfo): MoldPiece[] {
   const L = mantelLayout(c);
   const m = mantelOf(c);
   const out: MoldPiece[] = [];
+  const W = c.width, D = c.depth;
+  const zc = D - m.stock;
+  /** Around one leg: across its face, mitered at both corners, and back along each side to `back` (or to the frieze on the inside). */
+  const aroundLeg = (kind: MoldKind, num: string, y: number, x0: number, w: number, face: number, back: number, inner: number | null) => {
+    const d = mountShape(profileByNum(num)!).depth;
+    const left = x0 < W / 2;
+    out.push({ kind, num, along: 'x', facing: 'front', x: x0 - d, y, z: face, length: w + 2 * d, cut: ['out', 'out'] });
+    const outer = left ? x0 : x0 + w, innerX = left ? x0 + w : x0;
+    out.push({ kind, num, along: 'z', facing: left ? 'left' : 'right', x: outer, y, z: back, length: face + d - back, cut: ['square', 'out'] });
+    const ib = inner ?? back;
+    out.push({ kind, num, along: 'z', facing: left ? 'right' : 'left', x: innerX, y, z: ib, length: face + d - ib, cut: [inner != null ? 'in' : 'square', 'out'] });
+  };
+  // Bed moulding on pilaster legs proud of the frieze: around each leg, and across the frieze between
+  const bed = profileByNum(c.crown);
+  const stepped = !!bed && m.legs !== 'none' && L.proud > 0.01 && L.legW > 0.5;
+  if (stepped) {
+    const y = L.shelfBottom - mountShape(bed).height;
+    for (const x0 of [0, W - L.legW]) aroundLeg('crown', bed.num, y, x0, L.legW, L.legFace, 0, D);
+    out.push({ kind: 'crown', num: bed.num, along: 'x', facing: 'front', x: L.legW, y, z: D, length: W - 2 * L.legW, cut: ['in', 'in'] });
+  }
+  // Neck moulding around the legs where their panels break
+  const neck = profileByNum(m.neckMold), ny = neckAt(c, m);
+  if (neck && ny != null && L.legW > 0.5) for (const x0 of [0, W - L.legW]) aroundLeg('panel', neck.num, ny - mountShape(neck).height / 2, x0, L.legW, L.legFace, m.chimney ? zc : 0, L.proud > 0.01 ? D : null);
+  // Cap around the tops of the upper pilasters
+  const cap = profileByNum(m.upper.capMold);
+  if (cap && m.upper.on && L.legW > 0.5) {
+    const sb = upperSetback(m);
+    for (const x0 of [0, W - L.legW]) aroundLeg('crown', cap.num, upperTop(c, m) - mountShape(cap).height, x0, L.legW, L.legFace - sb, m.chimney ? zc - sb : 0, null);
+  }
   const runs: { kind: MoldKind; num?: string; y: (h: number) => number; z: number; x0: number; x1: number }[] = [
-    { kind: 'crown', num: c.crown, y: (h) => L.shelfBottom - h, z: L.legFace, x0: 0, x1: c.width },
+    ...(stepped ? [] : [{ kind: 'crown' as MoldKind, num: c.crown, y: (h: number) => L.shelfBottom - h, z: L.legFace, x0: 0, x1: c.width }]),
     { kind: 'baseMold', num: c.baseMold, y: () => 0, z: L.legFace + (m.plinth > 0 ? m.blockProud : 0), x0: -(m.plinth > 0 ? m.blockProud : 0), x1: c.width + (m.plinth > 0 ? m.blockProud : 0) },
   ];
   for (const r of runs) {

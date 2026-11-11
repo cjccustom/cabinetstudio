@@ -192,6 +192,8 @@ export interface PilasterSpec {
   stile: number;
   /** Top and bottom rails; rails at breaks use the band height. */
   rail: number;
+  /** A taller top rail, when a moulding (a mantel's bed moulding, a cap) covers part of it. Unset = rail. */
+  topRail?: number;
   panelThickness: number;
   /** Rabbet the panel sits in, each edge. */
   rabbet: number;

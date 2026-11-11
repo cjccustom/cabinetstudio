@@ -73,8 +73,18 @@ export interface MantelSpec {
    * Full-height treatment above the shelf: pilasters over the legs framing a panel, up to `top`
    * (off the floor; the ceiling trim). The panel is the same frame-and-panel build.
    */
-  /** Above the shelf: pilasters over the legs, and between them a frame and panel, or just the wall (painted the wall color). */
-  upper: { on: boolean; top: number; plinth: number; frameStile: number; frameRail: number; between?: 'panel' | 'wall' };
+  /**
+   * Above the shelf: pilasters over the legs, and between them a frame and panel, or just the wall
+   * (painted the wall color). setback: how far the upper section (its pilasters and the chimney face)
+   * steps back from the legs below. capMold: a moulding wrapped around the top of the upper pilasters.
+   */
+  upper: { on: boolean; top: number; plinth: number; frameStile: number; frameRail: number; between?: 'panel' | 'wall'; setback?: number; capMold?: string };
+  /** board: a plain frieze; panel: a frame-and-panel breastboard matching the pilaster legs, its panel lined up with theirs. */
+  frieze?: 'board' | 'panel';
+  /** A neck moulding wrapped around the pilaster legs where their panels break, level with the bottom of the frieze panel. */
+  neckMold?: string;
+  /** false: the base cap wraps the legs and stops at them, leaving the baseboard alone across under the opening. */
+  baseCapAcross?: boolean;
   /** The room's baseboard wrapped around the chimney, plinths and front: flat board, cap, thickness. 0 = none. */
   baseH: number;
   baseCapH: number;
@@ -133,6 +143,20 @@ export function mantelLayout(c: Cabinet, m = mantelOf(c)) {
   return { bedH, shelfBottom, openTop, friezeBottom, legW, proud, legFace: c.depth + proud, capTop: shelfBottom - bedH };
 }
 
+/** How far the upper section steps back from the legs. */
+export const upperSetback = (m: MantelSpec) => (m.upper.on ? Math.max(0, m.upper.setback ?? 0) : 0);
+
+/**
+ * Where the pilaster legs break for a neck moulding (the band's center): with a panel frieze, so the
+ * leg's upper panel starts level with the frieze panel; otherwise just above the bottom of the frieze.
+ */
+export function neckAt(c: Cabinet, m = mantelOf(c)): number | null {
+  if (m.legs !== 'pilaster' || m.legBuild !== 'pilaster' || (m.frieze !== 'panel' && !m.neckMold)) return null;
+  const ps = { ...defaultPilaster, ...m.pilaster };
+  const L = mantelLayout(c, m);
+  return m.frieze === 'panel' ? L.friezeBottom + ps.rail - ps.band / 2 : L.friezeBottom + ps.band / 2;
+}
+
 /** A bracket under the shelf, seen from the side: flat top and back, a curve between. */
 export function corbelShape(x: number, y: number, z: number, w: number, h: number, d: number): CutShape {
   const outline: [number, number][] = [[0, 0], [0, h], [d, h], [d, h * 0.82]];
@@ -154,13 +178,20 @@ export function mantelParts(c: Cabinet, s: ShopSettings): Part[] {
   const pil = m.legs === 'pilaster' && m.legBuild === 'pilaster';
   const zc = chimneyFace(c, m);
   /** A pilaster built like the bookcase ones, applied to the chimney face (or standing off the wall). */
-  const pilasterAt = (name: string, x0: number, y0: number, w: number, h: number, plinth: number): Part[] => {
-    const back = m.chimney ? zc : 0;
-    const virt: Cabinet = { ...c, kind: 'pilaster', width: w, height: h, depth: L.legFace - back, crown: undefined, pilaster: { ...defaultPilaster, proud: 0.75, ...m.pilaster, plinth, breaks: [], ...(plinth > 0 ? {} : { foot: y0 === 0 ? m.baseH + m.baseCapH : 0 }) } };
+  const sb = upperSetback(m);
+  const pilasterAt = (name: string, x0: number, y0: number, w: number, h: number, plinth: number, o: { setback?: number; breaks?: number[]; topRail?: number; capital?: number } = {}): Part[] => {
+    const back = m.chimney ? zc - (o.setback ?? 0) : 0;
+    const virt: Cabinet = { ...c, kind: 'pilaster', width: w, height: h, depth: L.legFace - (o.setback ?? 0) - back, crown: undefined,
+      pilaster: { ...defaultPilaster, proud: 0.75, ...m.pilaster, plinth, breaks: o.breaks ?? [], ...(o.topRail != null ? { topRail: o.topRail } : {}), ...(o.capital != null ? { capital: o.capital } : {}), ...(plinth > 0 ? {} : { foot: y0 === 0 ? m.baseH + m.baseCapH : 0 }) } };
     return pilasterParts(virt, s).map((p) => ({ ...p, name: p.name.replace(/^Pilaster/, name).replace(/^Plinth block/, `${name} plinth`).replace(/^Capital block/, `${name} capital`), note: [x0 < W / 2 ? 'Left' : 'Right', p.note].filter(Boolean).join(', '), boxes: p.boxes.map((b) => shift(b, x0, y0, back)) }));
   };
+  const ps0 = { ...defaultPilaster, ...m.pilaster };
   if (pil && L.legW > 0.5) {
-    for (const x0 of [0, W - L.legW]) out.push(...pilasterAt('Leg pilaster', x0, 0, L.legW, L.capTop, m.pilaster.plinth ?? defaultPilaster.plinth));
+    // With no capital block the legs run up behind the bed moulding, their top rail taller by its height
+    const noCap = ps0.capital <= 0 && L.bedH > 0;
+    const neck = neckAt(c, m);
+    for (const x0 of [0, W - L.legW]) out.push(...pilasterAt('Leg pilaster', x0, 0, L.legW, noCap ? L.shelfBottom : L.capTop, ps0.plinth,
+      { breaks: neck != null ? [neck] : [], ...(noCap ? { topRail: ps0.rail + L.bedH } : {}) }));
   } else if (m.legs !== 'none' && L.legW > 0.5) {
     for (const side of ['Left', 'Right'] as const) {
       const x0 = side === 'Left' ? 0 : W - L.legW;
@@ -186,7 +217,16 @@ export function mantelParts(c: Cabinet, s: ShopSettings): Part[] {
   // Frieze between the legs, from the top of the opening (plus the margin) up under the shelf
   const fx0 = L.legW, fw = W - 2 * L.legW;
   const fh = L.shelfBottom - L.friezeBottom;
-  if (fh > 0.5 && fw > 0.5) out.push(piece('Frieze', fw, fh, t, [vb(fx0, L.friezeBottom, D - t, fw, fh, t)], L.bedH ? 'bed moulding applied along its top' : undefined));
+  if (fh > 0.5 && fw > 0.5 && m.frieze === 'panel') {
+    // A breastboard framed like the pilaster legs: its panel lines up with the legs' upper panels
+    const st = ps0.stile, bot = ps0.rail, topR = ps0.rail + L.bedH, rb = ps0.rabbet;
+    for (const [n, x] of [['Left', fx0], ['Right', fx0 + fw - st]] as const) out.push(piece('Frieze stile', fh, st, t, [vb(x, L.friezeBottom, D - t, st, fh, t)], n));
+    out.push(piece('Frieze rail', fw - 2 * st, bot, t, [vb(fx0 + st, L.friezeBottom, D - t, fw - 2 * st, bot, t)], 'bottom'));
+    out.push(piece('Frieze rail', fw - 2 * st, topR, t, [vb(fx0 + st, L.shelfBottom - topR, D - t, fw - 2 * st, topR, t)], L.bedH ? `top; the bed moulding covers the upper ${fmt(L.bedH)}` : 'top'));
+    const pw = fw - 2 * st, ph = fh - bot - topR;
+    if (pw > 1 && ph > 1) out.push({ name: 'Frieze panel', role: 'back', material: 'back', look: 'paint', sheet: `${fmt(ps0.panelThickness)} MDF`, length: ph + 2 * rb - 0.0625, width: pw + 2 * rb - 0.0625, thickness: ps0.panelThickness, cut: true,
+      note: `set into a ${fmt(rb)} rabbet from the back`, boxes: [vb(fx0 + st, L.friezeBottom + bot, D - t - ps0.panelThickness + 0.0625, pw, ph, ps0.panelThickness, 0.94)] });
+  } else if (fh > 0.5 && fw > 0.5) out.push(piece('Frieze', fw, fh, t, [vb(fx0, L.friezeBottom, D - t, fw, fh, t)], L.bedH ? 'bed moulding applied along its top' : undefined));
   // Below a raised opening, a panel between the legs down to the floor
   const lowH = m.openingY - m.margin;
   if (lowH > 1 && fw > 0.5) out.push(piece('Lower panel', fw, lowH, t, [vb(fx0, 0, D - t, fw, lowH, t)], m.fuel === 'wood' ? 'hearth below the opening; check it is noncombustible' : 'below the insert'));
@@ -228,26 +268,34 @@ export function mantelParts(c: Cabinet, s: ShopSettings): Part[] {
   const top = m.upper.on ? upperTop(c, m) : c.height;
   if (m.chimney) {
     const skin = 0.75;
+    // Above the shelf the chimney can step back: shallower framing there, the shelf sits on the step
+    const stepped = sb > 0 && top > c.height;
     out.push({ name: 'Chimney framing', role: 'nailer', material: 'box', length: top, width: zc - skin, thickness: 3.5, cut: false,
-      note: `2x4 studs at 16", plates top and bottom, a header over the insert opening; ${fmt(W)} wide × ${fmt(zc)} out from the wall. Frame the insert opening to the manual.`, boxes: [] });
+      note: `2x4 studs at 16", plates top and bottom, a header over the insert opening; ${fmt(W)} wide × ${fmt(zc)} out from the wall${stepped ? `, stepping back to ${fmt(zc - sb)} above the shelf` : ''}. Frame the insert opening to the manual.`, boxes: [] });
     for (const [side, x] of [['Left', -skin], ['Right', W]] as const) {
-      out.push({ name: 'Chimney side', role: 'side', material: 'back', look: 'paint', sheet: '3/4" MDF', length: top, width: zc, thickness: skin, cut: true,
-        note: `${side}; painted with the walls`, boxes: [vb(x, 0, 0, skin, top, zc)] });
+      const lowH = stepped ? c.height : top;
+      out.push({ name: 'Chimney side', role: 'side', material: 'back', look: 'paint', sheet: '3/4" MDF', length: lowH, width: zc, thickness: skin, cut: true,
+        note: `${side}; painted with the walls`, boxes: [vb(x, 0, 0, skin, lowH, zc)] });
+      if (stepped) out.push({ name: 'Chimney side', role: 'side', material: 'back', look: 'paint', sheet: '3/4" MDF', length: top - c.height, width: zc - sb, thickness: skin, cut: true,
+        note: `${side}, above the shelf; painted with the walls`, boxes: [vb(x, c.height, 0, skin, top - c.height, zc - sb)] });
     }
     // With only pilasters above the shelf, the chimney face between them is wall: painted the wall color
     const wallAbove = m.upper.on && m.upper.between === 'wall' && top > c.height;
-    const faceTop = wallAbove ? c.height : top;
+    const faceTop = wallAbove || stepped ? c.height : top;
     out.push({ name: 'Chimney face', role: 'back', material: 'back', look: 'paint', sheet: '3/4" MDF', length: faceTop, width: W, thickness: skin, cut: true,
-      note: `Behind the frieze and legs${wallAbove ? '' : ' and upper panel'}; cut out for the insert opening. Shows as a painted facing beside the insert.`, boxes: [vb(0, 0, zc - skin, W, faceTop, skin)] });
-    if (wallAbove) out.push({ name: 'Chimney face, above the mantel', role: 'back', material: 'back', look: 'wall', sheet: '3/4" MDF (or drywall by others)', length: top - c.height, width: W, thickness: skin, cut: true,
-      note: 'Between the upper pilasters: finished and painted the wall color', boxes: [vb(0, c.height, zc - skin, W, top - c.height, skin)] });
+      note: `Behind the frieze and legs${wallAbove || stepped ? '' : ' and upper panel'}; cut out for the insert opening. Shows as a painted facing beside the insert.`, boxes: [vb(0, 0, zc - skin, W, faceTop, skin)] });
+    if (wallAbove || stepped) out.push({ name: 'Chimney face, above the mantel', role: 'back', material: 'back', look: wallAbove ? 'wall' : 'paint', sheet: '3/4" MDF (or drywall by others)', length: top - c.height, width: W, thickness: skin, cut: true,
+      note: wallAbove ? `Between the upper pilasters: finished and painted the wall color${stepped ? `; ${fmt(sb)} back from the face below` : ''}` : `Behind the overmantel panel, ${fmt(sb)} back from the face below`, boxes: [vb(0, c.height, zc - skin - sb, W, top - c.height, skin)] });
   }
   // Full height above the shelf: pilasters over the legs and a frame-and-panel between them
   if (m.upper.on && L.legW > 0.5) {
     const y0 = c.height, h = top - y0;
     if (h > 6) {
-      for (const x0 of [0, W - L.legW]) out.push(...pilasterAt('Upper pilaster', x0, y0, L.legW, h, m.upper.plinth));
-      const fx = L.legW, fw = W - 2 * L.legW, st = m.upper.frameStile, rl = m.upper.frameRail, ft = t, fz = zc;
+      // A cap moulding wrapped around their tops covers part of the top rail: it's taller by its height
+      const cap = profileByNum(m.upper.capMold);
+      const capH = cap ? mountShape(cap).height : 0;
+      for (const x0 of [0, W - L.legW]) out.push(...pilasterAt('Upper pilaster', x0, y0, L.legW, h, m.upper.plinth, { setback: sb, ...(cap ? { topRail: ps0.rail + capH, capital: 0 } : {}) }));
+      const fx = L.legW, fw = W - 2 * L.legW, st = m.upper.frameStile, rl = m.upper.frameRail, ft = t, fz = zc - sb;
       // Between the pilasters: a frame and panel, unless it's left as wall
       const framed = m.upper.between !== 'wall';
       if (framed) for (const [n, x] of [['Left', fx], ['Right', fx + fw - st]] as const) out.push(piece('Overmantel stile', h, st, ft, [vb(x, y0, fz, st, h, ft)], n));
@@ -275,7 +323,8 @@ export function mantelParts(c: Cabinet, s: ShopSettings): Part[] {
     ];
     for (const r of all.filter((x) => x.len > 0.25)) {
       out.push(piece('Baseboard', r.len, bh, bt, [r.box(0, bh)], `${r.name}; matches the room's, mitered at the corners`));
-      if (ch > 0) out.push(piece('Base cap', r.len, ch, bt, [r.box(bh, ch)], `${r.name}; custom, milled to match the existing`));
+      // The cap can stop at the legs, leaving the baseboard alone under the opening
+      if (ch > 0 && !(m.baseCapAcross === false && r.name.startsWith('front'))) out.push(piece('Base cap', r.len, ch, bt, [r.box(bh, ch)], `${r.name}; custom, milled to match the existing${m.baseCapAcross === false && r.name.includes('return') ? '; stops against the facing' : ''}`));
     }
   }
   return out;

@@ -96,6 +96,8 @@ export interface LaborStandards {
   mantelPediment: number;
   /** Full height above the shelf: upper pilasters and the overmantel frame and panel; installing it. */
   mantelUpper: number;
+  /** A frame-and-panel frieze (breastboard) instead of a plain board. */
+  mantelFriezePanel?: number;
   installMantelUpper: number;
   /** A faux chimney: framing and skin, full height. */
   chimneyFraming: number;
@@ -426,6 +428,7 @@ export function estimateHours(p: Project, q: QuoteSettings): HourLine[] {
       if (m.corbels && m.corbelPart) { add(`Custom parts: ${m.corbelPart.name}, make from the template, fit & mount (each)`, m.corbels, m.corbelPart.hoursEach); templates.set(m.corbelPart.id, m.corbelPart); }
       else if (m.corbels) add('Mantels: corbels', m.corbels, st.mantelCorbel ?? 1.5);
       if (m.pediment !== 'none') add('Mantels: pediment', 1, st.mantelPediment ?? 4);
+      if (m.frieze === 'panel') add('Mantels: frame-and-panel frieze', 1, st.mantelFriezePanel ?? 2);
       if (m.upper.on) {
         // Pilasters alone with wall between them: about 60% of the work of pilasters plus a frame and panel
         if (m.upper.between === 'wall') add('Mantels: upper pilasters (wall between)', 1, (st.mantelUpper ?? 10) * 0.6);
@@ -803,13 +806,15 @@ export function scopeLine(c: Cabinet, p: Project): string {
     const bits = [
       `Fireplace mantel, approx ${fmtIn(c.width)}W x ${fmtIn(c.height)}H`,
       m.chimney ? 'built on a framed faux chimney' : '',
-      m.legs === 'pilaster' ? (m.legBuild === 'pilaster' ? 'frame-and-panel pilaster legs with plinths and capitals, matching the bookcase pilasters' : 'pilaster legs with plinths and capitals') : m.legs === 'flat' ? 'flat legs' : '',
-      'frieze',
+      m.legs === 'pilaster' ? (m.legBuild === 'pilaster'
+        ? `flat panel pilaster legs${m.neckMold ? ' with a neck moulding' : (m.pilaster.capital ?? 3.5) > 0 ? ' with plinths and capitals' : ''}, matching the bookcase pilasters`
+        : 'pilaster legs with plinths and capitals') : m.legs === 'flat' ? 'flat legs' : '',
+      m.frieze === 'panel' ? 'flat panel breastboard to match' : 'frieze',
       `${fmtIn(m.shelfThickness)} thick mantel shelf${c.crown ? ' with bed moulding' : ''}`,
       m.corbels ? `(${m.corbels}) corbels` : '',
       m.pediment !== 'none' ? `${m.pediment === 'arch' ? 'arched ' : ''}pediment` : '',
       m.fuel === 'wood' ? 'surround for the existing wood-burning firebox' : `opening for owner's ${m.fuel === 'gas' ? 'gas' : 'electric'} insert${m.insert?.model ? ` (${m.insert.model})` : ''}`,
-      m.upper.on ? (m.upper.between === 'wall' ? `pilasters continuing above the shelf to the ceiling trim (approx ${fmtIn(m.upper.top)} high), with the wall painted between them` : `full-height overmantel to the ceiling trim (approx ${fmtIn(m.upper.top)} high): pilasters over the legs framing a recessed panel`) : '',
+      m.upper.on ? (m.upper.between === 'wall' ? `matching flat panel pilasters continuing above the shelf to the ceiling trim (approx ${fmtIn(m.upper.top)} high)${(m.upper.setback ?? 0) > 0 ? ', stepped back from the lower mantel' : ''}${m.upper.capMold ? ', with a cap moulding at the top' : ''}, with the wall painted between them` : `full-height overmantel to the ceiling trim (approx ${fmtIn(m.upper.top)} high): pilasters over the legs framing a recessed panel`) : '',
       m.baseH > 0 ? 'existing two-piece baseboard profile wrapped around the chimney and plinths' : c.baseMold ? 'base moulding' : '',
       'paint grade',
     ].filter(Boolean);

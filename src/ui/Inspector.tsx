@@ -28,7 +28,7 @@ import { friezeHeight, shelfFor, fuelLabel, hearthRequired, legWidth, mantelClea
 import { applianceKinds, appliancePresets, newAppliance, openingFor, placedAppliances, type Appliance, type ApplianceKind } from '../model/appliances';
 import { cabinetCallouts } from '../drawings/notes';
 import { archBuilds, archShapes, baseLayout, baseOf, baseStyles, cutOutline, defaultBase, floorStanding } from '../model/cabinetBase';
-import { profileLabel, profileByNum } from '../model/moldings';
+import { mountShape, profileLabel, profileByNum } from '../model/moldings';
 import { lumberNames } from '../model/pricebook';
 import { corbelByCode, corbelCatalog, corbelLabel } from '../model/corbels';
 import { cabinetFixtures, cabLightLabel, hafeleFit, type CabLightKind } from '../model/cabinetLighting';
@@ -1432,10 +1432,24 @@ function MantelSection({ cab, set }: { cab: Cabinet; set: (patch: Partial<Cabine
               <LengthInput id={`mt-p-${k}`} value={m.pilaster[k] ?? defaultPilaster[k]} onChange={(v) => put({ pilaster: { ...m.pilaster, [k]: v ?? 0 } })} />
             </Field>
           ))}
+          {m.legs !== 'none' && (
+            <Field label="Frieze" htmlFor="mt-frieze-build">
+              <select id="mt-frieze-build" value={m.frieze ?? 'board'} onChange={(e) => put({ frieze: e.target.value as MantelSpec['frieze'] })}>
+                <option value="board">Plain board</option>
+                <option value="panel">Flat panel breastboard, like the legs</option>
+              </select>
+            </Field>
+          )}
           {len('shelfThickness', 'Shelf thickness')}
           {len('shelfDepth', 'Shelf depth')}
           {len('shelfOverhang', 'Shelf past legs')}
         </div>
+        {pilBuild && (
+          <MoldSlot kind="panel" label="Neck moulding on the legs" num={m.neckMold} species={useStore.getState().project.settings.moldSpecies} onChange={(n) => put({ neckMold: n })} />
+        )}
+        {pilBuild && m.neckMold && <p className="hint">It wraps each leg where its panel breaks{m.frieze === 'panel' ? ', level with the bottom of the frieze panel' : ', just above the bottom of the frieze'}.</p>}
+        {(() => { const bed = profileByNum(cab.crown); const need = cab.depth + (m.legs === 'pilaster' ? m.legProud : 0) + (bed ? mountShape(bed).depth : 0) + 0.75;
+          return bed && Math.abs(m.shelfDepth - need) > 0.06 ? <p className="hint">Deep enough for the bed moulding with a 3/4" nosing: {fmt(need)}. <button className="link-btn" onClick={() => put({ shelfDepth: Math.round(need * 16) / 16 })}>Use {fmt(Math.round(need * 16) / 16)}</button></p> : null; })()}
         <p className="hint">Width is the outside of the legs; height is the top of the shelf; depth is the wall to the frieze face.</p>
       </Section>
       <Section title="Chimney & full height">
@@ -1458,7 +1472,11 @@ function MantelSection({ cab, set }: { cab: Cabinet; set: (patch: Partial<Cabine
             <Field label="Pilaster base" htmlFor="mt-uplinth"><LengthInput id="mt-uplinth" value={m.upper.plinth} onChange={(v) => put({ upper: { ...m.upper, plinth: v ?? 0 } })} /></Field>
             {(m.upper.between ?? 'panel') === 'panel' && <Field label="Panel stiles" htmlFor="mt-ust"><LengthInput id="mt-ust" value={m.upper.frameStile} onChange={(v) => put({ upper: { ...m.upper, frameStile: v ?? 3 } })} /></Field>}
             {(m.upper.between ?? 'panel') === 'panel' && <Field label="Panel rails" htmlFor="mt-url"><LengthInput id="mt-url" value={m.upper.frameRail} onChange={(v) => put({ upper: { ...m.upper, frameRail: v ?? 3.5 } })} /></Field>}
+            <Field label="Step back from the legs" htmlFor="mt-usb"><LengthInput id="mt-usb" value={m.upper.setback ?? 0} onChange={(v) => put({ upper: { ...m.upper, setback: v ?? 0 } })} /></Field>
           </div>
+        )}
+        {m.upper.on && (
+          <MoldSlot kind="crown" label="Cap on the upper pilasters" num={m.upper.capMold} species={useStore.getState().project.settings.moldSpecies} onChange={(n) => put({ upper: { ...m.upper, capMold: n } })} />
         )}
         {m.upper.on && Math.abs(m.upper.top - trimY) > 0.01 && <p className="hint">The ceiling trim is at {fmt(trimY)}. <button className="link-btn" onClick={() => put({ upper: { ...m.upper, top: trimY } })}>Run it up to there</button></p>}
       </Section>
@@ -1468,6 +1486,7 @@ function MantelSection({ cab, set }: { cab: Cabinet; set: (patch: Partial<Cabine
           <Field label="Base cap" htmlFor="mt-bch"><LengthInput id="mt-bch" value={m.baseCapH} onChange={(v) => put({ baseCapH: v ?? 0 })} /></Field>
           <Field label="Thickness" htmlFor="mt-bt"><LengthInput id="mt-bt" value={m.baseT} onChange={(v) => put({ baseT: v ?? 0.75 })} /></Field>
         </div>
+        {m.baseCapH > 0 && <label className="chk-row"><input type="checkbox" checked={m.baseCapAcross !== false} onChange={(e) => put({ baseCapAcross: e.target.checked })} /> Base cap runs across under the opening too (off: it wraps the legs and stops)</label>}
         <p className="hint">The room's baseboard, wrapped around the chimney sides, the plinths and across the front. 0 = none.</p>
       </Section>
       <Section title="Corbels & pediment">
