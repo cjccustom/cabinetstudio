@@ -25,6 +25,7 @@ import { openingIssues } from './model/room';
 import { ladderIssues } from './model/ladder';
 import { doorSwingIssues } from './model/doorSwing';
 import { ProjectDialog } from './ui/ProjectDialog';
+import { PartBuilder } from './ui/PartBuilder';
 import { DrawerCalculator } from './ui/DrawerCalculator';
 import { PanelInspector } from './ui/PanelInspector';
 import { BeadboardOrder } from './ui/BeadboardOrder';
@@ -91,6 +92,7 @@ export default function App() {
           <button role="tab" aria-selected={mode === 'quote'} className={mode === 'quote' ? 'on' : ''} onClick={() => setMode('quote')}>Quote</button>
           <button role="tab" aria-selected={mode === 'drawings'} className={mode === 'drawings' ? 'on' : ''} onClick={() => setMode('drawings')}>Drawings</button>
           <button role="tab" aria-selected={mode === 'render'} className={mode === 'render' ? 'on' : ''} onClick={() => setMode('render')}>Rendering</button>
+          <button role="tab" aria-selected={mode === 'parts'} className={mode === 'parts' ? 'on' : ''} onClick={() => setMode('parts')}>Part builder</button>
           <button role="tab" aria-selected={mode === 'job'} className={mode === 'job' ? 'on' : ''} onClick={() => setMode('job')}>Job & clock</button>
         </div>
         {mode === 'design' && <div className="seg views" role="tablist" aria-label="View">
@@ -109,7 +111,9 @@ export default function App() {
         </div>
       </header>
 
-      {mode === 'cutlist' ? (
+      {mode === 'parts' ? (
+        <PartBuilder />
+      ) : mode === 'cutlist' ? (
         <>
           <CutlistInputs />
           <CutlistLayouts />

@@ -1,3 +1,5 @@
+import { useShop } from '../shop/shop';
+import { inches, partSize, type CustomPart } from '../model/customParts';
 import { useEffect, useState } from 'react';
 import { cofferOf, perimOf } from '../model/coffer';
 import { combine, combineAll, stackedPairs, upperOn } from '../model/onePiece';
@@ -1034,9 +1036,10 @@ function FloatingShelfSection({ cab, set }: { cab: Cabinet; set: (patch: Partial
         </Field>
         {(f.corbels ?? 0) > 0 && (
           <Field label="Corbel" htmlFor="fs-corb-code">
-            <select id="fs-corb-code" value={f.corbelCode ?? ''} onChange={(e) => set({ floating: { ...f, corbelCode: e.target.value || undefined } })}>
+            <select id="fs-corb-code" value={f.corbelPart ? `part:${f.corbelPart.id}` : f.corbelCode ?? ''} onChange={(e) => { const v = e.target.value; const part = v.startsWith('part:') ? (useShop.getState().parts[v.slice(5)] ?? (f.corbelPart?.id === v.slice(5) ? f.corbelPart : undefined)) : undefined; set({ floating: { ...f, corbelPart: part, corbelCode: part ? undefined : v || undefined } }); }}>
               <option value="">Shop-made 3-1/2" × 7"</option>
-              {corbelCatalog.map((k) => <option key={k.code} value={k.code}>{corbelLabel(k)}</option>)}
+              <CustomPartOptions current={f.corbelPart} />
+              <optgroup label="Next Day">{corbelCatalog.map((k) => <option key={k.code} value={k.code}>{corbelLabel(k)}</option>)}</optgroup>
             </select>
           </Field>
         )}
@@ -1478,14 +1481,16 @@ function MantelSection({ cab, set }: { cab: Cabinet; set: (patch: Partial<Cabine
           </Field>
           {m.corbels > 0 && (
             <Field label="Corbel" htmlFor="mt-corbel-code">
-              <select id="mt-corbel-code" value={m.corbelCode ?? ''} onChange={(e) => put({ corbelCode: e.target.value || undefined })}>
+              <select id="mt-corbel-code" value={m.corbelPart ? `part:${m.corbelPart.id}` : m.corbelCode ?? ''} onChange={(e) => { const v = e.target.value; const part = v.startsWith('part:') ? (useShop.getState().parts[v.slice(5)] ?? (m.corbelPart?.id === v.slice(5) ? m.corbelPart : undefined)) : undefined; put({ corbelPart: part, corbelCode: part ? undefined : v || undefined }); }}>
                 <option value="">Shop-made, to the size below</option>
-                {corbelCatalog.map((k) => <option key={k.code} value={k.code}>{corbelLabel(k)}</option>)}
+                <CustomPartOptions current={m.corbelPart} />
+                <optgroup label="Next Day">{corbelCatalog.map((k) => <option key={k.code} value={k.code}>{corbelLabel(k)}</option>)}</optgroup>
               </select>
             </Field>
           )}
-          {m.corbels > 0 && !m.corbelCode && len('corbelW', 'Corbel width')}
-          {m.corbels > 0 && !m.corbelCode && len('corbelH', 'Corbel height')}
+          {m.corbels > 0 && !m.corbelCode && !m.corbelPart && len('corbelW', 'Corbel width')}
+          {m.corbels > 0 && !m.corbelCode && !m.corbelPart && len('corbelH', 'Corbel height')}
+          {m.corbels > 0 && m.corbelPart && <p className="hint">{m.corbelPart.name} from your parts library: {inches(partSize(m.corbelPart).h)} H × {inches(partSize(m.corbelPart).w)} D × {inches(m.corbelPart.thickness)}. Change its shape in the Part builder.</p>}
           {m.corbels > 0 && m.corbelCode && corbelByCode(m.corbelCode) && <p className="hint"><a href={corbelByCode(m.corbelCode)!.url} target="_blank" rel="noreferrer">See it on nextdaymoulding.com</a>. Its depth is fit to the shelf.</p>}
           <Field label="Pediment" htmlFor="mt-ped">
             <select id="mt-ped" value={m.pediment} onChange={(e) => put({ pediment: e.target.value as MantelSpec['pediment'] })}>
@@ -1570,4 +1575,13 @@ function SubCrownOnTop({ cab }: { cab: Cabinet }) {
       {!already && <p className="hint">A {fmt((next?.crownBuild?.subCrown) ?? 0)} flat sub-crown ({fmt((next?.crownBuild?.subCrown ?? exposed) - exposed)} crown + {fmt(exposed)} showing) stands on the case top, so the face frame’s whole top rail still shows below it. The crown stays where it is now (top {fmt(cab.elevation + L.top)} off the floor); the case gets {fmt(Math.max(0, cab.height - (next?.height ?? cab.height)))} shorter to make room, and its openings shrink with it.</p>}
     </div>
   );
+}
+
+/** The shop's own parts, as choices in a corbel picker (and the one in use, even if it's left the library). */
+function CustomPartOptions({ current }: { current?: CustomPart }) {
+  const lib = useShop((s) => s.parts);
+  const list = Object.values(lib).sort((a, b) => a.name.localeCompare(b.name));
+  if (current && !lib[current.id]) list.unshift(current);
+  if (!list.length) return null;
+  return <optgroup label="Your parts (Part builder)">{list.map((p) => <option key={p.id} value={`part:${p.id}`}>{p.name}: {inches(partSize(p).h)} H × {inches(partSize(p).w)} D × {inches(p.thickness)}</option>)}</optgroup>;
 }

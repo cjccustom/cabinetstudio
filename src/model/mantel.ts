@@ -5,6 +5,7 @@
 // Cabinet-local coordinates like every cabinet: x across from the left leg, y up, z out from the wall.
 // width is the outside of the legs, height the top of the shelf, depth the wall to the frieze face.
 import { corbelByCode } from './corbels';
+import { partCutShape, partSize } from './customParts';
 import type { Cabinet, CutShape, Part, PilasterSpec, ShopSettings, VisualBox } from './types';
 import type { Appliance } from './appliances';
 import { vb } from './parts';
@@ -42,6 +43,8 @@ export interface MantelSpec {
   corbelH: number;
   /** A Next Day corbel by item code (its size and price), or unset for shop-made at corbelW × corbelH. */
   corbelCode?: string;
+  /** A corbel drawn in the part builder (a copy, so the job stands alone); wins over corbelCode. */
+  corbelPart?: import('./customParts').CustomPart;
   pediment: 'none' | 'triangle' | 'arch';
   pedimentH: number;
   stock: number;
@@ -199,13 +202,16 @@ export function mantelParts(c: Cabinet, s: ShopSettings): Part[] {
     m.shelfThickness > 1.25 ? `built up to ${fmt(m.shelfThickness)}: ${fmt(t)} top with an edge band front and ends, or glued up` : undefined));
   // Brackets under the shelf, centered on the legs (two each on wide legs)
   if (m.corbels > 0 && L.legW > 0) {
-    const bought = corbelByCode(m.corbelCode);
-    const cw = bought?.w ?? m.corbelW, ch = bought?.h ?? m.corbelH;
-    const d = bought ? Math.min(bought.d, Math.max(1.5, m.shelfDepth - L.legFace)) : Math.max(1.5, m.shelfDepth - L.legFace - 0.5);
+    const part = m.corbelPart;
+    const bought = part ? undefined : corbelByCode(m.corbelCode);
+    const ps = part ? partSize(part) : null;
+    const cw = part ? part.thickness : bought?.w ?? m.corbelW, ch = ps ? ps.h : bought?.h ?? m.corbelH;
+    const d = ps ? ps.w : bought ? Math.min(bought.d, Math.max(1.5, m.shelfDepth - L.legFace)) : Math.max(1.5, m.shelfDepth - L.legFace - 0.5);
     const xs = m.corbels === 2 ? [L.legW / 2, W - L.legW / 2] : [L.legW * 0.28, L.legW * 0.72, W - L.legW * 0.72, W - L.legW * 0.28];
     for (const cx of xs) {
-      const p = piece('Corbel', ch, d, cw, [], bought ? `Next Day ${bought.code} (${bought.name}); glued and screwed under the shelf` : 'shop-made; glued and screwed under the shelf', [corbelShape(cx - cw / 2, L.shelfBottom - ch, L.legFace, cw, ch, d)]);
-      out.push(bought ? { ...p, cut: false } : p);
+      const shape = part ? partCutShape(part, cx - cw / 2, L.shelfBottom - ch, L.legFace) : corbelShape(cx - cw / 2, L.shelfBottom - ch, L.legFace, cw, ch, d);
+      const p = piece('Corbel', ch, d, cw, [], part ? `${part.name}: shop-made from the template; glued and screwed under the shelf` : bought ? `Next Day ${bought.code} (${bought.name}); glued and screwed under the shelf` : 'shop-made; glued and screwed under the shelf', [shape]);
+      out.push(bought ? { ...p, cut: false } : part?.species ? { ...p, species: part.species } : p);
     }
   }
   // Pediment standing on the shelf, set back to the frieze line

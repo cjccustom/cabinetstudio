@@ -217,6 +217,8 @@ export interface FloatingShelfSpec {
   /** Corbels or brackets under the shelf, showing (0 = none): a Next Day item code, or shop-made 3-1/2" × 7". */
   corbels?: number;
   corbelCode?: string;
+  /** A corbel drawn in the part builder (a copy kept here); wins over corbelCode. */
+  corbelPart?: import('./customParts').CustomPart;
 }
 
 /**

@@ -176,7 +176,7 @@ async function app() {
   const tab = (name: string) => page.getByRole('tab', { name, exact: true }).first();
   const visitAll = async (label: string) => {
     for (const v of ['3D', 'Plan', 'Back', 'Left', 'Right', 'Front']) { await page.getByRole('tab', { name: v, exact: true }).first().click(); await page.waitForTimeout(400); }
-    for (const t of ['Clients', 'Sheet cutlist', 'Solid wood', 'Quote', 'Drawings', 'Rendering', 'Job & clock', 'Design']) {
+    for (const t of ['Clients', 'Sheet cutlist', 'Solid wood', 'Quote', 'Drawings', 'Rendering', 'Part builder', 'Job & clock', 'Design']) {
       await tab(t).click(); await page.waitForTimeout(600);
       const text = await page.locator('body').innerText();
       check(`${label}: ${t} tab, no NaN`, !/\bNaN\b/.test(text));

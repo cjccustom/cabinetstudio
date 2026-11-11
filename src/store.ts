@@ -61,8 +61,8 @@ interface State {
   /** Slide everything picked along its wall by `along`, and up or down by `up`. */
   moveGroup: (along: number, up?: number) => void;
   view: ViewMode;
-  mode: 'design' | 'cutlist' | 'faceframe' | 'quote' | 'job' | 'render' | 'clients' | 'drawings';
-  setMode: (m: 'design' | 'cutlist' | 'faceframe' | 'quote' | 'job' | 'render' | 'clients' | 'drawings') => void;
+  mode: 'design' | 'cutlist' | 'faceframe' | 'quote' | 'job' | 'render' | 'clients' | 'drawings' | 'parts';
+  setMode: (m: 'design' | 'cutlist' | 'faceframe' | 'quote' | 'job' | 'render' | 'clients' | 'drawings' | 'parts') => void;
   dragging: boolean;
   past: Project[];
   future: Project[];
@@ -108,7 +108,7 @@ export const useStore = create<State>((set, get) => ({
   edit: (editing) => get().present ? undefined : set(editing && (editing.kind === 'cabinet' || editing.kind === 'panel') ? { editing, selectedId: editing.id, group: [] } : { editing }),
   group: [],
   view: '3d',
-  mode: (() => { try { const m = localStorage.getItem('cabinet-studio.mode'); return m === 'job' || m === 'render' || m === 'clients' || m === 'drawings' || m === 'quote' || m === 'cutlist' || m === 'faceframe' ? m : 'design'; } catch { return 'design'; } })(),
+  mode: (() => { try { const m = localStorage.getItem('cabinet-studio.mode'); return m === 'job' || m === 'render' || m === 'clients' || m === 'drawings' || m === 'quote' || m === 'cutlist' || m === 'faceframe' || m === 'parts' ? m : 'design'; } catch { return 'design'; } })(),
   setMode: (mode) => { try { localStorage.setItem('cabinet-studio.mode', mode); } catch { /* storage blocked */ } set({ mode }); },
   dragging: false,
   past: [],

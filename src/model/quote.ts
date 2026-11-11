@@ -404,13 +404,17 @@ export function estimateHours(p: Project, q: QuoteSettings): HourLine[] {
   };
   if (p.cabinets.length || (p.panels ?? []).length) add('Drawings, ordering & setup', 1, st.jobSetup);
   let installHours = 0;
+  /** Custom parts on the job: each design's master template is made once. */
+  const templates = new Map<string, { name: string; templateHours: number }>();
   for (const c of p.cabinets) {
     if (c.kind === 'shelf') {
       add('Floating shelves: miter fold & glue-up', 1, st.floatingShelf);
       add('Floating shelves: finished ends', finishedEnds(resolveEnds(p.room, p.cabinets, c)), st.shelfFinishedEnd);
       // Corbels under a shelf: making them (shop-made), fitting and mounting them
       const nc = floatingOf(c).corbels ?? 0;
-      if (nc) add(floatingOf(c).corbelCode ? 'Shelf corbels: fit & mount (each)' : 'Shelf corbels: make, fit & mount (each)', nc, floatingOf(c).corbelCode ? st.shelfCorbel ?? 0.5 : st.mantelCorbel ?? 1.5);
+      const fp = floatingOf(c).corbelPart;
+      if (nc && fp) { add(`Custom parts: ${fp.name}, make from the template, fit & mount (each)`, nc, fp.hoursEach); templates.set(fp.id, fp); }
+      else if (nc) add(floatingOf(c).corbelCode ? 'Shelf corbels: fit & mount (each)' : 'Shelf corbels: make, fit & mount (each)', nc, floatingOf(c).corbelCode ? st.shelfCorbel ?? 0.5 : st.mantelCorbel ?? 1.5);
       add('Install floating shelves', 1, st.installFloatingShelf, 'cabinets', true);
       installHours += st.installFloatingShelf;
       continue;
@@ -419,7 +423,8 @@ export function estimateHours(p: Project, q: QuoteSettings): HourLine[] {
       const m = mantelOf(c);
       add('Mantels: legs, frieze & shelf', 1, st.mantelBuild ?? 20);
       if (m.legs === 'pilaster') add('Mantels: pilaster legs, plinths & capitals', 1, st.mantelPilasters ?? 6);
-      if (m.corbels) add('Mantels: corbels', m.corbels, st.mantelCorbel ?? 1.5);
+      if (m.corbels && m.corbelPart) { add(`Custom parts: ${m.corbelPart.name}, make from the template, fit & mount (each)`, m.corbels, m.corbelPart.hoursEach); templates.set(m.corbelPart.id, m.corbelPart); }
+      else if (m.corbels) add('Mantels: corbels', m.corbels, st.mantelCorbel ?? 1.5);
       if (m.pediment !== 'none') add('Mantels: pediment', 1, st.mantelPediment ?? 4);
       if (m.upper.on) {
         // Pilasters alone with wall between them: about 60% of the work of pilasters plus a frame and panel
@@ -552,6 +557,7 @@ export function estimateHours(p: Project, q: QuoteSettings): HourLine[] {
     installHours += lit.drivers.length * (st.lightDriver ?? 1);
     if (lightingJobOf(p).control === 'mesh' && lit.drivers.length) { add('Lighting: program the Mesh wall control', 1, st.lightProgram ?? 0.75, 'cabinets', true); installHours += st.lightProgram ?? 0.75; }
   }
+  for (const t of templates.values()) add(`Custom parts: ${t.name}, master template (once)`, 1, t.templateHours);
   // Load-in, protection and cleanup for each install day
   const days = Math.max(installHours > 0 ? 1 : 0, Math.ceil(installHours / 7));
   add('Install days: load-in, protection, cleanup', days, st.installDay, 'cabinets', true);
@@ -678,7 +684,7 @@ export function estimateMaterials(p: Project, q: QuoteSettings): MaterialLine[] 
   // Corbels bought from Next Day, under mantel shelves and floating shelves
   const bought = new Map<string, number>();
   for (const c of p.cabinets) {
-    const [n, code] = c.kind === 'mantel' ? [mantelOf(c).corbels, mantelOf(c).corbelCode] : c.kind === 'shelf' ? [floatingOf(c).corbels ?? 0, floatingOf(c).corbelCode] : [0, undefined];
+    const [n, code] = c.kind === 'mantel' ? [mantelOf(c).corbels, mantelOf(c).corbelPart ? undefined : mantelOf(c).corbelCode] : c.kind === 'shelf' ? [floatingOf(c).corbels ?? 0, floatingOf(c).corbelPart ? undefined : floatingOf(c).corbelCode] : [0, undefined];
     if (n && code) bought.set(code, (bought.get(code) ?? 0) + n);
   }
   for (const [code, n] of bought) {

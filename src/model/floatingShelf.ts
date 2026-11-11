@@ -2,6 +2,7 @@
 // exposed ends) mitered to them, and the space between left open for a floating shelf bracket.
 import { corbelByCode } from './corbels';
 import { corbelShape } from './mantel';
+import { partCutShape, partSize } from './customParts';
 import type { Cabinet, FloatingShelfSpec, Part, ShopSettings } from './types';
 import type { EndInfo } from './parts';
 import { eff, vb } from './parts';
@@ -39,12 +40,14 @@ export function floatingShelfParts(c: Cabinet, settings: ShopSettings, ends: End
   // Corbels under the shelf, evenly spaced with the end ones 4" in (or centered when there's one)
   const nCorb = f.corbels ?? 0;
   if (nCorb > 0) {
-    const bought = corbelByCode(f.corbelCode);
-    const cw = bought?.w ?? 3.5, ch = bought?.h ?? 7, cd = Math.min(D, bought?.d ?? D - 1);
+    const part = f.corbelPart;
+    const bought = part ? undefined : corbelByCode(f.corbelCode);
+    const ps = part ? partSize(part) : null;
+    const cw = part ? part.thickness : bought?.w ?? 3.5, ch = ps ? ps.h : bought?.h ?? 7, cd = ps ? ps.w : Math.min(D, bought?.d ?? D - 1);
     const xs = nCorb === 1 ? [W / 2] : Array.from({ length: nCorb }, (_, i) => 4 + cw / 2 + (i * (W - 8 - cw)) / (nCorb - 1));
     for (const cx of xs) out.push({ name: 'Corbel', role: 'trim', material: solid, length: ch, width: cd, thickness: cw, cut: !bought,
-      note: bought ? `Next Day ${bought.code} (${bought.name}); screwed to the wall through its back, glued and screwed up into the shelf` : 'Shop-made; screwed to the wall, glued and screwed up into the shelf',
-      boxes: [], shapes: [corbelShape(cx - cw / 2, -ch, 0, cw, ch, cd)] });
+      note: part ? `${part.name}: shop-made from the template; screwed to the wall, glued and screwed up into the shelf` : bought ? `Next Day ${bought.code} (${bought.name}); screwed to the wall through its back, glued and screwed up into the shelf` : 'Shop-made; screwed to the wall, glued and screwed up into the shelf',
+      boxes: [], shapes: [part ? partCutShape(part, cx - cw / 2, -ch, 0) : corbelShape(cx - cw / 2, -ch, 0, cw, ch, cd)] });
   }
   for (const side of ['left', 'right'] as const) {
     if (!ends[side]) continue;

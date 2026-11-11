@@ -61,6 +61,7 @@ import { eagleFraction, eagleRequests, requestText } from "../src/model/eagleReq
 import { hardwareOrder, tierPrice } from "../src/model/hardware";
 import { bbox, hardwareScope, pullSpots } from "../src/model/pulls";
 import { topSection, edgeCurve } from "../src/model/edgeProfiles";
+import { newPart, partDxf, partOutline, partSize, templateHtml } from "../src/model/customParts";
 import { doorSwings, doorSwingIssues, RESTRICT_TO } from "../src/model/doorSwing";
 import { frontMotions } from "../src/three/fronts";
 import { selections as selList, optionDeltas, listedPrice, selectionText } from "../src/model/selections";
@@ -2244,6 +2245,26 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   const doors = parts.filter((x) => x.role === 'door').map(bbox);
   const half = p.settings.doorStile / 2;
   eq('knobs: centered on the stile', knobs.length > 0 && knobs.every((k) => doors.some((d) => Math.abs(k.x - d.x0 - half) < 0.01 || Math.abs(d.x1 - k.x - half) < 0.01)), true);
+}
+
+// Custom parts: an outline through a thickness, under a mantel, priced by its own hours and the template once
+{
+  const part = { ...newPart('scroll'), id: 'part_test', name: 'Test corbel' };
+  eq('part: scroll corbel size', `${partSize(part).w} x ${partSize(part).h}`, '5 x 9');
+  const dxf = partDxf(part);
+  eq('part: DXF is one closed polyline with arcs', dxf.includes('LWPOLYLINE') && dxf.includes('\n42\n') && dxf.includes('\n70\n1\n'), true);
+  eq('part: template tiles onto letter pages', (templateHtml(part).match(/class="page"/g) ?? []).length >= 1, true);
+  const half = partOutline({ points: [{ x: 0, y: 0, bulge: 1 }, { x: 2, y: 0 }] });
+  eq('part: bulge 1 is a half circle of radius 1', Math.abs(Math.min(...half.map((q) => q[1])) + 1) < 1e-6, true);
+  const mantel = { ...cabinetFromPreset(presets.find((x) => x.id === 'mantel-electric')!, 'back', 20, []) };
+  const withPart = { ...mantel, mantel: { ...mantel.mantel!, corbels: 2 as const, corbelPart: part } };
+  const corbels = buildParts(withPart, p.settings).filter((x) => x.name === 'Corbel');
+  eq('part: two corbels from the outline', corbels.length === 2 && corbels.every((c) => c.shapes?.[0].outline.length === partOutline(part).length && c.thickness === part.thickness), true);
+  const job = { ...p, cabinets: [withPart] };
+  const hrs = estimateHours(job, quoteOf(job));
+  eq('part: hours each on the quote', hrs.some((h) => h.label.startsWith('Custom parts: Test corbel, make') && h.qty === 2 && h.each === part.hoursEach), true);
+  eq('part: master template once', hrs.filter((h) => /master template/.test(h.label)).length, 1);
+  eq('part: not bought from Next Day', estimateMaterials(job, quoteOf(job)).some((l) => /Next Day/.test(l.label)), false);
 }
 
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');
