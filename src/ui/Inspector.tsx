@@ -257,7 +257,10 @@ export function Inspector({ cab, issues, tab }: { cab: Cabinet; issues: string[]
                 </select>
               ) : <span />}
               {r.type === 'hang' ? (
-                <LengthInput id={`row-rod-${r.id}`} value={r.rodDrop ?? null} allowAuto placeholder={fmt(settings.rodDrop ?? closetRod.drop)} onChange={(v) => setRow(r.id, { rodDrop: v ?? undefined })} />
+                <span style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                  <LengthInput id={`row-rod-${r.id}`} value={r.rodDrop ?? null} allowAuto placeholder={fmt(settings.rodDrop ?? closetRod.drop)} onChange={(v) => setRow(r.id, { rodDrop: v ?? undefined })} />
+                  <label className="check-inline" title="Double hang in this one opening: a second rod halfway down, no shelf between"><input type="checkbox" checked={r.rods === 2} onChange={(e) => setRow(r.id, { rods: e.target.checked ? 2 : undefined })} /> 2 rods</label>
+                </span>
               ) : r.type === 'shoes' ? (
                 <select id={`row-sh-${r.id}`} aria-label="Shoe shelves" value={r.shelves} onChange={(e) => setRow(r.id, { shelves: Number(e.target.value) })}>
                   {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((n) => <option key={n} value={n}>{n} shel{n === 1 ? 'f' : 'ves'}</option>)}

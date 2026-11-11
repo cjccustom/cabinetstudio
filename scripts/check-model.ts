@@ -2224,6 +2224,18 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   eq('lighting option: kept when chosen', withOptions(lit, ['Cabinet lighting']).cabinets.find((c) => c.id === w.id)!.lighting?.length, 1);
 }
 
+// Double hang in one opening: two rods, the lower halfway down, no shelf between
+{
+  const base = cabinetFromPreset(presets.find((x) => x.id === 'closet-long')!, 'back', 0, []);
+  const dh = { ...base, rows: [{ ...base.rows[0] }, { ...base.rows[1], rods: 2 as const }] };
+  const rods = buildParts(dh, p.settings).filter((x) => x.role === 'rod');
+  eq('two rods: both in the opening', rods.map((r) => r.name).join(', '), 'Closet rod, upper, Closet rod, lower');
+  const ys = rods.map((r) => r.boxes[0].min[1]);
+  eq('two rods: the lower one about halfway down', ys[1] < ys[0] - 25, true);
+  eq('two rods: no fixed shelf between them', buildParts(dh, p.settings).filter((x) => x.name === 'Fixed shelf').length, buildParts(base, p.settings).filter((x) => x.name === 'Fixed shelf').length);
+  eq('two rods: said as double hang', scopeLine(dh, { ...p, cabinets: [dh] }).includes('double hang, two closet rods'), true);
+}
+
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');
 
 console.log(failed ? `${failed} check(s) failed` : 'All model checks passed');

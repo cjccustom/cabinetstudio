@@ -791,9 +791,15 @@ function caseParts(c: Cabinet, s: ShopSettings, ends: EndInfo): Part[] {
       const len = innerW - 0.125;
       // Centered 12" off the wall, or mid-depth in a case too shallow for that
       const zc = Math.min(closetRod.fromWall, boxD - d);
-      parts.push({ name: 'Closet rod', role: 'rod', material: 'hardware', length: len, width: d, thickness: d, cut: false,
-        note: `${fmtShort(d)} round ${s.closetRod === 'metal' ? 'metal' : 'wood'} rod in 2 sockets, center ${fmtShort(drop)} below the shelf (${fmtShort(c.elevation + under - drop)} off the floor) and ${fmtShort(zc)} off the wall; ${fmtShort(r.height - drop - d / 2)} clear below`,
+      const two = row.rods === 2;
+      // Double hang in one opening: the lower rod halfway down, in sockets on the case sides (no shelf between)
+      const lower = r.y0 + (under - r.y0) / 2 - drop;
+      parts.push({ name: two ? 'Closet rod, upper' : 'Closet rod', role: 'rod', material: 'hardware', length: len, width: d, thickness: d, cut: false,
+        note: `${fmtShort(d)} round ${s.closetRod === 'metal' ? 'metal' : 'wood'} rod in 2 sockets, center ${fmtShort(drop)} below the shelf (${fmtShort(c.elevation + under - drop)} off the floor) and ${fmtShort(zc)} off the wall; ${fmtShort((two ? under - lower : r.height) - drop - d / 2)} clear below${two ? ' to the lower rod' : ''}`,
         boxes: [vb(xi0 + 0.0625, under - drop - d / 2, zc - d / 2, len, d, d, 0.35)] });
+      if (two) parts.push({ name: 'Closet rod, lower', role: 'rod', material: 'hardware', length: len, width: d, thickness: d, cut: false,
+        note: `${fmtShort(d)} round ${s.closetRod === 'metal' ? 'metal' : 'wood'} rod in 2 sockets screwed to the case sides, center ${fmtShort(c.elevation + lower)} off the floor and ${fmtShort(zc)} off the wall; ${fmtShort(lower - r.y0 - d / 2)} clear below`,
+        boxes: [vb(xi0 + 0.0625, lower - d / 2, zc - d / 2, len, d, d, 0.35)] });
     }
     if (row.type === 'shoes' && row.shelves > 0) {
       // Shelves on pins, the back pins higher than the front for slanted ones; a solid fence on the front edge

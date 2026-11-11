@@ -26,6 +26,8 @@ export interface FaceRow {
   flatShoes?: boolean;
   /** Hanging rows: how far the rod's center sits below the shelf above it, when not the shop's standard. */
   rodDrop?: number;
+  /** Hanging rows: two rods in the one opening, double hang with no shelf between them (the lower one halfway down). */
+  rods?: 1 | 2;
   /** What sits in an appliance row: a microwave, wall oven, fireplace insert... */
   appliance?: Appliance;
   /** A solid ledge on the rail above this row, projecting past the face frame: the waist of a one-piece

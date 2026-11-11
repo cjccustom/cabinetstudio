@@ -823,7 +823,7 @@ export function scopeLine(c: Cabinet, p: Project): string {
   if (dividers) bits.push(`(${dividers}) vertical divider${dividers > 1 ? 's' : ''}`);
   const fixedShelves = parts.filter((x) => x.role === 'shelf' && x.name === 'Fixed shelf').length;
   if (fixedShelves) bits.push(`(${fixedShelves}) fixed shel${fixedShelves > 1 ? 'ves' : 'f'}`);
-  const hang = c.rows.filter((r) => r.type === 'hang').length;
+  const hang = c.rows.filter((r) => r.type === 'hang').reduce((t, r) => t + (r.rods ?? 1), 0);
   if (hang) bits.push(hang === 2 ? 'double hang, two closet rods' : hang === 1 ? `${c.rows.some((r) => r.type === 'open') ? 'hanging with shelf storage above, ' : 'hanging, '}closet rod` : `(${hang}) hanging sections with closet rods`);
   const shoes = c.rows.filter((r) => r.type === 'shoes').reduce((t, r) => t + r.shelves, 0);
   if (shoes) bits.push(`(${shoes}) ${c.rows.some((r) => r.type === 'shoes' && !r.flatShoes) ? 'slanted ' : ''}shoe shel${shoes > 1 ? 'ves' : 'f'} with fences`);
