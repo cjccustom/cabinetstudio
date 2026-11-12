@@ -1,4 +1,6 @@
 // Free-standing tables in the room, drawn from the same parts as their shop drawings and cut list.
+import { bedParts, bedsOf } from '../model/bed';
+import { newTable } from '../model/furniture';
 import { useMemo } from 'react';
 import * as THREE from 'three';
 import type { Project } from '../model/types';
@@ -23,7 +25,7 @@ export function TablePiece({ t, parts }: { t: DiningTable; parts: TablePart[] })
   const map = t.finish === 'paint' ? null : woodTexture(t.species, color);
   // A routed edge on the top: drawn as its section, run the length (both long edges)
   const prof = t.edge === 'profile' && !t.lip ? t.edgeProfile ?? 'round14' : null;
-  return <>{parts.flatMap((part, i) => part.boxes.map((b, j) => <PartMesh key={`${i}-${j}`} part={part} b={b} color={part.role === 'cushion' ? '#9aa3ad' : color} map={part.role === 'cushion' ? null : map} seed={i * 7 + j * 3} section={prof && part.role === 'top' ? topSection(b.size[2], b.size[1], prof, prof) : undefined} />))}</>;
+  return <>{parts.flatMap((part, i) => part.boxes.map((b, j) => <PartMesh key={`${i}-${j}`} part={part} b={b} color={part.name.startsWith('Mattress') ? '#f1eee6' : part.role === 'cushion' ? '#9aa3ad' : color} map={part.role === 'cushion' ? null : map} seed={i * 7 + j * 3} section={prof && part.role === 'top' ? topSection(b.size[2], b.size[1], prof, prof) : undefined} />))}</>;
 }
 
 function PartMesh({ part, b, color, map, seed, section }: { part: TablePart; b: TablePart['boxes'][number]; color: string; map: THREE.Texture | null; seed: number; section?: [number, number][] }) {
@@ -53,4 +55,20 @@ function PartMesh({ part, b, color, map, seed, section }: { part: TablePart; b: 
       <meshStandardMaterial key={map ? 'grain' : 'flat'} map={map} color={map ? '#ffffff' : color} roughness={map ? 0.62 : 0.55} />
     </mesh>
   );
+}
+
+/** Beds in the room: headboard against its wall (the back wall unless set), centered unless placed. */
+export function BedModels({ project, hidden }: { project: Project; hidden: string[] }) {
+  return <>{bedsOf(project).filter((b) => !hidden.includes(b.id)).map((b) => {
+    const wall = b.wall ?? 'back';
+    const W = project.room.width, D = project.room.depth;
+    const along = b.offset ?? (wall === 'back' || wall === 'front' ? W / 2 : D / 2);
+    const gap = 1.25 + 0.5;
+    const place: { pos: [number, number, number]; rot: number } = wall === 'back' ? { pos: [along, 0, gap], rot: 0 }
+      : wall === 'front' ? { pos: [W - along, 0, D - gap], rot: Math.PI }
+      : wall === 'left' ? { pos: [gap, 0, D - along], rot: Math.PI / 2 }
+      : { pos: [W - gap, 0, along], rot: -Math.PI / 2 };
+    const look = { ...newTable(), finish: b.finish, species: b.grade === 'paint' ? 'Poplar' : b.species, edge: 'eased' as const, lip: false };
+    return <group key={b.id} position={place.pos} rotation-y={place.rot}><TablePiece t={look} parts={bedParts(b)} /></group>;
+  })}</>;
 }

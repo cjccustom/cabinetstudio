@@ -8,6 +8,7 @@ import { priceQuote, quoteOf } from '../model/quote';
 import { tableSpecies } from '../model/tableParts';
 import { Field, LengthInput, Section } from './fields';
 import { fmt } from '../units';
+import { bedChecks, bedEstimate, bedSize, bedsOf, mattressSizes, newBed, type Bed, type MattressSize } from '../model/bed';
 
 const money = (v: number) => `$${Math.round(v).toLocaleString('en-US')}`;
 
@@ -17,10 +18,13 @@ export function FurnitureSection() {
   const tables = furnitureOf(project);
   const setAll = (next: DiningTable[]) => commit((p) => ({ ...p, furniture: next }));
   const put = (id: string, patch: Partial<DiningTable>) => setAll(tables.map((t) => (t.id === id ? { ...t, ...patch } : t)));
+  const beds = bedsOf(project);
+  const setBeds = (next: Bed[]) => commit((p) => ({ ...p, beds: next }));
   return (
-    <Section title="Furniture" aside={<span><button className="mini" onClick={() => setAll([...tables, newTable()])}>Add table</button> <button className="mini" onClick={() => setAll([...tables, newBench()])}>Add bench</button></span>}>
-      {!tables.length && <p className="hint">Tables (dining, puzzle, game and the like) and benches (closet, entry, window): size, top and base, species and finish; a bench can have a shoe shelf and a cushion. Priced with your shop rate.</p>}
+    <Section title="Furniture" aside={<span><button className="mini" onClick={() => setAll([...tables, newTable()])}>Add table</button> <button className="mini" onClick={() => setAll([...tables, newBench()])}>Add bench</button> <button className="mini" onClick={() => setBeds([...beds, newBed()])}>Add bed</button></span>}>
+      {!tables.length && !beds.length && <p className="hint">Tables (dining, puzzle, game and the like), benches (closet, entry, window) and beds (platform or frame, headboard, drawers): size, construction, species and finish. Priced with your shop rate.</p>}
       {tables.map((t) => <TableEditor key={t.id} t={t} put={(patch) => put(t.id, patch)} remove={() => setAll(tables.filter((x) => x.id !== t.id))} />)}
+      {beds.map((b) => <BedEditor key={b.id} b={b} put={(patch) => setBeds(beds.map((x) => (x.id === b.id ? { ...x, ...patch } : x)))} remove={() => setBeds(beds.filter((x) => x.id !== b.id))} />)}
     </Section>
   );
 }
@@ -207,5 +211,128 @@ export function TableSketch({ t }: { t: DiningTable }) {
       <text x={W / 2} y={yPlan + planH / 2 + 4} textAnchor="middle">{fmt(t.length)} × {fmt(t.width)}</text>
       <text x={W / 2} y={floor + 12} textAnchor="middle">Side view, {isBench(t) ? `${fmt(seatHeight(t))} seat` : `${fmt(t.height)} high`}</text>
     </svg>
+  );
+}
+
+/* ---------- Beds ---------- */
+
+export function BedEditor({ b, put, remove }: { b: Bed; put: (p: Partial<Bed>) => void; remove: () => void }) {
+  const project = useStore((s) => s.project);
+  const est = useMemo(() => bedEstimate(b, project), [b, project]);
+  const q = quoteOf(project);
+  const hours = est.hours.reduce((s, h) => s + h.hours, 0);
+  const mats = est.materials.reduce((s, m) => s + m.cost, 0);
+  const r = useMemo(() => priceQuote(project), [project]);
+  const fg = r.groups.find((g) => g.group === 'furniture');
+  const allHours = r.hours.filter((h) => h.group === 'furniture').reduce((s, h) => s + h.hours, 0) || 1;
+  const price = fg ? (fg.price * hours) / allHours * (1 + q.workloadAdj[q.workload]) : 0;
+  const id = (k: string) => `b-${k}-${b.id}`;
+  const len = (k: keyof Bed, label: string) => (
+    <Field label={label} htmlFor={id(k)}><LengthInput id={id(k)} value={b[k] as number} onChange={(v) => v != null && put({ [k]: v } as Partial<Bed>)} /></Field>
+  );
+  const size = bedSize(b);
+  return (
+    <div className="stock-row table-ed">
+      <div className="sr-head">
+        <input aria-label="Name" value={b.name} onChange={(e) => put({ name: e.target.value })} />
+        <button className="icon-btn" aria-label="Remove bed" onClick={remove}>×</button>
+      </div>
+      <div className="grid3">
+        <Field label="Mattress" htmlFor={id('m')}>
+          <select id={id('m')} value={b.mattress} onChange={(e) => put({ mattress: e.target.value as MattressSize })}>
+            {Object.entries(mattressSizes).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+            <option value="custom">Custom size</option>
+          </select>
+        </Field>
+        {b.mattress === 'custom' && <Field label="Mattress width" htmlFor={id('mw')}><LengthInput id={id('mw')} value={b.mattressW ?? 60} onChange={(v) => v != null && put({ mattressW: v })} /></Field>}
+        {b.mattress === 'custom' && <Field label="Mattress length" htmlFor={id('ml')}><LengthInput id={id('ml')} value={b.mattressL ?? 80} onChange={(v) => v != null && put({ mattressL: v })} /></Field>}
+        {len('mattressH', 'Mattress thickness')}
+      </div>
+      <div className="grid3">
+        <Field label="Style" htmlFor={id('st')}>
+          <select id={id('st')} value={b.style} onChange={(e) => put({ style: e.target.value as Bed['style'] })}>
+            <option value="platform">Platform: deck on a set-back base</option>
+            <option value="frame">Frame: legs, rails and slats</option>
+          </select>
+        </Field>
+        {len('deckH', b.style === 'platform' ? 'Top of the deck' : 'Top of the slats')}
+      </div>
+      <p className="hint">About {fmt(size.W)} wide × {fmt(size.L + (b.headboard !== 'none' ? 1.25 : 0))} long; the mattress top lands at {fmt(size.top)}.</p>
+      {b.style === 'platform' && (
+        <div className="grid3">
+          <Field label="Drawers under each side" htmlFor={id('dr')}>
+            <select id={id('dr')} value={b.drawers} onChange={(e) => put({ drawers: Number(e.target.value) })}>{[0, 1, 2, 3].map((n) => <option key={n} value={n}>{n || 'None'}</option>)}</select>
+          </Field>
+          {b.drawers > 0 && (
+            <Field label="Which sides" htmlFor={id('ds')}>
+              <select id={id('ds')} value={b.drawerSides} onChange={(e) => put({ drawerSides: e.target.value as Bed['drawerSides'] })}>
+                <option value="both">Both sides</option><option value="left">Left side only</option><option value="right">Right side only</option>
+              </select>
+            </Field>
+          )}
+        </div>
+      )}
+      <div className="grid3">
+        <Field label="Headboard" htmlFor={id('hb')}>
+          <select id={id('hb')} value={b.headboard} onChange={(e) => put({ headboard: e.target.value as Bed['headboard'] })}>
+            <option value="none">None</option>
+            <option value="panel">Frame and flat panels</option>
+            <option value="slab">Solid slab</option>
+            <option value="upholstered">Upholstered (by the upholsterer)</option>
+          </select>
+        </Field>
+        {b.headboard !== 'none' && len('headH', 'Headboard top off the floor')}
+        {b.headboard !== 'none' && (
+          <Field label="Mounted" htmlFor={id('hm')}>
+            <select id={id('hm')} value={b.headMount} onChange={(e) => put({ headMount: e.target.value as Bed['headMount'] })}>
+              <option value="bed">On the bed</option><option value="wall">On the wall (French cleat)</option>
+            </select>
+          </Field>
+        )}
+      </div>
+      {b.headboard === 'upholstered' && <Field label="Upholsterer’s price ($)" htmlFor={id('up')}><input id={id('up')} inputMode="decimal" value={b.upholsteryPrice || ''} onChange={(e) => put({ upholsteryPrice: parseFloat(e.target.value) || 0 })} /></Field>}
+      {b.style === 'frame' && (
+        <div className="grid3">
+          <label className="chk-row"><input type="checkbox" checked={b.footboard} onChange={(e) => put({ footboard: e.target.checked })} /> Footboard</label>
+          {b.footboard && len('footH', 'Footboard top off the floor')}
+        </div>
+      )}
+      <div className="grid3">
+        <Field label="Grade" htmlFor={id('gr')}>
+          <select id={id('gr')} value={b.grade} onChange={(e) => { const grade = e.target.value as Bed['grade']; put({ grade, ...(grade === 'paint' ? { species: 'Poplar', finish: 'paint' as TableFinish } : b.species === 'Poplar' ? { species: 'White oak', finish: 'clear' as TableFinish } : {}) }); }}>
+            <option value="paint">Paint grade (birch plywood, poplar)</option>
+            <option value="stain">Stain grade (veneer plywood and solid wood)</option>
+          </select>
+        </Field>
+        {b.grade === 'stain' && (
+          <Field label="Species" htmlFor={id('sp')}>
+            <select id={id('sp')} value={b.species} onChange={(e) => put({ species: e.target.value })}>{tableSpecies.filter((x) => x.name !== 'Poplar').map((x) => <option key={x.name} value={x.name}>{x.label}</option>)}</select>
+          </Field>
+        )}
+        <Field label="Finish" htmlFor={id('fin')}>
+          <select id={id('fin')} value={b.finish} onChange={(e) => put({ finish: e.target.value as TableFinish })}>{Object.entries(tableFinishLabel).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>
+        </Field>
+        {b.finish === 'painter' && <Field label="Finisher’s price ($)" htmlFor={id('fp')}><input id={id('fp')} inputMode="decimal" value={b.finishPrice || ''} onChange={(e) => put({ finishPrice: parseFloat(e.target.value) || 0 })} /></Field>}
+        <Field label="Your $/BF (blank = A&M list)" htmlFor={id('bf')}><input id={id('bf')} inputMode="decimal" value={b.pricePerBF || ''} placeholder="A&M" onChange={(e) => put({ pricePerBF: parseFloat(e.target.value) || 0 })} /></Field>
+      </div>
+      <div className="grid3">
+        <Field label="Headboard against" htmlFor={id('wall')}>
+          <select id={id('wall')} value={b.wall ?? 'back'} onChange={(e) => put({ wall: e.target.value as Bed['wall'], offset: undefined })}>
+            {(['back', 'left', 'right', 'front'] as const).map((w) => <option key={w} value={w}>{w[0].toUpperCase() + w.slice(1)} wall</option>)}
+          </select>
+        </Field>
+        <Field label="Its center, along that wall" htmlFor={id('off')}><LengthInput id={id('off')} value={b.offset ?? ((b.wall ?? 'back') === 'back' || b.wall === 'front' ? project.room.width / 2 : project.room.depth / 2)} onChange={(v) => v != null && put({ offset: v })} /></Field>
+      </div>
+      <ul className="table-checks">{bedChecks(b).map((c) => <li key={c}>{c}</li>)}</ul>
+      <table className="totals">
+        <tbody>
+          {est.hours.map((h) => <tr key={h.label}><td>{h.label}</td><td className="num">{h.hours.toFixed(1)} h</td></tr>)}
+          {est.materials.map((m) => <tr key={m.label}><td>{m.label}<span className="note">{m.detail}</span>{m.missing && <span className="warn-text"> {m.missing}</span>}</td><td className="num">{money(m.cost)}</td></tr>)}
+          <tr className="sum"><td>{hours.toFixed(1)} h, {money(mats)} materials · price</td><td className="num">{money(price)}</td></tr>
+        </tbody>
+      </table>
+      <p className="hint">Hours are starting standards for a one-off bed; adjust them as you build. The price uses your pricing method and goes on the proposal as Furniture. The bed shows in the 3D view.</p>
+      <Field label="Notes" htmlFor={id('notes')}><textarea id={id('notes')} rows={2} value={b.notes} onChange={(e) => put({ notes: e.target.value })} /></Field>
+    </div>
   );
 }

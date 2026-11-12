@@ -555,6 +555,8 @@ export interface Project {
   contract?: import('./contract').Contract;
   /** Free-standing furniture on the job (dining tables for now). */
   furniture?: Partial<import('./furniture').DiningTable>[];
+  /** Beds: platform or frame, headboard, drawers (see bed.ts). */
+  beds?: Partial<import('./bed').Bed>[];
   /** A coffered ceiling over the room. */
   ceiling?: Partial<import('./coffer').CofferCeiling>;
   /** A rolling library ladder on a rail across the bookcases. */

@@ -1,5 +1,6 @@
 // Quoting: material cost from the design, labor hours from standard times, and the shop's two
 // pricing methods side by side. Every number traces back to the design or a setting.
+import { bedEstimate, bedScope, bedsOf } from './bed';
 import { lightingCost, lightingJobOf, lightingParts } from './cabinetLighting';
 import { corbelByCode } from './corbels';
 import { furnitureOf, tableEstimate, tableScope } from './furniture';
@@ -312,6 +313,7 @@ export function scopeItems(p: Project, withHidden = false): ScopeItem[] {
       ...(cofferScope(r.project) ? [{ key: i ? `ceiling:${r.id}` : 'ceiling', text: multi ? `${r.name}: ${cofferScope(r.project)!}` : cofferScope(r.project)! }] : []),
     ]),
     ...furnitureOf(p).map((t) => ({ key: `table:${t.id}`, text: tableScope(t) })),
+    ...bedsOf(p).map((b) => ({ key: `bed:${b.id}`, text: bedScope(b) })),
   ];
   const out: ScopeItem[] = auto.map((a) => {
     const mine = q.scopeText?.[a.key];
@@ -815,6 +817,11 @@ export function priceQuote(p: Project): QuoteResult {
   const tax = p.settings.purchaseTax;
   const hours = estimateHours(p, q);
   const materials = estimateMaterials(p, q);
+  for (const b of bedsOf(p)) {
+    const e = bedEstimate(b, p);
+    hours.push(...e.hours.map((h) => ({ group: 'furniture' as Group, label: `${b.name}: ${h.label}`, qty: 1, each: h.hours, hours: h.hours, install: h.label.startsWith('Delivery') })));
+    materials.push(...e.materials.map((m) => ({ group: 'furniture' as Group, label: `${b.name}: ${m.label}`, cost: m.cost, detail: m.detail, ...(m.missing ? { missing: m.missing } : {}) })));
+  }
   for (const t of furnitureOf(p)) {
     const e = tableEstimate(t, p);
     hours.push(...e.hours.map((h) => ({ group: 'furniture' as Group, label: `${t.name}: ${h.label}`, qty: 1, each: h.hours, hours: h.hours, install: h.label.startsWith('Delivery') })));

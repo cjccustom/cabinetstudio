@@ -1,6 +1,7 @@
 // What the customer sees before they sign: the work in plain words, grouped by area, the materials
 // and finishes, the price in sections, and options they can add. No dimensioned drawings and no
 // cabinet-by-cabinet sizes until the job is sold, so the design can't be shopped to another builder.
+import { bedScope, bedsOf } from './bed';
 import { jobRooms } from './rooms';
 import { hardwareScope } from './pulls';
 import type { Cabinet, Project, WallId } from './types';
@@ -137,6 +138,7 @@ export function proposalSummary(p: Project): ProposalSummary {
     const extras = [...(all.quote?.extras ?? []).map((e) => e.label), ...(all.quote?.scopeExtra ?? [])].filter((x) => x?.trim());
     const tables = furnitureOf(all).map((t) => { const x = tableScope(t).replace(/^[^:]*:\s*/, ''); return x.charAt(0).toUpperCase() + x.slice(1); });
     if (tables.length) areas.push({ title: furnitureOf(all).length === 1 ? furnitureOf(all)[0].name || 'Furniture' : 'Furniture', items: tables });
+    for (const b of bedsOf(all)) { const x = bedScope(b).replace(/^[^:]*:\s*/, ''); areas.push({ title: b.name || 'Bed', items: [x.charAt(0).toUpperCase() + x.slice(1)] }); }
     if (all.cabinets.length) areas.push({ title: 'Finishing', items: finishingItems(all) });
     if (extras.length) areas.push({ title: 'Also included', items: extras });
     return { areas, materials: materialsOf(all), options: optionPrices(p) };
@@ -176,6 +178,7 @@ export function proposalSummary(p: Project): ProposalSummary {
   // Tables and the ceiling, each under its own heading, in the same words as the scope of work
   const tables = furnitureOf(base).map((t) => { const x = tableScope(t).replace(/^[^:]*:\s*/, ''); return x.charAt(0).toUpperCase() + x.slice(1); });
   if (tables.length) areas.push({ title: furnitureOf(base).length === 1 ? furnitureOf(base)[0].name || 'Furniture' : 'Furniture', items: tables });
+  for (const b of bedsOf(base)) { const x = bedScope(b).replace(/^[^:]*:\s*/, ''); areas.push({ title: b.name || 'Bed', items: [x.charAt(0).toUpperCase() + x.slice(1)] }); }
   const ceiling = cofferScope(base);
   if (ceiling) areas.push({ title: 'Coffered ceiling', items: [ceiling.charAt(0).toUpperCase() + ceiling.slice(1)] });
   if (base.cabinets.length) areas.push({ title: 'Finishing', items: finishingItems(base) });

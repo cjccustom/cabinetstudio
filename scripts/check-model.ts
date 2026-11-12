@@ -1,3 +1,4 @@
+import { bedChecks, bedParts, bedSize, newBed } from "../src/model/bed";
 import { addRoom, jobRooms, removeRoom, roomTabs, switchRoom } from "../src/model/rooms";
 import { readFileSync } from "node:fs";
 import { optionPrices, proposalSummary, withOptions } from "../src/model/proposal";
@@ -2353,6 +2354,21 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   eq('rooms: the job costs more than the kitchen alone, less than the two rooms quoted apart', priceQuote(back).total > priceQuote(p).total && priceQuote(back).total < priceQuote(p).total + priceQuote(jobRooms(back)[1].project).total, true);
   eq('rooms: scope names the rooms', scopeItems(back).some((x) => x.text.startsWith('Pantry, ')), true);
   eq('rooms: removing the pantry leaves the kitchen as it was', JSON.stringify(removeRoom(back, roomTabs(back)[1].id).cabinets) === JSON.stringify(p.cabinets) && !(removeRoom(back, roomTabs(back)[1].id).rooms ?? []).length, true);
+}
+
+// Beds: sized from the mattress, platform or frame, headboard, drawers; priced with the furniture
+{
+  const b = newBed();
+  const sz = bedSize(b);
+  eq('bed: queen platform sized from the mattress, 1/2" clearance and a 1-1/2" border', `${sz.W} ${sz.innerW} ${sz.top}`, '64 61 26');
+  const withDrawers = { ...b, drawers: 2, deckH: 16 };
+  eq('bed: two drawers each side', bedParts(withDrawers).filter((x) => x.name === 'Drawer front').length, 4);
+  eq('bed: a wide frame bed gets a center rail', bedParts({ ...b, style: 'frame', mattress: 'king' }).some((x) => x.name === 'Center rail on legs'), true);
+  const job = { ...p, cabinets: [], beds: [withDrawers] };
+  const r = priceQuote(job);
+  eq('bed: priced on the furniture line', (r.groups.find((g) => g.group === 'furniture')?.price ?? 0) > 0, true);
+  eq('bed: in the scope', scopeItems(job).some((x) => x.text.startsWith('Bed: custom platform bed for a queen mattress')), true);
+  eq('bed: a low headboard is flagged', bedChecks({ ...b, headH: 34 }).some((c) => c.includes('headboard shows')), true);
 }
 
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');
