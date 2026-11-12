@@ -1,3 +1,4 @@
+import { addRoom, jobRooms, removeRoom, roomTabs, switchRoom } from "../src/model/rooms";
 import { readFileSync } from "node:fs";
 import { optionPrices, proposalSummary, withOptions } from "../src/model/proposal";
 import { finishColors } from "../src/model/woodColors";
@@ -50,7 +51,7 @@ import { defaultFaceFrameStock, faceFrameNeeds, faceFramePieces, otherSpecies, r
 import { panelAbove, panelBetween, panelOrder } from "../src/model/panels";
 import { amCatalog } from "../src/model/andersonMcquaid";
 import { cabinetMoldings, moldingOrder, mountShape, priceOf, profileByNum, profileLabel, setCustomDrawings } from "../src/model/moldings";
-import { closetRods, estimateHours, estimateMaterials, extraFinishes, paintCalculated, paintEstimate, priceQuote, proposalScope, quoteOf, scopeLine } from "../src/model/quote";
+import { closetRods, scopeItems, estimateHours, estimateMaterials, extraFinishes, paintCalculated, paintEstimate, priceQuote, proposalScope, quoteOf, scopeLine } from "../src/model/quote";
 import { cutStock, defaultCutlist, designParts, optimizerParts } from "../src/model/cutlist";
 import { applyBook, choosePlywood, chooseSpecies, priceBook, setJobFinish, stalePrices } from "../src/model/pricebook";
 import { doorMaterials as eagleDoorMaterials, eagleWoodFactor } from "../src/model/eagle";
@@ -2337,6 +2338,21 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   const hrs = estimateHours(room, quoteOf(room)).filter((h) => /shel/i.test(h.label)).map((h) => h.label).join(' | ');
   eq('cleat shelf: closet shelf hours, not floating', hrs, 'Closet shelves on cleats: cut, nose & sand | Install closet shelves: cleats & shelf');
   eq('cleat shelf: no floating brackets to buy', estimateMaterials(room, quoteOf(room)).some((l) => l.label === 'Floating shelf brackets'), false);
+}
+
+// A job with more than one room: tabs swap rooms in and out; the quote and scope cover them all
+{
+  const one = { ...p, roomName: 'Kitchen' };
+  const two = addRoom(one, 'Pantry');
+  eq('rooms: the new room is on screen, empty, the kitchen kept', `${roomTabs(two).map((t) => `${t.name}${t.active ? '*' : ''}`).join('|')} ${two.cabinets.length} ${two.rooms![0].cabinets!.length === p.cabinets.length}`, 'Kitchen|Pantry* 0 true');
+  const pantry = { ...two, cabinets: [cabinetFromPreset(presets.find((x) => x.id === 'tall-pantry') ?? presets[0], 'back', 0, [])] };
+  const back = switchRoom(pantry, roomTabs(pantry)[0].id);
+  eq('rooms: switching back brings the kitchen back exactly', JSON.stringify(back.cabinets) === JSON.stringify(p.cabinets) && back.rooms![0].cabinets!.length === 1, true);
+  const hrs = estimateHours(back, quoteOf(back));
+  eq('rooms: setup counted once for the job', hrs.filter((h) => h.label === 'Drawings, ordering & setup').map((h) => h.qty).join(), '1');
+  eq('rooms: the job costs more than the kitchen alone, less than the two rooms quoted apart', priceQuote(back).total > priceQuote(p).total && priceQuote(back).total < priceQuote(p).total + priceQuote(jobRooms(back)[1].project).total, true);
+  eq('rooms: scope names the rooms', scopeItems(back).some((x) => x.text.startsWith('Pantry, ')), true);
+  eq('rooms: removing the pantry leaves the kitchen as it was', JSON.stringify(removeRoom(back, roomTabs(back)[1].id).cabinets) === JSON.stringify(p.cabinets) && !(removeRoom(back, roomTabs(back)[1].id).rooms ?? []).length, true);
 }
 
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');

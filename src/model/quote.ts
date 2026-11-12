@@ -23,6 +23,7 @@ import { baseLabel } from './cabinetBase';
 import { defaultSupplies, supplyLines, type SupplyGroup, type SupplyItem } from './supplies';
 import { applianceKinds } from './appliances';
 import { mantelOf } from './mantel';
+import { jobRooms } from './rooms';
 
 /** Shop hours per item. Start from these and calibrate against tracked jobs. */
 export interface LaborStandards {
@@ -302,10 +303,14 @@ export interface ScopeItem { key: string; text: string; /** What Cabinet Studio 
 /** The scope of work, line by line: each cabinet, tables, the ceiling, and lines of your own, with your wording where you've changed it. Hidden lines are left out. */
 export function scopeItems(p: Project, withHidden = false): ScopeItem[] {
   const q = quoteOf(p);
+  const rooms = jobRooms(p);
+  const multi = rooms.length > 1;
   const auto = [
-    ...p.cabinets.map((c) => ({ key: c.id, text: scopeLine(c, p) })),
+    ...rooms.flatMap((r, i) => [
+      ...r.project.cabinets.map((c) => ({ key: c.id, text: multi ? `${r.name}, ${scopeLine(c, r.project)}` : scopeLine(c, r.project) })),
+      ...(cofferScope(r.project) ? [{ key: i ? `ceiling:${r.id}` : 'ceiling', text: multi ? `${r.name}: ${cofferScope(r.project)!}` : cofferScope(r.project)! }] : []),
+    ]),
     ...furnitureOf(p).map((t) => ({ key: `table:${t.id}`, text: tableScope(t) })),
-    ...(cofferScope(p) ? [{ key: 'ceiling', text: cofferScope(p)! }] : []),
   ];
   const out: ScopeItem[] = auto.map((a) => {
     const mine = q.scopeText?.[a.key];
@@ -324,7 +329,7 @@ const andList = (xs: string[]) => (xs.length < 3 ? xs.join(' and ') : `${xs.slic
 export function proposalScope(p: Project): string[] {
   const items = scopeItems(p);
   if (!p.proposalCombine) return items.map((x) => x.text);
-  const cabIds = new Set(p.cabinets.map((c) => c.id));
+  const cabIds = new Set(jobRooms(p).flatMap((r) => r.project.cabinets.map((c) => c.id)));
   const groups = new Map<string, { names: string[]; at: number }>();
   const out: (string | { body: string })[] = [];
   for (const it of items) {
@@ -354,7 +359,7 @@ export function paintCalculated(p: Project, q: QuoteSettings): number {
  */
 export function extraFinishes(p: Project): string[] {
   const seen = new Map<string, string>();
-  for (const c of p.cabinets) {
+  for (const c of jobRooms(p).flatMap((r) => r.project.cabinets)) {
     if (c.kind === 'shelf' || c.kind === 'mantel' || c.kind === 'pilaster') continue;
     const s = eff(c, p.settings);
     const key = s.finish === 'stain' ? `stain:${s.woodSpecies}` : c.paint ? `paint:${c.paint.named?.code ?? c.paint.hex}` : 'job';
@@ -378,7 +383,14 @@ export interface MaterialLine { group: Group; label: string; cost: number; detai
 export const paintRates = { perFront: 150, perSqFt: 40, perInteriorSqFt: 30 };
 
 /** The painting estimate from the job's size: fronts (doors, drawer fronts, end panels) and cabinet face. */
-export function paintEstimate(p: Project, q: QuoteSettings) {
+export function paintEstimate(p: Project, q: QuoteSettings): { fronts: number; sqft: number; interior: number; amount: number } {
+  // A multi-room job: every room's fronts and faces
+  const rooms = jobRooms(p);
+  if (rooms.length > 1) {
+    const each = rooms.map((r) => paintEstimate(r.project, q));
+    const sum = (k: 'fronts' | 'sqft' | 'interior' | 'amount') => each.reduce((t, e) => t + e[k], 0);
+    return { fronts: sum('fronts'), sqft: sum('sqft'), interior: sum('interior'), amount: sum('amount') };
+  }
   let fronts = 0, sqft = 0, interior = 0;
   for (const c of p.cabinets) {
     if (c.kind === 'shelf') continue;
@@ -399,6 +411,33 @@ const sqft = (w: number, h: number) => (w * h) / 144;
 
 /** Labor hours from the design, using standard times. */
 export function estimateHours(p: Project, q: QuoteSettings): HourLine[] {
+  const rooms = jobRooms(p);
+  if (rooms.length < 2) return hoursOneRoom(p, q);
+  return mergeHours(rooms.map((r) => hoursOneRoom(r.project, q)), q);
+}
+
+const DAY_LABEL = 'Install days: load-in, protection, cleanup';
+/** Lines that happen once for the job however many rooms it has. */
+const onceForJob = (label: string) => label === 'Drawings, ordering & setup' || /\(once\)$/.test(label) || label === 'Lighting: layout & test fit' || label === 'Lighting: program the Mesh wall control';
+
+/** Rooms' hours as one job: like lines add up, once-a-job lines count once, install days from the whole install. */
+function mergeHours(per: HourLine[][], q: QuoteSettings): HourLine[] {
+  const out = new Map<string, HourLine>();
+  for (const lines of per) for (const l of lines) {
+    if (l.label === DAY_LABEL) continue;
+    const k = `${l.group}|${l.label}|${l.each}|${!!l.install}`;
+    const cur = out.get(k);
+    if (!cur) out.set(k, { ...l });
+    else if (!onceForJob(l.label)) { cur.qty += l.qty; cur.hours = cur.qty * cur.each; }
+  }
+  const install = [...out.values()].filter((l) => l.install).reduce((t, l) => t + l.hours, 0);
+  const days = Math.max(install > 0 ? 1 : 0, Math.ceil(install / 7));
+  if (days) out.set('day', { group: 'cabinets', label: DAY_LABEL, qty: days, each: q.standards.installDay, hours: days * q.standards.installDay, install: true });
+  return [...out.values()];
+}
+
+/** Labor hours for one room's design. */
+function hoursOneRoom(p: Project, q: QuoteSettings): HourLine[] {
   const st = q.standards;
   const counts: Record<string, { label: string; group: Group; qty: number; each: number; install?: boolean }> = {};
   const add = (label: string, qty: number, each: number, group: Group = 'cabinets', install = false) => {
@@ -581,6 +620,29 @@ export function estimateHours(p: Project, q: QuoteSettings): HourLine[] {
 
 /** Material cost from the design at what the shop pays, before tax. */
 export function estimateMaterials(p: Project, q: QuoteSettings): MaterialLine[] {
+  const rooms = jobRooms(p);
+  if (rooms.length < 2) return materialsOneRoom(p, q);
+  // Each room's materials, a line for each kind with the rooms' amounts in its detail...
+  const out = new Map<string, MaterialLine & { parts: string[] }>();
+  for (const r of rooms) for (const m of materialsOneRoom(r.project, q)) {
+    if (/ sheets$/.test(m.label) && m.group === 'cabinets') continue;
+    const k = `${m.group}|${m.label}`;
+    const cur = out.get(k);
+    if (!cur) out.set(k, { ...m, parts: [`${r.name}: ${m.detail}`] });
+    else { cur.cost += m.cost; cur.parts.push(`${r.name}: ${m.detail}`); cur.missing = cur.missing ?? m.missing; }
+  }
+  // ...except sheet goods, nested across every room together
+  const data = p.cutlist ?? defaultCutlist(p);
+  const sheets = optimize(rooms.flatMap((r) => optimizerParts(r.project, data)), cutStock(p, data), data.options);
+  const sheetLines: MaterialLine[] = sheets.map((m) => {
+    const cost = m.sheets.reduce((t, sh) => t + sh.stock.price, 0);
+    return { group: 'cabinets', label: `${m.material} sheets`, cost, detail: `${m.sheets.length} sheets, all rooms`, missing: cost ? undefined : 'Enter a price per sheet on the Sheet cutlist tab' };
+  });
+  return [...sheetLines, ...[...out.values()].map(({ parts, ...m }) => ({ ...m, detail: parts.join(' · ') }))];
+}
+
+/** Material cost for one room's design. */
+function materialsOneRoom(p: Project, q: QuoteSettings): MaterialLine[] {
   const out: MaterialLine[] = [];
   const data = p.cutlist ?? defaultCutlist(p);
   const sheets = optimize(optimizerParts(p, data), cutStock(p, data), data.options);

@@ -1,6 +1,7 @@
 // Drawing sets: the customer's (cover, floor plan, wall elevations) and the shop's (a wall
 // assembly sheet per wall, then a sheet per cabinet), on 11×17 or letter, each with CJC's title
 // block. Every sheet is one SVG at true size, so it prints to scale.
+import { jobRooms } from '../model/rooms';
 import { doorDrawings } from '../model/eagleDrawings';
 import { forCustomer } from '../model/moldings';
 import type { Cabinet, Part, Project, WallId } from '../model/types';
@@ -170,6 +171,21 @@ function wallNotes(p: Project, wall: WallId, a: Audience): string {
 const wallsWithWork = (p: Project) => wallOrder.filter((w) => cabinetsOn(p, w).length > 0);
 
 /* ---------- Customer set ---------- */
+
+/**
+ * The client's drawings for the whole job: one room's set, or for a job with several rooms each
+ * room's sheets in turn (numbered by room, titled with its name) after a single cover.
+ */
+export function jobCustomerSet(p: Project): Sheet[] {
+  const rooms = jobRooms(p);
+  if (rooms.length < 2) return customerSet(p, drawingsOf(p));
+  return rooms.flatMap((r, i) => {
+    const one = { ...r.project, name: `${p.name} · ${r.name}` };
+    return customerSet(one, drawingsOf(one))
+      .filter((x) => i === 0 || x.number !== 'A0')
+      .map((x) => ({ ...x, number: `${i + 1}-${x.number}`, title: x.number === 'A0' ? x.title : `${r.name}: ${x.title}` }));
+  });
+}
 
 export function customerSet(p: Project, s: DrawingSettings): Sheet[] {
   beginEdits(s.edits);

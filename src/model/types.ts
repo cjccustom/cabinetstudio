@@ -539,6 +539,12 @@ export interface Project {
   portal?: { jobId: string; url?: string; status?: import('../portal').JobStatus; checkedAt?: number };
   /** A returning client: the design (drawings and 3D) can go on their page as a draft before there's a price. */
   designFirst?: boolean;
+  /** The other rooms of a multi-room job (the one on screen lives in the fields above); see rooms.ts. */
+  rooms?: import('./rooms').RoomTab[];
+  /** The room on screen: its id, name and where its tab sits among the others. */
+  roomId?: string;
+  roomName?: string;
+  roomIndex?: number;
   /** Drawing sets: paper, revision, cover picture, notes. */
   drawings?: Partial<import('../drawings/sheets').DrawingSettings>;
   /** Sections and details for the drawing sets. */

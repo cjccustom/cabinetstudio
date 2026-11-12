@@ -1,6 +1,7 @@
 // What the customer sees before they sign: the work in plain words, grouped by area, the materials
 // and finishes, the price in sections, and options they can add. No dimensioned drawings and no
 // cabinet-by-cabinet sizes until the job is sold, so the design can't be shopped to another builder.
+import { jobRooms } from './rooms';
 import { hardwareScope } from './pulls';
 import type { Cabinet, Project, WallId } from './types';
 import { cofferScope, priceQuote, scopeLine } from './quote';
@@ -25,7 +26,8 @@ const optionId = (name: string) => name.toLowerCase().replace(/[^a-z0-9]+/g, '-'
 
 /** The option names used in a job: cabinets and extras marked as offered on top of the base price. */
 export function optionNames(p: Project): string[] {
-  const names = [...p.cabinets.map((c) => c.option), ...lightingOptions(p).map((o) => o.name), ...(p.quote?.extras ?? []).map((e) => e.option)].map((n) => n?.trim()).filter((n): n is string => !!n);
+  const rs = jobRooms(p).map((r) => r.project);
+  const names = [...rs.flatMap((r) => r.cabinets.map((c) => c.option)), ...rs.flatMap((r) => lightingOptions(r).map((o) => o.name)), ...(p.quote?.extras ?? []).map((e) => e.option)].map((n) => n?.trim()).filter((n): n is string => !!n);
   return [...new Set(names)];
 }
 
@@ -52,6 +54,8 @@ export function withOptions(p: Project, keep: string[] = []): Project {
   return {
     ...p,
     cabinets: p.cabinets.filter((c) => on(c.option)).map(unlit),
+    // The other rooms of the job, each with its own lighting options
+    ...(p.rooms?.length ? { rooms: p.rooms.map((r) => ({ ...r, cabinets: withOptions({ ...p, rooms: undefined, cabinets: r.cabinets ?? [], cabLighting: r.cabLighting } as Project, keep).cabinets })) } : {}),
     ...(p.quote ? { quote: { ...p.quote, extras: (p.quote.extras ?? []).filter((e) => on(e.option)) } } : {}),
   };
 }
@@ -63,10 +67,11 @@ export function optionPrices(p: Project): ProposalOption[] {
   const base = priceQuote(withOptions(p)).total;
   return names.map((name) => {
     const price = Math.round((priceQuote(withOptions(p, [name])).total - base) / 10) * 10;
-    const only = { ...p, cabinets: p.cabinets.filter((c) => c.option?.trim() === name) };
     const extras = (p.quote?.extras ?? []).filter((e) => e.option?.trim() === name).map((e) => e.label);
-    const lights = lightingOptions(p).filter((o) => o.name === name).map((o) => `${lightWords[o.kind] ?? 'LED lighting'} (${o.cabs.length === 1 ? o.cabs[0].name : `${o.cabs.map((c) => c.name).join(', ').replace(/, ([^,]*)$/, ' and $1')}`})`);
-    return { id: optionId(name), label: name, price, items: [...plainItems(withOptions(p, [name]), only.cabinets), ...lights, ...extras] };
+    const rs = jobRooms(withOptions(p, [name])).map((r) => r.project);
+    const cabItems = rs.flatMap((r) => plainItems(r, r.cabinets.filter((c) => c.option?.trim() === name)));
+    const lights = jobRooms(p).flatMap((r) => lightingOptions(r.project)).filter((o) => o.name === name).map((o) => `${lightWords[o.kind] ?? 'LED lighting'} (${o.cabs.length === 1 ? o.cabs[0].name : `${o.cabs.map((c) => c.name).join(', ').replace(/, ([^,]*)$/, ' and $1')}`})`);
+    return { id: optionId(name), label: name, price, items: [...cabItems, ...lights, ...extras] };
   });
 }
 
@@ -115,6 +120,27 @@ function areaOf(c: Cabinet): string {
 
 /** Everything the customer reads before signing. */
 export function proposalSummary(p: Project): ProposalSummary {
+  const rooms = jobRooms(p);
+  if (rooms.length > 1) {
+    // Room by room, each under its name (and its walls, when it has cabinets on more than one)
+    const each = rooms.map((r) => ({ r, base: withOptions(r.project) }));
+    const areas = each.flatMap(({ r, base }) => {
+      const groups = new Map<string, Cabinet[]>();
+      for (const c of base.cabinets) groups.set(areaOf(c), [...(groups.get(areaOf(c)) ?? []), c]);
+      const list = [...groups].map(([title, cabs]) => ({ title: groups.size > 1 ? `${r.name}, ${title.charAt(0).toLowerCase()}${title.slice(1)}` : r.name, items: plainItems(base, cabs) }));
+      const ceiling = cofferScope(base);
+      if (ceiling) list.push({ title: `${r.name}, coffered ceiling`, items: [ceiling.charAt(0).toUpperCase() + ceiling.slice(1)] });
+      return list.filter((a) => a.items.length);
+    });
+    // The job as a whole: every room's cabinets for the finishing and materials
+    const all: Project = { ...withOptions(p), rooms: undefined, cabinets: each.flatMap((e) => e.base.cabinets) };
+    const extras = [...(all.quote?.extras ?? []).map((e) => e.label), ...(all.quote?.scopeExtra ?? [])].filter((x) => x?.trim());
+    const tables = furnitureOf(all).map((t) => { const x = tableScope(t).replace(/^[^:]*:\s*/, ''); return x.charAt(0).toUpperCase() + x.slice(1); });
+    if (tables.length) areas.push({ title: furnitureOf(all).length === 1 ? furnitureOf(all)[0].name || 'Furniture' : 'Furniture', items: tables });
+    if (all.cabinets.length) areas.push({ title: 'Finishing', items: finishingItems(all) });
+    if (extras.length) areas.push({ title: 'Also included', items: extras });
+    return { areas, materials: materialsOf(all), options: optionPrices(p) };
+  }
   const base = withOptions(p);
   const groups = new Map<string, Cabinet[]>();
   for (const c of base.cabinets) groups.set(areaOf(c), [...(groups.get(areaOf(c)) ?? []), c]);

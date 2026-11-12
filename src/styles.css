@@ -857,3 +857,8 @@ textarea.text-input { resize: vertical; }
 .part-group { margin: 10px 0 4px; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted, #666); }
 .pp-mine { margin: 8px 0 12px; padding-bottom: 10px; border-bottom: 1px solid var(--line, #ddd); }
 .pp-mine > strong { display: block; margin-bottom: 6px; }
+.seg.rooms { margin-left: 10px; }
+.seg.rooms button { font-size: 13px; padding: 4px 10px; display: inline-flex; gap: 6px; align-items: center; }
+.room-x { opacity: .55; font-size: 15px; line-height: 1; padding: 0 2px; cursor: pointer; }
+.room-x:hover { opacity: 1; }
+.room-add { margin-left: 10px; }
