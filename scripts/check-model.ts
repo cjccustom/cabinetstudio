@@ -2359,6 +2359,8 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   const set = jobCustomerSet(back);
   const cover = set[0].svg;
   eq('rooms: one cover listing every room\'s sheets', set.filter((x) => x.number === 'A0').length === 1 && cover.includes('2-A1') && cover.includes('Pantry: Floor plan'), true);
+  // Each sheet goes to the portal as an image: one stray quote in an attribute and it shows as a broken picture
+  eq('drawings: every customer sheet is well-formed (attribute values close properly)', set.filter((x) => /[^=]""[\s/>]/.test(x.svg)).map((x) => x.number).join(), '');
   eq('rooms: each title block shows its room\'s sheet number', set.find((x) => x.number === '2-A1')!.svg.includes('>2-A1</text>'), true);
   eq('rooms: removing the pantry leaves the kitchen as it was', JSON.stringify(removeRoom(back, roomTabs(back)[1].id).cabinets) === JSON.stringify(p.cabinets) && !(removeRoom(back, roomTabs(back)[1].id).rooms ?? []).length, true);
 }

@@ -48,6 +48,8 @@ export function fitScale(w: number, h: number, aw: number, ah: number): number {
 
 const n = (v: number) => +v.toFixed(4);
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+// In an attribute, quotes too: a dimension like 59" left bare there breaks the whole sheet as an image
+const escAttr = (s: string) => esc(s).replace(/"/g, '&quot;');
 
 /** Inches as a drawing shows them: 34 1/2", with feet added on long runs: 158" (13'-2"). */
 export function dimText(v: number, feet = false) {
@@ -193,7 +195,7 @@ export class View {
   hit(x: number, y: number, w: number, h: number, data: Record<string, string | number>) {
     if (w <= 0 || h <= 0) return;
     const top = this.yUp ? y + h : y;
-    const attrs = Object.entries(data).map(([k, v]) => ` data-${k}="${esc(String(v))}"`).join('');
+    const attrs = Object.entries(data).map(([k, v]) => ` data-${k}="${escAttr(String(v))}"`).join('');
     this.hits.push(`<rect class="hit" x="${this.X(x)}" y="${this.Y(top)}" width="${n(w * this.k)}" height="${n(h * this.k)}"${attrs}/>`);
   }
   private hits: string[] = [];
