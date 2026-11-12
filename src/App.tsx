@@ -1,3 +1,4 @@
+import { roomProjects } from './model/rooms';
 import { RoomTabs } from './ui/RoomTabs';
 import { CoverButton, DrawingsMain, DrawingsPanel, DrawingsSide } from './ui/Drawings';
 import { ConfirmHost } from './ui/Confirm';
@@ -212,7 +213,8 @@ export default function App() {
               <p className="hint">Doors, drawer fronts and dovetail drawer boxes for the whole job, sized from the face frame openings. Sizes are finished width × height.</p>
               <p><button onClick={() => setDialog('drawer')}>Drawer box calculator…</button></p>
               <ReleasePanel />
-              <OrderList cabinets={project.cabinets} />
+              {(project.rooms?.length ?? 0) > 0 && <p className="hint">Every room of the job ({roomProjects(project).map((r) => r.roomName).join(', ')}): the same size from two rooms is one line.</p>}
+              <OrderList cabinets={roomProjects(project).flatMap((r) => r.cabinets)} />
               <EagleRequests />
               <HardwareOrder />
               <LightingOrder />

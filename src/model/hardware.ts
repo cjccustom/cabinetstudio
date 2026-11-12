@@ -1,4 +1,5 @@
 // Blum hinges, slides and locking devices for a job, picked from the Woodworker Express price list.
+import { roomProjects } from './rooms';
 import type { Project } from './types';
 import { buildParts, eff } from './parts';
 import { resolveEnds } from './layout';
@@ -31,10 +32,11 @@ export function hardwareOrder(p: Project): HardwareOrder {
     need.set(part.sku, row);
   };
   let hinges = 0, drawers = 0, lifts = 0;
-  for (const c of p.cabinets) {
+  // Every room's cabinets, each against its own room's walls
+  for (const rp of roomProjects(p)) for (const c of rp.cabinets) {
     const s = eff(c, p.settings);
     const inset = s.doorMount === 'inset';
-    for (const part of buildParts(c, p.settings, resolveEnds(p.room, p.cabinets, c))) {
+    for (const part of buildParts(c, p.settings, resolveEnds(rp.room, rp.cabinets, c))) {
       const o = part.order;
       if (!o) continue;
       if (o.item === 'door') {

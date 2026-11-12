@@ -1,3 +1,4 @@
+import { jobRooms } from './rooms';
 import { eff } from './parts';
 import type { MaterialKey, PartRole, Project } from './types';
 import { buildParts } from './parts';
@@ -91,6 +92,13 @@ export interface DesignPart extends CutPart { cabinet: string; name: string; not
 
 /** Every sheet-goods part in the design, one row per physical piece. */
 export function designParts(p: Project, data: CutlistData): DesignPart[] {
+  // A job with several rooms: every room's parts, each named by its room
+  const rooms = jobRooms(p);
+  if (rooms.length > 1) return rooms.flatMap((r) => roomParts(r.project, data).map((x) => ({ ...x, cabinet: `${r.name} ${x.cabinet}`, label: `${r.name}: ${x.label}` })));
+  return roomParts(p, data);
+}
+
+function roomParts(p: Project, data: CutlistData): DesignPart[] {
   const out: DesignPart[] = [];
   for (const c of p.cabinets) {
     const counts = new Map<string, number>();

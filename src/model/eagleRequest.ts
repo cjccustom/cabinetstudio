@@ -1,5 +1,6 @@
 // Quote requests laid out the way Eagle's website asks for them: one request each for doors
 // (with end panels), drawer fronts and drawer boxes, with Eagle's own names and option codes.
+import { roomProjects } from './rooms';
 import type { Project } from './types';
 import { buildParts, eff } from './parts';
 import { resolveEnds } from './layout';
@@ -60,9 +61,10 @@ function frontConfig(p: Project, cabId: string, kind: 'doors' | 'fronts', slab: 
   return { config, check };
 }
 
-function pieces(p: Project): Piece[] {
+function pieces(job: Project): Piece[] {
   const out: Piece[] = [];
-  for (const c of p.cabinets) {
+  // Every room's doors, fronts and boxes: the same size from two rooms is one line
+  for (const p of roomProjects(job)) for (const c of p.cabinets) {
     const s = eff(c, p.settings);
     for (const part of buildParts(c, p.settings, resolveEnds(p.room, p.cabinets, c))) {
       const o = part.order;

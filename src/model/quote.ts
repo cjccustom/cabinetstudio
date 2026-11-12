@@ -635,7 +635,8 @@ export function estimateMaterials(p: Project, q: QuoteSettings): MaterialLine[] 
   }
   // ...except sheet goods, nested across every room together
   const data = p.cutlist ?? defaultCutlist(p);
-  const allParts = rooms.flatMap((r) => optimizerParts(r.project, data));
+  // (the cut list already covers every room, with the cutlist tab's extras once)
+  const allParts = optimizerParts(p, data);
   const sheets = optimize(allParts, cutStock(p, data, allParts), data.options);
   const sheetLines: MaterialLine[] = sheets.map((m) => {
     const cost = m.sheets.reduce((t, sh) => t + sh.stock.price, 0);

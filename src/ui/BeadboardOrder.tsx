@@ -1,9 +1,11 @@
+import { roomProjects } from '../model/rooms';
 import { useStore } from '../store';
 import { panelOrder } from '../model/panels';
 
 /** What to order from the beadboard supplier, combined across every panel in the job. */
 export function BeadboardOrder() {
-  const panels = useStore((s) => s.project.panels ?? []);
+  const project = useStore((s) => s.project);
+  const panels = roomProjects(project).flatMap((r) => r.panels ?? []);
   if (!panels.length) return null;
   const lines = panels.map(panelOrder);
   const totals = new Map<string, number>();

@@ -1,5 +1,6 @@
 // Reeb interior doors for the openings in a design: which slab or prehung unit, its size and
 // handing, and what it costs at the price entered for this job.
+import { roomProjects } from './rooms';
 import type { Opening, Project } from './types';
 import { inScope } from './room';
 import { catalogPrice, designByCode, stockSlab, tradeSize, type ReebDesign } from './reeb';
@@ -15,7 +16,7 @@ export const doorKey = (code: string, w: number, h: number, leaves: number, preh
 export function doorOrder(p: Project): DoorLine[] {
   if (!inScope(p, 'doors')) return [];
   const lines = new Map<string, DoorLine>();
-  for (const o of p.openings ?? []) {
+  for (const o of roomProjects(p).flatMap((r) => r.openings ?? [])) {
     if (o.kind !== 'door') continue;
     const d = doorOf(o);
     const design = designByCode(d.design);

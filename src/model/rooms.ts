@@ -90,5 +90,8 @@ export function jobRooms(p: Project): { id: string; name: string; project: Proje
   });
 }
 
+/** Each room as its own project (the job's settings, that room's walls and cabinets): for totals over the whole job. */
+export const roomProjects = (p: Project): Project[] => jobRooms(p).map((r) => r.project);
+
 /** More than one room in the job. */
 export const isMultiRoom = (p: Project) => (p.rooms?.length ?? 0) > 0;

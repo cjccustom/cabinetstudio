@@ -1,5 +1,6 @@
 // Mouldings from the Anderson & McQuaid catalog: crown, light rail and base on cabinets, caps on
 // beadboard. Each run follows the cabinet face and returns along exposed ends.
+import { roomProjects } from './rooms';
 import type { Cabinet, Project, ShopSettings, WallPanel } from './types';
 import { mantelLayout, mantelOf, neckAt, upperSetback, upperTop } from './mantel';
 import { amCatalog, type AMProfile } from './andersonMcquaid';
@@ -462,8 +463,7 @@ export function nextDayChoices(prof: Profile): Profile[] {
 }
 
 /** Lineal feet to order from Anderson & McQuaid, by profile, with waste for miters and defects. */
-export function moldingOrder(p: Project): MoldOrderLine[] {
-  const s = p.settings;
+export function moldingOrder(job: Project): MoldOrderLine[] {
   const totals = new Map<string, { inches: number; kinds: Set<MoldKind> }>();
   const add = (pc: MoldPiece) => {
     const t = totals.get(pc.num) ?? { inches: 0, kinds: new Set<MoldKind>() };
@@ -471,6 +471,13 @@ export function moldingOrder(p: Project): MoldOrderLine[] {
     t.kinds.add(pc.kind);
     totals.set(pc.num, t);
   };
+  // Every room's mouldings, one line per profile for the whole job
+  for (const p of roomProjects(job)) collectMoldings(p, add);
+  return moldLines(job, totals);
+}
+
+function collectMoldings(p: Project, add: (pc: MoldPiece) => void) {
+  const s = p.settings;
   for (const c of p.cabinets) {
     if (!c.crown && !c.lightRail && !c.baseMold && !c.crownBuild?.extra.length) continue;
     cabinetMoldings(c, s, resolveEnds(p.room, p.cabinets, c), { noCrown: underFascia(p, c) }).forEach(add);
@@ -493,6 +500,10 @@ export function moldingOrder(p: Project): MoldOrderLine[] {
     if (!ps?.panelMold || ps.face !== 'shop' || !profileByNum(ps.panelMold)) continue;
     for (const o of pilasterOpenings(c)) add({ kind: 'panel', num: ps.panelMold, along: 'x', facing: 'front', x: 0, y: 0, z: 0, length: 2 * (o.w + o.h) });
   }
+}
+
+function moldLines(p: Project, totals: Map<string, { inches: number; kinds: Set<MoldKind> }>): MoldOrderLine[] {
+  const s = p.settings;
   return [...totals].map(([num, t]) => {
     const profile = profileByNum(num)!;
     const feet = Math.ceil((t.inches / 12) * (1 + s.moldWaste));

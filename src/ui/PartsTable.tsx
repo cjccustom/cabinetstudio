@@ -1,3 +1,4 @@
+import { roomProjects } from '../model/rooms';
 import { useMemo, useState } from 'react';
 import { useStore } from '../store';
 import type { Cabinet, MaterialKey } from '../model/types';
@@ -107,13 +108,16 @@ type OrderItem = keyof typeof orderLabel;
 interface OrderRow { key: string; item: OrderItem; w: number; h: number; d?: number; spec: string; qty: number; cabs: string[]; each: number }
 
 export function useOrderRows(cabinets: Cabinet[]) {
-  const settings = useStore((s) => s.project.settings);
-  const room = useStore((s) => s.project.room);
-  const all = useStore((s) => s.project.cabinets);
+  const project = useStore((s) => s.project);
+  const settings = project.settings;
   return useMemo(() => {
     const map = new Map<string, OrderRow>();
+    // Each cabinet against its own room (a job can have several)
+    const rooms = roomProjects(project);
+    const roomOf = (id: string) => rooms.find((r) => r.cabinets.some((x) => x.id === id)) ?? project;
     for (const c of cabinets) {
-      for (const p of buildParts(c, settings, resolveEnds(room, all, c))) {
+      const rp = roomOf(c.id);
+      for (const p of buildParts(c, settings, resolveEnds(rp.room, rp.cabinets, c))) {
         const o = p.order;
         if (!o) continue;
         const r16 = (v: number) => Math.round(v * 16);
@@ -127,7 +131,7 @@ export function useOrderRows(cabinets: Cabinet[]) {
     }
     const rows = [...map.values()].sort((a, b) => b.h - a.h || b.w - a.w);
     return (Object.keys(orderLabel) as OrderItem[]).map((item) => ({ item, rows: rows.filter((r) => r.item === item) })).filter((g) => g.rows.length);
-  }, [cabinets, settings, room, all]);
+  }, [cabinets, settings, project]);
 }
 
 /** Plain text a person can paste into Eagle's order form notes or an email. */
