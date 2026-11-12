@@ -100,6 +100,10 @@ export function area(paper: Paper): Frame {
   return { x: M + 0.15, y: M + 0.15, w: P.w - 2 * M - 0.3, h: P.h - 2 * M - tbH(paper) - 0.3 };
 }
 
+/** While a job with several rooms is drawn: each room's sheet numbers carry its room number, and the one cover lists the whole job. */
+let jobSet: { prefix: string; title?: string; index?: string[][] } | null = null;
+const shownNumber = (n: string) => (jobSet && n !== 'A0' ? `${jobSet.prefix}${n}` : n);
+
 function titleBlock(p: Project, s: DrawingSettings, number: string, title: string, scale: string): string {
   const P = papers[s.paper];
   const h = tbH(s.paper);
@@ -123,7 +127,7 @@ function titleBlock(p: Project, s: DrawingSettings, number: string, title: strin
     t(xs[1] + 0.12, y + 0.2, 'CLIENT / PROJECT', 0.065, 600),
     t(xs[1] + 0.12, y + 0.38, clientName(c) || p.name, 0.13, 700),
     t(xs[1] + 0.12, y + 0.54, c.address || c.location || '', 0.09),
-    t(xs[1] + 0.12, y + 0.68, p.name, 0.085),
+    t(xs[1] + 0.12, y + 0.68, number === 'A0' && jobSet?.title ? jobSet.title : p.name, 0.085),
     t(xs[2] + 0.12, y + 0.2, 'SHEET', 0.065, 600),
     t(xs[2] + 0.12, y + 0.42, title, 0.12, 700),
     t(xs[2] + 0.12, y + 0.62, `Scale: ${scale}`, 0.085),
@@ -131,7 +135,7 @@ function titleBlock(p: Project, s: DrawingSettings, number: string, title: strin
     t(xs[3] + 0.12, y + 0.36, today(), 0.09),
     t(xs[3] + 0.12, y + 0.54, 'REVISION', 0.065, 600),
     t(xs[3] + 0.12, y + 0.68, s.rev ? `Rev ${s.rev}` : 'Original', 0.09),
-    `<text x="${(xs[4] + x1) / 2}" y="${y + h / 2 + 0.12}" font-size="${0.34 * fs}" font-weight="700" text-anchor="middle">${esc(number)}</text>`,
+    `<text x="${(xs[4] + x1) / 2}" y="${y + h / 2 + 0.12}" font-size="${0.34 * fs}" font-weight="700" text-anchor="middle">${esc(shownNumber(number))}</text>`,
   ].join('');
 }
 
@@ -165,7 +169,8 @@ function wallNotes(p: Project, wall: WallId, a: Audience): string {
   const items = cabinetsOn(p, wall).flatMap((c) => forAudience(cabinetCallouts(p, c), a).map((n) => `<li><b>${esc(c.name)}</b> ${esc(n.text)}</li>`));
   // A wall with nothing built on it (drawn for the side walls in section) gets no door or hardware notes
   if (!cabinetsOn(p, wall).length) return p.drawings?.sides?.[wall] === 'section' ? '<h2>Notes</h2><p>Built-ins on the side walls and the coffered ceiling are shown cut through and shaded, to show how far each comes out into the room.</p>' : '';
-  return `<h2>Notes</h2><ul>${jobCallouts(p, a).map((t) => `<li>${esc(t)}</li>`).join('')}${items.join('')}</ul>`;
+  const all = [...jobCallouts(p, a).map((t) => `<li>${esc(t)}</li>`), ...items];
+  return all.length ? `<h2>Notes</h2><ul>${all.join('')}</ul>` : '';
 }
 
 const wallsWithWork = (p: Project) => wallOrder.filter((w) => cabinetsOn(p, w).length > 0);
@@ -179,12 +184,17 @@ const wallsWithWork = (p: Project) => wallOrder.filter((w) => cabinetsOn(p, w).l
 export function jobCustomerSet(p: Project): Sheet[] {
   const rooms = jobRooms(p);
   if (rooms.length < 2) return customerSet(p, drawingsOf(p));
-  return rooms.flatMap((r, i) => {
+  const draw = (index?: string[][]) => rooms.flatMap((r, i) => {
     const one = { ...r.project, name: `${p.name} · ${r.name}` };
-    return customerSet(one, drawingsOf(one))
-      .filter((x) => i === 0 || x.number !== 'A0')
-      .map((x) => ({ ...x, number: `${i + 1}-${x.number}`, title: x.number === 'A0' ? x.title : `${r.name}: ${x.title}` }));
+    jobSet = { prefix: `${i + 1}-`, title: p.name, index };
+    try {
+      return customerSet(one, drawingsOf(one))
+        .filter((x) => i === 0 || x.number !== 'A0')
+        .map((x) => ({ ...x, number: x.number === 'A0' ? 'A0' : `${i + 1}-${x.number}`, title: x.number === 'A0' ? x.title : `${r.name}: ${x.title}` }));
+    } finally { jobSet = null; }
   });
+  // Drawn once to learn every room's sheets, then again so the cover lists them all
+  return draw(draw().map((x) => [x.number, x.title]));
 }
 
 export function customerSet(p: Project, s: DrawingSettings): Sheet[] {
@@ -219,11 +229,11 @@ function customerSheets(p: Project, s: DrawingSettings): Sheet[] {
     s.cover ? `<image href="${esc(s.cover)}" x="${A.x}" y="${A.y}" width="${imgW}" height="${A.h}" preserveAspectRatio="xMidYMid meet"/>` : `<rect class="ghost" x="${A.x}" y="${A.y}" width="${imgW}" height="${A.h}"/><text x="${A.x + imgW / 2}" y="${A.y + A.h / 2}" font-size="0.14" text-anchor="middle" fill="#888">Add a 3D view or rendering for the cover</text>`,
     html({ x: A.x + imgW + 0.3, y: A.y, w: A.w - imgW - 0.3, h: A.h }, `
       <img src="${LOGO}" alt="CJC Custom Carpentry" style="width:62%;margin:0 0 1.2em"/>
-      <h1>${esc(p.name)}</h1>
+      <h1>${esc(jobSet?.title ?? p.name)}</h1>
       <p class="big">${esc(clientName(c))}</p>
       <p>${esc(c.address || c.location || '')}</p>
       <h2>Drawings</h2>
-      <table class="idx">${index.map(([n, t]) => `<tr><td>${n}</td><td>${esc(t)}</td></tr>`).join('')}</table>
+      <table class="idx">${(jobSet?.index ?? index).map(([n, t]) => `<tr><td>${n}</td><td>${esc(t)}</td></tr>`).join('')}</table>
       ${s.notes ? `<h2>Notes</h2><p>${esc(s.notes).replace(/\n/g, '<br>')}</p>` : ''}
       <p class="small">Drawings show design intent. Final dimensions are field verified before fabrication.</p>`, s.paper === 'tabloid' ? 0.13 : 0.11),
   ].join('');

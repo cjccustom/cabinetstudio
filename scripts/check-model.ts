@@ -18,7 +18,7 @@ import { paymentSchedule } from "../src/model/schedule";
 import { asciiHtml } from "../src/dropbox";
 import { cabinetFixtures, lightingCost, lightingParts, electricianHtml, hafeleStandard, hafeleFit } from "../src/model/cabinetLighting";
 import { printQuote } from "../src/model/printQuote";
-import { shopGroups } from "../src/drawings/sheets";
+import { jobCustomerSet, shopGroups } from "../src/drawings/sheets";
 import { sidePanelLayout, wallElevation } from "../src/drawings/views";
 import { crc32, writeXlsx } from "../src/export/xlsx";
 import { pricingWorkbook } from "../src/export/pricingWorkbook";
@@ -2356,6 +2356,10 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   eq('rooms: setup counted once for the job', hrs.filter((h) => h.label === 'Drawings, ordering & setup').map((h) => h.qty).join(), '1');
   eq('rooms: the job costs more than the kitchen alone, less than the two rooms quoted apart', priceQuote(back).total > priceQuote(p).total && priceQuote(back).total < priceQuote(p).total + priceQuote(jobRooms(back)[1].project).total, true);
   eq('rooms: scope names the rooms', scopeItems(back).some((x) => x.text.startsWith('Pantry, ')), true);
+  const set = jobCustomerSet(back);
+  const cover = set[0].svg;
+  eq('rooms: one cover listing every room\'s sheets', set.filter((x) => x.number === 'A0').length === 1 && cover.includes('2-A1') && cover.includes('Pantry: Floor plan'), true);
+  eq('rooms: each title block shows its room\'s sheet number', set.find((x) => x.number === '2-A1')!.svg.includes('>2-A1</text>'), true);
   eq('rooms: removing the pantry leaves the kitchen as it was', JSON.stringify(removeRoom(back, roomTabs(back)[1].id).cabinets) === JSON.stringify(p.cabinets) && !(removeRoom(back, roomTabs(back)[1].id).rooms ?? []).length, true);
 }
 
