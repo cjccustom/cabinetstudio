@@ -31,16 +31,23 @@ function cleatShelfParts(c: Cabinet, settings: ShopSettings, ends: EndInfo): Par
   const t = s.boxActualThickness, nt = 0.75;
   const nose = Math.max(t, c.height);
   const solid = f.grade === 'paint' ? 'faceframe' as const : 'solidWood' as const;
+  // The cleats are as tall as the nosing hangs below the plywood, so their bottoms line up with it and
+  // nothing shows below the shelf's front edge: a 1x2 on the flat under a 1-1/2" nosing
+  const ch = Math.max(0.5, nose - t), cw = ch < 1.25 ? 1.5 : 0.75;
+  const cy = nose - t - ch;
+  const cut = `${fmt(cw)} × ${fmt(ch)}`;
   const out: Part[] = [
     { name: 'Shelf', role: 'shelf', material: 'box', sheet: shelfPly(c, settings), look: f.grade === 'paint' ? 'paint' : 'wood', length: W, width: D - nt, thickness: s.boxThickness, cut: true,
-      note: 'on cleats; nosing glued and nailed to the front', boxes: [vb(0, nose - t, 0, W, t, D - nt)] },
+      note: `on cleats; nosing glued and nailed to the front${f.slopeEnd ? `; ${f.slopeEnd} end cut to the slope's angle` : ''}`, boxes: [vb(0, nose - t, 0, W, t, D - nt)] },
     { name: 'Shelf nosing', role: 'trim', material: solid, length: W, width: nose, thickness: nt, cut: true, note: `flush with the top, hangs ${fmt(nose - t)} below`, boxes: [vb(0, 0, D - nt, W, nose, nt)] },
-    { name: 'Shelf cleat', role: 'nailer', material: solid, length: W, width: 1.5, thickness: 0.75, cut: true, note: 'along the wall behind, screwed into the studs', boxes: [vb(0, nose - t - 1.5, 0, W, 1.5, 0.75, 0.9)] },
+    { name: 'Shelf cleat', role: 'nailer', material: solid, length: W, width: ch, thickness: cw, cut: true, note: `${cut}, along the wall behind, screwed into the studs; bottom flush with the nosing`, boxes: [vb(0, cy, 0, W, ch, cw, 0.9)] },
   ];
   for (const side of ['left', 'right'] as const) {
-    if (ends[side]) continue;
-    out.push({ name: 'Shelf cleat', role: 'nailer', material: solid, length: D - nt - 0.75, width: 1.5, thickness: 0.75, cut: true, note: `${side} end, on the wall (or the shelf) it meets`,
-      boxes: [vb(side === 'left' ? 0 : W - 0.75, nose - t - 1.5, 0.75, 0.75, 1.5, D - nt - 0.75, 0.9)] });
+    const slope = f.slopeEnd === side;
+    if (ends[side] && !slope) continue;
+    out.push({ name: 'Shelf cleat', role: 'nailer', material: solid, length: D - nt - cw, width: ch, thickness: cw, cut: true,
+      note: slope ? `${cut}, ${side} end, beveled to the slope and screwed up into the framing` : `${cut}, ${side} end, on the wall (or the shelf) it meets`,
+      boxes: [vb(side === 'left' ? 0 : W - cw, cy, cw, cw, ch, D - nt - cw, 0.9)] });
   }
   return out;
 }

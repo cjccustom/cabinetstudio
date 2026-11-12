@@ -2330,6 +2330,10 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   const room = { ...p, room: { ...p.room, width: 59, depth: 40, height: 95 }, cabinets: [sh] };
   const parts = buildParts(sh, s, { left: false, right: false } as never);
   eq('cleat shelf: shelf, nosing and three cleats', parts.map((x) => x.name).sort().join(', '), 'Shelf, Shelf cleat, Shelf cleat, Shelf cleat, Shelf nosing');
+  const low = (n: string) => Math.min(...parts.filter((x) => x.name === n).map((x) => x.boxes[0].min[1]));
+  eq('cleat shelf: cleats end flush with the bottom of the nosing', `${low('Shelf cleat')} ${low('Shelf nosing')}`, '0 0');
+  const sl = buildParts({ ...sh, floating: { ...sh.floating, slopeEnd: 'right' as const } }, s, { left: false, right: true } as never).filter((x) => x.name === 'Shelf cleat');
+  eq('cleat shelf: the end under a slope gets a beveled cleat', sl.some((x) => /beveled to the slope/.test(x.note ?? '')), true);
   const hrs = estimateHours(room, quoteOf(room)).filter((h) => /shel/i.test(h.label)).map((h) => h.label).join(' | ');
   eq('cleat shelf: closet shelf hours, not floating', hrs, 'Closet shelves on cleats: cut, nose & sand | Install closet shelves: cleats & shelf');
   eq('cleat shelf: no floating brackets to buy', estimateMaterials(room, quoteOf(room)).some((l) => l.label === 'Floating shelf brackets'), false);

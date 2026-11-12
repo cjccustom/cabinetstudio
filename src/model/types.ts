@@ -218,6 +218,11 @@ export interface FloatingShelfSpec {
   support?: 'floating' | 'cleat';
   /** Cleat shelves: how tall the solid nosing is (it hangs below the plywood and stiffens it). Unset = 1-1/2". */
   nosing?: number;
+  /**
+   * Cleat shelves under a sloped ceiling: the end that runs up into the slope. It's cut to the slope's
+   * angle and carried on a beveled cleat screwed up into the framing, instead of hanging free.
+   */
+  slopeEnd?: 'left' | 'right';
   grade: 'paint' | 'stain';
   /** Solid face and end cap thickness. */
   face: number;
