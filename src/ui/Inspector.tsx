@@ -1014,7 +1014,18 @@ function FloatingShelfSection({ cab, set }: { cab: Cabinet; set: (patch: Partial
   });
   const gap = bracketGap(cab, settings);
   return (
-    <Section title="Floating shelf">
+    <Section title={f.support === 'cleat' ? 'Closet shelf on cleats' : 'Floating shelf'}>
+      <Field label="Built as" htmlFor="fs-support">
+        <select id="fs-support" value={f.support ?? 'floating'} onChange={(e) => {
+          const support = e.target.value as 'floating' | 'cleat';
+          // A closet shelf is the plywood and its nosing; a floating shelf is thick enough for the bracket
+          set({ floating: { ...f, support: support === 'floating' ? undefined : support }, height: support === 'cleat' ? 1.5 : Math.max(cab.height, 2.5) });
+        }}>
+          <option value="floating">Floating shelf (concealed bracket)</option>
+          <option value="cleat">Closet shelf on cleats (shoes, linens)</option>
+        </select>
+      </Field>
+      {f.support === 'cleat' && <p className="hint">3/4" plywood with a solid nosing on the front ({fmt(cab.height)} tall), on 1x2 cleats screwed to the wall behind it and at any end that meets a wall or another shelf.</p>}
       <div className="grid3">
         <Field label="Grade" htmlFor="fs-grade">
           <select id="fs-grade" value={f.grade} onChange={(e) => set({ floating: { ...f, grade: e.target.value as 'paint' | 'stain' } })}>
@@ -1022,13 +1033,13 @@ function FloatingShelfSection({ cab, set }: { cab: Cabinet; set: (patch: Partial
             <option value="stain">Stain grade ({settings.woodSpecies})</option>
           </select>
         </Field>
-        <Field label="Solid face" htmlFor="fs-face"><LengthInput id="fs-face" value={f.face} onChange={(v) => set({ floating: { ...f, face: v ?? 0.75 } })} /></Field>
-        <Field label="Brackets" htmlFor="fs-brk">
+        {f.support !== 'cleat' && <Field label="Solid face" htmlFor="fs-face"><LengthInput id="fs-face" value={f.face} onChange={(v) => set({ floating: { ...f, face: v ?? 0.75 } })} /></Field>}
+        {f.support !== 'cleat' && <Field label="Brackets" htmlFor="fs-brk">
           <input id="fs-brk" inputMode="numeric" placeholder={`${bracketCount({ ...cab, floating: { ...f, brackets: undefined } })} (auto)`} value={f.brackets ?? ''}
             onChange={(e) => { const n = parseInt(e.target.value, 10); set({ floating: { ...f, brackets: Number.isFinite(n) && n > 0 ? n : undefined } }); }} />
-        </Field>
+        </Field>}
       </div>
-      <div className="grid2">
+      {f.support !== 'cleat' && <div className="grid2">
         <Field label="Corbels under it" htmlFor="fs-corb">
           <select id="fs-corb" value={f.corbels ?? 0} onChange={(e) => set({ floating: { ...f, corbels: Number(e.target.value) || undefined } })}>
             {[0, 1, 2, 3, 4].map((n) => <option key={n} value={n}>{n ? n : 'None (floating)'}</option>)}
@@ -1043,7 +1054,7 @@ function FloatingShelfSection({ cab, set }: { cab: Cabinet; set: (patch: Partial
             </select>
           </Field>
         )}
-      </div>
+      </div>}
       <div className="order-actions">
         <span className="muted">Stack another:</span>
         <button className="mini" onClick={() => stack(1)}>Above</button>

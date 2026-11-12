@@ -211,6 +211,13 @@ export interface PilasterSpec {
 
 /** Floating shelf: 3/4" plywood top and bottom with a mitered solid face, open in the middle for the bracket. */
 export interface FloatingShelfSpec {
+  /**
+   * floating (the default): hollow, mitered over a concealed bracket. cleat: a closet shelf, 3/4"
+   * plywood with a solid nosing, on 1x2 cleats screwed to the walls behind it and at its ends.
+   */
+  support?: 'floating' | 'cleat';
+  /** Cleat shelves: how tall the solid nosing is (it hangs below the plywood and stiffens it). Unset = 1-1/2". */
+  nosing?: number;
   grade: 'paint' | 'stain';
   /** Solid face and end cap thickness. */
   face: number;

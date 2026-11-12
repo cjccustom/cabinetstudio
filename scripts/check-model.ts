@@ -2324,6 +2324,17 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   setCustomDrawings(undefined);
 }
 
+// A closet shelf on cleats: plywood, a nosing, cleats on the walls it meets; priced as a closet shelf, no brackets
+{
+  const sh = { ...cabinetFromPreset(presets.find((x) => x.id === 'float-shelf')!, 'back', 0, []), width: 59, depth: 12, height: 1.5, elevation: 39, floating: { grade: 'paint' as const, face: 0.75, support: 'cleat' as const } };
+  const room = { ...p, room: { ...p.room, width: 59, depth: 40, height: 95 }, cabinets: [sh] };
+  const parts = buildParts(sh, s, { left: false, right: false } as never);
+  eq('cleat shelf: shelf, nosing and three cleats', parts.map((x) => x.name).sort().join(', '), 'Shelf, Shelf cleat, Shelf cleat, Shelf cleat, Shelf nosing');
+  const hrs = estimateHours(room, quoteOf(room)).filter((h) => /shel/i.test(h.label)).map((h) => h.label).join(' | ');
+  eq('cleat shelf: closet shelf hours, not floating', hrs, 'Closet shelves on cleats: cut, nose & sand | Install closet shelves: cleats & shelf');
+  eq('cleat shelf: no floating brackets to buy', estimateMaterials(room, quoteOf(room)).some((l) => l.label === 'Floating shelf brackets'), false);
+}
+
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');
 
 console.log(failed ? `${failed} check(s) failed` : 'All model checks passed');

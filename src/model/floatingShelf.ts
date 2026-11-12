@@ -17,7 +17,36 @@ export const shelfPly = (c: Cabinet, s: ShopSettings) => (floatingOf(c).grade ==
 /** Open space left between the top and bottom for the bracket. */
 export const bracketGap = (c: Cabinet, s: ShopSettings) => c.height - 2 * eff(c, s).boxThickness;
 
+/** A closet shelf on cleats rather than a floating shelf. */
+export const isCleatShelf = (c: Cabinet) => c.kind === 'shelf' && floatingOf(c).support === 'cleat';
+
+/**
+ * A closet shelf: 3/4" plywood with a solid nosing on its front, on 1x2 cleats screwed into the wall
+ * behind it and at any end that meets a wall or another shelf. The cabinet's height is the nosing.
+ */
+function cleatShelfParts(c: Cabinet, settings: ShopSettings, ends: EndInfo): Part[] {
+  const s = eff(c, settings);
+  const f = floatingOf(c);
+  const W = c.width, D = c.depth;
+  const t = s.boxActualThickness, nt = 0.75;
+  const nose = Math.max(t, c.height);
+  const solid = f.grade === 'paint' ? 'faceframe' as const : 'solidWood' as const;
+  const out: Part[] = [
+    { name: 'Shelf', role: 'shelf', material: 'box', sheet: shelfPly(c, settings), look: f.grade === 'paint' ? 'paint' : 'wood', length: W, width: D - nt, thickness: s.boxThickness, cut: true,
+      note: 'on cleats; nosing glued and nailed to the front', boxes: [vb(0, nose - t, 0, W, t, D - nt)] },
+    { name: 'Shelf nosing', role: 'trim', material: solid, length: W, width: nose, thickness: nt, cut: true, note: `flush with the top, hangs ${fmt(nose - t)} below`, boxes: [vb(0, 0, D - nt, W, nose, nt)] },
+    { name: 'Shelf cleat', role: 'nailer', material: solid, length: W, width: 1.5, thickness: 0.75, cut: true, note: 'along the wall behind, screwed into the studs', boxes: [vb(0, nose - t - 1.5, 0, W, 1.5, 0.75, 0.9)] },
+  ];
+  for (const side of ['left', 'right'] as const) {
+    if (ends[side]) continue;
+    out.push({ name: 'Shelf cleat', role: 'nailer', material: solid, length: D - nt - 0.75, width: 1.5, thickness: 0.75, cut: true, note: `${side} end, on the wall (or the shelf) it meets`,
+      boxes: [vb(side === 'left' ? 0 : W - 0.75, nose - t - 1.5, 0.75, 0.75, 1.5, D - nt - 0.75, 0.9)] });
+  }
+  return out;
+}
+
 export function floatingShelfParts(c: Cabinet, settings: ShopSettings, ends: EndInfo): Part[] {
+  if (isCleatShelf(c)) return cleatShelfParts(c, settings, ends);
   const s = eff(c, settings);
   const f = floatingOf(c);
   const W = c.width, D = c.depth, H = c.height;
@@ -59,7 +88,7 @@ export function floatingShelfParts(c: Cabinet, settings: ShopSettings, ends: End
 }
 
 /** Brackets for a floating shelf: what's set, or one per stud at 16" centers with 2" clear at each end. */
-export const bracketCount = (c: Cabinet) => floatingOf(c).brackets ?? Math.max(2, Math.floor((c.width - 4) / 16) + 1);
+export const bracketCount = (c: Cabinet) => (isCleatShelf(c) ? 0 : floatingOf(c).brackets ?? Math.max(2, Math.floor((c.width - 4) / 16) + 1));
 
 /**
  * The bracket CJC buys: Amazon B088PQTYJT, black solid steel, 12 mm rod on a 2" x 1-1/8" plate,

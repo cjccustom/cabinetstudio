@@ -83,6 +83,9 @@ export interface LaborStandards {
   /** Each finished end on a floating shelf: the end cap, its miters and the extra sanding. */
   shelfFinishedEnd: number;
   installFloatingShelf: number;
+  /** Closet shelves on cleats: cut, nose and finish one; hang its cleats and set it. */
+  cleatShelf?: number;
+  installCleatShelf?: number;
   /**
    * Mantels (Pope worksheet: firebox layout and framing 10 h, a complex mantel 32 h, fit and
    * install 10 h): the surround itself, pilaster legs with plinths and capitals, each corbel, a
@@ -409,6 +412,12 @@ export function estimateHours(p: Project, q: QuoteSettings): HourLine[] {
   /** Custom parts on the job: each design's master template is made once. */
   const templates = new Map<string, { name: string; templateHours: number }>();
   for (const c of p.cabinets) {
+    if (c.kind === 'shelf' && floatingOf(c).support === 'cleat') {
+      add('Closet shelves on cleats: cut, nose & sand', 1, st.cleatShelf ?? 0.4);
+      add('Install closet shelves: cleats & shelf', 1, st.installCleatShelf ?? 0.35, 'cabinets', true);
+      installHours += st.installCleatShelf ?? 0.35;
+      continue;
+    }
     if (c.kind === 'shelf') {
       add('Floating shelves: miter fold & glue-up', 1, st.floatingShelf);
       add('Floating shelves: finished ends', finishedEnds(resolveEnds(p.room, p.cabinets, c)), st.shelfFinishedEnd);
@@ -647,7 +656,7 @@ export function estimateMaterials(p: Project, q: QuoteSettings): MaterialLine[] 
   if (drawers) out.push({ group: 'cabinets', label: 'Eagle dovetail drawer boxes', cost: eq.boxes ?? boxCost, detail: `${drawers} boxes${eq.boxes != null ? ', Eagle’s quote' : ''}` });
   // Brackets by length: a 12" shelf takes the 10" bracket
   const byLen = new Map<number, number>();
-  for (const c of p.cabinets) if (c.kind === 'shelf') byLen.set(bracketLength(c), (byLen.get(bracketLength(c)) ?? 0) + bracketCount(c));
+  for (const c of p.cabinets) if (c.kind === 'shelf' && bracketCount(c)) byLen.set(bracketLength(c), (byLen.get(bracketLength(c)) ?? 0) + bracketCount(c));
   const brackets = [...byLen.values()].reduce((t, n) => t + n, 0);
   // Bought in packs of 8 for each rod length
   const packs = [...byLen.values()].reduce((t, n) => t + Math.ceil(n / bracketProduct.perPack), 0);
@@ -797,6 +806,9 @@ export const newExtra = (): QuoteExtra => ({ id: uid('extra'), label: 'Additiona
 
 /** The scope line for one cabinet, in the wording the shop uses on its quotes. */
 export function scopeLine(c: Cabinet, p: Project): string {
+  if (c.kind === 'shelf' && floatingOf(c).support === 'cleat') {
+    return `${c.name}: Closet shelf, approx ${fmtIn(c.width)}W x ${fmtIn(c.depth)}D; ${(c.floating?.grade ?? 'paint') === 'paint' ? 'paint grade' : 'stain grade'} plywood with a solid front edge, on cleats screwed to the wall`;
+  }
   if (c.kind === 'shelf') {
     const n = finishedEnds(resolveEnds(p.room, p.cabinets, c));
     return `${c.name}: Floating shelf, approx ${fmtIn(c.width)}W x ${fmtIn(c.depth)}D x ${fmtIn(c.height)} thick; mitered ${(c.floating?.grade ?? 'paint') === 'paint' ? 'paint grade' : 'stain grade'} construction with concealed bracket; ${n === 2 ? 'both ends finished' : n === 1 ? 'one end finished, one against the wall' : 'fits wall to wall'}`;
