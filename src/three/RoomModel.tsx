@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
+import { live } from './navigation';
 import { hasSlopes, wallCeiling } from '../model/ceiling';
 import { Edges, Line } from '@react-three/drei';
 import type { ViewMode } from '../store';
@@ -52,9 +53,10 @@ function FacingCamera({ children }: { children: React.ReactNode }) {
     if (!g) return;
     v.copy(camera.position);
     g.parent?.worldToLocal(v);
-    g.visible = v.z > 0.5;
+    g.visible = !!live.exporting || v.z > 0.5;
   });
-  return <group ref={ref}>{children}</group>;
+  // Named so the portal's 3D viewer can hide it the same way, from outside the wall
+  return <group ref={ref} name="cjc-facing">{children}</group>;
 }
 
 function WallFace({ len, H, top, openings, color }: { len: number; H: number; top?: [number, number][]; openings: Opening[]; color: string }) {
@@ -268,7 +270,8 @@ function PlanWalls({ project }: { project: Project }) {
       {openings.map((o) => {
         const { pos, rotY } = wallTransform(project.room, o.wall, 0);
         const d = doorOf(o);
-        // Doors swing into the room from the hinge jamb; pairs swing from both
+        // Doors swing from the hinge jamb, into the room or out past the wall; pairs swing from both
+        const zs = d.swing === 'out' ? -1 : 1, z0 = d.swing === 'out' ? -T : 0;
         const swings: { hx: number; r: number; dir: 1 | -1 }[] = o.kind !== 'door' ? [] : d.leaves === 2
           ? [{ hx: o.offset, r: o.width / 2, dir: 1 }, { hx: o.offset + o.width, r: o.width / 2, dir: -1 }]
           : [{ hx: d.hinge === 'left' ? o.offset : o.offset + o.width, r: o.width, dir: d.hinge === 'left' ? 1 : -1 }];
@@ -276,8 +279,8 @@ function PlanWalls({ project }: { project: Project }) {
           <group key={o.id} position={pos} rotation-y={rotY}>
             {o.kind === 'window' && <Line points={[[o.offset, H + 1, -T / 2], [o.offset + o.width, H + 1, -T / 2]]} color="#7fb3d0" lineWidth={3} />}
             {swings.map((sw, i) => {
-              const arc = Array.from({ length: 17 }, (_, k) => { const a = (Math.PI / 2) * (k / 16); return [sw.hx + sw.dir * sw.r * Math.cos(a), H + 1, sw.r * Math.sin(a)] as [number, number, number]; });
-              return <Line key={i} points={[[sw.hx, H + 1, 0], [sw.hx, H + 1, sw.r], ...arc.reverse()]} color="#8a8f96" lineWidth={1.5} />;
+              const arc = Array.from({ length: 17 }, (_, k) => { const a = (Math.PI / 2) * (k / 16); return [sw.hx + sw.dir * sw.r * Math.cos(a), H + 1, z0 + zs * sw.r * Math.sin(a)] as [number, number, number]; });
+              return <Line key={i} points={[[sw.hx, H + 1, z0], [sw.hx, H + 1, z0 + zs * sw.r], ...arc.reverse()]} color="#8a8f96" lineWidth={1.5} />;
             })}
           </group>
         );

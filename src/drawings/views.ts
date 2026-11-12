@@ -315,18 +315,26 @@ export function floorPlan(p: Project, frame: Frame): { svg: string; scale: numbe
       if (horiz) { const zc = o.wall === 'back' ? -T / 2 : D + T / 2; v.line(x0, zc - 0.6, x1, zc - 0.6, 'thin'); v.line(x0, zc + 0.6, x1, zc + 0.6, 'thin'); }
       else { const xc = o.wall === 'left' ? -T / 2 : W + T / 2; v.line(xc - 0.6, z0, xc - 0.6, z1, 'thin'); v.line(xc + 0.6, z0, xc + 0.6, z1, 'thin'); }
     } else if (o.kind === 'door') {
-      // Swing into the room from the hinge side (as seen from inside, facing the door)
-      const hingeAtStart = (o.door?.hinge ?? 'left') === 'left';
-      const hinge = hingeAtStart ? a : b, free = hingeAtStart ? b : a;
+      // Each leaf swings from its hinge jamb (hinge side as seen from inside, facing the door): into the
+      // room from the wall's inside face, or out from its outside face. A pair meets in the middle.
       const inward: [number, number] = o.wall === 'back' ? [0, 1] : o.wall === 'front' ? [0, -1] : o.wall === 'left' ? [1, 0] : [-1, 0];
-      const r = o.width;
-      const open: [number, number] = [hinge[0] + inward[0] * r, hinge[1] + inward[1] * r];
-      v.line(hinge[0], hinge[1], open[0], open[1], 'o');
-      // Sweep direction from the turn between the two radii, on paper (y down)
-      const ax = v.X(open[0]) - v.X(hinge[0]), ay = v.Y(open[1]) - v.Y(hinge[1]);
-      const bx = v.X(free[0]) - v.X(hinge[0]), by = v.Y(free[1]) - v.Y(hinge[1]);
-      const sw = ax * by - ay * bx > 0 ? 1 : 0;
-      v.path(`M${v.X(open[0])},${v.Y(open[1])} A${(r * v.k).toFixed(4)},${(r * v.k).toFixed(4)} 0 0 ${sw} ${v.X(free[0])},${v.Y(free[1])}`, 'thin');
+      const out = o.door?.swing === 'out';
+      const dir: [number, number] = out ? [-inward[0], -inward[1]] : inward;
+      const face = (pt: [number, number]): [number, number] => (out ? [pt[0] - inward[0] * T, pt[1] - inward[1] * T] : pt);
+      const mid: [number, number] = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+      const hingeAtStart = (o.door?.hinge ?? 'left') === 'left';
+      const leaves: [[number, number], [number, number]][] = o.door?.leaves === 2 ? [[a, mid], [b, mid]] : [hingeAtStart ? [a, b] : [b, a]];
+      for (const [h0, f0] of leaves) {
+        const hinge = face(h0), free = face(f0);
+        const r = Math.hypot(free[0] - hinge[0], free[1] - hinge[1]);
+        const open: [number, number] = [hinge[0] + dir[0] * r, hinge[1] + dir[1] * r];
+        v.line(hinge[0], hinge[1], open[0], open[1], 'o');
+        // Sweep direction from the turn between the two radii, on paper (y down)
+        const ax = v.X(open[0]) - v.X(hinge[0]), ay = v.Y(open[1]) - v.Y(hinge[1]);
+        const bx = v.X(free[0]) - v.X(hinge[0]), by = v.Y(free[1]) - v.Y(hinge[1]);
+        const sw = ax * by - ay * bx > 0 ? 1 : 0;
+        v.path(`M${v.X(open[0])},${v.Y(open[1])} A${(r * v.k).toFixed(4)},${(r * v.k).toFixed(4)} 0 0 ${sw} ${v.X(free[0])},${v.Y(free[1])}`, 'thin');
+      }
     }
   }
   // Cabinets: bases solid, uppers dashed over them

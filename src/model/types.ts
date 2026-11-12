@@ -422,8 +422,8 @@ export interface Opening {
   /** Off the floor; 0 for doors and cased openings. */
   sill: number;
   trim: OpeningTrim;
-  /** Doors: the Reeb design hung in it, which side the hinges are on (facing it from the room), and how many leaves. */
-  door?: { design?: string; hinge: 'left' | 'right'; leaves: 1 | 2; prehung: boolean };
+  /** Doors: the Reeb design hung in it, which side the hinges are on (facing it from inside this room), how many leaves, and which way it swings (into this room unless out). */
+  door?: { design?: string; hinge: 'left' | 'right'; leaves: 1 | 2; prehung: boolean; swing?: 'in' | 'out' };
 }
 
 /** Casing on the room side of an opening: a profiled casing, or flat stock with a back band and header cap. */

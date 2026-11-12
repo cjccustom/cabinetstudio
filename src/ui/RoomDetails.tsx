@@ -278,9 +278,14 @@ function DoorChoice({ o, put }: { o: Opening; put: (p: Partial<Opening>) => void
             <option value="prehung">Prehung</option><option value="slab">Slab only</option>
           </select>
         </Field>
+        <Field label="Swings" htmlFor={`dr-s-${o.id}`}>
+          <select id={`dr-s-${o.id}`} value={d.swing ?? 'in'} onChange={(e) => set({ swing: e.target.value === 'out' ? 'out' : undefined })}>
+            <option value="in">Into this room</option><option value="out">Out of this room</option>
+          </select>
+        </Field>
       </div>
       <p className={slab.fits ? 'hint' : 'warn'}>
-        {slab.fits ? 'Stock' : 'Nearest stock'} {d.leaves > 1 ? 'pair of ' : ''}{tradeSize(slab.w)} × {tradeSize(slab.h)} ({slab.w}" × {slab.h}"){slab.fits ? '' : `; this opening wants ${fmt((o.width - 0.25) / d.leaves)} × ${fmt(o.height - 0.125)}. Size the opening to a stock door or plan on a custom one.`} Hinges side is as you face the door from the room it swings into.
+        {slab.fits ? 'Stock' : 'Nearest stock'} {d.leaves > 1 ? 'pair of ' : ''}{tradeSize(slab.w)} × {tradeSize(slab.h)} ({slab.w}" × {slab.h}"){slab.fits ? '' : `; this opening wants ${fmt((o.width - 0.25) / d.leaves)} × ${fmt(o.height - 0.125)}. Size the opening to a stock door or plan on a custom one.`} Hinge side is as you face the door from inside this room.
       </p>
       {open && <DoorPicker current={d.design} onPick={(c) => set({ design: c })} onClose={() => setOpen(false)} />}
     </div>

@@ -1,6 +1,8 @@
 // The 3D view as a .glb model for the client portal, where the customer turns it and pins notes on
-// it. Exported as the customer should see it: real colors, doors closed, nothing selected, and the
-// room's walls left out so the work can be seen from any side. Lights stay behind (the viewer has its own).
+// it. Exported as the customer should see it: real colors, doors closed, nothing selected, with the
+// room's walls. Wall faces show only from inside, and the trim on a wall (named cjc-facing) and the
+// ceiling (cjc-ceiling) go in whole: the portal's viewer hides them when they'd block the view, as
+// the app does. Lights stay behind (the viewer has its own).
 import * as THREE from 'three';
 import { GLTFExporter } from 'three/examples/jsm/exporters/GLTFExporter.js';
 import { useStore } from '../store';
@@ -14,7 +16,8 @@ export async function exportModel(): Promise<ArrayBuffer> {
   const before = { view: st.view, plain: nav.plain, walls: nav.walls, allOpen: nav.allOpen, open: nav.open };
   st.select(null);
   if (st.view !== '3d') st.setView('3d');
-  useNav.setState({ plain: false, walls: false, allOpen: false, open: [] });
+  useNav.setState({ plain: false, walls: true, allOpen: false, open: [] });
+  live.exporting = true;
   try {
     // Give the view time to build (longer when it's just been opened)
     for (let i = 0; i < 60 && !live.scene; i++) await frames(1);
@@ -32,6 +35,7 @@ export async function exportModel(): Promise<ArrayBuffer> {
       return out;
     } finally { lights.forEach((o) => { o.visible = true; }); }
   } finally {
+    live.exporting = false;
     useNav.setState({ plain: before.plain, walls: before.walls, allOpen: before.allOpen, open: before.open });
     if (before.view !== '3d') useStore.getState().setView(before.view);
   }

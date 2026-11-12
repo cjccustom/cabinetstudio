@@ -89,7 +89,7 @@ export function Scene({ issueIds }: { issueIds: Set<string> }) {
       {showCeiling && view === '3d' && (
         hasSlopes(room)
           ? <SlopedCeiling room={room} color={project.finishes.ceiling ?? '#f7f6f2'} />
-          : <mesh position={[room.width / 2, room.height, room.depth / 2]} rotation-x={Math.PI / 2}>
+          : <mesh name="cjc-ceiling" position={[room.width / 2, room.height, room.depth / 2]} rotation-x={Math.PI / 2}>
             <planeGeometry args={[room.width, room.depth]} />
             <meshStandardMaterial color={project.finishes.ceiling ?? '#f7f6f2'} emissive="#ffffff" emissiveIntensity={0.18} roughness={0.95} />
           </mesh>
@@ -593,7 +593,7 @@ function SlopedCeiling({ room, color }: { room: Room; color: string }) {
   }, [room]);
   useEffect(() => () => geo.dispose(), [geo]);
   return (
-    <mesh geometry={geo}>
+    <mesh geometry={geo} name="cjc-ceiling">
       <meshStandardMaterial color={color} emissive="#ffffff" emissiveIntensity={0.18} roughness={0.95} side={THREE.DoubleSide} />
     </mesh>
   );

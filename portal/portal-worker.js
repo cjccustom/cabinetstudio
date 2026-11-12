@@ -523,19 +523,22 @@ const r=new THREE.WebGLRenderer({canvas:cv,antialias:true});r.setPixelRatio(Math
 const scene=new THREE.Scene();scene.background=new THREE.Color('#f3f1ec');
 scene.add(new THREE.HemisphereLight('#ffffff','#b9b2a6',1.1));const sun=new THREE.DirectionalLight('#ffffff',1.6);sun.position.set(1,2,1.5);scene.add(sun);const fill=new THREE.DirectionalLight('#ffffff',0.4);fill.position.set(-1,1,-1);scene.add(fill);
 const cam=new THREE.PerspectiveCamera(42,1,1,20000);const ctl=new OrbitControls(cam,cv);ctl.enableDamping=true;ctl.screenSpacePanning=true;
-let home=null,model=null;
+let home=null,model=null,facing=[],ceils=[];
 const size=()=>{const w=box.clientWidth,h=box.clientHeight;r.setSize(w,h,false);cam.aspect=w/h;cam.updateProjectionMatrix()};addEventListener('resize',size);size();
 const reset=()=>{if(!home)return;cam.position.copy(home.pos);ctl.target.copy(home.target);ctl.update()};
-new GLTFLoader().load('${base}/model.glb',g=>{model=g.scene;scene.add(model);const b=new THREE.Box3().setFromObject(model),c=b.getCenter(new THREE.Vector3()),s=b.getSize(new THREE.Vector3());const d=Math.max(s.x,s.z);
+new GLTFLoader().load('${base}/model.glb',g=>{model=g.scene;scene.add(model);model.updateMatrixWorld(true);
+// The walls cut away like in Cabinet Studio: a wall's trim and the ceiling hide when they're between the camera and the room
+model.traverse(o=>{if(/^cjc-facing/.test(o.name))facing.push(o);else if(/^cjc-ceiling/.test(o.name))ceils.push({o,y:new THREE.Box3().setFromObject(o).min.y})});const b=new THREE.Box3().setFromObject(model),c=b.getCenter(new THREE.Vector3()),s=b.getSize(new THREE.Vector3());const d=Math.max(s.x,s.z);
 home={target:new THREE.Vector3(c.x,Math.min(c.y,40),c.z),pos:new THREE.Vector3(c.x+d*0.55,c.y+s.y*0.9,c.z+d*1.15)};reset();msg.textContent=pins.length?pins.length+' note'+(pins.length>1?'s':'')+' pinned':'';},undefined,()=>{msg.textContent='The model didn\u2019t load. Reload the page to try again.'});
 const v=new THREE.Vector3();const tags=pins.map(p=>{const a=document.createElement('a');a.className='p3 '+p.from;a.textContent=p.n;a.href='#c-'+p.id;a.title=p.text;layer.appendChild(a);return{el:a,p:new THREE.Vector3(...p.p)}});
 let pending=null;const place=(t)=>{v.copy(t.p).project(cam);const vis=v.z<1&&v.z>-1;t.el.style.display=vis?'':'none';t.el.style.left=((v.x+1)/2*box.clientWidth)+'px';t.el.style.top=((1-v.y)/2*box.clientHeight)+'px'};
-(function loop(){requestAnimationFrame(loop);ctl.update();r.render(scene,cam);tags.forEach(place);if(pending)place(pending)})();
+const cv3=new THREE.Vector3();const cut=()=>{for(const o of facing){cv3.copy(cam.position);o.parent.worldToLocal(cv3);o.visible=cv3.z>0.5}for(const c of ceils)c.o.visible=cam.position.y<c.y};
+(function loop(){requestAnimationFrame(loop);ctl.update();cut();r.render(scene,cam);tags.forEach(place);if(pending)place(pending)})();
 let marking=false;const mb=document.getElementById('m-mark');const setMark=on=>{marking=on;sec.classList.toggle('marking',on);mb.textContent=on?'Now tap the spot \xB7 tap here to cancel':'Mark a change'};
 mb.onclick=()=>setMark(!marking);document.getElementById('m-reset').onclick=reset;
 let down=null;cv.addEventListener('pointerdown',e=>{down=[e.clientX,e.clientY]});
 cv.addEventListener('pointerup',e=>{if(!marking||!model||!down)return;if(Math.hypot(e.clientX-down[0],e.clientY-down[1])>8)return;
-const rc=cv.getBoundingClientRect(),m=new THREE.Vector2((e.clientX-rc.left)/rc.width*2-1,-((e.clientY-rc.top)/rc.height)*2+1);const ray=new THREE.Raycaster();ray.setFromCamera(m,cam);const hit=ray.intersectObject(model,true).find(h=>h.object.isMesh);
+const rc=cv.getBoundingClientRect(),m=new THREE.Vector2((e.clientX-rc.left)/rc.width*2-1,-((e.clientY-rc.top)/rc.height)*2+1);const ray=new THREE.Raycaster();ray.setFromCamera(m,cam);const shown=o=>{for(;o;o=o.parent)if(!o.visible)return false;return true};const hit=ray.intersectObject(model,true).find(h=>h.object.isMesh&&shown(h.object));
 if(!hit)return;if(pending)pending.el.remove();const a=document.createElement('span');a.className='p3 new';a.textContent='+';layer.appendChild(a);pending={el:a,p:hit.point.clone()};
 ['x','y','z'].forEach(k=>document.getElementById('mf-'+k).value=hit.point[k].toFixed(2));f.hidden=false;f.querySelector('textarea').focus();setMark(false)});
 document.getElementById('mf-cancel').onclick=()=>{f.hidden=true;if(pending){pending.el.remove();pending=null}};
