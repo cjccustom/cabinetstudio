@@ -9,6 +9,14 @@ import { tablesOf, type TablePart } from '../model/tableParts';
 import { woodColor } from '../model/woodColors';
 import { topSection } from '../model/edgeProfiles';
 import { grainUVs, longAxis, woodTexture } from './woodTexture';
+import { profiledBox } from './profiledBox';
+import { partSolid } from './PartScene';
+import { boxKey } from '../model/pieceEdits';
+import type { ThreeEvent } from '@react-three/fiber';
+
+/** Picking parts in the furniture builder: which is selected (by name#index), and what to do on a click. */
+export interface PickProps { selected?: (key: string, name: string) => boolean; onPick?: (key: string | null) => void }
+const HILITE = '#2f7dd1';
 
 export function TableModels({ project, hidden }: { project: Project; hidden: string[] }) {
   const tables = tablesOf(project).filter(({ t }) => !hidden.includes(t.id));
@@ -20,21 +28,32 @@ export function TableModels({ project, hidden }: { project: Project; hidden: str
 }
 
 /** One table or bench, centered on its own origin. */
-export function TablePiece({ t, parts }: { t: DiningTable; parts: TablePart[] }) {
+export function TablePiece({ t, parts, selected, onPick }: { t: DiningTable; parts: TablePart[] } & PickProps) {
   const color = t.finish === 'paint' ? '#ece8df' : woodColor(t.species) ?? '#b98a5a';
   const map = t.finish === 'paint' ? null : woodTexture(t.species, color);
   // A routed edge on the top: drawn as its section, run the length (both long edges)
   const prof = t.edge === 'profile' && !t.lip ? t.edgeProfile ?? 'round14' : null;
-  return <>{parts.map((part, i) => part.metal ? <MetalMesh key={`m${i}`} m={part.metal} /> : part.outline ? <ShapedTop key={`s${i}`} part={part} color={color} map={map} /> : null)}{parts.filter((part) => !part.metal && !part.outline).flatMap((part, i) => part.boxes.map((b, j) => <PartMesh key={`${i}-${j}`} part={part} b={b} color={part.name.startsWith('Mattress') ? '#f1eee6' : part.role === 'cushion' ? '#9aa3ad' : color} map={part.role === 'cushion' ? null : map} seed={i * 7 + j * 3} section={prof && part.role === 'top' ? topSection(b.size[2], b.size[1], prof, prof) : undefined} />))}</>;
+  const click = (key: string) => onPick ? (e: ThreeEvent<MouseEvent>) => { e.stopPropagation(); onPick(key); } : undefined;
+  const on = (part: TablePart, j: number) => !!selected?.(boxKey(part, j), part.name);
+  return <>{parts.map((part, i) => part.metal ? <MetalMesh key={`m${i}`} m={part.metal} /> : part.outline ? <ShapedTop key={`s${i}`} part={part} color={on(part, 0) ? HILITE : color} map={on(part, 0) ? null : map} onClick={click(boxKey(part, 0))} /> : null)}{parts.filter((part) => !part.metal && !part.outline).flatMap((part, i) => part.boxes.map((b, j) => <PartMesh key={`${i}-${j}`} part={part} b={b} color={on(part, j) ? HILITE : part.name.startsWith('Mattress') ? '#f1eee6' : part.role === 'cushion' ? '#9aa3ad' : color} map={part.role === 'cushion' || on(part, j) ? null : map} seed={i * 7 + j * 3} section={prof && part.role === 'top' && !b.profile ? topSection(b.size[2], b.size[1], prof, prof) : undefined} onClick={click(boxKey(part, j))} />))}</>;
 }
 
-function PartMesh({ part, b, color, map, seed, section }: { part: TablePart; b: TablePart['boxes'][number]; color: string; map: THREE.Texture | null; seed: number; section?: [number, number][] }) {
+function PartMesh({ part, b, color, map, seed, section, onClick }: { part: TablePart; b: TablePart['boxes'][number]; color: string; map: THREE.Texture | null; seed: number; section?: [number, number][]; onClick?: (e: ThreeEvent<MouseEvent>) => void }) {
   const [sx, sy, sz] = b.size;
   const c: [number, number, number] = [b.min[0] + sx / 2, b.min[1] + sy / 2, b.min[2] + sz / 2];
   // Tapered legs: a square frustum, wide at the top; turned legs: round
   const geo = useMemo(() => {
     let g: THREE.BufferGeometry;
-    if (section) {
+    if (part.added?.kind === 'part' && part.added.part) {
+      // A part builder part: its solid, standing upright, turned a quarter turn if asked, centered
+      g = partSolid(part.added.part).clone();
+      if (part.added.turned) g.rotateY(Math.PI / 2);
+      g.computeBoundingBox();
+      const bb = g.boundingBox!;
+      g.translate(-(bb.min.x + bb.max.x) / 2, -(bb.min.y + bb.max.y) / 2, -(bb.min.z + bb.max.z) / 2);
+    } else if (b.profile && !part.turned && !part.taperTo) {
+      g = profiledBox([sx, sy, sz], b.profile);
+    } else if (section) {
       // The section across the width (u, v), extruded the length, then turned to run along x
       const shape = new THREE.Shape(section.map(([u, v]) => new THREE.Vector2(u - sz / 2, v - sy / 2)));
       g = new THREE.ExtrudeGeometry(shape, { depth: sx, bevelEnabled: false, curveSegments: 1 }).toNonIndexed();
@@ -49,9 +68,9 @@ function PartMesh({ part, b, color, map, seed, section }: { part: TablePart; b: 
     grainUVs(g, longAxis([sx, sy, sz]), seed);
     g.translate(-c[0], -c[1], -c[2]);
     return g;
-  }, [part.turned, part.taperTo, sx, sy, sz, c[0], c[1], c[2], seed, section ? JSON.stringify(section) : '']);
+  }, [part.turned, part.taperTo, sx, sy, sz, c[0], c[1], c[2], seed, section ? JSON.stringify(section) : '', JSON.stringify(b.profile ?? null), part.added?.part?.updatedAt, part.added?.turned]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
-    <mesh position={c} geometry={geo} castShadow receiveShadow>
+    <mesh position={c} geometry={geo} castShadow receiveShadow onClick={onClick}>
       <meshStandardMaterial key={map ? 'grain' : 'flat'} map={map} color={map ? '#ffffff' : color} roughness={map ? 0.62 : 0.55} />
     </mesh>
   );
@@ -74,9 +93,16 @@ export function BedModels({ project, hidden }: { project: Project; hidden: strin
 }
 
 /** A shaped top (round, oval, racetrack): its outline extruded through the thickness. */
-function ShapedTop({ part, color, map }: { part: TablePart; color: string; map: THREE.Texture | null }) {
+function ShapedTop({ part, color, map, onClick }: { part: TablePart; color: string; map: THREE.Texture | null; onClick?: (e: ThreeEvent<MouseEvent>) => void }) {
   const b = part.boxes[0];
   const geo = useMemo(() => {
+    if (b.profile) {
+      // Routed edge around a shaped top: the outline pulled in through the profile
+      const g = profiledBox(b.size, b.profile, part.outline!);
+      g.translate(0, b.min[1] + b.size[1] / 2, 0);
+      grainUVs(g, 0, 3);
+      return g;
+    }
     const shape = new THREE.Shape(part.outline!.map(([x, z]) => new THREE.Vector2(x, z)));
     const g = new THREE.ExtrudeGeometry(shape, { depth: b.size[1], bevelEnabled: false, curveSegments: 1 });
     // Shape in x–y extruded along z: turn it so the outline lies in plan and the thickness runs up
@@ -85,8 +111,8 @@ function ShapedTop({ part, color, map }: { part: TablePart; color: string; map: 
     g.computeVertexNormals();
     grainUVs(g, 0, 3);
     return g;
-  }, [JSON.stringify(part.outline), b.min[1], b.size[1]]); // eslint-disable-line react-hooks/exhaustive-deps
-  return <mesh geometry={geo} castShadow receiveShadow><meshStandardMaterial key={map ? 'grain' : 'flat'} map={map} color={map ? '#ffffff' : color} roughness={map ? 0.62 : 0.55} /></mesh>;
+  }, [JSON.stringify(part.outline), b.min[1], b.size[1], JSON.stringify(b.profile ?? null)]); // eslint-disable-line react-hooks/exhaustive-deps
+  return <mesh geometry={geo} castShadow receiveShadow onClick={onClick}><meshStandardMaterial key={map ? 'grain' : 'flat'} map={map} color={map ? '#ffffff' : color} roughness={map ? 0.62 : 0.55} /></mesh>;
 }
 
 /** A metal base: each member a square or round tube (or flat bar) from end to end, plates as slabs. */

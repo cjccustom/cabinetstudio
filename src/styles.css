@@ -875,3 +875,6 @@ textarea.text-input { resize: vertical; }
 .fb-form.on { border-color: var(--accent, #2a6); background: var(--accent-soft, #eef3ef); }
 .fb-price { display: flex; justify-content: space-between; align-items: baseline; margin-top: 12px; padding: 10px 12px; border-radius: 8px; background: var(--accent-soft, #eef3ef); }
 .fb-price b { font-size: 20px; }
+.pe h4 { margin: 10px 0 4px; }
+.pe-prof { display: grid; grid-template-columns: 1.4fr 1fr; gap: 6px; align-items: end; }
+.pe-sides { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 4px 12px; margin-bottom: 4px; }

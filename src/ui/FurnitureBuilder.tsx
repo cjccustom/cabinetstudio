@@ -17,6 +17,8 @@ import { edgeProfiles, type EdgeProfile } from '../model/edgeProfiles';
 import { clientName, clientOf, COMPANY } from '../model/client';
 import { FurnitureScene, type FurnitureView } from '../three/FurnitureScene';
 import { BedEditor } from './Furniture';
+import { AddPartFields, PartEditor } from './PieceEditor';
+import type { PieceEdits } from '../model/pieceEdits';
 import { Field, LengthInput } from './fields';
 import { askConfirm } from './Confirm';
 import { capability, type Downloads } from '../runtime';
@@ -46,6 +48,9 @@ export function FurnitureBuilder() {
   const [pickType, setPickType] = useState<FurnitureType | null>(null);
   const [view, setView] = useState<FurnitureView>('3d');
   const [msg, setMsg] = useState('');
+  // The part picked in the 3D (name#index), and whether the whole set is picked
+  const [sel, setSel] = useState<string | null>(null);
+  const [pickAll, setPickAll] = useState(true);
   const openId = useFurnitureUI((s) => s.openId);
   useEffect(() => {
     if (!openId) return;
@@ -64,6 +69,10 @@ export function FurnitureBuilder() {
     setOpen({ ...open, d: next });
   };
   const putTable = (patch: Partial<DiningTable>) => live?.table && change({ ...live, table: { ...live.table, ...patch } });
+  // Hand changes live on the table or the bed itself
+  const pe: PieceEdits = live?.table ? { edits: live.table.edits, added: live.table.added } : live?.bed ? { edits: live.bed.edits, added: live.bed.added } : {};
+  const setPe = (n: PieceEdits) => { if (!live) return; if (live.table) change({ ...live, table: { ...live.table, edits: n.edits, added: n.added } }); else if (live.bed) change({ ...live, bed: { ...live.bed, edits: n.edits, added: n.added } }); };
+  useEffect(() => setSel(null), [open?.d.id]);
   const leave = async () => !dirty || (await askConfirm(`Leave ${open!.d.name} without saving your changes?`, 'Leave it'));
   const startNew = async () => { if (!(await leave())) return; setOpen(null); setStep('pick'); setPickType(null); setMsg(''); };
   const choose = (type: FurnitureType) => {
@@ -154,14 +163,18 @@ export function FurnitureBuilder() {
             <div className="seg part-views" role="tablist" aria-label="View">
               {([['3d', '3D'], ['front', 'Front'], ['side', 'Side'], ['top', 'Top']] as const).map(([v, label]) => <button key={v} role="tab" aria-selected={view === v} className={view === v ? 'on' : ''} onClick={() => setView(v)}>{label}</button>)}
             </div>
-            <div className="part-3d"><FurnitureScene key={`${live.id}-${view}`} look={look} parts={parts} view={view} /><span className="part-3d-dims">{pieceSize(live)}{view === '3d' ? ' · drag to turn, scroll or pinch to zoom' : ''}</span></div>
+            <div className="part-3d"><FurnitureScene key={`${live.id}-${view}`} look={look} parts={parts} view={view} onPick={setSel}
+                selected={(key, name) => !!sel && (key === sel || (sel.slice(0, sel.lastIndexOf('#')) === name && !parts.find((p) => p.name === name)?.added && pickAll))} /><span className="part-3d-dims">{pieceSize(live)}{view === '3d' ? ' · drag to turn, scroll or pinch to zoom' : ''}</span></div>
           </main>
           <aside className="panel">
             <div className="panel-body">
               <p className="hint">{open!.where === 'job' ? `On ${project.name}: changes go straight onto the job.` : saved ? 'From the furniture library.' : 'New design: save it to the library, add it to this job, or both.'}</p>
+              {sel && <PartEditor key={sel} parts={parts} sel={sel} pe={pe} setPe={setPe} onDone={() => setSel(null)} onSelect={setSel} all={pickAll} setAll={setPickAll} />}
+              {!sel && <p className="hint">Click any part in the 3D to change its size, move it, or route a profile on its edges.</p>}
               <Field label="Name" htmlFor="fb-name"><input id="fb-name" value={live.name} onChange={(e) => change({ ...live, name: e.target.value, ...(live.table ? { table: { ...live.table, name: e.target.value } } : {}), ...(live.bed ? { bed: { ...live.bed, name: e.target.value } } : {}) })} /></Field>
               {live.table && <TablePanel t={live.table} type={live.type} put={putTable} onFab={fabSheet} inJob={open!.where === 'job'} />}
               {live.bed && <BedEditor embedded b={live.bed} put={(patch) => change({ ...live, bed: { ...live.bed!, ...patch } })} remove={remove} />}
+              {!sel && <AddPartFields pe={pe} setPe={setPe} height={live.table?.height ?? live.bed?.headH ?? 30} onSelect={setSel} />}
               {price && (
                 <div className="fb-price"><span>{price.hours.toFixed(1)} h · {money(price.materials)} materials</span><b>{money(price.price)}</b></div>
               )}

@@ -2394,6 +2394,21 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   eq('furniture: scope says round and steel base', tableScope({ ...round.table!, metal: newMetalBase() }).includes('round dining table') && tableScope({ ...m }).includes('steel base'), true);
 }
 
+// Hand changes in the furniture builder: resize a set, move one, hide one, profile edges, add a part
+{
+  const base = newDesign('coffee').table!;
+  const legs0 = tableParts(base).find((x) => x.role === 'leg')!;
+  const t = { ...base, edits: { [legs0.name]: { size: [2.5, null, 2.5] as [number, null, number] }, [`${legs0.name}#0`]: { move: [0, 0, 1] as [number, number, number] }, [`${legs0.name}#3`]: { hidden: true }, Top: { profile: { top: { kind: 'roundover' as const, size: 0.5, sides: { xn: true, xp: true, zn: true, zp: true } } } } },
+    added: [{ id: 'a1', name: 'Block 1', kind: 'block' as const, size: [3, 3, 12] as [number, number, number], at: [-1.5, 8, -6] as [number, number, number], hoursEach: 0.75 }] };
+  const parts = tableParts(t);
+  const legs = parts.find((x) => x.role === 'leg')!;
+  eq('edits: the leg set resized about its middle, one moved, one gone', `${legs.boxes.length} ${legs.boxes[0].size[0]} ${(legs.boxes[0].min[2] - legs0.boxes[0].min[2]).toFixed(3)} ${legs.qty} ${legs.width}`, '3 2.5 0.750 3 2.5');
+  eq('edits: the top gets its routed edge', !!parts.find((x) => x.role === 'top')!.boxes[0].profile?.top, true);
+  eq('edits: an added block is a part, with its hours on the estimate', `${parts.some((x) => x.name === 'Block 1')} ${tableEstimate(t, p).hours.some((h) => h.label === 'Block 1 (added)' && h.hours === 0.75)}`, 'true true');
+  eq('edits: a routed profile adds its hours', tableEstimate(t, p).hours.some((h) => h.label.startsWith('Routed edge profiles')), true);
+  eq('edits: the added block is counted in the lumber', tableStock(t).lines.some((l) => l.part === 'Block 1'), true);
+}
+
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');
 
 console.log(failed ? `${failed} check(s) failed` : 'All model checks passed');

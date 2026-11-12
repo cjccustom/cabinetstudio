@@ -1,6 +1,7 @@
 // Free-standing furniture, starting with dining tables: size and seating, top and base, leaves,
 // species, and the board feet, hours and materials that price it. The hours are starting
 // standards for a one-off table in a cabinet shop, meant to be adjusted as Cody builds them.
+import { editHours } from './pieceEdits';
 import type { Project } from './types';
 import { uid } from './defaults';
 import { roughQuarters } from './faceframe';
@@ -12,6 +13,9 @@ export type TableLeg = 'square' | 'tapered' | 'turned';
 export type TableFinish = 'clear' | 'stain' | 'paint' | 'oil' | 'painter';
 
 export interface DiningTable {
+  /** Hand changes after the builder laid it out (see pieceEdits.ts). */
+  edits?: import('./pieceEdits').PieceEdits['edits'];
+  added?: import('./pieceEdits').PieceEdits['added'];
   id: string;
   /** A table (the default) or a bench: a bench is built the same way, as a seat on legs and aprons, with its own checks and options. */
   kind?: 'table' | 'bench';
@@ -244,6 +248,7 @@ export function tableEstimate(t: DiningTable, p: Project): { hours: TableLine[];
     { label: 'Sanding', hours: s.sandPerSqFt * (area + leafSqft(t)) * 2 + s.sandBase },
   );
   if (t.finish !== 'painter') hours.push({ label: tableFinishLabel[t.finish], hours: s.finishPerSqFt[t.finish] * (area + leafSqft(t)) * 2 + s.finishBase[t.finish] });
+  hours.push(...editHours(t));
   hours.push({ label: 'Delivery and setup', hours: s.delivery });
 
   // Board feet, rough, with waste for selection and defects

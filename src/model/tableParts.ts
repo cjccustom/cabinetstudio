@@ -5,10 +5,11 @@ import type { Project } from './types';
 import { fmt } from '../units';
 import { baseFootprint, furnitureOf, isBench, lipStock, stretchersOf, topOutline, type DiningTable } from './furniture';
 import { metalMembers } from './metalBase';
+import { applyEdits } from './pieceEdits';
 import { amSizes, boardSize } from './amLumber';
 
 export type TableRole = 'top' | 'breadboard' | 'lip' | 'leg' | 'apron' | 'post' | 'foot' | 'cleat' | 'stretcher' | 'column' | 'leaf' | 'shelf' | 'slat' | 'cushion' | 'metal';
-export interface TableBox { min: [number, number, number]; size: [number, number, number] }
+export interface TableBox { min: [number, number, number]; size: [number, number, number]; /** Routed edges, from a hand change. */ profile?: import('./pieceEdits').BoxProfile }
 export interface TablePart {
   role: TableRole;
   name: string;
@@ -23,6 +24,8 @@ export interface TablePart {
   /** Legs: tapered to this size at the floor on the two inside faces; turned legs are round. */
   taperTo?: number;
   turned?: boolean;
+  /** Added by hand (a block, round post, or part builder part). */
+  added?: import('./pieceEdits').AddedPart;
   /** A shaped top: its outline in plan (x, z), extruded through its thickness. */
   outline?: [number, number][];
   /** A metal base: members as centerlines, with the stock, and plates. */
@@ -116,7 +119,7 @@ export function tableParts(t: DiningTable): TablePart[] {
     const ct = t.cushionThick ?? 2, r = 0.25;
     out.push({ role: 'cushion', name: 'Seat cushion (upholsterer)', qty: 1, length: L - 2 * r, width: W - 2 * r, thick: ct, note: 'Foam and fabric by the upholsterer', boxes: [box(-L / 2 + r, H, -W / 2 + r, L / 2 - r, H + ct, W / 2 - r)] });
   }
-  return out;
+  return applyEdits(out, t);
 }
 
 const fmtIn = (v: number) => fmt(Math.round(v * 16) / 16);

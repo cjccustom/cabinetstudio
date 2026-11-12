@@ -13,6 +13,7 @@ import type { TableBox, TablePart } from './tableParts';
 import type { TableFinish } from './furniture';
 import { tableFinishLabel } from './furniture';
 import { fmt } from '../units';
+import { applyEdits, editHours } from './pieceEdits';
 
 export type MattressSize = 'twin' | 'twinxl' | 'full' | 'queen' | 'king' | 'calking' | 'custom';
 export const mattressSizes: Record<Exclude<MattressSize, 'custom'>, { label: string; w: number; l: number }> = {
@@ -25,6 +26,9 @@ export const mattressSizes: Record<Exclude<MattressSize, 'custom'>, { label: str
 };
 
 export interface Bed {
+  /** Hand changes after the builder laid it out (see pieceEdits.ts). */
+  edits?: import('./pieceEdits').PieceEdits['edits'];
+  added?: import('./pieceEdits').PieceEdits['added'];
   id: string;
   name: string;
   mattress: MattressSize;
@@ -144,7 +148,7 @@ export function bedParts(b: Bed): TablePart[] {
   // The mattress, for scale in the 3D (not built, not priced)
   const mz0 = b.style === 'platform' ? 0 : LEG, mw = mattressOf(b).w, ml = mattressOf(b).l;
   out.push({ role: 'cushion', name: 'Mattress (for scale)', qty: 0, length: ml, width: mw, thick: b.mattressH, boxes: [box(-mw / 2, b.deckH, mz0 + CLEAR, mw / 2, b.deckH + b.mattressH, mz0 + CLEAR + ml)] });
-  return out;
+  return applyEdits(out, b);
 }
 
 /** Things to check on the design, in plain words. */
@@ -203,6 +207,7 @@ export function bedEstimate(b: Bed, p: Project): { hours: { label: string; hours
   const finishArea = deckSqFt * 1.5 + hbSqFt * 2;
   hours.push({ label: 'Sanding', hours: s.sandPerSqFt * finishArea + 1 });
   if (b.finish !== 'painter') hours.push({ label: tableFinishLabel[b.finish], hours: s.finishBase[b.finish] + s.finishPerSqFt * finishArea });
+  hours.push(...editHours(b));
   hours.push({ label: 'Delivery, assembly and set in place', hours: s.delivery });
 
   // Materials: sheet goods by area, solid stock by board foot, drawer boxes and slides, hardware
