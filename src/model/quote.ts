@@ -272,8 +272,9 @@ export const defaultQuote: QuoteSettings = {
   workloadAdj: { full: 0.08, normal: 0, light: -0.06 },
   eagleAdjust: 0,
   shelfBracketPack: 16.16,
-  closetRod8ft: 0,
-  rodSockets: 0,
+  // Everbilt 8' 1-5/16" chrome heavy-duty pole and its sockets (pair) at Home Depot, Nov 2026; change under Quote → Prices
+  closetRod8ft: 27.98,
+  rodSockets: 8.98,
   cushionPerSqFt: 0,
   beadboardSheet: 0,
   cofferStockPerFt: 16,
@@ -455,6 +456,7 @@ function hoursOneRoom(p: Project, q: QuoteSettings): HourLine[] {
       add('Closet shelves on cleats: cut, nose & sand', 1, st.cleatShelf ?? 0.4);
       add('Install closet shelves: cleats & shelf', 1, st.installCleatShelf ?? 0.35, 'cabinets', true);
       installHours += st.installCleatShelf ?? 0.35;
+      if (floatingOf(c).rod) { add('Closet rods (cut & set in sockets)', 1, st.closetRod ?? 0.25, 'cabinets', true); installHours += st.closetRod ?? 0.25; }
       continue;
     }
     if (c.kind === 'shelf') {
@@ -633,7 +635,8 @@ export function estimateMaterials(p: Project, q: QuoteSettings): MaterialLine[] 
   }
   // ...except sheet goods, nested across every room together
   const data = p.cutlist ?? defaultCutlist(p);
-  const sheets = optimize(rooms.flatMap((r) => optimizerParts(r.project, data)), cutStock(p, data), data.options);
+  const allParts = rooms.flatMap((r) => optimizerParts(r.project, data));
+  const sheets = optimize(allParts, cutStock(p, data, allParts), data.options);
   const sheetLines: MaterialLine[] = sheets.map((m) => {
     const cost = m.sheets.reduce((t, sh) => t + sh.stock.price, 0);
     return { group: 'cabinets', label: `${m.material} sheets`, cost, detail: `${m.sheets.length} sheets, all rooms`, missing: cost ? undefined : 'Enter a price per sheet on the Sheet cutlist tab' };
@@ -726,8 +729,8 @@ function materialsOneRoom(p: Project, q: QuoteSettings): MaterialLine[] {
   const rods = closetRods(p);
   if (rods.count) {
     const cost = rods.lengths * q.closetRod8ft + rods.count * q.rodSockets;
-    out.push({ group: 'cabinets', label: `Closet rods (1 5/16" ${p.settings.closetRod === 'metal' ? 'metal' : 'wood'}) & sockets`, cost,
-      detail: `${rods.count} rods from ${rods.lengths} × 8' lengths, ${rods.count} pairs of sockets`,
+    out.push({ group: 'cabinets', label: `Closet rods (1 5/16" ${p.settings.closetRod === 'wood' ? 'wood' : 'chrome'}) & sockets`, cost,
+      detail: `${rods.count} rods from ${rods.lengths} × 8' lengths, ${rods.count} pairs of sockets${p.settings.closetRod === 'wood' ? '' : ' (Home Depot / Lowe’s heavy-duty chrome)'}`,
       missing: q.closetRod8ft && q.rodSockets ? undefined : 'Enter the closet rod and socket prices under Quote → Prices to fill in' });
   }
   const cushions = p.cabinets.flatMap((c) => buildParts(c, p.settings, resolveEnds(p.room, p.cabinets, c)).filter((x) => x.role === 'cushion'));
@@ -869,7 +872,7 @@ export const newExtra = (): QuoteExtra => ({ id: uid('extra'), label: 'Additiona
 /** The scope line for one cabinet, in the wording the shop uses on its quotes. */
 export function scopeLine(c: Cabinet, p: Project): string {
   if (c.kind === 'shelf' && floatingOf(c).support === 'cleat') {
-    return `${c.name}: Closet shelf, approx ${fmtIn(c.width)}W x ${fmtIn(c.depth)}D; ${(c.floating?.grade ?? 'paint') === 'paint' ? 'paint grade' : 'stain grade'} plywood with a solid front edge, on cleats screwed to the wall`;
+    return `${c.name}: Closet shelf, approx ${fmtIn(c.width)}W x ${fmtIn(c.depth)}D; ${(c.floating?.grade ?? 'paint') === 'paint' ? 'paint grade' : 'stain grade'} plywood with a solid front edge, on cleats screwed to the wall${floatingOf(c).rod ? ', with a chrome closet rod under it' : ''}`;
   }
   if (c.kind === 'shelf') {
     const n = finishedEnds(resolveEnds(p.room, p.cabinets, c));

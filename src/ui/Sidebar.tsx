@@ -265,9 +265,9 @@ function ShopPanel() {
             </select>
           </Field>
           <Field label="Closet rod" htmlFor="shop-rod">
-            <select id="shop-rod" value={settings.closetRod ?? 'wood'} onChange={(e) => set({ closetRod: e.target.value as 'wood' | 'metal' })}>
+            <select id="shop-rod" value={settings.closetRod ?? 'metal'} onChange={(e) => set({ closetRod: e.target.value as 'wood' | 'metal' })}>
+              <option value="metal">1 5/16" chrome (Home Depot / Lowe’s)</option>
               <option value="wood">1 5/16" round wood</option>
-              <option value="metal">1 5/16" round metal</option>
             </select>
           </Field>
           <Field label="Rod center below shelf" htmlFor="shop-roddrop"><LengthInput id="shop-roddrop" value={settings.rodDrop ?? closetRod.drop} min={1} onChange={(v) => set({ rodDrop: v ?? undefined })} /></Field>

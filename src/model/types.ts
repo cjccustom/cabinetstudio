@@ -223,6 +223,8 @@ export interface FloatingShelfSpec {
    * angle and carried on a beveled cleat screwed up into the framing, instead of hanging free.
    */
   slopeEnd?: 'left' | 'right';
+  /** Cleat shelves: a closet rod under it, in sockets on the walls (or the case) at its ends. */
+  rod?: boolean;
   grade: 'paint' | 'stain';
   /** Solid face and end cap thickness. */
   face: number;

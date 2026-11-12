@@ -2,6 +2,7 @@
 // the face frame and solid wood species, and what each costs. The book itself lives with the shop
 // (shared between devices); a job keeps a copy of the prices it uses, so an old quote doesn't
 // change under it until the prices are brought up to date on purpose.
+import { jobRooms } from './rooms';
 import type { MaterialKey, Project } from './types';
 import type { PriceItem } from '../shop/shop';
 import { fmt } from '../units';
@@ -66,6 +67,8 @@ export function jobSheets(p: Project): { material: string; thickness: number; pl
       { key: 'box' as MaterialKey, thickness: s.boxThickness, plywood: ply, exposed: false },
       { key: 'back' as MaterialKey, thickness: s.backThickness, plywood: ply, exposed: false },
     ]),
+    // Paint-grade shelves (floating or closet shelves on cleats)
+    ...(jobRooms(p).some((r) => r.project.cabinets.some((c) => c.kind === 'shelf' && (c.floating?.grade ?? 'paint') === 'paint')) ? [{ key: 'box' as MaterialKey, thickness: s.boxThickness, plywood: 'Paint-grade birch', exposed: false }] : []),
   ].map((x) => ({ ...x, material: sheetName(x.thickness, x.plywood) }));
   return all.filter((x, i) => all.findIndex((y) => y.material === x.material) === i);
 }

@@ -619,7 +619,7 @@ eq('panel sticks out past frame', panelExtents(b21, s, { left: true, right: fals
   const parts = buildParts(sh, lib.settings, ends);
   eq('2" shelf leaves 1/2" for the bracket', 2 - 2 * lib.settings.boxThickness, 0.5);
   eq('top and bottom plywood', parts.filter((x) => x.name === 'Shelf top' || x.name === 'Shelf bottom').length, 2);
-  eq('paint grade plywood on the sheet list', parts.find((x) => x.name === 'Shelf top')!.sheet, '3/4" paint-grade plywood');
+  eq('paint grade plywood on the sheet list', parts.find((x) => x.name === 'Shelf top')!.sheet, '3/4" paint-grade birch plywood');
   eq('end caps on both exposed ends', parts.filter((x) => x.name === 'Shelf end cap').length, 2);
   eq('paint grade face from face frame stock', parts.find((x) => x.name === 'Shelf face')!.material, 'faceframe');
   const stain = buildParts({ ...sh, floating: { grade: 'stain', face: 0.75 } }, lib.settings, ends);
@@ -1236,7 +1236,7 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   const r = closetRods(proj);
   eq('closet: rods from 8 ft lengths', `${r.count} rods, ${r.lengths} lengths`, '4 rods, 2 lengths');
   const ql = estimateMaterials(proj, quoteOf(proj)).find((l) => l.label.startsWith('Closet rods'))!;
-  eq('closet: quote flags missing rod price', !!ql.missing, true);
+  eq('closet: rods priced at the chrome rod and socket defaults', !ql.missing && ql.cost > 0, true);
   eq('closet: scope says double hang', scopeLine(proj.cabinets[1], proj).includes('double hang'), true);
 
   // Frameless: same case, no face frame, a fixed shelf for the mid rail, full overlay

@@ -236,6 +236,8 @@ export function otherSpecies(p: Project): string[] {
 export function stockFor(p: Project, species: string): FaceFrameStock {
   const ff = { ...defaultFaceFrameStock, ...p.faceFrame };
   // A price per board foot entered for the species wins; otherwise A&M's price for the same board
-  const lf = ff.board && !p.speciesPrices?.[species] ? amSizes(species)?.[ff.board] : undefined;
-  return { ...ff, species: `${species}, 4/4`, pricePerBF: p.speciesPrices?.[species] ?? 0, pricePerLF: lf };
+  // (the job's face frame board, or A&M's standard 3/4 x 5-1/2 when the job hasn't picked one)
+  const board = ff.board ?? defaultBoard;
+  const lf = !p.speciesPrices?.[species] ? amSizes(species)?.[board] : undefined;
+  return { ...ff, board, species: `${species}, 4/4`, pricePerBF: p.speciesPrices?.[species] ?? 0, pricePerLF: lf, ...(lf ? { listed: true } : {}) };
 }

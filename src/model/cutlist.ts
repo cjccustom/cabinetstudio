@@ -57,8 +57,7 @@ export const sheetPrice = (material: string) => {
  * material the design now needs that has none (after a plywood change, say), priced from
  * the job's sheet prices when known.
  */
-export function cutStock(p: Project, data: CutlistData): Stock[] {
-  const parts = optimizerParts(p, data);
+export function cutStock(p: Project, data: CutlistData, parts = optimizerParts(p, data)): Stock[] {
   const need = new Set(parts.map((x) => x.material));
   const out = [...data.stock];
   const trim = 2 * (data.options.trim ?? 0);

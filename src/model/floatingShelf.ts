@@ -7,12 +7,15 @@ import type { Cabinet, FloatingShelfSpec, Part, ShopSettings } from './types';
 import type { EndInfo } from './parts';
 import { eff, vb } from './parts';
 import { fmt } from '../units';
+import { closetRod } from './parts';
 
 export const defaultFloating: FloatingShelfSpec = { grade: 'paint', face: 0.75 };
 export const floatingOf = (c: Cabinet): FloatingShelfSpec => ({ ...defaultFloating, ...c.floating });
 
 /** Sheet stock for the top and bottom: paint-grade plywood, or veneer plywood in the job's wood species. */
-export const shelfPly = (c: Cabinet, s: ShopSettings) => (floatingOf(c).grade === 'paint' ? `${fmt(s.boxThickness)} paint-grade plywood` : `${fmt(s.boxThickness)} ${s.woodSpecies.toLowerCase()} plywood`);
+/** The price book's paint-grade sheet, so its price applies. */
+export const PAINT_PLY = 'Paint-grade birch';
+export const shelfPly = (c: Cabinet, s: ShopSettings) => (floatingOf(c).grade === 'paint' ? `${fmt(s.boxThickness)} ${PAINT_PLY.toLowerCase()} plywood` : `${fmt(s.boxThickness)} ${s.woodSpecies.toLowerCase()} plywood`);
 
 /** Open space left between the top and bottom for the bracket. */
 export const bracketGap = (c: Cabinet, s: ShopSettings) => c.height - 2 * eff(c, s).boxThickness;
@@ -31,6 +34,8 @@ function cleatShelfParts(c: Cabinet, settings: ShopSettings, ends: EndInfo): Par
   const t = s.boxActualThickness, nt = 0.75;
   const nose = Math.max(t, c.height);
   const solid = f.grade === 'paint' ? 'faceframe' as const : 'solidWood' as const;
+  // Paint grade: the nosing and cleats are poplar (priced from A&M's list), like a paint-grade top's edging
+  const sp = f.grade === 'paint' ? { species: 'Poplar' } : {};
   // The cleats are as tall as the nosing hangs below the plywood, so their bottoms line up with it and
   // nothing shows below the shelf's front edge: a 1x2 on the flat under a 1-1/2" nosing
   const ch = Math.max(0.5, nose - t), cw = ch < 1.25 ? 1.5 : 0.75;
@@ -39,13 +44,22 @@ function cleatShelfParts(c: Cabinet, settings: ShopSettings, ends: EndInfo): Par
   const out: Part[] = [
     { name: 'Shelf', role: 'shelf', material: 'box', sheet: shelfPly(c, settings), look: f.grade === 'paint' ? 'paint' : 'wood', length: W, width: D - nt, thickness: s.boxThickness, cut: true,
       note: `on cleats; nosing glued and nailed to the front${f.slopeEnd ? `; ${f.slopeEnd} end cut to the slope's angle` : ''}`, boxes: [vb(0, nose - t, 0, W, t, D - nt)] },
-    { name: 'Shelf nosing', role: 'trim', material: solid, length: W, width: nose, thickness: nt, cut: true, note: `flush with the top, hangs ${fmt(nose - t)} below`, boxes: [vb(0, 0, D - nt, W, nose, nt)] },
-    { name: 'Shelf cleat', role: 'nailer', material: solid, length: W, width: ch, thickness: cw, cut: true, note: `${cut}, along the wall behind, screwed into the studs; bottom flush with the nosing`, boxes: [vb(0, cy, 0, W, ch, cw, 0.9)] },
+    { name: 'Shelf nosing', role: 'trim', material: solid, ...sp, length: W, width: nose, thickness: nt, cut: true, note: `flush with the top, hangs ${fmt(nose - t)} below`, boxes: [vb(0, 0, D - nt, W, nose, nt)] },
+    { name: 'Shelf cleat', role: 'nailer', material: solid, ...sp, length: W, width: ch, thickness: cw, cut: true, note: `${cut}, along the wall behind, screwed into the studs; bottom flush with the nosing`, boxes: [vb(0, cy, 0, W, ch, cw, 0.9)] },
   ];
+  if (f.rod) {
+    // A closet rod under the shelf, in a socket at each end, 12" off the wall (or mid-depth on a shallow shelf)
+    const d = closetRod.diameter, drop = s.rodDrop ?? closetRod.drop;
+    const zc = Math.min(closetRod.fromWall, D - d);
+    const y = nose - t - drop;
+    out.push({ name: 'Closet rod', role: 'rod', material: 'hardware', length: W - 0.125, width: d, thickness: d, cut: false,
+      note: `${fmt(d)} round ${s.closetRod === 'wood' ? 'wood' : 'chrome'} rod in 2 sockets, center ${fmt(drop)} below the shelf (${fmt(c.elevation + y)} off the floor) and ${fmt(zc)} off the wall`,
+      boxes: [vb(0.0625, y - d / 2, zc - d / 2, W - 0.125, d, d, 0.35)] });
+  }
   for (const side of ['left', 'right'] as const) {
     const slope = f.slopeEnd === side;
     if (ends[side] && !slope) continue;
-    out.push({ name: 'Shelf cleat', role: 'nailer', material: solid, length: D - nt - cw, width: ch, thickness: cw, cut: true,
+    out.push({ name: 'Shelf cleat', role: 'nailer', material: solid, ...sp, length: D - nt - cw, width: ch, thickness: cw, cut: true,
       note: slope ? `${cut}, ${side} end, beveled to the slope and screwed up into the framing` : `${cut}, ${side} end, on the wall (or the shelf) it meets`,
       boxes: [vb(side === 'left' ? 0 : W - cw, cy, cw, cw, ch, D - nt - cw, 0.9)] });
   }

@@ -1025,6 +1025,7 @@ function FloatingShelfSection({ cab, set }: { cab: Cabinet; set: (patch: Partial
           <option value="cleat">Closet shelf on cleats (shoes, linens)</option>
         </select>
       </Field>
+      {f.support === 'cleat' && <label className="chk-row"><input type="checkbox" checked={!!f.rod} onChange={(e) => set({ floating: { ...f, rod: e.target.checked || undefined } })} /> Closet rod under it (sockets at its ends)</label>}
       {f.support === 'cleat' && <p className="hint">3/4" plywood with a solid nosing on the front ({fmt(cab.height)} tall), on 1x2 cleats screwed to the wall behind it and at any end that meets a wall or another shelf.</p>}
       <div className="grid3">
         <Field label="Grade" htmlFor="fs-grade">
