@@ -68,6 +68,37 @@ export interface DiningTable {
   roomX?: number;
   roomZ?: number;
   turned?: boolean;
+  /** The top's shape: a rectangle (a square when length = width), round, oval, or racetrack (rounded ends). */
+  shape?: TopShape;
+  /** A custom fabricated metal base in place of the wood one. */
+  metal?: import('./metalBase').MetalBase;
+  /** What it is, from the furniture builder's list (dining table, coffee table...). */
+  type?: string;
+  /** The library design this piece came from. */
+  designId?: string;
+}
+
+export type TopShape = 'rect' | 'round' | 'oval' | 'racetrack';
+export const topShapeLabel: Record<TopShape, string> = { rect: 'Rectangle or square', round: 'Round', oval: 'Oval', racetrack: 'Racetrack (rounded ends)' };
+/** The top's outline in plan (x along the length, z across), for a shaped top. */
+export function topOutline(t: DiningTable, n = 64): [number, number][] | null {
+  const s = t.shape ?? 'rect';
+  if (s === 'rect') return null;
+  const a = t.length / 2, b = (s === 'round' ? t.length : t.width) / 2;
+  if (s === 'round' || s === 'oval') return Array.from({ length: n }, (_, i) => { const u = (i / n) * Math.PI * 2; return [a * Math.cos(u), b * Math.sin(u)] as [number, number]; });
+  // Racetrack: straight sides with half-round ends of the width's radius
+  const r = t.width / 2, cx = Math.max(0, a - r), pts: [number, number][] = [];
+  for (let i = 0; i <= n / 2; i++) { const u = -Math.PI / 2 + (i / (n / 2)) * Math.PI; pts.push([cx + r * Math.cos(u), r * Math.sin(u)]); }
+  for (let i = 0; i <= n / 2; i++) { const u = Math.PI / 2 + (i / (n / 2)) * Math.PI; pts.push([-cx + r * Math.cos(u), r * Math.sin(u)]); }
+  return pts;
+}
+/** Where a wood base fits under a shaped top: inside the circle or ellipse, or the racetrack's straight part. */
+export function baseFootprint(t: DiningTable): { L: number; W: number } {
+  const s = t.shape ?? 'rect';
+  const W = s === 'round' ? t.length : t.width;
+  if (s === 'round' || s === 'oval') return { L: t.length * 0.72, W: W * 0.72 };
+  if (s === 'racetrack') return { L: Math.max(t.width * 0.6, t.length - t.width * 0.4), W: t.width };
+  return { L: t.length, W };
 }
 
 export const newTable = (): DiningTable => ({
@@ -144,7 +175,7 @@ export function tableChecks(t: DiningTable): string[] {
   if (isBench(t)) return benchChecks(t);
   const out: string[] = [];
   const knee = t.height - t.top - (t.base === 'legs' ? t.apron : 0);
-  if (t.base === 'legs' && knee < 24.5) out.push(`Only ${knee.toFixed(2)}" from floor to apron: aim for 24 1/2" or more so knees clear (a narrower apron or thinner top helps).`);
+  if (!t.metal && t.base === 'legs' && knee < 24.5 && /dining|desk|kitchen|work/i.test(t.use ?? 'dining table')) out.push(`Only ${knee.toFixed(2)}" from floor to apron: aim for 24 1/2" or more so knees clear (a narrower apron or thinner top helps).`);
   const dining = /dining/i.test(t.use ?? 'dining table');
   if (dining && (t.height < 28.5 || t.height > 30.5)) out.push(`Dining height is usually 29"–30"; this is ${t.height}".`);
   if (dining && t.width < 36) out.push('Under 36" wide gets tight with place settings on both sides and leaves no room for end seats.');
@@ -196,15 +227,17 @@ export function tableEstimate(t: DiningTable, p: Project): { hours: TableLine[];
   if (t.edge === 'profile') hours.push({ label: `Edge profile: ${edgeLabel(t.edgeProfile ?? 'round14').toLowerCase()}`, hours: s.edgeProfile });
   if (t.edge === 'live') hours.push({ label: 'Live edge cleanup', hours: s.liveEdge });
   if (t.leaves) hours.push({ label: `${t.leaves} ${t.leaves > 1 ? 'leaves' : 'leaf'} and table slides`, hours: s.leafEach * t.leaves + s.slides + s.topPerSqFt * leafSqft(t) });
-  if (t.base === 'legs') {
+  if (t.metal) {
+    hours.push({ label: 'Metal base: drawings for the fabricator, check the samples', hours: 1 }, { label: 'Metal base: fit and attach (threaded inserts in the top)', hours: 1.5 });
+  } else if (t.base === 'legs') {
     const each = t.leg === 'square' ? s.legSquare : t.leg === 'tapered' ? s.legTapered : s.legTurned;
     hours.push({ label: `Four ${t.leg} legs`, hours: 4 * each }, { label: 'Four aprons, mortise and tenon', hours: 4 * s.apronEach });
   } else {
     hours.push({ label: tableBaseLabel[t.base] + ' base', hours: t.base === 'trestle' ? s.trestle : t.base === 'pedestal' ? s.pedestal : s.doublePedestal });
   }
-  const st = stretchersOf(t);
+  const st = t.metal ? 'none' : stretchersOf(t);
   if (st !== 'none') hours.push({ label: st === 'h' ? 'H stretcher: two end stretchers and a center one, mortise and tenon' : 'Four stretchers around the legs, mortise and tenon', hours: 3 * s.stretcherEach + (st === 'box' ? s.stretcherEach : 0) });
-  if (isBench(t) && t.shelf && t.shelf !== 'none') hours.push({ label: `Lower shelf: rails and ${t.shelf === 'slats' ? 'slats' : 'a solid panel'}`, hours: s.shelfRails + (t.shelf === 'slats' ? s.shelfSlats : s.shelfSolid) });
+  if (!t.metal && t.base === 'legs' && t.shelf && t.shelf !== 'none') hours.push({ label: `Lower shelf: rails and ${t.shelf === 'slats' ? 'slats' : 'a solid panel'}`, hours: s.shelfRails + (t.shelf === 'slats' ? s.shelfSlats : s.shelfSolid) });
   hours.push(
     { label: 'Top attachment', hours: s.attach },
     { label: 'Dry fit and assembly', hours: s.assembly },
@@ -217,7 +250,7 @@ export function tableEstimate(t: DiningTable, p: Project): { hours: TableLine[];
   const bf = (l: number, w: number, finished: number) => (l * w * (roughQuarters(finished) / 4)) / 144;
   const topBF = (bf(t.length + 2, t.width + 1, t.top) + (t.leaves ? t.leaves * bf(t.leafWidth + 1, t.width + 1, t.top) : 0) + (t.breadboard ? 2 * bf(t.width + 2, 4, t.top) : 0)) * 1.35;
   const legLen = t.height - t.top;
-  const baseBF = t.base === 'legs'
+  const baseBF = t.metal ? 0 : t.base === 'legs'
     ? (4 * ((legLen + 2) * (t.legSize + 0.5) * (t.legSize + 0.5)) / 144 + bf(2 * (t.length + t.width), t.apron + 0.5, 0.875)) * 1.3
     : (t.base === 'trestle' ? 16 + (t.length / 12) * 1.5 : t.base === 'pedestal' ? 22 : 36) * 1.2;
   const lipBF = t.lip ? bf(perimeter(t) + 8, lipStock(t).h + 0.5, lipStock(t).w) * 1.25 : 0;
@@ -233,6 +266,7 @@ export function tableEstimate(t: DiningTable, p: Project): { hours: TableLine[];
     amLine ?? { label: `${t.species} lumber`, cost: total * price, detail: `${Math.ceil(total)} BF rough (top ${Math.ceil(topBF)}, base ${Math.ceil(baseBF)}${lipBF ? `, lip ${Math.ceil(lipBF)}` : ''})${price ? ` at $${price}/BF` : ' — enter a $/BF price'}` },
     { label: 'Glue, fasteners, abrasives', cost: 35 + area * 1.5, detail: 'Buttons or figure-8s, glue, sandpaper' },
   ];
+  if (t.metal) materials.push({ label: `Metal base (fabricator, ${Math.round(t.metal.markup * 100)}% markup)`, cost: t.metal.price * (1 + t.metal.markup), detail: t.metal.price ? `their price $${t.metal.price.toLocaleString('en-US')}` : 'send the fabricator drawing and enter their price' });
   if (t.leaves) materials.push({ label: 'Table slides and leaf hardware', cost: 180, detail: 'Wooden or aluminum slides, alignment pins, leaf locks' });
   if (t.base === 'legs' && t.leg === 'turned' && t.turningEach) materials.push({ label: 'Leg turning', cost: 4 * t.turningEach, detail: `4 legs at $${t.turningEach}` });
   if (isBench(t) && t.cushion) {
@@ -250,22 +284,25 @@ const fmt = (v: number) => (Number.isInteger(v) ? `${v}"` : `${Math.floor(v)} ${
 const fraction = (f: number) => { const n = Math.round(f * 16); const g = gcd(n, 16); return `${n / g}/${16 / g}`; };
 const gcd = (a: number, b: number): number => (b ? gcd(b, a % b) : a);
 
+const metalWords = (m: import('./metalBase').MetalBase) => `custom fabricated steel base (${m.form === 'u' ? 'U legs' : m.form === 'x' ? 'X ends' : `${m.form} style`}), ${m.finish === 'powder' ? `powder coated ${m.color.toLowerCase()}` : m.finish === 'painted' ? `painted ${m.color.toLowerCase()}` : m.finish === 'blackened' ? 'blackened steel' : 'raw steel, clear coated'}`;
+const shapeWord = (t: DiningTable) => ({ rect: '', round: 'round ', oval: 'oval ', racetrack: 'racetrack ' })[t.shape ?? 'rect'];
+
 /** The scope line, in the wording of the quotes. */
 export function tableScope(t: DiningTable): string {
   if (isBench(t)) return [
     `${t.name}: solid ${/sapele/i.test(t.species) ? 'sapele mahogany' : t.species.toLowerCase()} ${t.use || 'bench'}, approx ${fmt(t.length)}L x ${fmt(t.width)}D x ${fmt(seatHeight(t))} seat height`,
     `${fmt(t.top)} thick seat${t.edge === 'profile' ? `, ${edgeLabel(t.edgeProfile ?? 'round14').toLowerCase()} edge` : ''}`,
-    `${t.leg} legs with aprons${stretcherWords(t)}`,
-    ...(t.shelf && t.shelf !== 'none' ? [`${t.shelf === 'slats' ? 'slatted' : 'solid'} lower shelf for shoes`] : []),
+    t.metal ? metalWords(t.metal) : `${t.leg} legs with aprons${stretcherWords(t)}`,
+    ...(!t.metal && t.shelf && t.shelf !== 'none' ? [`${t.shelf === 'slats' ? 'slatted' : 'solid'} lower shelf for shoes`] : []),
     ...(t.cushion ? [`upholstered ${fmt(t.cushionThick ?? 2)} seat cushion (fabric to be selected)`] : []),
     t.finish === 'painter' ? 'finish by others' : tableFinishLabel[t.finish].replace(' (shop)', '').toLowerCase() + ' finish',
     'delivered and set in place',
   ].join('; ');
   const bits = [
-    `${t.name}: solid ${/sapele/i.test(t.species) ? "sapele mahogany" : t.species.toLowerCase()} ${t.use || 'dining table'}, approx ${fmt(t.length)}L x ${fmt(t.width)}W x ${fmt(t.height)}H`,
+    `${t.name}: solid ${/sapele/i.test(t.species) ? "sapele mahogany" : t.species.toLowerCase()} ${shapeWord(t)}${t.use || 'dining table'}, approx ${t.shape === 'round' ? `${fmt(t.length)} diameter` : `${fmt(t.length)}L x ${fmt(t.width)}W`} x ${fmt(t.height)}H`,
     `${fmt(t.top)} thick top${t.breadboard ? ' with breadboard ends' : ''}${t.edge === 'profile' ? `, ${edgeLabel(t.edgeProfile ?? 'round14').toLowerCase()} edge` : t.edge === 'live' ? ', live edge' : ''}`,
     ...(t.lip ? [`raised ${fmt(t.lipHeight ?? 0.75)} lip around the perimeter${t.lipStyle === 'onTop' ? '' : ' (applied to the edge of the top)'}, mitered corners`] : []),
-    t.base === 'legs' ? `${t.leg} legs with aprons${stretcherWords(t)}` : tableBaseLabel[t.base].toLowerCase() + ' base',
+    t.metal ? metalWords(t.metal) : t.base === 'legs' ? `${t.leg} legs with aprons${stretcherWords(t)}${t.shelf && t.shelf !== 'none' ? `, ${t.shelf === 'slats' ? 'slatted' : 'solid'} lower shelf` : ''}` : tableBaseLabel[t.base].toLowerCase() + ' base',
     ...(/dining/i.test(t.use ?? 'dining table') ? [t.leaves ? `(${t.leaves}) ${fmt(t.leafWidth)} extension ${t.leaves > 1 ? 'leaves' : 'leaf'}; seats ${seats(t)}–${seats(t, true)}` : `seats ${seats(t)}`] : t.leaves ? [`(${t.leaves}) ${fmt(t.leafWidth)} extension ${t.leaves > 1 ? 'leaves' : 'leaf'}`] : []),
     t.finish === 'painter' ? 'finish by others' : tableFinishLabel[t.finish].replace(' (shop)', '').toLowerCase() + ' finish',
     'delivered and set in place',

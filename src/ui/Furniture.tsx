@@ -3,33 +3,34 @@
 import { useMemo } from 'react';
 import { useStore } from '../store';
 import { edgeProfiles, type EdgeProfile } from '../model/edgeProfiles';
-import { furnitureOf, isBench, stretchersOf, newBench, newTable, seatHeight, seats, tableBaseLabel, tableChecks, tableEstimate, tableFinishLabel, type DiningTable, type TableBase, type TableFinish, type TableLeg } from '../model/furniture';
+import { isBench, stretchersOf, seatHeight, seats, tableBaseLabel, tableChecks, tableEstimate, tableFinishLabel, type DiningTable, type TableBase, type TableFinish, type TableLeg } from '../model/furniture';
 import { priceQuote, quoteOf } from '../model/quote';
 import { tableSpecies } from '../model/tableParts';
 import { Field, LengthInput, Section } from './fields';
 import { fmt } from '../units';
-import { bedChecks, bedEstimate, bedSize, bedsOf, mattressSizes, newBed, type Bed, type MattressSize } from '../model/bed';
+import { designPrice, jobPieces } from '../model/furnitureDesign';
+import { useFurnitureUI } from './FurnitureBuilder';
+import { bedChecks, bedEstimate, bedSize, mattressSizes, type Bed, type MattressSize } from '../model/bed';
 
 const money = (v: number) => `$${Math.round(v).toLocaleString('en-US')}`;
 
 export function FurnitureSection() {
   const project = useStore((s) => s.project);
-  const commit = useStore((s) => s.commit);
-  const tables = furnitureOf(project);
-  const setAll = (next: DiningTable[]) => commit((p) => ({ ...p, furniture: next }));
-  const put = (id: string, patch: Partial<DiningTable>) => setAll(tables.map((t) => (t.id === id ? { ...t, ...patch } : t)));
-  const beds = bedsOf(project);
-  const setBeds = (next: Bed[]) => commit((p) => ({ ...p, beds: next }));
+  const pieces = jobPieces(project);
+  const go = (id?: string) => { if (id) useFurnitureUI.setState({ openId: id }); useStore.getState().setMode('furniture'); };
   return (
-    <Section title="Furniture" aside={<span><button className="mini" onClick={() => setAll([...tables, newTable()])}>Add table</button> <button className="mini" onClick={() => setAll([...tables, newBench()])}>Add bench</button> <button className="mini" onClick={() => setBeds([...beds, newBed()])}>Add bed</button></span>}>
-      {!tables.length && !beds.length && <p className="hint">Tables (dining, puzzle, game and the like), benches (closet, entry, window) and beds (platform or frame, headboard, drawers): size, construction, species and finish. Priced with your shop rate.</p>}
-      {tables.map((t) => <TableEditor key={t.id} t={t} put={(patch) => put(t.id, patch)} remove={() => setAll(tables.filter((x) => x.id !== t.id))} />)}
-      {beds.map((b) => <BedEditor key={b.id} b={b} put={(patch) => setBeds(beds.map((x) => (x.id === b.id ? { ...x, ...patch } : x)))} remove={() => setBeds(beds.filter((x) => x.id !== b.id))} />)}
+    <Section title="Furniture" aside={<button className="mini" onClick={() => go()}>Open the Furniture builder</button>}>
+      {!pieces.length && <p className="hint">Tables, benches, beds and the rest are designed in the Furniture builder (its own tab). Add a piece to this job there and it’s priced here as Furniture.</p>}
+      {pieces.length > 0 && (
+        <table className="totals"><tbody>
+          {pieces.map((d) => <tr key={d.id}><td><b>{d.name}</b> <button className="link-btn" onClick={() => go(d.id)}>Edit in the Furniture builder</button></td><td className="num">{money(designPrice(project, d).price)}</td></tr>)}
+        </tbody></table>
+      )}
     </Section>
   );
 }
 
-function TableEditor({ t, put, remove }: { t: DiningTable; put: (p: Partial<DiningTable>) => void; remove: () => void }) {
+export function TableEditor({ t, put, remove }: { t: DiningTable; put: (p: Partial<DiningTable>) => void; remove: () => void }) {
   const project = useStore((s) => s.project);
   const est = useMemo(() => tableEstimate(t, project), [t, project]);
   const q = quoteOf(project);
@@ -216,16 +217,14 @@ export function TableSketch({ t }: { t: DiningTable }) {
 
 /* ---------- Beds ---------- */
 
-export function BedEditor({ b, put, remove }: { b: Bed; put: (p: Partial<Bed>) => void; remove: () => void }) {
+export function BedEditor({ b, put, remove, embedded }: { b: Bed; put: (p: Partial<Bed>) => void; remove: () => void; embedded?: boolean }) {
   const project = useStore((s) => s.project);
   const est = useMemo(() => bedEstimate(b, project), [b, project]);
   const q = quoteOf(project);
   const hours = est.hours.reduce((s, h) => s + h.hours, 0);
   const mats = est.materials.reduce((s, m) => s + m.cost, 0);
-  const r = useMemo(() => priceQuote(project), [project]);
-  const fg = r.groups.find((g) => g.group === 'furniture');
-  const allHours = r.hours.filter((h) => h.group === 'furniture').reduce((s, h) => s + h.hours, 0) || 1;
-  const price = fg ? (fg.price * hours) / allHours * (1 + q.workloadAdj[q.workload]) : 0;
+  const price = useMemo(() => designPrice(project, { bed: b }).price, [b, project]);
+  void q;
   const id = (k: string) => `b-${k}-${b.id}`;
   const len = (k: keyof Bed, label: string) => (
     <Field label={label} htmlFor={id(k)}><LengthInput id={id(k)} value={b[k] as number} onChange={(v) => v != null && put({ [k]: v } as Partial<Bed>)} /></Field>
@@ -233,10 +232,10 @@ export function BedEditor({ b, put, remove }: { b: Bed; put: (p: Partial<Bed>) =
   const size = bedSize(b);
   return (
     <div className="stock-row table-ed">
-      <div className="sr-head">
+      {!embedded && <div className="sr-head">
         <input aria-label="Name" value={b.name} onChange={(e) => put({ name: e.target.value })} />
         <button className="icon-btn" aria-label="Remove bed" onClick={remove}>×</button>
-      </div>
+      </div>}
       <div className="grid3">
         <Field label="Mattress" htmlFor={id('m')}>
           <select id={id('m')} value={b.mattress} onChange={(e) => put({ mattress: e.target.value as MattressSize })}>

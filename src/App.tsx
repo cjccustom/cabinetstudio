@@ -1,3 +1,4 @@
+import { FurnitureBuilder } from './ui/FurnitureBuilder';
 import { roomProjects } from './model/rooms';
 import { RoomTabs } from './ui/RoomTabs';
 import { CoverButton, DrawingsMain, DrawingsPanel, DrawingsSide } from './ui/Drawings';
@@ -96,6 +97,7 @@ export default function App() {
           <button role="tab" aria-selected={mode === 'drawings'} className={mode === 'drawings' ? 'on' : ''} onClick={() => setMode('drawings')}>Drawings</button>
           <button role="tab" aria-selected={mode === 'render'} className={mode === 'render' ? 'on' : ''} onClick={() => setMode('render')}>Rendering</button>
           <button role="tab" aria-selected={mode === 'parts'} className={mode === 'parts' ? 'on' : ''} onClick={() => setMode('parts')}>Part builder</button>
+          <button role="tab" aria-selected={mode === 'furniture'} className={mode === 'furniture' ? 'on' : ''} onClick={() => setMode('furniture')}>Furniture builder</button>
           <button role="tab" aria-selected={mode === 'job'} className={mode === 'job' ? 'on' : ''} onClick={() => setMode('job')}>Job & clock</button>
         </div>
         {mode === 'design' && <div className="seg views" role="tablist" aria-label="View">
@@ -116,6 +118,8 @@ export default function App() {
 
       {mode === 'parts' ? (
         <PartBuilder />
+      ) : mode === 'furniture' ? (
+        <FurnitureBuilder />
       ) : mode === 'cutlist' ? (
         <>
           <CutlistInputs />

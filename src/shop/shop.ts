@@ -57,11 +57,13 @@ interface ShopState {
   canExport: boolean;
   /** Custom parts drawn in the part builder (corbels, brackets...), shared by every job. */
   parts: Record<string, import('../model/customParts').CustomPart>;
+  /** Furniture designs from the furniture builder, shared by every job. */
+  furniture: Record<string, import('../model/furnitureDesign').FurnitureDesign>;
   /** A design Claude put in the app's inbox to open (inbox/design: name, at, project as JSON text) */
   sent: { name: string; at: number; text: string } | null;
 }
 
-export const useShop = create<ShopState>(() => ({ mode: 'loading', jobs: {}, entries: {}, todos: {}, timer: null, rate: 75, prices: {}, parts: {}, error: null, canExport: false, sent: null }));
+export const useShop = create<ShopState>(() => ({ mode: 'loading', jobs: {}, entries: {}, todos: {}, timer: null, rate: 75, prices: {}, parts: {}, furniture: {}, error: null, canExport: false, sent: null }));
 
 type Db = {
   doc(path: string): { set(d: Record<string, unknown>): Promise<void>; delete(): Promise<void>; onSnapshot(n: (s: { exists: boolean; data(): Record<string, unknown> | undefined }) => void, e?: (err: { code: string }) => void): () => void };
@@ -76,12 +78,12 @@ const LKEY = 'cabinet-studio.shop.v1';
 
 function saveLocal() {
   const s = useShop.getState();
-  try { localStorage.setItem(LKEY, JSON.stringify({ jobs: s.jobs, entries: s.entries, todos: s.todos, timer: s.timer, rate: s.rate, prices: s.prices, parts: s.parts })); } catch { /* storage blocked */ }
+  try { localStorage.setItem(LKEY, JSON.stringify({ jobs: s.jobs, entries: s.entries, todos: s.todos, timer: s.timer, rate: s.rate, prices: s.prices, parts: s.parts, furniture: s.furniture })); } catch { /* storage blocked */ }
 }
 function loadLocal() {
   try {
     const d = JSON.parse(localStorage.getItem(LKEY) || 'null');
-    if (d) useShop.setState({ jobs: d.jobs ?? {}, entries: d.entries ?? {}, todos: d.todos ?? {}, timer: d.timer ?? null, rate: d.rate ?? 75, prices: d.prices ?? {}, parts: d.parts ?? {} });
+    if (d) useShop.setState({ jobs: d.jobs ?? {}, entries: d.entries ?? {}, todos: d.todos ?? {}, timer: d.timer ?? null, rate: d.rate ?? 75, prices: d.prices ?? {}, parts: d.parts ?? {}, furniture: d.furniture ?? {} });
   } catch { /* storage blocked */ }
 }
 
@@ -111,6 +113,7 @@ export async function startShop() {
   db.collection('todos').onSnapshot((s) => useShop.setState({ todos: toMap<Todo>(s.docs) }), lostConnection);
   db.collection('prices').onSnapshot((s) => useShop.setState({ prices: toMap<PriceItem>(s.docs) }), lostConnection);
   db.collection('parts').onSnapshot((s) => useShop.setState({ parts: toMap<import('../model/customParts').CustomPart>(s.docs) }), lostConnection);
+  db.collection('furniture').onSnapshot((s) => useShop.setState({ furniture: toMap<import('../model/furnitureDesign').FurnitureDesign>(s.docs) }), lostConnection);
   db.doc('timer/active').onSnapshot((d) => {
     const v = d.exists ? (d.data() as Partial<Timer>) : null;
     useShop.setState({ timer: v?.jobId ? (v as Timer) : null });
@@ -128,7 +131,7 @@ export async function clearSent() {
   try { await db?.doc('inbox/design').delete(); } catch { /* it clears next time */ }
 }
 
-type Kind = 'jobs' | 'entries' | 'todos' | 'prices' | 'parts';
+type Kind = 'jobs' | 'entries' | 'todos' | 'prices' | 'parts' | 'furniture';
 
 /** Change local state at once, then save to the database (or this browser). */
 async function write(kind: Kind | 'timer' | 'settings', id: string, data: Record<string, unknown> | null) {
@@ -182,6 +185,8 @@ export const savePrice = (item: PriceItem) => write('prices', item.id, { ...item
 export const deletePrice = (id: string) => write('prices', id, null);
 export const savePart = (part: import('../model/customParts').CustomPart) => write('parts', part.id, { ...part, updatedAt: Date.now() } as unknown as Record<string, unknown>);
 export const deletePart = (id: string) => write('parts', id, null);
+export const saveFurniture = (d: import('../model/furnitureDesign').FurnitureDesign) => write('furniture', d.id, { ...d, updatedAt: Date.now() } as unknown as Record<string, unknown>);
+export const deleteFurniture = (id: string) => write('furniture', id, null);
 export const dismissError = () => useShop.setState({ error: null });
 
 export const hours = (ms: number) => ms / 36e5;

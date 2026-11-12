@@ -25,7 +25,7 @@ export function TablePiece({ t, parts }: { t: DiningTable; parts: TablePart[] })
   const map = t.finish === 'paint' ? null : woodTexture(t.species, color);
   // A routed edge on the top: drawn as its section, run the length (both long edges)
   const prof = t.edge === 'profile' && !t.lip ? t.edgeProfile ?? 'round14' : null;
-  return <>{parts.flatMap((part, i) => part.boxes.map((b, j) => <PartMesh key={`${i}-${j}`} part={part} b={b} color={part.name.startsWith('Mattress') ? '#f1eee6' : part.role === 'cushion' ? '#9aa3ad' : color} map={part.role === 'cushion' ? null : map} seed={i * 7 + j * 3} section={prof && part.role === 'top' ? topSection(b.size[2], b.size[1], prof, prof) : undefined} />))}</>;
+  return <>{parts.map((part, i) => part.metal ? <MetalMesh key={`m${i}`} m={part.metal} /> : part.outline ? <ShapedTop key={`s${i}`} part={part} color={color} map={map} /> : null)}{parts.filter((part) => !part.metal && !part.outline).flatMap((part, i) => part.boxes.map((b, j) => <PartMesh key={`${i}-${j}`} part={part} b={b} color={part.name.startsWith('Mattress') ? '#f1eee6' : part.role === 'cushion' ? '#9aa3ad' : color} map={part.role === 'cushion' ? null : map} seed={i * 7 + j * 3} section={prof && part.role === 'top' ? topSection(b.size[2], b.size[1], prof, prof) : undefined} />))}</>;
 }
 
 function PartMesh({ part, b, color, map, seed, section }: { part: TablePart; b: TablePart['boxes'][number]; color: string; map: THREE.Texture | null; seed: number; section?: [number, number][] }) {
@@ -71,4 +71,39 @@ export function BedModels({ project, hidden }: { project: Project; hidden: strin
     const look = { ...newTable(), finish: b.finish, species: b.grade === 'paint' ? 'Poplar' : b.species, edge: 'eased' as const, lip: false };
     return <group key={b.id} position={place.pos} rotation-y={place.rot}><TablePiece t={look} parts={bedParts(b)} /></group>;
   })}</>;
+}
+
+/** A shaped top (round, oval, racetrack): its outline extruded through the thickness. */
+function ShapedTop({ part, color, map }: { part: TablePart; color: string; map: THREE.Texture | null }) {
+  const b = part.boxes[0];
+  const geo = useMemo(() => {
+    const shape = new THREE.Shape(part.outline!.map(([x, z]) => new THREE.Vector2(x, z)));
+    const g = new THREE.ExtrudeGeometry(shape, { depth: b.size[1], bevelEnabled: false, curveSegments: 1 });
+    // Shape in x–y extruded along z: turn it so the outline lies in plan and the thickness runs up
+    g.rotateX(Math.PI / 2);
+    g.translate(0, b.min[1] + b.size[1], 0);
+    g.computeVertexNormals();
+    grainUVs(g, 0, 3);
+    return g;
+  }, [JSON.stringify(part.outline), b.min[1], b.size[1]]); // eslint-disable-line react-hooks/exhaustive-deps
+  return <mesh geometry={geo} castShadow receiveShadow><meshStandardMaterial key={map ? 'grain' : 'flat'} map={map} color={map ? '#ffffff' : color} roughness={map ? 0.62 : 0.55} /></mesh>;
+}
+
+/** A metal base: each member a square or round tube (or flat bar) from end to end, plates as slabs. */
+export function MetalMesh({ m }: { m: NonNullable<TablePart['metal']> }) {
+  const mat = <meshStandardMaterial color={m.color} roughness={0.45} metalness={0.55} />;
+  return <>
+    {m.members.map((x, i) => {
+      const a = new THREE.Vector3(...x.a), b = new THREE.Vector3(...x.b);
+      const len = a.distanceTo(b), mid = a.clone().add(b).multiplyScalar(0.5);
+      const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), b.clone().sub(a).normalize());
+      return (
+        <mesh key={i} position={mid} quaternion={q} castShadow receiveShadow>
+          {m.stock === 'round' ? <cylinderGeometry args={[m.size / 2, m.size / 2, len, 20]} /> : <boxGeometry args={[m.size, len, m.stock === 'flat' ? Math.max(0.25, m.size / 6) : m.size]} />}
+          {mat}
+        </mesh>
+      );
+    })}
+    {m.plates.map((pl, i) => <mesh key={`p${i}`} position={[pl.min[0] + pl.size[0] / 2, pl.min[1] + pl.size[1] / 2, pl.min[2] + pl.size[2] / 2]} castShadow receiveShadow><boxGeometry args={pl.size} />{mat}</mesh>)}
+  </>;
 }

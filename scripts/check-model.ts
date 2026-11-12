@@ -1,3 +1,6 @@
+import { addToJob, designPrice, newDesign } from "../src/model/furnitureDesign";
+import { metalCutList, metalMembers, newMetalBase } from "../src/model/metalBase";
+import { metalSheetHtml } from "../src/model/metalSheet";
 import { bedChecks, bedParts, bedSize, newBed } from "../src/model/bed";
 import { addRoom, jobRooms, removeRoom, roomTabs, switchRoom } from "../src/model/rooms";
 import { readFileSync } from "node:fs";
@@ -2369,6 +2372,26 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   eq('bed: priced on the furniture line', (r.groups.find((g) => g.group === 'furniture')?.price ?? 0) > 0, true);
   eq('bed: in the scope', scopeItems(job).some((x) => x.text.startsWith('Bed: custom platform bed for a queen mattress')), true);
   eq('bed: a low headboard is flagged', bedChecks({ ...b, headH: 34 }).some((c) => c.includes('headboard shows')), true);
+}
+
+// Furniture builder: shapes, a fabricated metal base and its cut list, designs added to a job
+{
+  const round = newDesign('dining', 'round');
+  eq('furniture: a round dining table is as wide as long, its top an outline', `${round.table!.length}x${round.table!.width} ${!!tableParts(round.table!).find((x) => x.role === 'top')!.outline}`, '54x54 true');
+  const legs = tableParts(round.table!).find((x) => x.role === 'leg')!;
+  eq('furniture: legs under a round top stand inside the circle', Math.max(...legs.boxes.map((b) => Math.hypot(b.min[0], b.min[2]))) < 27, true);
+  const coffee = newDesign('coffee');
+  const m = { ...coffee.table!, metal: { ...newMetalBase(), form: 'sled' as const, price: 900 } };
+  const parts = tableParts(m);
+  eq('furniture: a metal base replaces the wood one', `${parts.some((x) => x.role === 'leg' || x.role === 'apron')} ${parts.find((x) => x.role === 'metal')!.metal!.members.length}`, 'false 10');
+  const est = tableEstimate(m, p);
+  eq('furniture: the fabricator’s price with markup, no wood base hours', `${est.materials.find((x) => x.label.startsWith('Metal base'))!.cost} ${est.hours.some((h) => /legs|aprons/i.test(h.label))}`, '1125 false');
+  const mm = metalMembers(m.metal, m.length, m.width, m.height - m.top);
+  eq('furniture: cut list groups like members', metalCutList(m.metal, mm.members, mm.plates).map((c) => `${c.qty} ${c.what}`).join(', '), '4 Leg, 2 End rail, top, 2 End rail, floor, 2 Long rail');
+  eq('furniture: the fabricator drawing names the job and the stock', /Steel base, for your quote[\s\S]*square tube, /.test(metalSheetHtml(m, { company: ['CJC'], job: 'Test job' })), true);
+  const { project: withIt } = addToJob({ ...p, cabinets: [] }, { ...coffee, table: m });
+  eq('furniture: added to a job, priced on the furniture line', (priceQuote(withIt).groups.find((g) => g.group === 'furniture')?.price ?? 0) > 1125 && designPrice(withIt, { table: m }).price > 0, true);
+  eq('furniture: scope says round and steel base', tableScope({ ...round.table!, metal: newMetalBase() }).includes('round dining table') && tableScope({ ...m }).includes('steel base'), true);
 }
 
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');

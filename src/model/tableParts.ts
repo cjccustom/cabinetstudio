@@ -3,10 +3,11 @@
 // the floor, z across the width (0 at the middle).
 import type { Project } from './types';
 import { fmt } from '../units';
-import { furnitureOf, isBench, lipStock, stretchersOf, type DiningTable } from './furniture';
+import { baseFootprint, furnitureOf, isBench, lipStock, stretchersOf, topOutline, type DiningTable } from './furniture';
+import { metalMembers } from './metalBase';
 import { amSizes, boardSize } from './amLumber';
 
-export type TableRole = 'top' | 'breadboard' | 'lip' | 'leg' | 'apron' | 'post' | 'foot' | 'cleat' | 'stretcher' | 'column' | 'leaf' | 'shelf' | 'slat' | 'cushion';
+export type TableRole = 'top' | 'breadboard' | 'lip' | 'leg' | 'apron' | 'post' | 'foot' | 'cleat' | 'stretcher' | 'column' | 'leaf' | 'shelf' | 'slat' | 'cushion' | 'metal';
 export interface TableBox { min: [number, number, number]; size: [number, number, number] }
 export interface TablePart {
   role: TableRole;
@@ -22,6 +23,10 @@ export interface TablePart {
   /** Legs: tapered to this size at the floor on the two inside faces; turned legs are round. */
   taperTo?: number;
   turned?: boolean;
+  /** A shaped top: its outline in plan (x, z), extruded through its thickness. */
+  outline?: [number, number][];
+  /** A metal base: members as centerlines, with the stock, and plates. */
+  metal?: { members: import('./metalBase').MetalMember[]; plates: import('./metalBase').MetalPlate[]; stock: import('./metalBase').MetalStock; size: number; color: string };
 }
 
 const box = (x0: number, y0: number, z0: number, x1: number, y1: number, z1: number): TableBox => ({ min: [Math.min(x0, x1), Math.min(y0, y1), Math.min(z0, z1)], size: [Math.abs(x1 - x0), Math.abs(y1 - y0), Math.abs(z1 - z0)] });
@@ -37,7 +42,8 @@ export function tableParts(t: DiningTable): TablePart[] {
   const tl = lip && edge ? L - 2 * lw : L, tw = lip && edge ? W - 2 * lw : W;
   const bb = t.breadboard ? BB_W : 0;
   const topY = H - T;
-  out.push({ role: 'top', name: 'Top', qty: 1, length: tl - 2 * bb, width: tw, thick: T, note: `Glued up from boards about 5"–6" wide, alternating growth rings${t.edge === 'profile' && !lip ? '; profile the edge' : ''}`, boxes: [box(-tl / 2 + bb, topY, -tw / 2, tl / 2 - bb, H, tw / 2)] });
+  const shaped = topOutline(t);
+  out.push({ role: 'top', name: shaped ? `Top, ${t.shape === 'racetrack' ? 'racetrack' : t.shape}` : 'Top', qty: 1, length: tl - 2 * bb, width: t.shape === 'round' ? tl : tw, thick: T, note: `Glued up from boards about 5"–6" wide, alternating growth rings${shaped ? '; cut to shape from a full-size template or on the CNC' : ''}${t.edge === 'profile' && !lip ? '; profile the edge' : ''}`, boxes: [box(-tl / 2 + bb, topY, -(t.shape === 'round' ? tl : tw) / 2, tl / 2 - bb, H, (t.shape === 'round' ? tl : tw) / 2)], ...(shaped ? { outline: shaped } : {}) });
   if (bb) out.push({ role: 'breadboard', name: 'Breadboard end', qty: 2, length: tw, width: bb, thick: T, note: 'Tongue on the top, pegged through elongated holes outboard of the middle', boxes: [box(-tl / 2, topY, -tw / 2, -tl / 2 + bb, H, tw / 2), box(tl / 2 - bb, topY, -tw / 2, tl / 2, H, tw / 2)] });
   if (lip) {
     const y0 = edge ? topY : H, y1 = (edge ? topY : H) + ls.h;
@@ -48,6 +54,12 @@ export function tableParts(t: DiningTable): TablePart[] {
   if (t.leaves) out.push({ role: 'leaf', name: 'Leaf', qty: t.leaves, length: tw, width: t.leafWidth, thick: T, note: 'Alignment pins and leaf locks; stored off the table', boxes: [] });
 
   const legH = H - T;
+  if (t.metal) {
+    const m = metalMembers(t.metal, t.length, t.shape === 'round' ? t.length : t.width, topY, t.shape === 'round' || t.shape === 'oval');
+    out.push({ role: 'metal', name: 'Metal base (fabricator)', qty: 1, length: t.length, width: legH, thick: t.metal.size, note: 'Fabricated and finished by the metal shop; attached with threaded inserts in the top', boxes: [], metal: { ...m, stock: t.metal.form === 'hairpin' ? 'round' : t.metal.stock, size: t.metal.form === 'hairpin' ? Math.min(t.metal.size, 0.625) : t.metal.size, color: t.metal.finish === 'raw' ? '#8d8f92' : t.metal.finish === 'blackened' ? '#2b2b2d' : metalColor(t.metal.color) } });
+  } else {
+  // A wood base under a shaped top stands inside the curve
+  const { L, W } = baseFootprint(t);
   if (t.base === 'legs') {
     const s = t.legSize;
     const lx = L / 2 - LEG_INSET - s, lz = W / 2 - LEG_INSET - s;
@@ -70,7 +82,7 @@ export function tableParts(t: DiningTable): TablePart[] {
       else out.push({ role: 'stretcher', name: 'Stretcher, long side', qty: 2, length: longA + 2, width: SH, thick: ST, note: '1" tenons each end into the legs, centered on the leg, 1 1/2" below the end stretchers so the mortises don\'t meet', boxes: [-1, 1].map((b) => box(-xi, y0 - 1.5, b * zc - ST / 2, xi, top - 1.5, b * zc + ST / 2)) });
     }
     // A bench's lower shelf: rails between the legs, then slats along its length or a solid panel
-    if (isBench(t) && t.shelf && t.shelf !== 'none') {
+    if (t.shelf && t.shelf !== 'none') {
       const RH = 2, RT = 0.875, sy = (t.shelfHeight ?? 5) - 0.75, ry0 = sy - RH + 0.75;
       const xi = L / 2 - LEG_INSET - s, zi = W / 2 - LEG_INSET - s;
       out.push({ role: 'stretcher', name: 'Shelf rail, long side', qty: 2, length: longA + 2, width: RH, thick: RT, note: '1" tenons each end into the legs; the shelf rests on it', boxes: [-1, 1].map((b) => box(-xi, ry0, b * (zi - RT + 0.001), xi, ry0 + RH, b * zi)) });
@@ -98,6 +110,7 @@ export function tableParts(t: DiningTable): TablePart[] {
     out.push({ role: 'cleat', name: 'Top cleat', qty: cols.length * 2, length: Math.min(24, W - 10), width: 2, thick: 3, note: 'Half-lapped; slotted screw holes to the top', boxes: cols.flatMap((x) => [box(x - 1.5, topY - 2, -Math.min(12, W / 2 - 5), x + 1.5, topY, Math.min(12, W / 2 - 5)), box(x - Math.min(12, W / 2 - 5), topY - 2, -1.5, x + Math.min(12, W / 2 - 5), topY, 1.5)]) });
     if (cols.length > 1) out.push({ role: 'stretcher', name: 'Stretcher', qty: 1, length: cols[1] - cols[0] + 6, width: 3, thick: 1.5, boxes: [box(cols[0], 6, -0.75, cols[1], 9, 0.75)] });
   }
+  }
   // The seat cushion, by the upholsterer: drawn, not cut
   if (isBench(t) && t.cushion) {
     const ct = t.cushionThick ?? 2, r = 0.25;
@@ -107,6 +120,14 @@ export function tableParts(t: DiningTable): TablePart[] {
 }
 
 const fmtIn = (v: number) => fmt(Math.round(v * 16) / 16);
+
+/** A powder coat color by name, roughly, for the 3D. */
+export function metalColor(name: string): string {
+  const n = name.toLowerCase();
+  if (/^#[0-9a-f]{6}$/.test(n)) return n;
+  const named: Record<string, string> = { black: '#232325', 'matte black': '#262628', white: '#eceae4', bronze: '#5b4632', 'oil rubbed bronze': '#3e2f24', gray: '#6d6f72', grey: '#6d6f72', silver: '#b5b7ba', gold: '#a9894a', brass: '#b08d4a', copper: '#9a5a36', green: '#3f5a44', navy: '#24324a', blue: '#33507a', red: '#7a2a24' };
+  return named[n] ?? Object.entries(named).find(([k]) => n.includes(k))?.[1] ?? '#3a3a3c';
+}
 
 /** A table's footprint in the room: center, and the length's direction (along x, or along z when turned). */
 export function tablePlace(p: Project, t: DiningTable): { x: number; z: number; turned: boolean } {
@@ -136,7 +157,7 @@ export function tableStock(t: DiningTable, waste = 0.15): { lines: TableStock[];
   const lines: TableStock[] = [];
   let missing = !boards.length;
   for (const part of tableParts(t)) {
-    if (part.role === 'cushion') continue;
+    if (part.role === 'cushion' || part.role === 'metal') continue;
     // Thickness: the top from 1-1/4"; anything thicker than A&M's thickest is glued up in layers
     const want = part.role === 'top' || part.role === 'breadboard' || part.role === 'leaf' ? Math.max(1.25, part.thick) : part.thick;
     const thick = thicks.find((x) => x >= want - 1e-6 && x <= 1.625) ?? thicks.filter((x) => x <= 1.625).pop();
