@@ -60,8 +60,11 @@ function beadEdge(style: DoorStyle, S: number, T: number): Pt[] {
   }
 }
 
-/** The door style sheet's drawings: the section full size on the left, the door on the right. */
-export function doorProfileViews(p: Project, section: Frame, front: Frame): { svg: string; notes: string[] } | null {
+/**
+ * The door style sheet's drawings: the section full size on the left, the door on the right. With no
+ * section frame (the door maker's own bead drawing is on the sheet instead), just the door.
+ */
+export function doorProfileViews(p: Project, section: Frame | null, front: Frame): { svg: string; notes: string[] } | null {
   const s = eff({ overrides: undefined } as never, p.settings);
   const style = styleById(s.doorStyleId);
   if (style.profile === 'slab') return null;
@@ -71,7 +74,7 @@ export function doorProfileViews(p: Project, section: Frame, front: Frame): { sv
   const raised = !!panel?.raised, flatFront = !!panel?.flatFront;
   const W = S + 2.25;
   // Full size: a 2-1/4" stile and its panel take about 4-1/2" of paper
-  const v = new View(section, { x0: -0.5, y0: -0.5, x1: W + 0.3, y1: T + 0.6 }, 12);
+  const v = new View(section ?? { x: 0, y: 0, w: 1, h: 1 }, { x0: -0.5, y0: -0.5, x1: W + 0.3, y1: T + 0.6 }, 12);
   // The stile, outside edge eased
   const edge = beadEdge(style, S, T);
   const e = 1 / 16;
@@ -105,7 +108,7 @@ export function doorProfileViews(p: Project, section: Frame, front: Frame): { sv
     panel ? `Center panel: ${panel.code}, ${panel.name}` : '',
     `Outside edge: ${edgeText(s.outsideEdge)}`,
     `Framing bead ${beadOf(style).w ? `${fmtIn(beadOf(style).w)} wide, ` : ''}panel ${fmtIn(beadOf(style).recess)} below the frame face (from the door maker’s profile drawing)`,
-    'Section drawn full size; the sample door is the final word.',
+    section ? 'Section drawn full size; the sample door is the final word.' : 'The sample door is the final word.',
   ].filter(Boolean);
-  return { svg: v.svg() + fv.svg(), notes };
+  return { svg: (section ? v.svg() : '') + fv.svg(), notes };
 }

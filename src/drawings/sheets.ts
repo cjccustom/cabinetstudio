@@ -252,19 +252,23 @@ function customerSheets(p: Project, s: DrawingSettings): Sheet[] {
   });
   sheets.push(...detailSheets(p, s, placed));
   if (doorStyle) {
-    const dv = inView('door-profile', 'Door style', () => doorProfileViews(p, { x: A.x, y: A.y, w: A.w * 0.5, h: A.h * 0.62 }, { x: A.x + A.w * 0.5, y: A.y, w: A.w * 0.24, h: A.h * 0.62 }));
+    // The door maker's drawings of the bead and panel (not the outside edge: a picture of an eased edge shows nothing)
+    const dd = doorDrawings(p.settings).filter((d) => d.what !== 'Outside edge');
+    // With their framing bead drawing on the sheet, our own drawn section of it goes; the door moves to the left
+    const ownSection = !dd.some((d) => d.what === 'Framing bead');
+    const doorF = ownSection ? { x: A.x + A.w * 0.5, y: A.y, w: A.w * 0.24, h: A.h * 0.62 } : { x: A.x, y: A.y, w: A.w * 0.74, h: A.h * 0.62 };
+    const dv = inView('door-profile', 'Door style', () => doorProfileViews(p, ownSection ? { x: A.x, y: A.y, w: A.w * 0.5, h: A.h * 0.62 } : null, doorF));
     if (dv) {
       const label = (x: number, w: number, t: string) => `<text x="${x + w / 2}" y="${A.y + A.h * 0.62 + 0.15}" font-size="0.11" font-weight="700" text-anchor="middle">${esc(t)}</text>`;
       const notes = html({ x: A.x + A.w * 0.76, y: A.y, w: A.w * 0.24, h: A.h }, `<h2>Door style</h2><ul>${dv.notes.map((n) => `<li>${esc(n)}</li>`).join('')}</ul>`, s.paper === 'tabloid' ? 0.11 : 0.09);
-      // The door maker's drawings of the bead, panel and edge, in a row underneath
-      const dd = doorDrawings(p.settings);
+      // The door maker's drawings in a row underneath
       const rowY = A.y + A.h * 0.7, rowH = A.h * 0.24, colW = (A.w * 0.74) / Math.max(1, dd.length);
       const pics = dd.map((d, i) => {
         const x = A.x + i * colW + 0.1;
         return `<image href="${d.src}" x="${x}" y="${rowY}" width="${colW - 0.2}" height="${rowH - 0.3}" preserveAspectRatio="xMidYMid meet"/>`
           + `<text x="${x + (colW - 0.2) / 2}" y="${rowY + rowH - 0.12}" font-size="0.1" font-weight="700" text-anchor="middle">${esc(d.what.toUpperCase())}${d.label ? `: ${esc(d.label)}` : ''}</text>`;
       }).join('');
-      sheets.push(sheet(p, s, doorNo, 'Door style', 'As noted', dv.svg + label(A.x, A.w * 0.5, 'FRAMING BEAD, SECTION (FULL SIZE)') + label(A.x + A.w * 0.5, A.w * 0.24, 'DOOR (1-1/2" = 1\'-0")') + pics + notes));
+      sheets.push(sheet(p, s, doorNo, 'Door style', 'As noted', dv.svg + (ownSection ? label(A.x, A.w * 0.5, 'FRAMING BEAD, SECTION (FULL SIZE)') : '') + label(doorF.x, doorF.w, 'DOOR (1-1/2" = 1\'-0")') + pics + notes));
     }
   }
   if (profiles.length) sheets.push(sheet(p, s, profNo, 'Moulding & beadboard profiles', 'As noted', profileViews(profiles, A)));

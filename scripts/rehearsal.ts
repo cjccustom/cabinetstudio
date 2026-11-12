@@ -167,7 +167,7 @@ async function portal() {
     const dp = await (await call('/p/' + tk)).text();
     check('design draft page: the draft, no price, nothing to sign', dp.includes('Your design draft') && dp.includes('no price yet') && !dp.includes('Your investment') && !dp.includes('Sign the agreement') && dp.includes('Master closet'));
     const dd = await (await call(`/p/${tk}/drawings`)).text();
-    check('design draft drawings: stamped DRAFT', dd.includes('class="draft-stamp"') && dd.includes('Draft for discussion'));
+    check('design draft drawings: a draft note at the top, no DRAFT stamp across the sheets', !dd.includes('class="draft-stamp"') && dd.includes('Draft for discussion'));
     const dprint = await (await call(`/p/${tk}/drawings?print`)).text();
     check('design draft print: banner, carried request taken out', dprint.includes('DRAFT for discussion') && !dprint.includes('CJC-DESIGN'));
     const sign = await call(`/p/${tk}/sign`, { method: 'POST', body: new URLSearchParams({ consent: 'on', agree: 'on', name: 'X', image: 'data:image/png;base64,iVBORw0KGgo=' }), redirect: 'manual' });
