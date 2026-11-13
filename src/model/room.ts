@@ -230,6 +230,8 @@ export function openingIssues(p: Project): Issue[] {
     const bottom = o.kind === 'window' ? o.sill - 1 : 0;
     for (const c of p.cabinets) {
       if (c.wall !== o.wall) continue;
+      // Built into a recess: an open gap in the wall with the cabinet set back into it, inside its edges
+      if (o.kind === 'open' && (c.wallInset ?? 0) < 0 && c.offset >= o.offset - 0.01 && c.offset + c.width <= o.offset + o.width + 0.01 && c.elevation + c.height <= o.sill + o.height + 0.01) continue;
       if (c.elevation >= top || c.elevation + c.height <= bottom) continue;
       const a = Math.max(c.offset, o.offset - r.side), b = Math.min(c.offset + c.width, o.offset + o.width + r.side);
       if (b - a > 0.0625) out.push({ cabinetId: c.id, message: `Runs into ${o.name}${b - a < r.side + 0.01 ? ' casing' : ''} by ${Math.round((b - a) * 16) / 16}"` });

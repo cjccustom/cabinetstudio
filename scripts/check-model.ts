@@ -689,6 +689,13 @@ eq('panel sticks out past frame', panelExtents(b21, s, { left: true, right: fals
   eq('room trim priced under its own group', priceQuote(room).groups.some((g) => g.group === 'room'), true);
   eq('window between the uppers over the sink is fine', openingIssues(room).length, 0);
   eq('wider window: its casing runs into the uppers', openingIssues({ ...room, openings: [{ ...win, offset: 50, width: 32 }] }).some((i) => i.message.includes('casing')), true);
+  {
+    // A recess: an open gap in the wall with cabinets set back into it is fine; one standing in front of it isn't
+    const gap = { ...win, kind: 'open' as const, name: 'Recess', offset: 0, width: 40, sill: 0, height: 98, trim: { flat: 0 } };
+    const inside = { ...room.cabinets[0], wall: win.wall, offset: 2, width: 30, elevation: 0, height: 90, depth: 12, wallInset: -12 };
+    eq('recess: cabinets set back into it are fine', openingIssues({ ...room, cabinets: [inside], openings: [gap] }).length, 0);
+    eq('recess: a cabinet in front of it still runs into it', openingIssues({ ...room, cabinets: [{ ...inside, wallInset: undefined }], openings: [gap] }).length, 1);
+  }
   const blocked = { ...room, openings: [{ ...win, sill: 30 }] };
   eq('window low enough to hit the counter run flags it', openingIssues(blocked).length > 0, true);
   eq('cabinets block the wall where they sit', blockedAlong(room, 'back', 0, 4).length >= 5, true);

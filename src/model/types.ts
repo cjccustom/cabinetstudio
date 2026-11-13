@@ -59,7 +59,7 @@ export interface Cabinet {
   offset: number;
   /** Height of the cabinet bottom off the floor. */
   elevation: number;
-  /** Distance the back of the cabinet stands off its wall (0 = against it). */
+  /** Distance the back of the cabinet stands off its wall (0 = against it); negative = set back into a recess (an open gap in the wall). */
   wallInset?: number;
   /**
    * Freestanding island (a closet island): stands off the wall by wallInset, back finished with a
