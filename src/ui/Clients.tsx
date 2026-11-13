@@ -120,14 +120,19 @@ async function openFolder(f: DbxEntry, stage: StageId) {
   });
 }
 
-/** Start a new client: a fresh job and their folder in To quote. */
+/**
+ * Start a new client: their folder in To quote. A design open now that isn't in anyone's folder yet
+ * (drawn before the client was set up, or sent to the inbox) goes into the new folder with them.
+ */
 async function newClient(c: ClientInfo) {
   const st = useStore.getState();
+  const keep = !st.project.dropbox && (st.project.cabinets.length > 0 || (st.project.rooms ?? []).length > 0);
   if (st.project.dropbox && !(await saveBeforeLeaving())) return;
-  else if (st.project.cabinets.length && !(await askConfirm('The design open now isn’t linked to a client. Start a new client anyway?', 'Start new client'))) return;
+  if (keep && !(await askConfirm(`The design open now (${st.project.name || 'not named'}) isn’t in Dropbox yet. It goes into ${folderName(c)}’s new folder. To start this client with a blank design instead, click New (top right) first.`, 'Create folder with this design'))) return;
   await run('Creating the client folder…', async () => {
     const folder = await createClientFolder('quote', folderName(c));
-    const p: Project = { ...normalize({ ...sampleProject(), cabinets: [] }), name: folderName(c), client: { ...c, metOn: c.metOn || new Date().toLocaleDateString('en-US') }, dropbox: { id: folder.id, path: folder.path, stage: 'quote' } };
+    const from = keep ? useStore.getState().project : normalize({ ...sampleProject(), cabinets: [] });
+    const p: Project = { ...from, name: folderName(c), client: { ...clientOf(from), ...c, metOn: c.metOn || clientOf(from).metOn || new Date().toLocaleDateString('en-US') }, dropbox: { id: folder.id, path: folder.path, stage: 'quote' } };
     useStore.getState().loadProject(p);
     await writeFile(folder.path, INFO_FILE, clientInfoDoc(p));
     await writeFile(folder.path, DESIGN_FILE, JSON.stringify(p));
@@ -163,7 +168,7 @@ export function ClientsSide() {
     <aside className="sidebar">
       <div className="side-body">
         <Section title="Clients" aside={<button className="mini" onClick={refresh} disabled={!!busy}>Refresh</button>}>
-          <div className="order-actions"><button className="primary" onClick={() => { setDraft(emptyClient); setAdding(true); }}>New client</button></div>
+          <div className="order-actions"><button className="primary" onClick={() => { setDraft(project.dropbox ? emptyClient : { ...emptyClient, ...clientOf(project) }); setAdding(true); }}>New client</button></div>
           {adding && (
             <form className="new-client" onSubmit={(e) => { e.preventDefault(); if (!draft.last.trim()) return; setAdding(false); newClient(draft); }}>
               <div className="grid2">
@@ -171,7 +176,7 @@ export function ClientsSide() {
                 <Field label="First name" htmlFor="nc-first"><input id="nc-first" value={draft.first} onChange={(e) => setDraft({ ...draft, first: e.target.value })} /></Field>
               </div>
               <Field label="Town" htmlFor="nc-loc"><input id="nc-loc" value={draft.location} placeholder="West Boylston" onChange={(e) => setDraft({ ...draft, location: e.target.value })} /></Field>
-              <p className="hint">Folder: {JOBS_ROOT}/To quote/<b>{folderName(draft) || '…'}</b></p>
+              <p className="hint">Folder: {JOBS_ROOT}/To quote/<b>{folderName(draft) || '…'}</b>{!project.dropbox && (project.cabinets.length > 0 || (project.rooms ?? []).length > 0) ? ` The design open now (${project.name || 'not named'}) goes in it.` : ''}</p>
               <div className="order-actions"><button type="button" onClick={() => setAdding(false)}>Cancel</button><button className="primary" disabled={!draft.last.trim()}>Create folder</button></div>
             </form>
           )}
@@ -257,7 +262,7 @@ export function ClientMain() {
         <header className="client-head">
           <div>
             <h2>{clientName(c) || 'New client'}</h2>
-            <p className="muted">{link ? link.path : 'Not in Dropbox yet: use New client, or open a folder from the list.'}</p>
+            <p className="muted">{link ? link.path : 'Not saved to Dropbox yet. To give it a client folder, click New client on the left: this design goes into the new folder.'}</p>
           </div>
           <SaveButton />
         </header>
