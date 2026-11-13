@@ -91,16 +91,46 @@ async function saveBeforeLeaving(): Promise<boolean> {
   return false;
 }
 
+/** A design with something in it: cabinets, or other rooms. */
+const hasWork = (p: Project) => p.cabinets.length > 0 || (p.rooms ?? []).length > 0;
+
+/**
+ * Put the design open now (not in anyone's folder yet: drawn before the client was set up, or sent to
+ * the inbox) into a client's existing folder. The folder's client details fill in what the design
+ * lacks, so saving keeps the folder's name. Asks first if the folder's own design has cabinets.
+ */
+async function bringIntoFolder(f: DbxEntry, stage: StageId): Promise<boolean> {
+  const cur = useStore.getState().project;
+  const text = await run(`Reading ${f.name}…`, () => readFile(`${f.path}/${DESIGN_FILE}`));
+  if (text === undefined) return false;
+  let there: Project | null = null;
+  try { there = text ? normalize(JSON.parse(text) as Project) : null; } catch { there = null; }
+  if (there && hasWork(there) && !(await askConfirm(`${f.name} already has a design with ${there.cabinets.length} cabinets. Replace it with the design open now? (Dropbox keeps the old version in its file history.)`, 'Replace it'))) return false;
+  const fromFolder = there ? clientOf(there) : { ...emptyClient, ...parseFolderName(f.name) };
+  const mine = clientOf(cur);
+  // The folder's details, with anything filled in on the open design on top (blanks don't wipe them)
+  const client = { ...fromFolder, ...Object.fromEntries(Object.entries(mine).filter(([, v]) => (Array.isArray(v) ? v.length : v !== '' && v != null))) } as ClientInfo;
+  const p: Project = { ...cur, name: cur.name || f.name, client, dropbox: { id: f.id, path: f.path, stage } };
+  useStore.getState().loadProject(p);
+  const ok = await saveToDropbox();
+  if (ok) useDbx.getState().set({ note: `The design is now in ${f.name} and saved there.` });
+  return ok;
+}
+
 /** Open a client folder: its saved design if there is one, else a new job for that client. */
 async function openFolder(f: DbxEntry, stage: StageId) {
   const st = useStore.getState();
   const cur = st.project;
   const same = cur.dropbox?.id === f.id;
+  // A design that isn't in anyone's folder yet: offer to put it in this one
+  if (!cur.dropbox && hasWork(cur)) {
+    if (await askConfirm(`The design open now (${cur.name || 'not named'}) isn’t in Dropbox yet. Put it in ${f.name}?`, 'Put it in this folder')) { await bringIntoFolder(f, stage); return; }
+    if (!(await askConfirm(`Open ${f.name} instead? The design open now closes without being saved. (Use Project file first if you want to keep a copy.)`, 'Open client'))) return;
+  }
   if (same) {
     // Clicking the open client reloads its saved design (after asking, if there are unsaved changes)
     if (sig(cur) !== useDbx.getState().savedSig && !(await askConfirm(`Reload ${f.name} from Dropbox? Changes since it was last saved will be lost.`, 'Reload'))) return;
   } else if (cur.dropbox && !(await saveBeforeLeaving())) return;
-  else if (cur.cabinets.length && !(await askConfirm('The design open now isn’t linked to a client. Open this client anyway? (Use Project file first if you want to keep it.)', 'Open client'))) return;
   await run(`Opening ${f.name}…`, async () => {
     const text = await readFile(`${f.path}/${DESIGN_FILE}`);
     let p: Project;
@@ -129,6 +159,13 @@ async function newClient(c: ClientInfo) {
   const keep = !st.project.dropbox && (st.project.cabinets.length > 0 || (st.project.rooms ?? []).length > 0);
   if (st.project.dropbox && !(await saveBeforeLeaving())) return;
   if (keep && !(await askConfirm(`The design open now (${st.project.name || 'not named'}) isn’t in Dropbox yet. It goes into ${folderName(c)}’s new folder. To start this client with a blank design instead, click New (top right) first.`, 'Create folder with this design'))) return;
+  // A folder of that name already in To quote: offer it instead of failing
+  const existing = (useDbx.getState().folders?.quote ?? []).find((f) => f.name.toLowerCase() === folderName(c).toLowerCase());
+  if (existing) {
+    if (keep) await bringIntoFolder(existing, 'quote');
+    else useDbx.getState().set({ error: `${existing.name} is already in To quote. Click it in the list to open it.` });
+    return;
+  }
   await run('Creating the client folder…', async () => {
     const folder = await createClientFolder('quote', folderName(c));
     const from = keep ? useStore.getState().project : normalize({ ...sampleProject(), cabinets: [] });
@@ -262,7 +299,7 @@ export function ClientMain() {
         <header className="client-head">
           <div>
             <h2>{clientName(c) || 'New client'}</h2>
-            <p className="muted">{link ? link.path : 'Not saved to Dropbox yet. To give it a client folder, click New client on the left: this design goes into the new folder.'}</p>
+            <p className="muted">{link ? link.path : 'Not saved to Dropbox yet. If the client already has a folder, click it in the list on the left to put this design in it; otherwise click New client.'}</p>
           </div>
           <SaveButton />
         </header>
