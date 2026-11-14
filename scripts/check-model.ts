@@ -879,7 +879,7 @@ eq('panel sticks out past frame', panelExtents(b21, s, { left: true, right: fals
   eq('customer set: the door style sheet', cust[cust.length - 1].title, 'Door style');
   eq('elevation dimensions the wall', cust[2].svg.includes(`${p.room.width}"`), true);
   const shop = shopSet(p, d);
-  eq('shop set: a sheet per wall, then drawings + parts per cabinet built alike', shop.length, walls + 2 * shopGroups(p).length);
+  eq('shop set: a sheet per wall, then drawings, parts and assembly per cabinet built alike', shop.length, walls + 3 * shopGroups(p).length);
   eq('cabinet drawing: face frame and side layout', shop[walls].svg.includes('FACE FRAME') && shop[walls].svg.includes('LEFT SIDE, INSIDE FACE'), true);
   eq('cabinet parts sheet lists its parts and the order of work', shop[walls + 1].svg.includes('Bottom') && shop[walls + 1].svg.includes('Order of work'), true);
   const doc = setDocument('Test', cust, 'letter');
@@ -2411,6 +2411,10 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   eq('packet: sheets numbered in order', sheets.every((x, i) => x.number === `S${i + 1}`), true);
   const doc = shopPacketDocument(p);
   eq('packet: labels ride along at the back on letter pages', doc.includes('class="lb-page"') && doc.includes('@page labels'), true);
+  eq('packet: a job materials sheet and a 3D assembly sheet per cabinet group', titles.includes('Job materials') && titles.some((t) => / assembly$/.test(t) && !t.includes('wall') && !t.includes('face frame')), true);
+  const d = designParts(p, p.cutlist ?? defaultCutlist(p));
+  eq('part numbers: every case part carries cabinet-line ("B1-1")', d.filter((x) => x.material.endsWith('plywood')).every((x) => /^[A-Z]+\d+-\d+$/.test(x.pid ?? '')), true);
+  eq('part numbers: on the labels', shopPacketDocument(p).includes(`class="id">${d[0].pid}<`), true);
 }
 
 // Case pieces: nightstand, dresser and friends: rows on the face, fronts, base, priced as furniture

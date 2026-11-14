@@ -11,6 +11,7 @@ import { clientName, clientOf, COMPANY } from '../model/client';
 import { eff } from '../model/parts';
 import { doorProfileViews } from './doorProfile';
 import { profileItems, profileViews } from './profileSheet';
+import { assemblyView } from './assembly';
 import { styleById } from '../model/eagle';
 import { baseLabel } from '../model/cabinetBase';
 import { fmt } from '../units';
@@ -460,7 +461,7 @@ interface TRow { html: string; text: string[]; }
 function rowInches(r: TRow, w: number, fs: number): number {
   // Share of the table's width each column tends to get: notes take the most; a char is about half the font size wide
   const per = (share: number) => Math.max(4, (share * w) / (fs * 0.5));
-  const shares = r.text.length >= 6 ? [0.05, 0.15, 0.07, 0.07, 0.06, 0.12, 0.48] : [0.06, 0.2, 0.25, 0.49];
+  const shares = r.text.length >= 8 ? [0.03, 0.05, 0.15, 0.07, 0.07, 0.06, 0.12, 0.45] : r.text.length >= 6 ? [0.05, 0.15, 0.07, 0.07, 0.06, 0.12, 0.48] : [0.06, 0.2, 0.25, 0.49];
   const lines = Math.max(1, ...r.text.map((t, i) => Math.ceil(t.length / per(shares[Math.min(i, shares.length - 1)]))));
   return lines * fs * 1.3 + fs * 0.35;
 }
@@ -484,9 +485,9 @@ function partsTablePages(p: Project, c: Cabinet, make: number, w: number, fs: nu
   const site = rows.filter((r) => !r.part.cut && r.part.role !== 'counter' && !r.part.order);
   const q = (n: number) => (make > 1 ? `${n} <span class="small">(${n * make})</span>` : `${n}`);
   const size = (part: Part) => { const o = part.order; return o ? `${fmt(o.w)} W × ${fmt(o.h)} H${o.d ? ` × ${fmt(o.d)} D` : ''}` : `${fmt(part.length)} × ${fmt(part.width)}`; };
-  const cutRows: TRow[] = cut.map((r) => ({ html: `<tr><td>${q(r.qty)}</td><td>${esc(r.part.name)}</td><td>${fmt(r.part.length)}</td><td>${fmt(r.part.width)}</td><td>${fmt(r.part.thickness)}</td><td>${esc(materialName(p, r.part))}</td><td>${esc(r.part.note ?? '')}</td></tr>`, text: ['', r.part.name, '', '', '', materialName(p, r.part), r.part.note ?? ''] }));
-  const lead = make > 1 ? `<p class="small">Quantities are for one; (all ${make}) in brackets.</p>` : '';
-  const pages = pageTable('<tr><th>Qty</th><th>Part</th><th>Length</th><th>Width</th><th>Thick</th><th>Material</th><th>Notes</th></tr>', cutRows, w, fs, first - (lead ? fs * 1.5 : 0), rest);
+  const cutRows: TRow[] = cut.map((r, i) => ({ html: `<tr><td><b>${i + 1}</b></td><td>${q(r.qty)}</td><td>${esc(r.part.name)}</td><td>${fmt(r.part.length)}</td><td>${fmt(r.part.width)}</td><td>${fmt(r.part.thickness)}</td><td>${esc(materialName(p, r.part))}</td><td>${esc(r.part.note ?? '')}</td></tr>`, text: ['', '', r.part.name, '', '', '', materialName(p, r.part), r.part.note ?? ''] }));
+  const lead = `<p class="small"># is the part number: on the cut diagrams and labels it reads ${esc(c.name)}-1, ${esc(c.name)}-2…${make > 1 ? ' (each cabinet’s own name)' : ''}.${make > 1 ? ` Quantities are for one; (all ${make}) in brackets.` : ''}</p>`;
+  const pages = pageTable('<tr><th>#</th><th>Qty</th><th>Part</th><th>Length</th><th>Width</th><th>Thick</th><th>Material</th><th>Notes</th></tr>', cutRows, w, fs, first - (lead ? fs * 1.5 : 0), rest);
   pages[0] = lead + pages[0];
   if (bought.length) {
     const ordered = `<h3>Ordered (Eagle)</h3><table class="parts"><thead><tr><th>Qty</th><th>Item</th><th>Size</th><th>Spec</th></tr></thead><tbody>${bought.map((r) => `<tr><td>${q(r.qty)}</td><td>${esc(r.part.name)}</td><td>${size(r.part)}</td><td>${esc(r.part.order?.spec ?? r.part.note ?? '')}</td></tr>`).join('')}</tbody></table>`;
@@ -540,7 +541,7 @@ function moldingsTable(p: Project, c: Cabinet, make = 1): { html: string; rows: 
     const pr = profileByNum(x.num);
     return `<tr><td>${q(n)}</td><td>${esc(x.label ?? moldLabel[x.kind] ?? x.kind)}</td><td>${esc(pr ? profileLabel(pr) : x.num)}</td><td>${fmt(x.length)}</td><td>${esc(where(x))}</td><td>${esc(ends(x))}</td></tr>`;
   }).join('');
-  return { rows: rows.size, html: `<h3>Mouldings</h3><p class="small">Cut lengths. Miters are 45°; an outside miter's length is on the moulding's face, an inside miter's on its back.</p><table class="parts"><thead><tr><th>Qty</th><th>Moulding</th><th>Profile</th><th>Length</th><th>Where</th><th>Ends</th></tr></thead><tbody>${body}</tbody></table>` };
+  return { rows: rows.size, html: `<h3>Mouldings</h3><p class="small">Cut lengths. Miters are 45°; an outside miter's length is on the moulding's face, an inside miter's on its back.</p><table class="parts molds"><thead><tr><th>Qty</th><th>Moulding</th><th>Profile</th><th>Length</th><th>Where</th><th>Ends</th></tr></thead><tbody>${body}</tbody></table>` };
 }
 
 /** How much room a page's rows leave (rough, the same estimate as pageTable). */
@@ -627,6 +628,14 @@ function shopSheets(p: Project, s: DrawingSettings): Sheet[] {
     sheets.push(sheet(p, s, num(), `${names} parts & assembly`, 'No scale', table + work));
     pages.slice(1).forEach((pg, i) => sheets.push(sheet(p, s, num(), `${names} parts (continued)`, 'No scale',
       html({ x: A.x, y: A.y, w: A.w * 0.66, h: A.h }, `<h2>${esc(names)}: parts, continued (${i + 2} of ${pages.length})</h2>${pg}`, tfs))));
+    // The assembly view: the case pulled apart in 3D, every part ballooned with its parts-list number
+    const av = assemblyView(p, c, { x: A.x, y: A.y + 0.2, w: A.w * 0.64, h: A.h - 0.3 });
+    if (av.svg) {
+      const key = `<h2>${esc(names)}: assembly</h2>${same.length > 1 ? `<p class="big">Make ${same.length}</p>` : ''}<p>Pulled apart to show every part; the red numbers are the parts list numbers (and the labels: ${esc(c.name)}-1, -2…). Sides out, top up, back behind, the face frame and doors in front.</p>
+        <table class="parts"><thead><tr><th>#</th><th>Part</th><th>Qty</th></tr></thead><tbody>${av.legend.map((l) => `<tr><td><b>${l.n}</b></td><td>${esc(l.name)}</td><td>${l.qty}</td></tr>`).join('')}</tbody></table>
+        <h3>Order of work</h3><ol>${steps.map((t) => `<li>${esc(t)}</li>`).join('')}</ol>`;
+      sheets.push(sheet(p, s, num(), `${names} assembly`, 'No scale', av.svg + html({ x: A.x + A.w * 0.66, y: A.y, w: A.w * 0.34, h: A.h }, key, ts)));
+    }
   }
   if (cofferOf(p).on) {
     const top = A.h * 0.58;
@@ -671,7 +680,8 @@ export const sheetCss = drawingCss + `
 .dwg .fo td,.dwg .fo th{border:.6px solid #999;padding:.15em .35em;text-align:left;vertical-align:top}
 .dwg .fo th{background:#efede8}
 .dwg .fo table.idx td{border:0;padding:.1em .6em .1em 0}
-.dwg .fo table.parts td:nth-child(1),.dwg .fo table.parts td:nth-child(3),.dwg .fo table.parts td:nth-child(4),.dwg .fo table.parts td:nth-child(5){white-space:nowrap}
+.dwg .fo table.parts td:nth-child(1),.dwg .fo table.parts td:nth-child(2),.dwg .fo table.parts td:nth-child(3),.dwg .fo table.parts td:nth-child(4),.dwg .fo table.parts td:nth-child(5),.dwg .fo table.parts td:nth-child(6){white-space:nowrap}
+.dwg .fo table.molds td:nth-child(5),.dwg .fo table.molds td:nth-child(6){white-space:normal}
 `;
 
 /** A whole set as one printable HTML document, one sheet per page. */

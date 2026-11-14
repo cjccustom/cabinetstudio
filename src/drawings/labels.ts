@@ -22,6 +22,8 @@ export interface PartLabel {
   sheets: number;
   /** The number on the layout diagram. */
   n: number;
+  /** Part number on the drawings: cabinet and parts-list line, "T1-3". */
+  pid?: string;
 }
 
 /** Every placed part, sheet by sheet in the order the layouts show them. */
@@ -33,7 +35,7 @@ export function partLabels(results: MaterialResult[], job: string): PartLabel[] 
         const d = p.part as Partial<DesignPart> & typeof p.part;
         out.push({
           seq: out.length + 1, job, material: m.material, sheet: i + 1, sheets: m.sheets.length, n: p.n,
-          cabinet: d.cabinet ?? '', part: d.name ?? d.label, note: d.note,
+          cabinet: d.cabinet ?? '', part: d.name ?? d.label, note: d.note, pid: (d as { pid?: string }).pid,
           length: p.part.length, width: p.part.width, grain: p.part.grain, band: p.part.band,
         });
       }
@@ -52,15 +54,31 @@ export type LabelFormat = keyof typeof labelFormats;
 
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
 
+/**
+ * The part in miniature, its long side across: a thick line on each banded edge (the front edge
+ * first, then the back), and an arrow along the grain. How CNC programs' labels show banding and grain.
+ */
+function partSketch(l: PartLabel, w: number, h: number): string {
+  const r = Math.min(1, (l.width / l.length) * 2.2);
+  const pw = w - 0.08, ph = Math.max(0.12, Math.min(h - 0.08, (h - 0.08) * r));
+  const x0 = 0.04, y0 = (h - ph) / 2;
+  const band = (y: number) => `<line x1="${x0}" y1="${y}" x2="${x0 + pw}" y2="${y}" stroke="#000" stroke-width="0.05"/>`;
+  return `<svg class="sk" viewBox="0 0 ${w} ${h}" width="${w}in" height="${h}in" xmlns="http://www.w3.org/2000/svg">
+    <rect x="${x0}" y="${y0}" width="${pw}" height="${ph}" fill="none" stroke="#000" stroke-width="0.012"/>
+    ${l.band >= 1 ? band(y0 + ph) : ''}${l.band >= 2 ? band(y0) : ''}
+    ${l.grain ? `<path d="M${x0 + pw * 0.2} ${y0 + ph / 2} H${x0 + pw * 0.8} M${x0 + pw * 0.8 - 0.07} ${y0 + ph / 2 - 0.05} L${x0 + pw * 0.8} ${y0 + ph / 2} L${x0 + pw * 0.8 - 0.07} ${y0 + ph / 2 + 0.05}" fill="none" stroke="#000" stroke-width="0.012"/>` : ''}
+  </svg>`;
+}
+
 function labelBody(l: PartLabel, small: boolean): string {
   const size = `${fmt(l.length)} × ${fmt(l.width)}`;
   const grain = l.grain ? '<span class="grain" title="Grain runs with the first number">↔ grain</span>' : '';
   const band = l.band ? `<span class="band">Band ${l.band === 1 ? 'front edge' : `${l.band} long edges`}</span>` : '';
   const where = `Sheet ${l.sheet}/${l.sheets} · #${l.n}`;
   if (small) {
-    return `<div class="t">${esc(l.cabinet)} ${esc(l.part)}</div><div class="s">${size} ${grain}</div><div class="f">${where} · ${esc(l.job)}</div>`;
+    return `<div class="t"><b>${esc(l.pid ?? l.cabinet)}</b> ${esc(l.part)}</div><div class="s">${size} ${grain}</div><div class="f">${where} · ${esc(l.job)}</div>`;
   }
-  return `<div class="t"><b>${esc(l.cabinet)}</b> ${esc(l.part)}</div>`
+  return `<div class="hd"><div><div class="id">${esc(l.pid ?? `${l.cabinet}`)}</div><div class="t">${esc(l.part)}</div></div>${partSketch(l, 1.05, 0.55)}</div>`
     + (l.note ? `<div class="n">${esc(l.note)}</div>` : '')
     + `<div class="s">${size} ${grain} ${band}</div>`
     + `<div class="f"><span>${esc(l.material)}</span><span>${where}</span></div>`
@@ -101,6 +119,9 @@ export function labelPages(labels: PartLabel[], format: LabelFormat, start = 0):
 .lb-lab .f, .lb-lab .j { font-size: 0.8em; display: flex; justify-content: space-between; gap: 0.5em; white-space: nowrap }
 .lb-lab .j { margin-top: auto; color: #444 }
 .lb-lab .seq { font-family: ui-monospace, Menlo, monospace }
+.lb-lab .hd { display: flex; justify-content: space-between; align-items: flex-start; gap: 0.08in }
+.lb-lab .id { font-size: 1.9em; font-weight: 800; line-height: 1 }
+.lb-lab .sk { flex: none }
 @media screen { .lb-page { margin: 0.25in auto; box-shadow: 0 1px 6px rgba(0,0,0,.4) } .lb-lab { outline: 1px dashed #bbb } }
 @media print { .lb-page { margin: 0; box-shadow: none } }`;
   return { css, body: pages.join('') };

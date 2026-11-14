@@ -1,7 +1,7 @@
 import { jobRooms } from './rooms';
 import { eff } from './parts';
 import type { MaterialKey, PartRole, Project } from './types';
-import { buildParts } from './parts';
+import { buildParts, partNumbers, partRowKey } from './parts';
 import { resolveEnds } from './layout';
 import type { CutPart, OptimizerOptions, Stock } from './optimizer';
 import { uid } from './defaults';
@@ -89,7 +89,7 @@ export function defaultCutlist(p: Project): CutlistData {
   };
 }
 
-export interface DesignPart extends CutPart { cabinet: string; name: string; note?: string }
+export interface DesignPart extends CutPart { cabinet: string; name: string; note?: string; /** Part number on the drawings and labels: cabinet and line, "T1-3". */ pid?: string }
 
 /** Every sheet-goods part in the design, one row per physical piece. */
 export function designParts(p: Project, data: CutlistData): DesignPart[] {
@@ -103,7 +103,9 @@ function roomParts(p: Project, data: CutlistData): DesignPart[] {
   const out: DesignPart[] = [];
   for (const c of p.cabinets) {
     const counts = new Map<string, number>();
-    for (const part of buildParts(c, p.settings, resolveEnds(p.room, p.cabinets, c))) {
+    const built = buildParts(c, p.settings, resolveEnds(p.room, p.cabinets, c));
+    const nums = partNumbers(built);
+    for (const part of built) {
       if (!part.cut) continue;
       const material = part.sheet ?? sheetMaterial(part.material, p, part.name, eff(c, p.settings));
       if (!material) continue;
@@ -115,6 +117,7 @@ function roomParts(p: Project, data: CutlistData): DesignPart[] {
         cabinet: c.name,
         name: part.name,
         note: part.note,
+        pid: nums.has(partRowKey(part)) ? `${c.name}-${nums.get(partRowKey(part))}` : undefined,
         label: `${c.name} ${part.name}`,
         material,
         length: part.length,

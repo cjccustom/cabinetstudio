@@ -1149,3 +1149,15 @@ export function topPart(c: Cabinet, s: ShopSettings, W: number, frontFace: numbe
         boxes: [vb(-left, c.height, -back, len, t, depth)],
       };
 }
+
+/**
+ * Part numbers within a cabinet: one per line of its parts list (parts alike share a line), in the
+ * list's order, counting only parts the shop cuts. The same number goes on the parts list, the cut
+ * diagrams and the part labels ("T1-3"), the way CNC cabinet programs tie a part to its paperwork.
+ */
+export const partRowKey = (part: Part) => [part.name, part.length, part.width, part.thickness, part.material, part.note ?? ''].join('|');
+export function partNumbers(parts: Part[]): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const part of parts) if (part.cut && !out.has(partRowKey(part))) out.set(partRowKey(part), out.size + 1);
+  return out;
+}

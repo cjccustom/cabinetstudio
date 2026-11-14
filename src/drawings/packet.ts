@@ -13,6 +13,8 @@ import { drawingsOf, packetSheet, pageTable, sheetArea, sheetCss, sheetEsc as es
 import { faceFrameView, partRows, partsOf } from './views';
 import { inView, scaleName, type Frame } from './draw';
 import { eff } from '../model/parts';
+import { moldingOrder, moldLabel, profileLabel } from '../model/moldings';
+import { hardwareOrder } from '../model/hardware';
 
 const num = (sheets: Sheet[]) => `S${sheets.length + 1}`;
 
@@ -31,7 +33,10 @@ function layoutSvg(sh: SheetLayout, f: Frame): string {
     const cx = X(p.x + p.l / 2), cy = Y(p.y + p.w / 2);
     const small = Math.min(p.l, p.w) * k;
     const fs = Math.max(0.07, Math.min(0.16, small * 0.45));
-    out.push(`<text x="${cx}" y="${cy + fs * 0.35}" font-size="${fs}" font-weight="700" text-anchor="middle">${p.n}</text>`);
+    // The part number where it fits (T1-3), else the sheet's own count; both are in the table beside it
+    const pid = (p.part as { pid?: string }).pid;
+    const big = pid && p.l * k > fs * pid.length * 0.65 + 0.1;
+    out.push(`<text x="${cx}" y="${cy + fs * 0.35}" font-size="${fs}" font-weight="700" text-anchor="middle">${big ? esc(pid!) : p.n}</text>`);
     // Grain runs along the sheet's length unless the part was turned
     if (p.part.grain && p.l * k > 0.45 && p.w * k > 0.2) {
       const gy = Y(p.y + p.w) - 0.06;
@@ -57,11 +62,12 @@ function cutSheets(p: Project, s: DrawingSettings, sheets: Sheet[], results: Mat
         const d = pl.part as typeof pl.part & { cabinet?: string; name?: string; note?: string };
         const what = d.cabinet ? `<b>${esc(d.cabinet)}</b> ${esc(d.name ?? '')}` : esc(pl.part.label);
         const extra = [pl.part.grain ? 'grain' : '', pl.part.band ? `band ${pl.part.band === 1 ? 'front edge' : 'both long edges'}` : '', pl.rotated ? 'turned' : ''].filter(Boolean).join(', ');
-        return `<tr><td>${pl.n}</td><td>${what}</td><td>${fmt(pl.part.length)} × ${fmt(pl.part.width)}</td><td>${esc(extra)}</td></tr>`;
+        const pid = (pl.part as { pid?: string }).pid;
+        return `<tr><td>${pl.n}</td><td><b>${esc(pid ?? '')}</b></td><td>${what}</td><td>${fmt(pl.part.length)} × ${fmt(pl.part.width)}</td><td>${esc(extra)}</td></tr>`;
       }).join('');
       const yieldPct = Math.round((100 * sh.usedArea) / (sh.stock.length * sh.stock.width));
       const head = `<h2>${esc(m.material)}: sheet ${i + 1} of ${m.sheets.length}</h2><p>${esc(sh.stock.label)}, ${fmt(sh.stock.length)} × ${fmt(sh.stock.width)}; ${sh.placed.length} parts, ${yieldPct}% used.</p>`;
-      const legend = html({ x: A.x + A.w * 0.64, y: A.y, w: A.w * 0.36, h: A.h }, `<h3>Parts on this sheet</h3><table class="parts"><thead><tr><th>#</th><th>Part</th><th>Length × width</th><th></th></tr></thead><tbody>${rows}</tbody></table>
+      const legend = html({ x: A.x + A.w * 0.64, y: A.y, w: A.w * 0.36, h: A.h }, `<h3>Parts on this sheet</h3><table class="parts"><thead><tr><th>#</th><th>Part no.</th><th>Part</th><th>Length × width</th><th></th></tr></thead><tbody>${rows}</tbody></table>
         <p class="small">Length is along the grain. Rip the full-length strips first, crosscut, then rip to width. Put each part’s label on it as it comes off the saw (labels at the back of this packet, numbered the same). Shaded areas are offcuts.</p>`, fs);
       out.push(packetSheet(p, s, num([...sheets, ...out]), `Cut diagram: ${m.material}, sheet ${i + 1}`, 'As shown', html({ x: A.x, y: A.y, w: A.w * 0.62, h: 0.45 }, head, fs) + layoutSvg(sh, draw) + legend));
     });
@@ -149,6 +155,63 @@ function ffAssemblySheets(p: Project, s: DrawingSettings, sheets: Sheet[]): Shee
   return out;
 }
 
+/* ---------- Job materials: everything to buy or order, in one place ---------- */
+
+function materialsSheet(p: Project, s: DrawingSettings, sheets: Sheet[], results: MaterialResult[]): Sheet {
+  const A = sheetArea(s.paper);
+  const fs = s.paper === 'tabloid' ? 0.085 : 0.07;
+  const data = p.cutlist ?? defaultCutlist(p);
+  const parts = optimizerParts(p, data);
+  // Sheet goods: sheets per material from the cut diagrams, how much of them the parts use
+  const sheetRows = results.map((m) => {
+    const used = m.sheets.reduce((t, sh) => t + sh.usedArea, 0), area = m.sheets.reduce((t, sh) => t + sh.stock.length * sh.stock.width, 0);
+    const kinds = [...new Set(m.sheets.map((sh) => `${sh.stock.label} ${fmt(sh.stock.length)} × ${fmt(sh.stock.width)}`))].join('; ');
+    return `<tr><td><b>${m.sheets.length}</b></td><td>${esc(m.material)}</td><td>${esc(kinds)}</td><td>${area ? Math.round((100 * used) / area) : 0}%${m.unplaced.length ? `; <b>${m.unplaced.length} parts don’t fit</b>` : ''}</td></tr>`;
+  }).join('');
+  // Edge banding: the banded edges of every part, by material, plus 10% for trimming
+  const band = new Map<string, number>();
+  for (const x of parts) if (x.band) band.set(x.material, (band.get(x.material) ?? 0) + x.band * x.length);
+  const bandRows = [...band.entries()].map(([m, inches]) => `<tr><td>${esc(m)}</td><td><b>${Math.ceil((inches * 1.1) / 12)} ft</b></td><td>${Math.ceil(inches / 12)} ft of edges, plus 10%</td></tr>`).join('');
+  // Solid stock, by species: what to buy from the face frame lists
+  const solid: string[] = [];
+  const main = ffStockOf(p);
+  const mainPieces = faceFramePieces(p);
+  if (mainPieces.length) { const r = faceFrameNeeds(mainPieces, main); solid.push(`<tr><td>${esc(main.species)}</td><td>${r.byLength.map((x) => `${x.count} @ ${fmt(x.length)}`).join(', ')}</td><td>${Math.ceil(r.buyBF)} BF</td></tr>`); }
+  for (const sp of otherSpecies(p)) {
+    const st = stockFor(p, sp), ps = faceFramePieces(p, sp);
+    if (!ps.length) continue;
+    const r = faceFrameNeeds(ps, st);
+    solid.push(`<tr><td>${esc(sp)}</td><td>${r.byLength.map((x) => `${x.count} @ ${fmt(x.length)}`).join(', ')}</td><td>${Math.ceil(r.buyBF)} BF</td></tr>`);
+  }
+  // Mouldings by profile
+  const molds = moldingOrder(p).map((l) => `<tr><td>${esc(profileLabel(l.profile))}</td><td>${esc([...new Set(l.kinds.map((k) => moldLabel[k]))].join(', '))}</td><td><b>${Math.ceil(l.feet)} ft</b></td><td>${esc(l.species)}</td></tr>`).join('');
+  // Ordered pieces (doors, drawer fronts, boxes, panels) across the job
+  const orders = new Map<string, { qty: number; item: string; size: string; spec: string; who: Set<string> }>();
+  for (const c of p.cabinets) for (const x of partsOf(p, c)) {
+    const o = x.order;
+    if (!o) continue;
+    const size = `${fmt(o.w)} W × ${fmt(o.h)} H${o.d ? ` × ${fmt(o.d)} D` : ''}`;
+    const key = [o.item, size, o.spec].join('|');
+    const r = orders.get(key) ?? { qty: 0, item: x.name, size, spec: o.spec ?? '', who: new Set<string>() };
+    r.qty++; r.who.add(c.name);
+    orders.set(key, r);
+  }
+  const orderRows = [...orders.values()].map((r) => `<tr><td><b>${r.qty}</b></td><td>${esc(r.item)}</td><td>${esc(r.size)}</td><td>${esc(r.spec)}</td><td>${esc([...r.who].join(', '))}</td></tr>`).join('');
+  // Hardware
+  const hw = hardwareOrder(p);
+  const why = (part: string) => (part === '71B3650' ? ' (Blum’s hinge for inset doors on a face frame, with the 175H5030.21 plate)' : '');
+  const hwRows = hw.lines.map((l) => `<tr><td><b>${l.qty}</b></td><td>${esc(l.part.part)}</td><td>${esc(l.part.description + why(l.part.part))}</td></tr>`).join('') + hw.problems.map((x) => `<tr><td></td><td colspan="2">${esc(x.text)}</td></tr>`).join('');
+  const table = (title: string, head: string, rows: string) => (rows ? `<h3>${title}</h3><table class="parts"><thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table>` : '');
+  const left = `<h2>Job materials</h2><p class="small">Everything to buy or order for ${esc(p.name)}, from the drawings, cut diagrams and lists in this packet.</p>`
+    + table('Sheet goods (from the cut diagrams)', '<th>Sheets</th><th>Material</th><th>Stock</th><th>Used</th>', sheetRows)
+    + table('Edge banding', '<th>Material</th><th>Buy</th><th></th>', bandRows)
+    + table('Solid stock (boards to buy, waste included)', '<th>Species</th><th>Boards</th><th>About</th>', solid.join(''))
+    + table('Mouldings (lineal feet, waste included)', '<th>Profile</th><th>Used as</th><th>Buy</th><th>Species</th>', molds);
+  const right = table('Ordered: doors, drawer fronts, boxes and panels', '<th>Qty</th><th>Item</th><th>Size</th><th>Spec</th><th>For</th>', orderRows)
+    + table('Hardware', '<th>Qty</th><th>Part</th><th>Description</th>', hwRows);
+  return packetSheet(p, s, num(sheets), 'Job materials', 'No scale', html({ x: A.x, y: A.y, w: A.w * 0.48, h: A.h }, left, fs) + html({ x: A.x + A.w * 0.5, y: A.y, w: A.w * 0.5, h: A.h }, right, fs));
+}
+
 /* ---------- The packet ---------- */
 
 /** Every sheet in the packet, numbered on from the shop set. */
@@ -159,6 +222,7 @@ export function packetSheets(p: Project, d = drawingsOf(p)): { sheets: Sheet[]; 
   sheets.push(...ffAssemblySheets(p, d, sheets));
   sheets.push(...cutSheets(p, d, sheets, results));
   sheets.push(...ffCutSheets(p, d, sheets));
+  sheets.push(materialsSheet(p, d, sheets, results));
   return { sheets, results };
 }
 
