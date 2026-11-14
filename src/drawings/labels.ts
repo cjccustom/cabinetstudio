@@ -68,10 +68,11 @@ function labelBody(l: PartLabel, small: boolean): string {
 }
 
 /**
- * A printable document: letter pages of labels, positioned to the inch. start skips that many
- * spots on the first sheet, for a sheet already partly used.
+ * Letter pages of labels, positioned to the inch, with their styles: classes prefixed lb- and the
+ * pages on a named letter page, so they can ride along in a document with other page sizes (the
+ * shop packet). start skips that many spots on the first sheet, for a sheet already partly used.
  */
-export function labelDocument(labels: PartLabel[], format: LabelFormat, title: string, start = 0): string {
+export function labelPages(labels: PartLabel[], format: LabelFormat, start = 0): { css: string; body: string } {
   const f = labelFormats[format];
   const per = f.cols * f.rows;
   const small = f.h < 1.5;
@@ -81,26 +82,37 @@ export function labelDocument(labels: PartLabel[], format: LabelFormat, title: s
     const cells = slots.slice(i, i + per).map((l, k) => {
       if (!l) return '';
       const x = f.left + (k % f.cols) * f.pitchX, y = f.top + Math.floor(k / f.cols) * f.pitchY;
-      return `<div class="lab" style="left:${x}in;top:${y}in;width:${f.w}in;height:${f.h}in">${labelBody(l, small)}</div>`;
+      return `<div class="lb-lab" style="left:${x}in;top:${y}in;width:${f.w}in;height:${f.h}in">${labelBody(l, small)}</div>`;
     }).join('');
-    pages.push(`<section class="page">${cells}</section>`);
+    pages.push(`<section class="lb-page">${cells}</section>`);
   }
   const fs = small ? 7.5 : f.h > 3 ? 12 : 10;
+  const css = `
+@page labels { size: letter; margin: 0 }
+.lb-page { page: labels; position: relative; width: 8.5in; height: 11in; overflow: hidden; background: #fff; color: #000; page-break-after: always; break-after: page; box-sizing: border-box;
+  font: ${fs}pt/1.2 -apple-system, "Helvetica Neue", Arial, sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact }
+.lb-page * { box-sizing: border-box }
+.lb-page:last-child { page-break-after: auto; break-after: auto }
+.lb-lab { position: absolute; padding: ${small ? '0.06in 0.12in' : '0.14in 0.2in'}; display: flex; flex-direction: column; gap: ${small ? 0 : '0.03in'}; overflow: hidden }
+.lb-lab .t { font-size: 1.35em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+.lb-lab .n { font-size: 0.85em; color: #333; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical }
+.lb-lab .s { font-size: 1.15em; font-weight: 600; display: flex; gap: 0.6em; align-items: baseline; flex-wrap: wrap }
+.lb-lab .grain, .lb-lab .band { font-size: 0.75em; font-weight: 400; border: 1px solid #000; border-radius: 3px; padding: 0 0.3em }
+.lb-lab .f, .lb-lab .j { font-size: 0.8em; display: flex; justify-content: space-between; gap: 0.5em; white-space: nowrap }
+.lb-lab .j { margin-top: auto; color: #444 }
+.lb-lab .seq { font-family: ui-monospace, Menlo, monospace }
+@media screen { .lb-page { margin: 0.25in auto; box-shadow: 0 1px 6px rgba(0,0,0,.4) } .lb-lab { outline: 1px dashed #bbb } }
+@media print { .lb-page { margin: 0; box-shadow: none } }`;
+  return { css, body: pages.join('') };
+}
+
+/** A printable document of labels on its own. */
+export function labelDocument(labels: PartLabel[], format: LabelFormat, title: string, start = 0): string {
+  const { css, body } = labelPages(labels, format, start);
   return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(title)}</title><style>
 @page { size: letter; margin: 0 }
-* { box-sizing: border-box }
-html, body { margin: 0; padding: 0; background: #fff; color: #000 }
-body { font: ${fs}pt/1.2 -apple-system, "Helvetica Neue", Arial, sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact }
-.page { position: relative; width: 8.5in; height: 11in; overflow: hidden; page-break-after: always; break-after: page }
-.page:last-child { page-break-after: auto; break-after: auto }
-.lab { position: absolute; padding: ${small ? '0.06in 0.12in' : '0.14in 0.2in'}; display: flex; flex-direction: column; gap: ${small ? 0 : '0.03in'}; overflow: hidden }
-.t { font-size: 1.35em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
-.n { font-size: 0.85em; color: #333; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical }
-.s { font-size: 1.15em; font-weight: 600; display: flex; gap: 0.6em; align-items: baseline; flex-wrap: wrap }
-.grain, .band { font-size: 0.75em; font-weight: 400; border: 1px solid #000; border-radius: 3px; padding: 0 0.3em }
-.f, .j { font-size: 0.8em; display: flex; justify-content: space-between; gap: 0.5em; white-space: nowrap }
-.j { margin-top: auto; color: #444 }
-.seq { font-family: ui-monospace, Menlo, monospace }
-@media screen { body { background: #888 } .page { background: #fff; margin: 0.25in auto; box-shadow: 0 1px 6px rgba(0,0,0,.4) } .lab { outline: 1px dashed #bbb } }
-</style></head><body>${pages.join('')}</body></html>`;
+html, body { margin: 0; padding: 0; background: #fff }
+@media screen { body { background: #888 } }
+${css}
+</style></head><body>${body}</body></html>`;
 }

@@ -80,10 +80,23 @@ export function cabinetCallouts(p: Project, c: Cabinet): Callout[] {
   if (c.kind === 'mantel') out.push(...mantelNotes(c));
   const fb = fasciaBacking(p, c);
   if (fb) out.push({ text: fb.short > 0.01 ? `Extend the top rail ${fmt(fb.short)} or more to back the coffer fascia` : `Top rail backs the coffer fascia (${fmt(fb.lap)} behind it); fascia ${fmt(cofferOf(p).fascia)} proud of the face frame`, for: 'shop' });
-  if (c.overrides && Object.keys(c.overrides).length) out.push({ text: `Built to its own construction settings (${Object.keys(c.overrides).length} changed)`, for: 'shop' });
+  if (c.overrides && Object.keys(c.overrides).length) {
+    // Say what's different, in the shop standard's own words, so the builder doesn't use the usual size
+    const said = Object.entries(c.overrides).map(([k, v]) => `${settingLabel[k] ?? k.replace(/([A-Z])/g, ' $1').toLowerCase()} ${typeof v === 'number' ? fmt(v) : String(v)}`);
+    out.push({ text: `Differs from the shop standard: ${said.join(', ')} (the parts list is already sized for it)`, for: 'shop' });
+  }
   for (const n of c.notes ?? []) if (n.text.trim()) out.push({ text: n.text.trim(), for: n.for });
   return out;
 }
+
+/** Shop standards in plain words, for notes on a cabinet built differently. */
+const settingLabel: Record<string, string> = {
+  boxThickness: 'case stock', boxActualThickness: 'case stock (actual)', dadoDepth: 'dado and rabbet depth', bottomReveal: 'bottom below the rail',
+  backThickness: 'back', backRabbetWidth: 'back rabbet width', stretcherWidth: 'stretcher width', ffOverhang: 'face frame overhang per side',
+  ffThickness: 'face frame thickness', stileWidth: 'stiles', topRailWidth: 'top rail', bottomRailWidth: 'bottom rail', midRailWidth: 'mid rails',
+  toeKickHeight: 'toe kick height', toeKickDepth: 'toe kick depth', shelfClearance: 'shelf clearance', shelfSetback: 'shelf setback',
+  counterThickness: 'counter thickness', counterOverhang: 'counter overhang', doorOverlay: 'door overlay', doorGap: 'door gap', insetReveal: 'inset reveal',
+};
 
 export const forAudience = (list: Callout[], a: Audience) => list.filter((n) => n.for === 'both' || n.for === a);
 

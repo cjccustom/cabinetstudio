@@ -12,6 +12,8 @@ import { Field, Section } from './fields';
 import { DetailsSection } from './DetailsSection';
 import { cofferOf } from '../model/coffer';
 import { wallNames, wallOrder } from '../model/layout';
+import { shopPacketDocument } from '../drawings/packet';
+import { labelFormats, type LabelFormat } from '../drawings/labels';
 
 type SetKind = 'customer' | 'shop';
 const useSetKind = create<{ kind: SetKind; set: (k: SetKind) => void }>((set) => ({ kind: 'customer', set: (kind) => set({ kind }) }));
@@ -51,6 +53,15 @@ async function exportDocument(kind: SetKind): Promise<{ name: string; html: stri
   return { name, html: asciiHtml(setDocument(name.replace(/\.html$/, ''), sheets, d.paper)) };
 }
 
+/** The full shop packet as a file: drawings, cut diagrams, face frame list and assembly, labels. */
+function exportPacket(labels: LabelFormat): { name: string; html: string } {
+  const p = useStore.getState().project;
+  const d = drawingsOf(p);
+  const who = clientName(clientOf(p)) || p.name;
+  const name = `${who} - Shop packet${d.rev ? ` - Rev ${d.rev}` : ''}.html`.replace(/[\\/:*?"<>|]/g, '');
+  return { name, html: asciiHtml(shopPacketDocument(p, { labels, title: name.replace(/\.html$/, '') })) };
+}
+
 /* ---------- Left: which set, paper, cover, and getting it out ---------- */
 
 export function DrawingsSide() {
@@ -61,11 +72,12 @@ export function DrawingsSide() {
   const r = renderOf(project);
   const quoteRendering = r.images.find((i) => i.id === r.quoteId) ?? r.images.filter((i) => i.kind === 'rendering').slice(-1)[0];
 
-  const download = async () => {
+  const [labelFmt, setLabelFmt] = useState<LabelFormat>('8163');
+  const download = async (packet = false) => {
     setBusy(true); setMsg('');
     try {
       const downloads = await capability<Downloads>('downloads');
-      const { name, html } = await exportDocument(kind);
+      const { name, html } = packet ? exportPacket(labelFmt) : await exportDocument(kind);
       if (downloads) await downloads.save({ filename: name, data: new Blob([html], { type: 'text/html' }) });
       else {
         const a = document.createElement('a');
@@ -78,11 +90,11 @@ export function DrawingsSide() {
       if (code !== 'declined' && code !== 'cancelled') setMsg('Couldn’t save the file.');
     } finally { setBusy(false); }
   };
-  const toDropbox = async () => {
+  const toDropbox = async (packet = false) => {
     if (!project.dropbox) return;
     setBusy(true); setMsg('');
     try {
-      const { name, html } = await exportDocument(kind);
+      const { name, html } = packet ? exportPacket(labelFmt) : await exportDocument(kind);
       await writeFile(project.dropbox.path, name, html);
       setMsg(`Saved to ${project.dropbox.path}/${name}`);
     } catch (e) { setMsg((e as Error).message); } finally { setBusy(false); }
@@ -155,9 +167,24 @@ export function DrawingsSide() {
 
         <Section title="Get the drawings">
           <div className="order-actions">
-            <button className="primary" disabled={busy} onClick={download}>Download</button>
-            <button disabled={busy || !project.dropbox} onClick={toDropbox} title={project.dropbox ? '' : 'Link this job to a client in the Clients tab first'}>Save to Dropbox</button>
+            <button className="primary" disabled={busy} onClick={() => download()}>Download</button>
+            <button disabled={busy || !project.dropbox} onClick={() => toDropbox()} title={project.dropbox ? '' : 'Link this job to a client in the Clients tab first'}>Save to Dropbox</button>
           </div>
+          {kind === 'shop' && (
+            <>
+              <h3>Full shop packet</h3>
+              <p className="hint">Everything to build it, in one file: these shop drawings, a face frame assembly sheet for each different face frame, the plywood cut diagrams (every part numbered), the face frame cut list (rip widths, boards, crosscuts), then the part labels numbered to match the cut diagrams.</p>
+              <Field label="Labels on" htmlFor="dw-labels">
+                <select id="dw-labels" value={labelFmt} onChange={(e) => setLabelFmt(e.target.value as LabelFormat)}>
+                  {(Object.keys(labelFormats) as LabelFormat[]).map((k) => <option key={k} value={k}>{labelFormats[k].name}</option>)}
+                </select>
+              </Field>
+              <div className="order-actions">
+                <button className="primary" disabled={busy} onClick={() => download(true)}>Download the packet</button>
+                <button disabled={busy || !project.dropbox} onClick={() => toDropbox(true)}>Save packet to Dropbox</button>
+              </div>
+            </>
+          )}
           {msg && <p className="hint" role="status">{msg}</p>}
           <p className="hint">To print: Download (or open the Dropbox copy), open the file in Safari or Chrome and print from there. Cabinet Studio can’t open the print window itself. Print at 100% (actual size) to {papers[d.paper].label} paper, or Save as PDF, and the scales on each sheet hold.</p>
         </Section>

@@ -20,6 +20,7 @@ import { asciiHtml } from "../src/dropbox";
 import { cabinetFixtures, lightingCost, lightingParts, electricianHtml, hafeleStandard, hafeleFit } from "../src/model/cabinetLighting";
 import { printQuote } from "../src/model/printQuote";
 import { jobCustomerSet, shopGroups } from "../src/drawings/sheets";
+import { packetSheets, shopPacketDocument } from "../src/drawings/packet";
 import { sidePanelLayout, wallElevation } from "../src/drawings/views";
 import { crc32, writeXlsx } from "../src/export/xlsx";
 import { pricingWorkbook } from "../src/export/pricingWorkbook";
@@ -2371,6 +2372,18 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   eq('drawings: every customer sheet is well-formed (attribute values close properly)', set.filter((x) => /[^=]""[\s/>]/.test(x.svg)).map((x) => x.number).join(), '');
   eq('rooms: each title block shows its room\'s sheet number', set.find((x) => x.number === '2-A1')!.svg.includes('>2-A1</text>'), true);
   eq('rooms: removing the pantry leaves the kitchen as it was', JSON.stringify(removeRoom(back, roomTabs(back)[1].id).cabinets) === JSON.stringify(p.cabinets) && !(removeRoom(back, roomTabs(back)[1].id).rooms ?? []).length, true);
+}
+
+// The full shop packet: drawings, face frame assembly, cut diagrams, face frame list, labels
+{
+  const { sheets } = packetSheets(p);
+  const titles = sheets.map((x) => x.title);
+  eq('packet: face frame assembly sheets', titles.some((t) => t.endsWith('face frame assembly')), true);
+  eq('packet: a cut diagram for each plywood sheet', titles.filter((t) => t.startsWith('Cut diagram:')).length > 0, true);
+  eq('packet: the face frame cut list and its crosscuts', titles.some((t) => t.startsWith('Face frame and solid stock')) && titles.some((t) => t.endsWith('crosscuts')), true);
+  eq('packet: sheets numbered in order', sheets.every((x, i) => x.number === `S${i + 1}`), true);
+  const doc = shopPacketDocument(p);
+  eq('packet: labels ride along at the back on letter pages', doc.includes('class="lb-page"') && doc.includes('@page labels'), true);
 }
 
 // Case pieces: nightstand, dresser and friends: rows on the face, fronts, base, priced as furniture

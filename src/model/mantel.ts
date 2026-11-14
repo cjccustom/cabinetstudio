@@ -182,8 +182,9 @@ export function mantelParts(c: Cabinet, s: ShopSettings): Part[] {
   const pilasterAt = (name: string, x0: number, y0: number, w: number, h: number, plinth: number, o: { setback?: number; breaks?: number[]; topRail?: number; capital?: number } = {}): Part[] => {
     const back = m.chimney ? zc - (o.setback ?? 0) : 0;
     const virt: Cabinet = { ...c, kind: 'pilaster', width: w, height: h, depth: L.legFace - (o.setback ?? 0) - back, crown: undefined,
-      pilaster: { ...defaultPilaster, proud: 0.75, ...m.pilaster, plinth, breaks: o.breaks ?? [], ...(o.topRail != null ? { topRail: o.topRail } : {}), ...(o.capital != null ? { capital: o.capital } : {}), ...(plinth > 0 ? {} : { foot: y0 === 0 ? m.baseH + m.baseCapH : 0 }) } };
-    return pilasterParts(virt, s).map((p) => ({ ...p, name: p.name.replace(/^Pilaster/, name).replace(/^Plinth block/, `${name} plinth`).replace(/^Capital block/, `${name} capital`), note: [x0 < W / 2 ? 'Left' : 'Right', p.note].filter(Boolean).join(', '), boxes: p.boxes.map((b) => shift(b, x0, y0, back)) }));
+      pilaster: { ...defaultPilaster, proud: 0.75, species: sp, ...m.pilaster, plinth, breaks: o.breaks ?? [], ...(o.topRail != null ? { topRail: o.topRail } : {}), ...(o.capital != null ? { capital: o.capital } : {}), ...(plinth > 0 ? {} : { foot: y0 === 0 ? m.baseH + m.baseCapH : 0 }) } };
+    // The two legs are mirror images built alike: no side in the notes, so the parts list once for both
+    return pilasterParts(virt, s).map((p) => ({ ...p, name: p.name.replace(/^Pilaster/, name).replace(/^Plinth block/, `${name} plinth`).replace(/^Capital block/, `${name} capital`), boxes: p.boxes.map((b) => shift(b, x0, y0, back)) }));
   };
   const ps0 = { ...defaultPilaster, ...m.pilaster };
   if (pil && L.legW > 0.5) {
@@ -220,7 +221,7 @@ export function mantelParts(c: Cabinet, s: ShopSettings): Part[] {
   if (fh > 0.5 && fw > 0.5 && m.frieze === 'panel') {
     // A breastboard framed like the pilaster legs: its panel lines up with the legs' upper panels
     const st = ps0.stile, bot = ps0.rail, topR = ps0.rail + L.bedH, rb = ps0.rabbet;
-    for (const [n, x] of [['Left', fx0], ['Right', fx0 + fw - st]] as const) out.push(piece('Frieze stile', fh, st, t, [vb(x, L.friezeBottom, D - t, st, fh, t)], n));
+    for (const x of [fx0, fx0 + fw - st]) out.push(piece('Frieze stile', fh, st, t, [vb(x, L.friezeBottom, D - t, st, fh, t)], 'one each end; rabbeted on the back for the panel like the legs'));
     out.push(piece('Frieze rail', fw - 2 * st, bot, t, [vb(fx0 + st, L.friezeBottom, D - t, fw - 2 * st, bot, t)], 'bottom'));
     out.push(piece('Frieze rail', fw - 2 * st, topR, t, [vb(fx0 + st, L.shelfBottom - topR, D - t, fw - 2 * st, topR, t)], L.bedH ? `top; the bed moulding covers the upper ${fmt(L.bedH)}` : 'top'));
     const pw = fw - 2 * st, ph = fh - bot - topR;
@@ -272,12 +273,12 @@ export function mantelParts(c: Cabinet, s: ShopSettings): Part[] {
     const stepped = sb > 0 && top > c.height;
     out.push({ name: 'Chimney framing', role: 'nailer', material: 'box', length: top, width: zc - skin, thickness: 3.5, cut: false,
       note: `2x4 studs at 16", plates top and bottom, a header over the insert opening; ${fmt(W)} wide × ${fmt(zc)} out from the wall${stepped ? `, stepping back to ${fmt(zc - sb)} above the shelf` : ''}. Frame the insert opening to the manual.`, boxes: [] });
-    for (const [side, x] of [['Left', -skin], ['Right', W]] as const) {
+    for (const x of [-skin, W]) {
       const lowH = stepped ? c.height : top;
       out.push({ name: 'Chimney side', role: 'side', material: 'back', look: 'paint', sheet: '3/4" MDF', length: lowH, width: zc, thickness: skin, cut: true,
-        note: `${side}; painted with the walls`, boxes: [vb(x, 0, 0, skin, lowH, zc)] });
+        note: 'one each side, below the shelf; painted with the walls', boxes: [vb(x, 0, 0, skin, lowH, zc)] });
       if (stepped) out.push({ name: 'Chimney side', role: 'side', material: 'back', look: 'paint', sheet: '3/4" MDF', length: top - c.height, width: zc - sb, thickness: skin, cut: true,
-        note: `${side}, above the shelf; painted with the walls`, boxes: [vb(x, c.height, 0, skin, top - c.height, zc - sb)] });
+        note: 'one each side, above the shelf (stepped back); painted with the walls', boxes: [vb(x, c.height, 0, skin, top - c.height, zc - sb)] });
     }
     // With only pilasters above the shelf, the chimney face between them is wall: painted the wall color
     const wallAbove = m.upper.on && m.upper.between === 'wall' && top > c.height;

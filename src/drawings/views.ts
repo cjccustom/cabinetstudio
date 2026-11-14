@@ -488,7 +488,8 @@ export function sideSection(p: Project, c: Cabinet, frame: Frame): { svg: string
   for (const { pc, prof, pts } of moldPcs) {
     if (pc.kind !== 'baseMold') continue;
     const top = Math.max(...pts.map(([, y]) => y)), front = Math.max(...pts.map(([z]) => z));
-    v.text(front + v.p(0.95), (pc.y + top) / 2, `${profileLabel(prof)} ${pc.y < 0.01 ? 'baseboard' : 'base cap'}`, 0.07, 'start', 'dt');
+    const nm = profileLabel(prof);
+    v.text(front + v.p(0.3), (pc.y + top) / 2, /base/i.test(nm) ? nm : `${nm} ${pc.y < 0.01 ? 'baseboard' : 'base cap'}`, 0.07, 'start', 'dt');
     if (pc.y < 0.01) v.dimV(0, top, front, 0.75);
   }
   const plat = parts.find((x) => x.name === 'Platform runner');
@@ -562,7 +563,7 @@ export function sidePanelLayout(p: Project, c: Cabinet, frame: Frame): { svg: st
     const bb = back.boxes[0];
     const rw = bb.min[2] + bb.size[2];
     v.rect(0, bb.min[1], rw, Math.min(H, bb.min[1] + bb.size[1]) - bb.min[1], 'hid');
-    notes.push(`Back rabbet ${dimText(rw)} wide × ${dimText(dd)} deep${bb.min[1] > Y0 + 0.05 ? `, from ${dimText(bb.min[1] - Y0)} up` : ''}`);
+    notes.push(`Back rabbet on the inside face at the back edge: ${dimText(rw)} in from the back edge, ${dimText(dd)} deep into the side${bb.min[1] > Y0 + 0.05 ? `, from ${dimText(bb.min[1] - Y0)} up to the top` : ', full height'}`);
   }
   // Shelf pin rows between the fixed parts above and below each adjustable shelf
   const fixedYs = joints.map((j) => [j.y0, j.y1] as const).sort((a, b) => a[0] - b[0]);

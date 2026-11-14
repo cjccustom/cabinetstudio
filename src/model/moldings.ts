@@ -77,7 +77,7 @@ function customProfile(num: string): Profile | undefined {
 export const catalog: Profile[] = [...amCatalog, ...broscoCatalog, ...nextDayCatalog];
 export const supplierOf = (p: Profile): Supplier => p.supplier ?? 'am';
 /** How a profile is named on an order: "A&M 1827" or "Brosco 8712". */
-export const profileLabel = (p: Profile) => (p.custom ? (p.custom.part && p.name ? p.name : `Custom ${p.custom.category.toLowerCase()}`) : supplierOf(p) === 'brosco' ? `Brosco ${p.code}` : supplierOf(p) === 'nextday' ? `Next Day ${p.code}` : `A&M ${p.num}`);
+export const profileLabel = (p: Profile) => (p.custom ? (p.name && (p.custom.part || drawn?.[p.num]?.name) ? p.name : `Custom ${p.custom.category.toLowerCase()}`) : supplierOf(p) === 'brosco' ? `Brosco ${p.code}` : supplierOf(p) === 'nextday' ? `Next Day ${p.code}` : `A&M ${p.num}`);
 
 /** A profile as the customer sees it: its number, not who sells it. */
 export const customerProfile = (p: Profile) => (p.custom ? 'custom profile, milled to match' : `profile ${supplierOf(p) === 'am' ? p.num : p.code}`);
@@ -251,6 +251,9 @@ export interface MoldPiece {
   joined?: [boolean, boolean];
   /** Run straight up from (x, y) instead of along x: a casing leg, its face widening to the left or right. */
   vertical?: 'left' | 'right';
+  /** For the shop's cut list: what this moulding is here ("Bed moulding under the shelf") and where the piece goes. */
+  label?: string;
+  where?: string;
 }
 
 /** Moulding pieces for one cabinet, in its own coordinates. */
@@ -389,31 +392,31 @@ function mantelMoldings(c: Cabinet, ends: EndInfo): MoldPiece[] {
   const W = c.width, D = c.depth;
   const zc = D - m.stock;
   /** Around one leg: across its face, mitered at both corners, and back along each side to `back` (or to the frieze on the inside). */
-  const aroundLeg = (kind: MoldKind, num: string, y: number, x0: number, w: number, face: number, back: number, inner: number | null) => {
+  const aroundLeg = (kind: MoldKind, num: string, y: number, x0: number, w: number, face: number, back: number, inner: number | null, label?: string) => {
     const d = mountShape(profileByNum(num)!).depth;
     const left = x0 < W / 2;
-    out.push({ kind, num, along: 'x', facing: 'front', x: x0 - d, y, z: face, length: w + 2 * d, cut: ['out', 'out'] });
+    out.push({ kind, num, along: 'x', facing: 'front', x: x0 - d, y, z: face, length: w + 2 * d, cut: ['out', 'out'], label, where: 'each leg, across its face' });
     const outer = left ? x0 : x0 + w, innerX = left ? x0 + w : x0;
-    out.push({ kind, num, along: 'z', facing: left ? 'left' : 'right', x: outer, y, z: back, length: face + d - back, cut: ['square', 'out'] });
+    out.push({ kind, num, along: 'z', facing: left ? 'left' : 'right', x: outer, y, z: back, length: face + d - back, cut: ['square', 'out'], label, where: 'each leg, outer side, back to the chimney' });
     const ib = inner ?? back;
-    out.push({ kind, num, along: 'z', facing: left ? 'right' : 'left', x: innerX, y, z: ib, length: face + d - ib, cut: [inner != null ? 'in' : 'square', 'out'] });
+    out.push({ kind, num, along: 'z', facing: left ? 'right' : 'left', x: innerX, y, z: ib, length: face + d - ib, cut: [inner != null ? 'in' : 'square', 'out'], label, where: inner != null ? 'each leg, inner side, back to the frieze' : 'each leg, inner side, back to the chimney' });
   };
   // Bed moulding on pilaster legs proud of the frieze: around each leg, and across the frieze between
   const bed = profileByNum(c.crown);
   const stepped = !!bed && m.legs !== 'none' && L.proud > 0.01 && L.legW > 0.5;
   if (stepped) {
     const y = L.shelfBottom - mountShape(bed).height;
-    for (const x0 of [0, W - L.legW]) aroundLeg('crown', bed.num, y, x0, L.legW, L.legFace, 0, D);
-    out.push({ kind: 'crown', num: bed.num, along: 'x', facing: 'front', x: L.legW, y, z: D, length: W - 2 * L.legW, cut: ['in', 'in'] });
+    for (const x0 of [0, W - L.legW]) aroundLeg('crown', bed.num, y, x0, L.legW, L.legFace, 0, D, 'Bed moulding under the shelf');
+    out.push({ kind: 'crown', num: bed.num, along: 'x', facing: 'front', x: L.legW, y, z: D, length: W - 2 * L.legW, cut: ['in', 'in'], label: 'Bed moulding under the shelf', where: 'across the frieze, between the legs' });
   }
   // Neck moulding around the legs where their panels break
   const neck = profileByNum(m.neckMold), ny = neckAt(c, m);
-  if (neck && ny != null && L.legW > 0.5) for (const x0 of [0, W - L.legW]) aroundLeg('panel', neck.num, ny - mountShape(neck).height / 2, x0, L.legW, L.legFace, m.chimney ? zc : 0, L.proud > 0.01 ? D : null);
+  if (neck && ny != null && L.legW > 0.5) for (const x0 of [0, W - L.legW]) aroundLeg('panel', neck.num, ny - mountShape(neck).height / 2, x0, L.legW, L.legFace, m.chimney ? zc : 0, L.proud > 0.01 ? D : null, 'Neck moulding around the legs');
   // Cap around the tops of the upper pilasters
   const cap = profileByNum(m.upper.capMold);
   if (cap && m.upper.on && L.legW > 0.5) {
     const sb = upperSetback(m);
-    for (const x0 of [0, W - L.legW]) aroundLeg('crown', cap.num, upperTop(c, m) - mountShape(cap).height, x0, L.legW, L.legFace - sb, m.chimney ? zc - sb : 0, null);
+    for (const x0 of [0, W - L.legW]) aroundLeg('crown', cap.num, upperTop(c, m) - mountShape(cap).height, x0, L.legW, L.legFace - sb, m.chimney ? zc - sb : 0, null, 'Cap moulding atop the upper pilasters');
   }
   const runs: { kind: MoldKind; num?: string; y: (h: number) => number; z: number; x0: number; x1: number }[] = [
     ...(stepped ? [] : [{ kind: 'crown' as MoldKind, num: c.crown, y: (h: number) => L.shelfBottom - h, z: L.legFace, x0: 0, x1: c.width }]),

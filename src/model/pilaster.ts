@@ -69,14 +69,20 @@ export function pilasterParts(c: Cabinet, settings: ShopSettings, ends?: EndInfo
   const material = style.line === 'MDF' ? 'MDF' : s.doorMaterial;
   const spec = style.profile === 'slab' ? `Slab, ${material}, pilaster panel` : `${style.name}, ${material}, ${fmt(stile)} stiles, pilaster panel`;
   const parts: Part[] = [];
+  // A shallow pilaster (a mantel leg standing an inch or two off the chimney) is a face frame with solid
+  // returns, not a plywood box: strips of plywood that narrow split and show their plies.
+  const shallow = back < 2;
   for (const side of ['Left', 'Right'] as const) {
-    parts.push({ name: 'Pilaster side', role: 'side', material: 'box', look: 'paint', length: H, width: back, thickness: s.boxThickness, cut: true, note: side,
-      boxes: [vb(side === 'Left' ? 0 : W - nt, 0, 0, nt, H, back)] });
+    parts.push(shallow
+      ? { name: 'Pilaster return', role: 'side', material: 'faceframe', species: ps.species, length: H, width: back, thickness: s.boxThickness, cut: true,
+        note: 'solid, glued to the back of the face frame at its outside edge (one each side) so the pilaster reads as a box from the side',
+        boxes: [vb(side === 'Left' ? 0 : W - nt, 0, 0, nt, H, back)] }
+      : { name: 'Pilaster side', role: 'side', material: 'box', look: 'paint', length: H, width: back, thickness: s.boxThickness, cut: true, note: 'one each side; the face frame is glued and nailed to their front edges',
+        boxes: [vb(side === 'Left' ? 0 : W - nt, 0, 0, nt, H, back)] });
   }
-  parts.push({ name: 'Pilaster nailer', role: 'nailer', material: 'box', length: W - 2 * nt, width: s.nailerWidth, thickness: s.boxThickness, cut: true, note: 'top and bottom, holds the sides apart',
-    boxes: [vb(nt, 0, back - nt, W - 2 * nt, s.nailerWidth, nt)] });
-  parts.push({ name: 'Pilaster nailer', role: 'nailer', material: 'box', length: W - 2 * nt, width: s.nailerWidth, thickness: s.boxThickness, cut: true,
-    boxes: [vb(nt, H - s.nailerWidth, back - nt, W - 2 * nt, s.nailerWidth, nt)] });
+  if (!shallow) for (const y of [0, H - s.nailerWidth]) parts.push({ name: 'Pilaster nailer', role: 'nailer', material: 'box', length: W - 2 * nt, width: s.nailerWidth, thickness: s.boxThickness, cut: true,
+    note: 'one at the top and one at the bottom, at the back between the sides: holds them apart and takes the screws to the wall',
+    boxes: [vb(nt, y, back - nt, W - 2 * nt, s.nailerWidth, nt)] });
   if (ps.face === 'eagle') {
     for (const sec of pilasterSections(c)) {
       const h = sec.y1 - sec.y0;
@@ -93,11 +99,12 @@ export function pilasterParts(c: Cabinet, settings: ShopSettings, ends?: EndInfo
     const y0 = ps.plinth, y1 = H - ps.capital;
     const railLen = W - 2 * ps.stile;
     for (const side of ['Left', 'Right'] as const) {
-      parts.push({ name: 'Pilaster stile', role: 'stile', material: 'faceframe', species: ps.species, length: y1 - y0, width: ps.stile, thickness: ft, cut: true, note: side,
+      parts.push({ name: 'Pilaster stile', role: 'stile', material: 'faceframe', species: ps.species, length: y1 - y0, width: ps.stile, thickness: ft, cut: true, note: `one each side; ${fmt(ps.rabbet)} × ${fmt(ps.panelThickness + 0.0625)} deep rabbet on the back inside edge for the panel`,
         boxes: [vb(side === 'Left' ? 0 : W - ps.stile, y0, fz, ps.stile, y1 - y0, ft)] });
     }
     for (const r of pilasterRails(c)) {
       parts.push({ name: r.name, role: 'rail', material: 'faceframe', species: ps.species, length: railLen, width: r.y1 - r.y0, thickness: ft, cut: true,
+        note: `rabbeted on the back like the stiles, on the edge${r.name.includes('mid') ? 's' : ''} toward the panel${r.name.includes('mid') ? 's' : ''}`,
         boxes: [vb(ps.stile, r.y0, fz, railLen, r.y1 - r.y0, ft)] });
     }
     for (const o of pilasterOpenings(c)) {
