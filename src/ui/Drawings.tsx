@@ -13,7 +13,8 @@ import { DetailsSection } from './DetailsSection';
 import { cofferOf } from '../model/coffer';
 import { wallNames, wallOrder } from '../model/layout';
 import { shopPacketDocument } from '../drawings/packet';
-import { withPictures } from './setPictures';
+import { markIssued, withPictures } from './setPictures';
+import { revChanges, revDate, revSnapshot } from '../model/revisions';
 import { labelFormats, type LabelFormat } from '../drawings/labels';
 
 type SetKind = 'customer' | 'shop';
@@ -74,11 +75,21 @@ export function DrawingsSide() {
   const quoteRendering = r.images.find((i) => i.id === r.quoteId) ?? r.images.filter((i) => i.kind === 'rendering').slice(-1)[0];
 
   const [labelFmt, setLabelFmt] = useState<LabelFormat>('8163');
+  // A new revision: what changed since the set last went out, listed for editing
+  const [revNote, setRevNote] = useState<string | null>(null);
+  const [revTags, setRevTags] = useState<string[]>([]);
+  const startRev = () => { const ch = revChanges(d.revBase, project); setRevTags(ch.tags); setRevNote(ch.lines.join('\n')); };
+  const saveRev = () => {
+    const rev = d.rev + 1;
+    put({ rev, revisions: [...(d.revisions ?? []), { rev, date: revDate(), note: (revNote ?? '').trim(), tags: revTags }], revBase: revSnapshot(project) });
+    setRevNote(null);
+  };
   const download = async (packet = false) => {
     setBusy(true); setMsg('');
     try {
       const downloads = await capability<Downloads>('downloads');
       const { name, html } = packet ? exportPacket(labelFmt) : await exportDocument(kind);
+      markIssued();
       if (downloads) await downloads.save({ filename: name, data: new Blob([html], { type: 'text/html' }) });
       else {
         const a = document.createElement('a');
@@ -97,6 +108,7 @@ export function DrawingsSide() {
     try {
       const { name, html } = packet ? exportPacket(labelFmt) : await exportDocument(kind);
       await writeFile(project.dropbox.path, name, html);
+      markIssued();
       setMsg(`Saved to ${project.dropbox.path}/${name}`);
     } catch (e) { setMsg((e as Error).message); } finally { setBusy(false); }
   };
@@ -119,10 +131,26 @@ export function DrawingsSide() {
             <Field label="Revision" htmlFor="dw-rev">
               <div className="order-actions" style={{ margin: 0 }}>
                 <span id="dw-rev">{d.rev ? `Rev ${d.rev}` : 'Original'}</span>
-                <button className="mini" onClick={() => put({ rev: d.rev + 1 })}>New revision</button>
+                {revNote == null && <button className="mini" onClick={startRev}>New revision</button>}
               </div>
             </Field>
           </div>
+          {revNote != null && (
+            <div className="rev-form">
+              <Field label={`Rev ${d.rev + 1}: what changed (a line each; prints on the cover)`} htmlFor="dw-revnote">
+                <textarea id="dw-revnote" rows={4} value={revNote} onChange={(e) => setRevNote(e.target.value)} />
+              </Field>
+              {revTags.length > 0 && <p className="hint">Marked with a triangle on the drawings: {revTags.join(', ')}.</p>}
+              {!d.revBase && <p className="hint">No copy of the design was kept when the last set went out, so type the changes. From now on they’re listed for you.</p>}
+              <div className="order-actions">
+                <button className="mini primary" disabled={!revNote.trim()} onClick={saveRev}>Start Rev {d.rev + 1}</button>
+                <button className="mini" onClick={() => setRevNote(null)}>Cancel</button>
+              </div>
+            </div>
+          )}
+          {(d.revisions ?? []).length > 0 && revNote == null && (
+            <ul className="rev-list">{[...(d.revisions ?? [])].reverse().map((r) => <li key={r.rev}><b>Rev {r.rev}</b> {r.date}: {r.note.split('\n').join('; ')}</li>)}</ul>
+          )}
         </Section>
 
         <DetailsSection />

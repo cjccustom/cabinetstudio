@@ -13,7 +13,7 @@ import { Field } from './fields';
 import { drawingsOf, jobCustomerSet, setDocument, sheetCss } from '../drawings/sheets';
 import { FileButton } from './FileButton';
 import { renderOf } from '../model/rendering';
-import { withPictures } from './setPictures';
+import { markIssued, withPictures } from './setPictures';
 import { CJC_TERMS } from '../model/terms';
 import { capability, shrinkImage, type Downloads } from '../runtime';
 import { asciiHtml, downloadLink, whereIs, writeFile } from '../dropbox';
@@ -232,6 +232,7 @@ export function ClientPortal() {
     const sheets = jobCustomerSet(await withPictures(project));
     const s2 = await publishDrawings(portal!.jobId, setDocument(title, sheets, d.paper), 'Drawings for your review', sheetCss, sheets.map((x) => ({ number: x.number, title: x.title, svg: x.svg })));
     keep(s2, portal!.jobId);
+    markIssued();
     // The 3D model goes with them, for the customer to look around and pin notes on
     let sent3d = '';
     try {
@@ -258,6 +259,7 @@ export function ClientPortal() {
     const carried = `<!--CJC-DESIGN ${btoa(String.fromCharCode(...new TextEncoder().encode(JSON.stringify(ask))))} -->`;
     const s2 = await publishDrawings(jobId, carried + setDocument(title, sheets, d.paper), 'Design draft for discussion', sheetCss, sheets.map((x) => ({ number: x.number, title: x.title, svg: x.svg })));
     keep(s2, jobId);
+    markIssued();
     let sent3d = '';
     try {
       setNote('Sending the 3D model…');

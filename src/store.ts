@@ -94,6 +94,8 @@ interface State {
   updateCabinet: (id: string, patch: Partial<Cabinet>) => void;
   removeCabinet: (id: string) => void;
   duplicateCabinet: (id: string) => void;
+  /** Put a saved cabinet on a wall, in its first open spot. */
+  addSavedCabinet: (cab: Cabinet, wall: WallId) => void;
   loadProject: (p: Project) => void;
   addPanel: (panel: WallPanel) => void;
   updatePanel: (id: string, patch: Partial<WallPanel>) => void;
@@ -231,6 +233,16 @@ export const useStore = create<State>((set, get) => ({
     let n = 1;
     while (project.cabinets.some((c) => c.name === `${prefix}${n}`)) n++;
     const copy: Cabinet = { ...src, id: uid('cab'), name: `${prefix}${n}`, offset, rows: src.rows.map((r) => ({ ...r, id: uid('row') })) };
+    get().commit((p) => ({ ...p, cabinets: [...p.cabinets, copy] }));
+    set({ selectedId: copy.id });
+  },
+  addSavedCabinet: (src, wall) => {
+    const { project } = get();
+    const offset = nextFreeOffset(project.room, project.cabinets, wall, src.width, src.elevation, src.elevation + src.height, src.depth);
+    const prefix = src.name.match(/^[A-Za-z]+/)?.[0] ?? 'C';
+    let n = 1;
+    while (project.cabinets.some((c) => c.name === `${prefix}${n}`)) n++;
+    const copy: Cabinet = { ...structuredClone(src), id: uid('cab'), name: `${prefix}${n}`, wall, offset, wallInset: src.island ? src.wallInset : undefined, rows: src.rows.map((r) => ({ ...structuredClone(r), id: uid('row') })) };
     get().commit((p) => ({ ...p, cabinets: [...p.cabinets, copy] }));
     set({ selectedId: copy.id });
   },

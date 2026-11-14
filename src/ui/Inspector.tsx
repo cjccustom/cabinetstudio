@@ -1,4 +1,5 @@
-import { useShop } from '../shop/shop';
+import { useShop, saveCabinet } from '../shop/shop';
+import { askConfirm } from './Confirm';
 import { inches, partSize, type CustomPart } from '../model/customParts';
 import { useEffect, useState } from 'react';
 import { cofferOf, perimOf } from '../model/coffer';
@@ -594,6 +595,7 @@ export function Inspector({ cab, issues, tab }: { cab: Cabinet; issues: string[]
         <OpenButton id={cab.id} />
         <button className="danger" onClick={() => remove(cab.id)}>Delete</button>
       </div>
+      <SaveToMine cab={cab} />
     </div>
   );
 }
@@ -1624,4 +1626,35 @@ function CustomPartOptions({ current }: { current?: CustomPart }) {
   if (current && !lib[current.id]) list.unshift(current);
   if (!list.length) return null;
   return <optgroup label="Your parts (Part builder)">{list.map((p) => <option key={p.id} value={`part:${p.id}`}>{p.name}: {inches(partSize(p).h)} H × {inches(partSize(p).w)} D × {inches(p.thickness)}</option>)}</optgroup>;
+}
+
+/** Save this cabinet to the shop's own catalog ("My cabinets" under Cabinets), to drop into later jobs. */
+function SaveToMine({ cab }: { cab: Cabinet }) {
+  const mine = useShop((s) => s.cabinets);
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState('');
+  const [msg, setMsg] = useState('');
+  const start = () => { setName(`${cab.kind[0].toUpperCase()}${cab.kind.slice(1)} ${fmt(cab.width)} wide`); setMsg(''); setOpen(true); };
+  const save = async () => {
+    const n = name.trim();
+    if (!n) return;
+    const same = Object.values(mine).find((x) => x.name.toLowerCase() === n.toLowerCase());
+    if (same && !(await askConfirm(`Replace “${same.name}” in My cabinets with this one?`, 'Replace'))) return;
+    await saveCabinet({ id: same?.id ?? uid('mycab'), name: n, cab: JSON.parse(JSON.stringify(cab)), updatedAt: Date.now() });
+    setOpen(false);
+    setMsg(`Saved as “${n}”. Find it under Cabinets → My cabinets.`);
+  };
+  return (
+    <div className="save-mine">
+      {!open && <button className="mini" onClick={start}>Save to My cabinets</button>}
+      {open && (
+        <form className="row" onSubmit={(e) => { e.preventDefault(); void save(); }}>
+          <input id="mine-name" aria-label="Name in My cabinets" value={name} onChange={(e) => setName(e.target.value)} autoFocus />
+          <button className="mini primary" type="submit">Save</button>
+          <button className="mini" type="button" onClick={() => setOpen(false)}>Cancel</button>
+        </form>
+      )}
+      {msg && <p className="hint">{msg}</p>}
+    </div>
+  );
 }

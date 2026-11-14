@@ -2503,5 +2503,64 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
 
 eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i.message).join('; '), '');
 
+{
+  // My cabinets: a saved cabinet goes back in as a new cabinet, with new ids, on the wall asked for
+  const { useStore } = await import('../src/store');
+  const st = useStore.getState();
+  const src = st.project.cabinets[0];
+  const before = st.project.cabinets.length;
+  st.addSavedCabinet(JSON.parse(JSON.stringify(src)), 'right');
+  const after = useStore.getState().project.cabinets;
+  const added = after[after.length - 1];
+  eq('my cabinets: adds one cabinet', after.length, before + 1);
+  eq('my cabinets: new id, rows get new ids, on the wall picked', added.id !== src.id && added.rows.every((r, i) => r.id !== src.rows[i].id) && added.wall === 'right', true);
+  eq('my cabinets: keeps the build (rows and sizes)', JSON.stringify([added.width, added.height, added.depth, added.rows.map((r) => [r.type, r.height, r.doors])]), JSON.stringify([src.width, src.height, src.depth, src.rows.map((r) => [r.type, r.height, r.doors])]));
+}
+
+{
+  // Revisions: what changed since the set went out, listed and marked on the drawings
+  const { revSnapshot, revChanges } = await import('../src/model/revisions');
+  const { customerSet: cs, drawingsOf: dof } = await import('../src/drawings/sheets');
+  const p0 = sampleProject();
+  const base = revSnapshot(p0);
+  eq('revisions: nothing changed, nothing listed', revChanges(base, p0).lines.length, 0);
+  const c0 = p0.cabinets[1];
+  const p1 = { ...p0, cabinets: p0.cabinets.map((c) => (c.id === c0.id ? { ...c, width: c.width - 2 } : c)).filter((c) => c.id !== p0.cabinets[2].id) };
+  const ch = revChanges(base, p1);
+  eq('revisions: a width change is listed with its sizes', ch.lines.some((l) => l.startsWith(`${c0.name} width`)), true);
+  eq('revisions: a removed cabinet is listed', ch.lines.includes(`${p0.cabinets[2].name} removed`), true);
+  eq('revisions: changed cabinets are tagged to mark', ch.tags.join(), c0.name);
+  const d1 = { ...dof(p1), rev: 1, revisions: [{ rev: 1, date: '11/14/2026', note: ch.lines.join('\n'), tags: ch.tags }] };
+  const set1 = cs(p1, d1);
+  eq('revisions: the cover lists them', set1[0].svg.includes('Revisions'), true);
+  eq('revisions: changed cabinets get a triangle on the elevations', set1.some((x) => x.svg.includes('stroke="#c0392b"')), true);
+  eq('revisions: an original set has no triangles', cs(p1, dof(p1)).some((x) => x.svg.includes('<polygon points') && x.svg.includes('stroke="#c0392b"')), false);
+}
+
+{
+  // Offcuts on hand: cut first on the job they're set aside for, and left out of pricing
+  const p0 = sampleProject();
+  const data0 = defaultCutlist(p0);
+  const mat = optimizerParts(p0, data0).find((x) => /3\/4/.test(x.material))!.material;
+  const data1 = { ...data0, onHand: [{ id: 'o1', material: mat, l: 40, w: 30, from: 'Test job' }] };
+  const withOff = optimize(optimizerParts(p0, data1), cutStock(p0, data1, undefined, { offcuts: true }), data1.options).find((m) => m.material === mat)!;
+  eq('offcuts: one set aside is cut on the job', withOff.sheets.some((sh) => sh.stock.id === 'off:o1' && sh.placed.length > 0), true);
+  eq('offcuts: pricing leaves them out', cutStock(p0, data1).some((x) => x.id === 'off:o1'), false);
+}
+
+{
+  // Parts list CSV: a line per part number, counts add up to the parts cut, thickness read from the material
+  const { partsCsv, materialThickness } = await import('../src/model/cutlist');
+  const p0 = sampleProject();
+  const data0 = defaultCutlist(p0);
+  const csv = partsCsv(p0, data0).trim().split('\r\n');
+  const qtyCol = csv[0].split(',').indexOf('Qty');
+  const cells = (l: string) => (l.match(/("([^"]|"")*"|[^,]*)(,|$)/g) ?? []).map((x) => x.replace(/,$/, ''));
+  const total = csv.slice(1).reduce((s, l) => s + Number(cells(l)[qtyCol]), 0);
+  eq('parts csv: counts add up to every part cut', total, optimizerParts(p0, data0).length);
+  eq('parts csv: thickness from the material name', [materialThickness('3/4" plywood'), materialThickness('1/4" MDF'), materialThickness('1-1/2" maple')].join(), '0.75,0.25,1.5');
+  eq('parts csv: part numbers on the lines', csv.slice(1).some((l) => /^B1-\d+,/.test(l)), true);
+}
+
 console.log(failed ? `${failed} check(s) failed` : 'All model checks passed');
 process.exit(failed ? 1 : 0);

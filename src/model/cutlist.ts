@@ -6,6 +6,7 @@ import { resolveEnds } from './layout';
 import type { CutPart, OptimizerOptions, Stock } from './optimizer';
 import { uid } from './defaults';
 import { sheetName } from './pricebook';
+import { fmt } from '../units';
 
 /** A part typed in by hand, like a row in cutlistoptimizer.com. */
 export interface ExtraPart {
@@ -28,6 +29,8 @@ export interface CutlistData {
   grain: Record<string, boolean>;
   /** Design parts left out of the optimizer, by part id. */
   skip: Record<string, boolean>;
+  /** Offcuts from the shop's list set aside for this job: cut first, before new sheets. */
+  onHand?: { id: string; material: string; l: number; w: number; from: string }[];
 }
 
 /** Parts whose face shows get their grain locked; hidden structural parts can turn to save plywood. */
@@ -58,9 +61,12 @@ export const sheetPrice = (material: string) => {
  * material the design now needs that has none (after a plywood change, say), priced from
  * the job's sheet prices when known.
  */
-export function cutStock(p: Project, data: CutlistData, parts = optimizerParts(p, data)): Stock[] {
+export function cutStock(p: Project, data: CutlistData, parts = optimizerParts(p, data), opts: { offcuts?: boolean } = {}): Stock[] {
   const need = new Set(parts.map((x) => x.material));
-  const out = [...data.stock];
+  // Offcuts set aside for the job go first (one each, no cost). Left out when pricing, so a quote
+  // doesn't change with what happens to be in the rack.
+  const kept: Stock[] = opts.offcuts ? (data.onHand ?? []).map((o) => ({ id: `off:${o.id}`, label: `Offcut from ${o.from}`, material: o.material, length: Math.max(o.l, o.w), width: Math.min(o.l, o.w), qty: 1, price: 0 })) : [];
+  const out = [...kept, ...data.stock];
   const trim = 2 * (data.options.trim ?? 0);
   for (const m of need) {
     if (!out.some((x) => x.material === m)) out.push({ id: `auto:${m}`, label: `4×8 ${m.replace(/^\S+ /, '')}`, ...sheetSize(m), material: m, qty: null, price: p.sheetPrices?.[m] ?? sheetPrice(m) });
@@ -141,4 +147,33 @@ export function optimizerParts(p: Project, data: CutlistData): CutPart[] {
     }
   }
   return parts;
+}
+
+/** A material's thickness in inches, read from its name ('3/4" plywood' is 0.75). */
+export function materialThickness(material: string): number | null {
+  const m = /^(?:(\d+)[- ])?(\d+)(?:\/(\d+))?"/.exec(material);
+  if (!m) return null;
+  const frac = m[3] ? +m[2] / +m[3] : +m[2];
+  return (m[1] ? +m[1] : 0) + frac;
+}
+
+/**
+ * The sheet parts as a spreadsheet (CSV): one line per part number with its count, sizes in decimal
+ * inches (what cutting services, panel saw software and other optimizers read) and in fractions.
+ * Parts left out of the cut (unticked) aren't on it; extra parts are.
+ */
+export function partsCsv(p: Project, data: CutlistData): string {
+  const rows = new Map<string, { pid: string; cab: string; name: string; qty: number; l: number; w: number; mat: string; grain: boolean; band: number; note: string }>();
+  for (const d of designParts(p, data)) {
+    if (data.skip[d.id]) continue;
+    const key = `${d.pid ?? d.label}|${d.length.toFixed(3)}|${d.width.toFixed(3)}|${d.material}`;
+    const r = rows.get(key);
+    if (r) r.qty++;
+    else rows.set(key, { pid: d.pid ?? '', cab: d.cabinet, name: d.name, qty: 1, l: d.length, w: d.width, mat: d.material, grain: d.grain, band: d.band, note: d.note ?? '' });
+  }
+  for (const e of data.extra) if (e.enabled && e.qty > 0) rows.set(`x|${e.id}`, { pid: '', cab: '', name: e.label || 'Extra', qty: e.qty, l: e.length, w: e.width, mat: e.material, grain: e.grain, band: e.band, note: 'Added by hand' });
+  const q = (v: string | number) => { const t = String(v); return /[",\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t; };
+  const head = ['Part #', 'Cabinet', 'Part', 'Qty', 'Length (in)', 'Width (in)', 'Thickness (in)', 'Size', 'Material', 'Grain runs with length', 'Edge band (long edges)', 'Note'];
+  const lines = [...rows.values()].map((r) => [r.pid, r.cab, r.name, r.qty, r.l.toFixed(3), r.w.toFixed(3), materialThickness(r.mat)?.toFixed(3) ?? '', `${fmt(r.l)} x ${fmt(r.w)}`, r.mat, r.grain ? 'Yes' : 'No', r.band, r.note].map(q).join(','));
+  return [head.map(q).join(','), ...lines].join('\r\n') + '\r\n';
 }

@@ -109,6 +109,11 @@ input.len.bad { border-color: var(--warn); background: var(--warn-soft); }
 .lib { display: flex; flex-direction: column; gap: 4px; }
 .lib-item { justify-content: flex-start; text-align: left; padding: 4px 8px 4px 4px; gap: 8px; border-color: transparent; background: transparent; white-space: normal; }
 .lib-item:hover { background: var(--accent-soft); border-color: transparent !important; }
+.lib-row { display: flex; align-items: center; gap: 4px; }
+.lib-row .lib-item { flex: 1; }
+.save-mine { margin-top: 6px; }
+.save-mine .row { display: flex; gap: 4px; }
+.save-mine input { flex: 1; min-width: 0; }
 .lib-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
 .glyph { flex: none; background: var(--canvas); border-radius: 4px; }
 .g-frame { fill: var(--surface); stroke: var(--muted); stroke-width: 0.8; }
@@ -884,3 +889,5 @@ textarea.text-input { resize: vertical; }
 .case-rows { list-style: none; margin: 0 0 8px; padding: 0; display: grid; gap: 8px; }
 .case-row { border: 1px solid var(--line, #d9d6cf); border-radius: 8px; padding: 8px 10px; }
 .case-row .order-actions { margin-top: 4px; }
+.rev-form textarea { width: 100%; }
+.rev-list { margin: 6px 0 0; padding-left: 16px; font-size: 12px; }

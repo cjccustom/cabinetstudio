@@ -22,7 +22,15 @@ export interface ViewInfo { key: string; label: string; scale: number; fit: numb
 let ctx: { edits: DrawingEdits; key: string; label: string; views: ViewInfo[] } | null = null;
 /** Start drawing a set with these edits applied; views drawn are recorded for the viewer. */
 export function beginEdits(edits: DrawingEdits | undefined) { ctx = { edits: edits ?? {}, key: '', label: '', views: [] }; }
-export function endEdits() { ctx = null; }
+export function endEdits() { ctx = null; revMark = null; }
+/** The latest revision's changed cabinets, marked with a numbered triangle beside their tags. */
+let revMark: { n: number; tags: Set<string> } | null = null;
+export function markRevision(n: number, tags: string[]) { revMark = n && tags.length ? { n, tags: new Set(tags) } : null; }
+/** A revision triangle with its number, centered at a paper point. */
+export function revTriangle(x: number, y: number, n: number, r = 0.09): string {
+  const pts = [[x, y - r], [x + r * 0.95, y + r * 0.62], [x - r * 0.95, y + r * 0.62]].map((q) => q.map((v) => +v.toFixed(4)).join(',')).join(' ');
+  return `<polygon points="${pts}" fill="#fff" stroke="#c0392b" stroke-width="0.012"/><text x="${+x.toFixed(4)}" y="${+(y + r * 0.45).toFixed(4)}" font-size="${+(r * 0.95).toFixed(4)}" font-weight="700" fill="#c0392b" text-anchor="middle">${n}</text>`;
+}
 /** The views drawn since the last call (for the sheet they're on). */
 export function takeViews(): ViewInfo[] { if (!ctx) return []; const v = ctx.views; ctx.views = []; return v; }
 /** Draw one named view: its scale can be set by hand, its dimensions edited. */
@@ -108,6 +116,7 @@ export class View {
     const r = Math.max(0.09, 0.035 * s.length + 0.05);
     this.out.push(`<circle class="tag" cx="${this.X(x)}" cy="${this.Y(y)}" r="${n(r)}"/>`);
     this.out.push(`<text class="tagt" x="${this.X(x)}" y="${n(this.Y(y) + 0.032)}" font-size="0.085" text-anchor="middle">${esc(s)}</text>`);
+    if (revMark?.tags.has(s)) this.out.push(revTriangle(this.X(x) + r + 0.1, this.Y(y) - r * 0.6, revMark.n));
   }
 
   /** A horizontal dimension from x1 to x2, measured at world height y, drawn `off` paper inches away (+ above, − below). */

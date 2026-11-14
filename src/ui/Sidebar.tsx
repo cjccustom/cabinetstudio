@@ -7,7 +7,8 @@ import { PaintColorPicker } from './PaintColorPicker';
 import { newPanel, panelAbove, panelBetween } from '../model/panels';
 import { amSpecies } from '../model/moldings';
 import { lumberNames, priceBook, setJobFinish } from '../model/pricebook';
-import { useShop } from '../shop/shop';
+import { useShop, deleteCabinet } from '../shop/shop';
+import { askConfirm } from './Confirm';
 import { wallNames, wallOrder } from '../model/layout';
 import type { PanelMode, ShopSettings, WallId } from '../model/types';
 import { RoomDetails } from './RoomDetails';
@@ -70,6 +71,7 @@ function Library() {
         </select>
       </Field>
       <p className="hint">New cabinets go in the first open spot on that wall. Corner cabinets go in whichever corner of it is free.</p>
+      <MyCabinets wall={wall} />
       {groups.map((g) => (
         <Section key={g.kind} title={g.title}>
           <div className="lib">
@@ -99,6 +101,37 @@ function Library() {
         </button>
       </Section>
     </div>
+  );
+}
+
+/** The shop's own saved cabinets: saved from a job with "Save to My cabinets" under the cabinet's buttons. */
+function MyCabinets({ wall }: { wall: WallId }) {
+  const mine = useShop((s) => s.cabinets);
+  const list = Object.values(mine).sort((a, b) => a.name.localeCompare(b.name));
+  const add = (cab: import('../model/types').Cabinet) => {
+    const st = useStore.getState();
+    st.addSavedCabinet(cab, wall);
+    const id = useStore.getState().selectedId;
+    if (id) st.edit({ kind: 'cabinet', id });
+  };
+  return (
+    <Section title={`My cabinets${list.length ? ` (${list.length})` : ''}`}>
+      {!list.length && <p className="hint">None saved yet. Pick a cabinet you build often, then press “Save to My cabinets” under its buttons. It keeps everything: rows, rails, toe kick, shelves, construction.</p>}
+      <div className="lib">
+        {list.map((m) => (
+          <div key={m.id} className="lib-row">
+            <button className="lib-item" onClick={() => add(m.cab)}>
+              <PresetGlyph rows={m.cab.rows.map((r) => ({ type: r.type, doors: r.doors, h: r.height }))} w={m.cab.width} h={m.cab.height} kind={m.cab.kind} />
+              <span className="lib-text">
+                <span>{m.name}</span>
+                <span className="muted mono">{fmt(m.cab.width)} × {fmt(m.cab.height)} × {fmt(m.cab.depth)}</span>
+              </span>
+            </button>
+            <button className="mini danger" aria-label={`Delete ${m.name} from My cabinets`} onClick={async () => { if (await askConfirm(`Delete “${m.name}” from My cabinets? Jobs already using it keep their cabinets.`, 'Delete')) void deleteCabinet(m.id); }}>×</button>
+          </div>
+        ))}
+      </div>
+    </Section>
   );
 }
 

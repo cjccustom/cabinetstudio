@@ -2,13 +2,15 @@ import { useMemo, useState } from 'react';
 import { useStore } from '../store';
 import { asciiHtml } from '../dropbox';
 import type { Project } from '../model/types';
-import { cutStock, defaultCutlist, designParts, optimizerParts, sheetPrice, type CutlistData, type ExtraPart } from '../model/cutlist';
+import { cutStock, defaultCutlist, designParts, optimizerParts, partsCsv, sheetPrice, type CutlistData, type ExtraPart } from '../model/cutlist';
 import { optimize, type MaterialResult, type SheetLayout, type Stock } from '../model/optimizer';
 import { uid } from '../model/defaults';
 import { fmt } from '../units';
 import { Field, LengthInput, Section } from './fields';
 import { labelDocument, labelFormats, partLabels, type LabelFormat } from '../drawings/labels';
 import { capability, type Downloads } from '../runtime';
+import { useShop, saveOffcut, deleteOffcut, type StockOffcut } from '../shop/shop';
+import { askConfirm } from './Confirm';
 
 function useCutlist() {
   const project = useStore((s) => s.project);
@@ -22,7 +24,7 @@ export function useOptimized() {
   const project = useStore((s) => s.project);
   return useMemo(() => {
     const data = project.cutlist ?? defaultCutlist(project);
-    return optimize(optimizerParts(project, data), cutStock(project, data), data.options);
+    return optimize(optimizerParts(project, data), cutStock(project, data, undefined, { offcuts: true }), data.options);
   }, [project]);
 }
 
@@ -247,6 +249,20 @@ export function CutlistSummary() {
   const cost = results.reduce((s, m) => s + m.sheets.reduce((t, sh) => t + sh.stock.price, 0), 0);
   const tax = project.settings.purchaseTax;
   const shown = parts.filter((p) => !filter || p.label.toLowerCase().includes(filter.toLowerCase()));
+  const [csvMsg, setCsvMsg] = useState('');
+  const downloadCsv = async () => {
+    setCsvMsg('');
+    const name = `${project.client?.last || project.name} - parts list.csv`.replace(/[\\/:*?"<>|]/g, '');
+    const blob = new Blob([partsCsv(project, data)], { type: 'text/csv' });
+    try {
+      const downloads = await capability<Downloads>('downloads');
+      if (downloads) await downloads.save({ filename: name, data: blob });
+      else { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.click(); }
+    } catch (e) {
+      const code = (e as { code?: string }).code;
+      if (code !== 'declined' && code !== 'cancelled') setCsvMsg('Couldn’t save the file.');
+    }
+  };
 
   return (
     <aside className="panel">
@@ -270,17 +286,7 @@ export function CutlistSummary() {
           {cost === 0 && <p className="hint">Enter a price per sheet under Stock sheets to see material cost. It will feed the quote.</p>}
         </Section>
 
-        <Section title="Usable offcuts">
-          {results.every((m) => m.sheets.every((s) => s.offcuts.length === 0))
-            ? <p className="hint">No offcuts over {fmt(data.options.minOffcut)}.</p>
-            : (
-              <ul className="offcuts">
-                {results.flatMap((m) => m.sheets.flatMap((sh, i) => sh.offcuts.map((o, j) => (
-                  <li key={`${m.material}${i}-${j}`}><span className="mono">{fmt(o.l)} × {fmt(o.w)}</span> <span className="muted">{m.material}, sheet {i + 1}</span></li>
-                ))))}
-              </ul>
-            )}
-        </Section>
+        <OffcutRack results={results} />
 
         <Section title={`Parts from the design (${parts.length})`}>
           <input id="cl-filter" placeholder="Filter, e.g. B3 or Shelf" value={filter} onChange={(e) => setFilter(e.target.value)} />
@@ -303,6 +309,9 @@ export function CutlistSummary() {
             </table>
           </div>
           <p className="hint">Sizes update from the design automatically. Untick Cut for parts you already have.</p>
+          <button className="mini" onClick={() => void downloadCsv()}>Download parts list (CSV)</button>
+          <p className="hint">One line per part number with its count, sizes in decimal inches and fractions, material, grain and banding. Opens in Excel, and cutting services and panel saw software read it.</p>
+          {csvMsg && <p className="warn-text">{csvMsg}</p>}
         </Section>
       </div>
     </aside>
@@ -359,5 +368,64 @@ function LabelBar({ results }: { results: MaterialResult[] }) {
       <span className="muted">{sheets} label sheet{sheets === 1 ? '' : 's'}, in cutting order, sheet and # matching the layouts. Print at 100% (Actual size), no scaling.</span>
       {msg && <span className="warn-text">{msg}</span>}
     </div>
+  );
+}
+
+/**
+ * Offcuts: what this job leaves that's worth keeping, saved to the shop's list; and what's on the
+ * list from earlier jobs, picked to be cut first here.
+ */
+function OffcutRack({ results }: { results: MaterialResult[] }) {
+  const { project, data, set } = useCutlist();
+  const rack = useShop((s) => s.offcuts);
+  const [msg, setMsg] = useState('');
+  const job = project.client?.last || project.name;
+  const mats = new Set(materialsOf(project, data));
+  const onHand = data.onHand ?? [];
+  const picked = new Set(onHand.map((o) => o.id));
+  const available = Object.values(rack).filter((o) => mats.has(o.material) && (!o.usedBy || o.usedBy === job || picked.has(o.id))).sort((a, b) => a.material.localeCompare(b.material) || b.l * b.w - a.l * a.w);
+  const mine = results.flatMap((m) => m.sheets.flatMap((sh, i) => sh.offcuts.map((o) => ({ ...o, material: m.material, sheet: i + 1 }))));
+  // Worth a spot in the rack: a shelf or a side's worth, not a sliver
+  const keepers = mine.filter((o) => Math.min(o.l, o.w) >= 6 && Math.max(o.l, o.w) >= 12);
+  const usedIds = new Set(results.flatMap((m) => m.sheets.map((sh) => sh.stock.id)).filter((id) => id.startsWith('off:')).map((id) => id.slice(4)));
+  const toggle = (o: StockOffcut, on: boolean) => {
+    set((d) => ({ ...d, onHand: on ? [...(d.onHand ?? []), { id: o.id, material: o.material, l: o.l, w: o.w, from: o.from }] : (d.onHand ?? []).filter((x) => x.id !== o.id) }));
+    void saveOffcut({ ...o, usedBy: on ? job : undefined });
+  };
+  const doneCutting = async () => {
+    const gone = onHand.filter((o) => usedIds.has(o.id));
+    if (!(await askConfirm(`Update the offcut list: add this job’s ${keepers.length} offcut${keepers.length === 1 ? '' : 's'}${gone.length ? ` and take off the ${gone.length} this job cut into` : ''}? Do this once the sheets are cut.`, 'Update the list'))) return;
+    for (const o of gone) await deleteOffcut(o.id);
+    for (const o of keepers) await saveOffcut({ id: uid('off'), material: o.material, thickness: 0, l: +Math.max(o.l, o.w).toFixed(3), w: +Math.min(o.l, o.w).toFixed(3), from: job, at: Date.now() });
+    set((d) => ({ ...d, onHand: (d.onHand ?? []).filter((x) => !usedIds.has(x.id)) }));
+    setMsg(`Offcut list updated: ${keepers.length} added${gone.length ? `, ${gone.length} used` : ''}.`);
+  };
+  return (
+    <>
+      <Section title="This job’s offcuts">
+        {!mine.length ? <p className="hint">No offcuts over {fmt(data.options.minOffcut)}.</p> : (
+          <ul className="offcuts">
+            {mine.map((o, j) => <li key={j}><span className="mono">{fmt(Math.max(o.l, o.w))} × {fmt(Math.min(o.l, o.w))}</span> <span className="muted">{o.material}, sheet {o.sheet}</span></li>)}
+          </ul>
+        )}
+        {(keepers.length > 0 || usedIds.size > 0) && <button className="mini" onClick={() => void doneCutting()}>Done cutting: update the offcut list</button>}
+        {msg && <p className="hint">{msg}</p>}
+      </Section>
+      <Section title={`Offcuts on hand${available.length ? ` (${available.length})` : ''}`}>
+        {!available.length ? <p className="hint">None in this job’s materials. After cutting a job, “Done cutting” keeps its pieces 6" × 12" and bigger here for later jobs.</p> : (
+          <>
+            <p className="hint">Tick the ones to cut first on this job. They show on the layouts as “Offcut from …”.</p>
+            <ul className="offcuts rack">
+              {available.map((o) => (
+                <li key={o.id}>
+                  <label><input type="checkbox" checked={picked.has(o.id)} onChange={(e) => toggle(o, e.target.checked)} /> <span className="mono">{fmt(o.l)} × {fmt(o.w)}</span> <span className="muted">{o.material}, from {o.from}</span></label>
+                  <button className="mini danger" aria-label={`Remove the ${fmt(o.l)} by ${fmt(o.w)} offcut from the list`} onClick={async () => { if (await askConfirm('Take this offcut off the list (used or thrown out)?', 'Remove')) { set((d) => ({ ...d, onHand: (d.onHand ?? []).filter((x) => x.id !== o.id) })); void deleteOffcut(o.id); } }}>×</button>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+      </Section>
+    </>
   );
 }

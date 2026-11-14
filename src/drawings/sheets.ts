@@ -23,7 +23,7 @@ import { hingeTypes } from '../model/eagle';
 import { cofferOf, cofferParts } from '../model/coffer';
 import { fuelLabel, mantelOf, upperTop } from '../model/mantel';
 import { cofferScope, scopeLine } from '../model/quote';
-import { beginEdits, drawingCss, endEdits, inView, scaleName, takeViews, type DrawingEdits, type Frame, type ViewInfo } from './draw';
+import { beginEdits, drawingCss, endEdits, inView, markRevision, scaleName, takeViews, type DrawingEdits, type Frame, type ViewInfo } from './draw';
 import { RESTRICTOR_NOTE, cabinetCallouts, forAudience, jobCallouts, type Audience } from './notes';
 import { LOGO, LOGO_ASPECT } from './logo';
 import { tableViews } from './tableViews';
@@ -88,6 +88,10 @@ export interface DrawingSettings {
   rcpCenters?: boolean;
   /** Customer elevations: what's built on the side walls and ceiling, cut in section (shaded) or seen from the side. */
   sides?: Partial<Record<WallId, 'section' | 'side'>>;
+  /** Each revision: date, what changed, and the cabinets to mark. */
+  revisions?: import('../model/revisions').Revision[];
+  /** The design as the set last went out (by cabinet tag), to tell what the next revision changed. */
+  revBase?: Record<string, string>;
 }
 export const drawingsOf = (p: Project): DrawingSettings => ({ paper: 'tabloid', rev: 0, notes: '', ...p.drawings });
 
@@ -204,8 +208,23 @@ export function jobCustomerSet(p: Project): Sheet[] {
   return draw(draw().map((x) => [x.number, x.title]));
 }
 
+/** The revision list: each revision's number in its triangle, date and what changed (newest first). */
+function revTableHtml(s: DrawingSettings): string {
+  const revs = [...(s.revisions ?? [])].sort((a, b) => b.rev - a.rev).slice(0, 6);
+  if (!revs.length) return '';
+  return `<h2>Revisions</h2><table class="revs">${revs.map((r) => `<tr><td class="rv">${r.rev}</td><td>${esc(r.date)}</td><td>${esc(r.note).replace(/\n/g, '<br>')}</td></tr>`).join('')}</table>`
+    + `<p class="small">Changed cabinets carry the revision number in a triangle beside their tags.</p>`;
+}
+
+/** Mark the cabinets the current revision changed. */
+function beginMarks(s: DrawingSettings) {
+  const last = s.revisions?.find((r) => r.rev === s.rev);
+  markRevision(s.rev, last?.tags ?? []);
+}
+
 export function customerSet(p: Project, s: DrawingSettings): Sheet[] {
   beginEdits(s.edits);
+  beginMarks(s);
   // The customer's set names no suppliers (the shop set keeps them)
   try { return customerSheets(p, s).map((x) => ({ ...x, title: forCustomer(x.title), svg: forCustomer(x.svg) })); } finally { endEdits(); }
 }
@@ -249,6 +268,7 @@ function customerSheets(p: Project, s: DrawingSettings): Sheet[] {
       <table class="idx">${(jobSet?.index ?? index).map(([n, t]) => `<tr><td>${n}</td><td>${esc(t)}</td></tr>`).join('')}</table>
       ${s.notes ? `<h2>Notes</h2><p>${esc(s.notes).replace(/\n/g, '<br>')}</p>` : ''}
       <p class="small">Drawings show design intent. Final dimensions are field verified before fabrication.</p>
+      ${revTableHtml(s)}
       <div class="approve"><h2>Approval</h2><p>I have reviewed these drawings and the selections on ${esc(schedNo)}, and approve them ☐ as drawn ☐ with the changes marked.</p>
       <p>Signature ______________________________</p><p>Date ______________</p></div>`, s.paper === 'tabloid' ? 0.13 : 0.11),
   ].join('');
@@ -602,6 +622,7 @@ function pageRoomLeft(page: string, all: TRow[], w: number, fs: number, cap: num
 
 export function shopSet(p: Project, s: DrawingSettings): Sheet[] {
   beginEdits(s.edits);
+  beginMarks(s);
   try { return shopSheets(p, s); } finally { endEdits(); }
 }
 function shopSheets(p: Project, s: DrawingSettings): Sheet[] {
@@ -613,7 +634,7 @@ function shopSheets(p: Project, s: DrawingSettings): Sheet[] {
   walls.forEach((w, i) => {
     const elevFrame = { ...A, w: A.w * 0.7 };
     const e = inView(`shop-elev:${w}`, `${wallNames[w]} assembly`, () => wallElevation(p, w, elevFrame, 'shop', cutsOn(p, placed, w)));
-    const notes = html({ x: A.x + A.w * 0.72, y: A.y, w: A.w * 0.28, h: A.h }, installNotes(p, w), s.paper === 'tabloid' ? 0.11 : 0.095);
+    const notes = html({ x: A.x + A.w * 0.72, y: A.y, w: A.w * 0.28, h: A.h }, (i === 0 ? revTableHtml(s) : '') + installNotes(p, w), s.paper === 'tabloid' ? 0.11 : 0.095);
     sheets.push(sheet(p, s, `S${i + 1}`, `${wallNames[w]} assembly`, scaleName(e.scale), e.svg + notes));
   });
   sheets.push(...detailSheets(p, s, placed));
@@ -733,6 +754,7 @@ export const sheetCss = drawingCss + `
 .dwg .fo table.parts td:nth-child(1),.dwg .fo table.parts td:nth-child(2),.dwg .fo table.parts td:nth-child(3),.dwg .fo table.parts td:nth-child(4),.dwg .fo table.parts td:nth-child(5),.dwg .fo table.parts td:nth-child(6){white-space:nowrap}
 .dwg .fo table.molds td:nth-child(5),.dwg .fo table.molds td:nth-child(6){white-space:normal}
 .dwg .fo table.sched td:nth-child(3){white-space:normal}
+.dwg .fo table.revs{border-collapse:collapse;width:100%;margin:.2em 0}.dwg .fo table.revs td{border:1px solid #bbb;padding:.15em .35em;vertical-align:top}.dwg .fo table.revs td.rv{color:#c0392b;font-weight:700;text-align:center;width:1.6em}
 .dwg .fo .approve{border:1px solid #111;padding:.4em .7em;margin-top:1em}
 `;
 

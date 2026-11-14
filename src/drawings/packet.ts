@@ -218,7 +218,7 @@ function materialsSheet(p: Project, s: DrawingSettings, sheets: Sheet[], results
 export function packetSheets(p: Project, d = drawingsOf(p)): { sheets: Sheet[]; results: MaterialResult[] } {
   const sheets = shopSet(p, d);
   const data = p.cutlist ?? defaultCutlist(p);
-  const results = optimize(optimizerParts(p, data), cutStock(p, data), data.options);
+  const results = optimize(optimizerParts(p, data), cutStock(p, data, undefined, { offcuts: true }), data.options);
   sheets.push(...ffAssemblySheets(p, d, sheets));
   sheets.push(...cutSheets(p, d, sheets, results));
   sheets.push(...ffCutSheets(p, d, sheets));
