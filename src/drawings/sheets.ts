@@ -23,6 +23,7 @@ import { hingeTypes } from '../model/eagle';
 import { cofferOf, cofferParts } from '../model/coffer';
 import { fuelLabel, mantelOf, upperTop } from '../model/mantel';
 import { cofferScope, scopeLine } from '../model/quote';
+import { blockingThickness, doorHinges, slideLines, slideMount } from '../model/mounting';
 import { beginEdits, drawingCss, endEdits, inView, markRevision, scaleName, takeViews, type DrawingEdits, type Frame, type ViewInfo } from './draw';
 import { RESTRICTOR_NOTE, cabinetCallouts, forAudience, jobCallouts, type Audience } from './notes';
 import { LOGO, LOGO_ASPECT } from './logo';
@@ -500,12 +501,39 @@ function assemblySteps(p: Project, c: Cabinet, parts: Part[], sideNotes: string[
   return steps;
 }
 
+/** Where the hinge plates and slides go on this cabinet, in words, to go with the marks on its drawings. */
+function hardwarePlaces(p: Project, c: Cabinet): string[] {
+  const out: string[] = [];
+  const parts = partsOf(p, c);
+  const ffBoxes = parts.filter((x) => x.material === 'faceframe' && (x.role === 'stile' || x.role === 'rail')).flatMap((x) => x.boxes);
+  const hinges = ffBoxes.length ? doorHinges(p, c, parts) : [];
+  if (hinges.length) {
+    const fb = Math.min(...ffBoxes.map((b) => b.min[1]));
+    const by = new Map<string, { n: number; ys: number[]; edge: string }>();
+    for (const h of hinges) {
+      const key = `${h.edge}|${h.ys.map((y) => y.toFixed(3)).join(',')}`;
+      const g = by.get(key);
+      if (g) g.n++; else by.set(key, { n: 1, ys: h.ys, edge: h.edge });
+    }
+    for (const g of by.values()) out.push(`Hinge plates${g.n > 1 ? ` (${g.n} doors)` : ''} on the ${g.edge} stile, centered at ${g.ys.map((y) => fmt(y - fb)).join(', ')} up from the bottom of the face frame, lined up with Eagle’s cups (3" from the door’s top and bottom); marked on the face frame drawing`);
+  }
+  const slides = slideLines(p, c);
+  if (slides.length) {
+    const m = slideMount(p, c);
+    if (m === 'rear') out.push(`Slides: the runner’s front screws to the back of the face frame and its back sits in a Blum rear bracket screwed to the case back, bottom edge level with the top of the rail under each drawer`);
+    else if (m === 'blocked') out.push(`Slides: on blocking ${fmt(blockingThickness(p, c, parts))} thick on each side, flush with the face frame opening; heights on the side panel drawing`);
+  }
+  return out;
+}
+
 function hardwareList(p: Project, c: Cabinet): string {
   const h = hardwareOrder({ ...p, cabinets: [c] });
   if (!h.lines.length && !h.problems.length) return '';
+  const mounting = hardwarePlaces(p, c);
   // Blum's inset-on-face-frame pairing reads like an overlay hinge in the catalog: say why it's right
-  const why = (part: string) => (part === '71B3650' ? ' (Blum’s hinge for inset doors on a face frame, used with the 175H5030.21 plate; not for a half-overlay door here). Bore 35 mm cups to the boring distance on Blum’s sheet for this hinge and plate; hinges about 3" from the top and bottom of each door, a third one centered on doors over 40" tall' : part === '175H5030.21' ? ' (screws to the back of the face frame stile)' : '');
-  return `<h3>Hardware, each</h3><ul>${h.lines.map((l) => `<li>${l.qty} × ${esc(l.part.part)}: ${esc(l.part.description)}${esc(why(l.part.part))}</li>`).join('')}${h.problems.map((x) => `<li>${esc(x.text)}</li>`).join('')}</ul>`;
+  const why = (part: string) => (part === '71B3650' ? ' (Blum’s hinge for inset doors on a face frame, used with the 175H5030.21 plate; not for a half-overlay door here). Eagle bores the cups 3" from the top and bottom of each door to the cup center, middle hinges evenly between' : part === '175H5030.21' ? ' (screws to the back of the face frame stile)' : '');
+  return `<h3>Hardware, each</h3><ul>${h.lines.map((l) => `<li>${l.qty} × ${esc(l.part.part)}: ${esc(l.part.description)}${esc(why(l.part.part))}</li>`).join('')}${h.problems.map((x) => `<li>${esc(x.text)}</li>`).join('')}</ul>`
+    + (mounting.length ? `<h3>Where it goes</h3><ul>${mounting.map((t) => `<li>${esc(t)}</li>`).join('')}</ul>` : '');
 }
 
 function materialName(p: Project, part: Part): string {

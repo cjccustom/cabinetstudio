@@ -13,6 +13,7 @@ import { hasSlopes, wallCeiling } from '../model/ceiling';
 import { applianceName, placedAppliances, type PlacedAppliance } from '../model/appliances';
 import { mantelLayout, mantelOf } from '../model/mantel';
 import { pullSpots } from '../model/pulls';
+import { blockingThickness, doorHinges, slideLines, slideMount } from '../model/mounting';
 import { beadCorner, cofferLayout, cofferOf, coffers, fasciaHeight, perimOf, underFascia } from '../model/coffer';
 
 export const partsOf = (p: Project, c: Cabinet) => buildParts(c, p.settings, resolveEnds(p.room, p.cabinets, c));
@@ -459,6 +460,25 @@ export function faceFrameView(p: Project, c: Cabinet, frame: Frame): { svg: stri
   v.chainV([y0, y1, ...railYs], x1, 0.3);
   v.dimH(x0, x1, y0, -0.35);
   v.dimV(y0, y1, x0, -0.35);
+  // Hinge plates: a mark across the stile at each cup center, heights up the hinge side from the frame bottom
+  const hinges = doorHinges(p, c, parts);
+  const stiles = ff.filter((x) => x.role === 'stile').flatMap((x) => x.boxes);
+  for (const side of ['left', 'right'] as const) {
+    const on = hinges.filter((h) => h.edge === side);
+    if (!on.length) continue;
+    for (const h of on) {
+      // The stile the door hangs on: the one whose edge is nearest the door's hinge edge
+      const st = stiles.filter((b) => h.ys.every((y) => y >= b.min[1] - 0.01 && y <= b.min[1] + b.size[1] + 0.01))
+        .sort((a, b) => Math.min(Math.abs(a.min[0] - h.x), Math.abs(a.min[0] + a.size[0] - h.x)) - Math.min(Math.abs(b.min[0] - h.x), Math.abs(b.min[0] + b.size[0] - h.x)))[0];
+      const sx0 = st ? st.min[0] : h.x - 0.75, sx1 = st ? st.min[0] + st.size[0] : h.x + 0.75;
+      for (const y of h.ys) {
+        v.line(sx0, y, sx1, y, 'cut');
+        v.circle(side === 'left' ? sx1 - Math.min(0.75, (sx1 - sx0) / 2) : sx0 + Math.min(0.75, (sx1 - sx0) / 2), y, Math.max(0.12, v.p(0.018)), 'f');
+      }
+    }
+    const ys = [...new Set(on.flatMap((h) => h.ys).map((y) => +y.toFixed(4)))].sort((a, b) => a - b);
+    v.chainV([y0, ...ys], side === 'left' ? x0 : x1, side === 'left' ? -0.75 : 0.75);
+  }
   return { svg: v.svg(), scale: perFoot };
 }
 
@@ -598,6 +618,22 @@ export function sidePanelLayout(p: Project, c: Cabinet, frame: Frame): { svg: st
     v.dimV(base, start, rows[1], 0.22);
   }
   if (holes) notes.push(`Shelf pins: 5 mm holes on 32 mm centers, rows ${dimText(PINS.inset)} from the back rabbet and the front edge (${holes} a side)`);
+  // Drawer slides: blocked out to the opening (inset) or screwed to the side (frameless): the runner's
+  // bottom edge on each line, heights from the bottom of the side. Overlay jobs hang the runners on the
+  // face frame and rear brackets instead, so the side takes nothing.
+  const mount = slideMount(p, c);
+  const slideYs = slideLines(p, c).filter((y) => y > Y0 && y < H);
+  if (mount !== 'rear' && slideYs.length) {
+    const block = blockingThickness(p, c, parts);
+    for (const y of slideYs) {
+      v.line(rw0, y, D, y, 'cut');
+      v.text(rw0 + (D - rw0) / 2, y + v.p(0.03), mount === 'blocked' ? 'SLIDE ON BLOCKING' : 'SLIDE', 0.06, 'middle', 'dt');
+    }
+    v.chainV([Y0, ...slideYs], D, 0.75);
+    notes.push(mount === 'blocked'
+      ? `Drawer slides: block the side out flush with the face frame opening (blocking ${dimText(block)} thick, run from the back of the face frame to the back), then screw the runners to the blocking with their bottom edge on the lines: ${slideYs.map((y) => dimText(y - Y0)).join(', ')} up from the bottom of the side (level with the top of the rail under each drawer)`
+      : `Drawer slides: runners screwed to the side, bottom edge on the lines: ${slideYs.map((y) => dimText(y - Y0)).join(', ')} up from the bottom of the side`);
+  }
   // Toe notch
   const foot = side.boxes.length > 1 ? side.boxes.find((b) => b.min[1] <= Y0 + 0.01 && b.min[2] + b.size[2] < D - 0.05) : null;
   if (foot) {

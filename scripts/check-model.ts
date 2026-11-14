@@ -2562,5 +2562,24 @@ eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i
   eq('parts csv: part numbers on the lines', csv.slice(1).some((l) => /^B1-\d+,/.test(l)), true);
 }
 
+{
+  // Hinge plates and slides: Eagle's cups 3" from each end; overlay slides on rear brackets, inset ones blocked
+  const { hingeCenters, doorHinges, slideMount, slideLines, blockingThickness } = await import('../src/model/mounting');
+  const { shopSet: ss, drawingsOf: dof } = await import('../src/drawings/sheets');
+  eq('hinges: 3" from top and bottom', hingeCenters(30).join(), '3,27');
+  eq('hinges: a third one centered on a 45" door (Eagle table)', hingeCenters(45).join(), '3,22.5,42');
+  const p0 = sampleProject();
+  const drawerCab = p0.cabinets.find((c) => c.rows.some((r) => r.type === 'drawer') && c.rows.some((r) => r.type === 'doors'))!;
+  eq('hinges: every hinged door gets its plates', doorHinges(p0, drawerCab).every((h) => h.ys.length >= 2), true);
+  eq('slides: overlay job hangs them on rear brackets', slideMount(p0, drawerCab), 'rear');
+  const pi = { ...p0, settings: { ...p0.settings, doorMount: 'inset' as const } };
+  eq('slides: inset job blocks them out', slideMount(pi, drawerCab), 'blocked');
+  eq('slides: one line per drawer', slideLines(pi, drawerCab).length, drawerCab.rows.filter((r) => r.type === 'drawer').length);
+  eq('slides: blocking brings the side out to the opening', blockingThickness(pi, drawerCab) > 0.1, true);
+  const shop = ss(pi, dof(pi)).map((x) => x.svg).join('');
+  eq('slides: inset side panels show the slide lines', shop.includes('SLIDE ON BLOCKING'), true);
+  eq('hinges: plate locations written on the sheet', shop.includes('Hinge plates'), true);
+}
+
 console.log(failed ? `${failed} check(s) failed` : 'All model checks passed');
 process.exit(failed ? 1 : 0);
