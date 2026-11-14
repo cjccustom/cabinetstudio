@@ -24,7 +24,7 @@ import { live, onWheel, useNav } from './navigation';
 import { RoomModel } from './RoomModel';
 import { CofferModel } from './CofferModel';
 import { LadderModel } from './LadderModel';
-import { BedModels, TableModels } from './TableModel';
+import { BedModels, CaseModels, TableModels } from './TableModel';
 import { tvSize, tvsOf, type WallTV } from '../model/tv';
 import { opposite, underFascia } from '../model/coffer';
 import { buildParts } from '../model/parts';
@@ -84,6 +84,7 @@ export function Scene({ issueIds }: { issueIds: Set<string> }) {
       {/* Tables stand in the room: shown in 3D and plan, left out of the wall elevations they'd block */}
       {!elevWall && <TableModels project={project} hidden={hidden} />}
       {!elevWall && <BedModels project={project} hidden={hidden} />}
+      {!elevWall && <CaseModels project={project} hidden={hidden} />}
       {tvsOf(project).filter((t) => !elevWall || t.wall === elevWall).map((t) => <WallTVModel key={t.id} t={t} room={room} />)}
       {/* The ceiling, seen only from below, so the coffers and cans have something over them */}
       {showCeiling && view === '3d' && (

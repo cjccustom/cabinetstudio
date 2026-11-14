@@ -557,6 +557,8 @@ export interface Project {
   furniture?: Partial<import('./furniture').DiningTable>[];
   /** Beds: platform or frame, headboard, drawers (see bed.ts). */
   beds?: Partial<import('./bed').Bed>[];
+  /** Case furniture: nightstands, dressers, chests, sideboards, media consoles. */
+  cases?: Partial<import('./casePiece').CasePiece>[];
   /** A coffered ceiling over the room. */
   ceiling?: Partial<import('./coffer').CofferCeiling>;
   /** A rolling library ladder on a rail across the bookcases. */

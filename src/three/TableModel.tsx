@@ -1,5 +1,6 @@
 // Free-standing tables in the room, drawn from the same parts as their shop drawings and cut list.
 import { bedParts, bedsOf } from '../model/bed';
+import { caseParts, casesOf } from '../model/casePiece';
 import { newTable } from '../model/furniture';
 import { useMemo } from 'react';
 import * as THREE from 'three';
@@ -89,6 +90,22 @@ export function BedModels({ project, hidden }: { project: Project; hidden: strin
       : { pos: [W - gap, 0, along], rot: -Math.PI / 2 };
     const look = { ...newTable(), finish: b.finish, species: b.grade === 'paint' ? 'Poplar' : b.species, edge: 'eased' as const, lip: false };
     return <group key={b.id} position={place.pos} rotation-y={place.rot}><TablePiece t={look} parts={bedParts(b)} /></group>;
+  })}</>;
+}
+
+/** Case pieces in the room: back against its wall (the back wall unless set), centered unless placed. */
+export function CaseModels({ project, hidden }: { project: Project; hidden: string[] }) {
+  return <>{casesOf(project).filter((c) => !hidden.includes(c.id)).map((c) => {
+    const wall = c.wall ?? 'back';
+    const W = project.room.width, D = project.room.depth;
+    const along = c.offset ?? (wall === 'back' || wall === 'front' ? W / 2 : D / 2);
+    const gap = c.depth / 2 + 0.25;
+    const place: { pos: [number, number, number]; rot: number } = wall === 'back' ? { pos: [along, 0, gap], rot: 0 }
+      : wall === 'front' ? { pos: [W - along, 0, D - gap], rot: Math.PI }
+      : wall === 'left' ? { pos: [gap, 0, D - along], rot: Math.PI / 2 }
+      : { pos: [W - gap, 0, along], rot: -Math.PI / 2 };
+    const look = { ...newTable(), finish: c.finish, species: c.grade === 'paint' ? 'Poplar' : c.species, edge: 'eased' as const, lip: false };
+    return <group key={c.id} position={place.pos} rotation-y={place.rot}><TablePiece t={look} parts={caseParts(c)} /></group>;
   })}</>;
 }
 

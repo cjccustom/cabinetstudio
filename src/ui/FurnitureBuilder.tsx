@@ -11,6 +11,8 @@ import { addToJob, designPrice, furnitureTypes, jobPieces, newDesign, removeFrom
 import { newTable, tableBaseLabel, tableChecks, tableEstimate, tableFinishLabel, topShapeLabel, type DiningTable, type TableBase, type TableFinish, type TableLeg, type TopShape } from '../model/furniture';
 import { tableParts, tableSpecies } from '../model/tableParts';
 import { bedParts } from '../model/bed';
+import { caseParts } from '../model/casePiece';
+import { CaseEditor } from './CaseEditor';
 import { metalFinishes, metalForms, newMetalBase, type MetalBase, type MetalForm, type MetalStock } from '../model/metalBase';
 import { metalSheetHtml } from '../model/metalSheet';
 import { edgeProfiles, type EdgeProfile } from '../model/edgeProfiles';
@@ -70,8 +72,8 @@ export function FurnitureBuilder() {
   };
   const putTable = (patch: Partial<DiningTable>) => live?.table && change({ ...live, table: { ...live.table, ...patch } });
   // Hand changes live on the table or the bed itself
-  const pe: PieceEdits = live?.table ? { edits: live.table.edits, added: live.table.added } : live?.bed ? { edits: live.bed.edits, added: live.bed.added } : {};
-  const setPe = (n: PieceEdits) => { if (!live) return; if (live.table) change({ ...live, table: { ...live.table, edits: n.edits, added: n.added } }); else if (live.bed) change({ ...live, bed: { ...live.bed, edits: n.edits, added: n.added } }); };
+  const pe: PieceEdits = live?.table ? { edits: live.table.edits, added: live.table.added } : live?.bed ? { edits: live.bed.edits, added: live.bed.added } : live?.case ? { edits: live.case.edits, added: live.case.added } : {};
+  const setPe = (n: PieceEdits) => { if (!live) return; if (live.table) change({ ...live, table: { ...live.table, edits: n.edits, added: n.added } }); else if (live.bed) change({ ...live, bed: { ...live.bed, edits: n.edits, added: n.added } }); else if (live.case) change({ ...live, case: { ...live.case, edits: n.edits, added: n.added } }); };
   useEffect(() => setSel(null), [open?.d.id]);
   const leave = async () => !dirty || (await askConfirm(`Leave ${open!.d.name} without saving your changes?`, 'Leave it'));
   const startNew = async () => { if (!(await leave())) return; setOpen(null); setStep('pick'); setPickType(null); setMsg(''); };
@@ -111,8 +113,8 @@ export function FurnitureBuilder() {
   };
 
   // The piece as the 3D draws it
-  const look = live?.table ?? (live?.bed ? { ...newTable(), finish: live.bed.finish, species: live.bed.grade === 'paint' ? 'Poplar' : live.bed.species } : null);
-  const parts = useMemo(() => (live?.table ? tableParts(live.table) : live?.bed ? bedParts(live.bed) : []), [live]);
+  const look = live?.table ?? (live?.bed ? { ...newTable(), finish: live.bed.finish, species: live.bed.grade === 'paint' ? 'Poplar' : live.bed.species } : live?.case ? { ...newTable(), finish: live.case.finish, species: live.case.grade === 'paint' ? 'Poplar' : live.case.species, edge: 'eased' as const } : null);
+  const parts = useMemo(() => (live?.table ? tableParts(live.table) : live?.bed ? bedParts(live.bed) : live?.case ? caseParts(live.case) : []), [live]);
   const price = useMemo(() => (live ? designPrice(project, live) : null), [live, project]);
 
   return (
@@ -171,10 +173,11 @@ export function FurnitureBuilder() {
               <p className="hint">{open!.where === 'job' ? `On ${project.name}: changes go straight onto the job.` : saved ? 'From the furniture library.' : 'New design: save it to the library, add it to this job, or both.'}</p>
               {sel && <PartEditor key={sel} parts={parts} sel={sel} pe={pe} setPe={setPe} onDone={() => setSel(null)} onSelect={setSel} all={pickAll} setAll={setPickAll} />}
               {!sel && <p className="hint">Click any part in the 3D to change its size, move it, or route a profile on its edges.</p>}
-              <Field label="Name" htmlFor="fb-name"><input id="fb-name" value={live.name} onChange={(e) => change({ ...live, name: e.target.value, ...(live.table ? { table: { ...live.table, name: e.target.value } } : {}), ...(live.bed ? { bed: { ...live.bed, name: e.target.value } } : {}) })} /></Field>
+              <Field label="Name" htmlFor="fb-name"><input id="fb-name" value={live.name} onChange={(e) => change({ ...live, name: e.target.value, ...(live.table ? { table: { ...live.table, name: e.target.value } } : {}), ...(live.bed ? { bed: { ...live.bed, name: e.target.value } } : {}), ...(live.case ? { case: { ...live.case, name: e.target.value } } : {}) })} /></Field>
               {live.table && <TablePanel t={live.table} type={live.type} put={putTable} onFab={fabSheet} inJob={open!.where === 'job'} />}
               {live.bed && <BedEditor embedded b={live.bed} put={(patch) => change({ ...live, bed: { ...live.bed!, ...patch } })} remove={remove} />}
-              {!sel && <AddPartFields pe={pe} setPe={setPe} height={live.table?.height ?? live.bed?.headH ?? 30} onSelect={setSel} />}
+              {live.case && <CaseEditor c={live.case} put={(patch) => change({ ...live, case: { ...live.case!, ...patch } })} />}
+              {!sel && <AddPartFields pe={pe} setPe={setPe} height={live.table?.height ?? live.bed?.headH ?? live.case?.height ?? 30} onSelect={setSel} />}
               {price && (
                 <div className="fb-price"><span>{price.hours.toFixed(1)} h · {money(price.materials)} materials</span><b>{money(price.price)}</b></div>
               )}
@@ -204,6 +207,7 @@ function pieceSize(d: FurnitureDesign): string {
     const t = d.table;
     return t.shape === 'round' ? `${fmt(t.length)} round × ${fmt(t.height)} high` : `${fmt(t.length)} × ${fmt(t.width)} × ${fmt(t.height)} high`;
   }
+  if (d.case) return `${fmt(d.case.width)} × ${fmt(d.case.depth)} × ${fmt(d.case.height)} high`;
   const b = d.bed!;
   return `${b.mattress === 'custom' ? 'custom' : b.mattress} ${b.style} bed`;
 }
@@ -344,7 +348,11 @@ function TypeIcon({ type }: { type: FurnitureType }) {
     bench: <><path d="M8 36h48M12 36v12M52 36v12M12 44h40" {...st} /></>,
     stool: <><path d="M22 22h20M25 22l-3 26M39 22l3 26M24 38h16" {...st} /></>,
     bed: <><path d="M8 18v30M8 32h48v16M8 32V22h14v10M56 36v12" {...st} /></>,
-    nightstand: <><path d="M16 20h32v28H16zM16 32h32M30 26h4M30 40h4" {...st} /></>,
+    nightstand: <><path d="M16 18h32M18 18v22h28V18M18 29h28M30 23h4M30 34h4M19 40v8M45 40v8" {...st} /></>,
+    dresser: <><path d="M6 16h52M8 16v28h48V16M8 23h48M32 16v7M8 30h48M8 37h48M10 44v4M54 44v4M18 19h4M42 19h4M30 26h4M30 33h4M30 40h4" {...st} /></>,
+    chest: <><path d="M16 8h32M18 8v40h28V8M18 15h28M32 8v7M18 22h28M18 30h28M18 39h28M30 18h4M30 25h4M30 34h4M30 43h4" {...st} /></>,
+    sideboard: <><path d="M4 20h56M6 20v20h52V20M6 26h52M23 20v20M41 20v20M8 40v8M56 40v8M13 23h4M30 23h4M48 23h4" {...st} /></>,
+    media: <><path d="M4 28h56M6 28v16h52V28M6 34h52M23 28v16M41 28v16M8 44v4M56 44v4" {...st} /></>,
     scratch: <><path d="M32 18v28M18 32h28" {...st} /></>,
   };
   return <svg viewBox="0 0 64 64" width="56" height="56" aria-hidden="true">{d[type]}</svg>;

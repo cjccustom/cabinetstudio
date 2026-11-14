@@ -5,9 +5,10 @@ import type { Project } from './types';
 import { uid } from './defaults';
 import { newBench, newTable, type DiningTable, type TopShape } from './furniture';
 import { newBed, type Bed } from './bed';
+import { newCase, type CaseKind, type CasePiece } from './casePiece';
 import { priceQuote, quoteOf } from './quote';
 
-export type FurnitureType = 'dining' | 'kitchen' | 'coffee' | 'side' | 'console' | 'desk' | 'bench' | 'stool' | 'bed' | 'nightstand' | 'scratch';
+export type FurnitureType = 'dining' | 'kitchen' | 'coffee' | 'side' | 'console' | 'desk' | 'bench' | 'stool' | 'bed' | 'nightstand' | 'dresser' | 'chest' | 'sideboard' | 'media' | 'scratch';
 
 export interface FurnitureDesign {
   id: string;
@@ -15,10 +16,12 @@ export interface FurnitureDesign {
   type: FurnitureType;
   table?: DiningTable;
   bed?: Bed;
+  /** Case pieces: nightstand, dresser, chest, sideboard, media console. */
+  case?: CasePiece;
   updatedAt: number;
 }
 
-interface TypeInfo { id: FurnitureType; label: string; group: string; hint: string; shapes: TopShape[] | null; soon?: boolean; make: () => { table?: DiningTable; bed?: Bed } }
+interface TypeInfo { id: FurnitureType; label: string; group: string; hint: string; shapes: TopShape[] | null; soon?: boolean; make: () => { table?: DiningTable; bed?: Bed; case?: CasePiece } }
 
 const table = (patch: Partial<DiningTable>) => ({ table: { ...newTable(), ...patch } });
 const allShapes: TopShape[] = ['rect', 'round', 'oval', 'racetrack'];
@@ -34,7 +37,11 @@ export const furnitureTypes: TypeInfo[] = [
   { id: 'bench', label: 'Bench seat', group: 'Seating', hint: '48" × 16" × 18"', shapes: ['rect', 'racetrack'], make: () => ({ table: newBench() }) },
   { id: 'stool', label: 'Stool', group: 'Seating', hint: '14" × 14" × 24" (counter height)', shapes: ['rect', 'round'], make: () => ({ table: { ...newBench(), name: 'Stool', use: 'stool', length: 14, width: 14, height: 24, legSize: 1.5, apron: 2.5, stretchers: 'box' as const } }) },
   { id: 'bed', label: 'Bed frame', group: 'Bedroom', hint: 'Platform or frame, any mattress size', shapes: null, make: () => ({ bed: newBed() }) },
-  { id: 'nightstand', label: 'Nightstand', group: 'Bedroom', hint: 'Drawers and casework: in the second pass', shapes: null, soon: true, make: () => table({ name: 'Nightstand', use: 'nightstand', length: 22, width: 18, height: 26 }) },
+  { id: 'nightstand', label: 'Nightstand', group: 'Bedroom', hint: '22" × 16" × 26", 2 drawers on legs', shapes: null, make: () => ({ case: newCase('nightstand') }) },
+  { id: 'dresser', label: 'Dresser', group: 'Bedroom', hint: '60" × 20" × 34", 2 over 3 drawers', shapes: null, make: () => ({ case: newCase('dresser') }) },
+  { id: 'chest', label: 'Chest of drawers', group: 'Bedroom', hint: '36" × 20" × 50", graduated drawers', shapes: null, make: () => ({ case: newCase('chest') }) },
+  { id: 'sideboard', label: 'Sideboard or buffet', group: 'Storage', hint: '66" × 18" × 36", drawers over doors', shapes: null, make: () => ({ case: newCase('sideboard') }) },
+  { id: 'media', label: 'Media console', group: 'Storage', hint: '72" × 18" × 24", open over doors', shapes: null, make: () => ({ case: newCase('media') }) },
   { id: 'scratch', label: 'Start from scratch', group: 'Other', hint: 'A plain top on four legs to shape your own way', shapes: allShapes, make: () => table({ name: 'New piece', use: 'table', length: 48, width: 30, leg: 'square' }) },
 ];
 export const typeInfo = (t: FurnitureType) => furnitureTypes.find((x) => x.id === t)!;
@@ -43,7 +50,7 @@ export const typeInfo = (t: FurnitureType) => furnitureTypes.find((x) => x.id ==
 export function newDesign(type: FurnitureType, shape: TopShape = 'rect'): FurnitureDesign {
   const info = typeInfo(type);
   const made = info.make();
-  const d: FurnitureDesign = { id: uid('fd'), name: made.bed?.name ?? made.table!.name, type, updatedAt: Date.now(), ...made };
+  const d: FurnitureDesign = { id: uid('fd'), name: made.bed?.name ?? made.case?.name ?? made.table!.name, type, updatedAt: Date.now(), ...made };
   if (d.table) {
     d.table = { ...d.table, type, shape, ...(shape === 'round' ? { width: d.table.length } : {}) };
     if (shape === 'round' && d.table.length > 60) d.table = { ...d.table, length: 54, width: 54 };
@@ -56,12 +63,13 @@ export function jobPieces(p: Project): FurnitureDesign[] {
   return [
     ...(p.furniture ?? []).map((t) => ({ id: t.id!, name: t.name ?? 'Table', type: (t.type as FurnitureType) ?? (t.kind === 'bench' ? 'bench' : 'dining'), table: { ...newTable(), ...t } as DiningTable, updatedAt: 0 })),
     ...(p.beds ?? []).map((b) => ({ id: b.id!, name: b.name ?? 'Bed', type: 'bed' as FurnitureType, bed: { ...newBed(), ...b } as Bed, updatedAt: 0 })),
+    ...(p.cases ?? []).map((c) => ({ id: c.id!, name: c.name ?? 'Nightstand', type: ((c.kind as CaseKind) ?? 'nightstand') as FurnitureType, case: { ...newCase((c.kind as CaseKind) ?? 'nightstand'), ...c } as CasePiece, updatedAt: 0 })),
   ];
 }
 
 /** What the piece comes to on its own at the job's pricing (the furniture line, with workload). */
-export function designPrice(p: Project, d: Pick<FurnitureDesign, 'table' | 'bed'>): { price: number; hours: number; materials: number } {
-  const lone: Project = { ...p, rooms: undefined, cabinets: [], panels: [], openings: [], ceiling: undefined, furniture: d.table ? [d.table] : [], beds: d.bed ? [d.bed] : [], quote: { ...p.quote, extras: [], scopeExtra: [] } };
+export function designPrice(p: Project, d: Pick<FurnitureDesign, 'table' | 'bed' | 'case'>): { price: number; hours: number; materials: number } {
+  const lone: Project = { ...p, rooms: undefined, cabinets: [], panels: [], openings: [], ceiling: undefined, furniture: d.table ? [d.table] : [], beds: d.bed ? [d.bed] : [], cases: d.case ? [d.case] : [], quote: { ...p.quote, extras: [], scopeExtra: [] } };
   const r = priceQuote(lone);
   const q = quoteOf(lone);
   const g = r.groups.find((x) => x.group === 'furniture');
@@ -74,13 +82,18 @@ export function addToJob(p: Project, d: FurnitureDesign): { project: Project; id
     const id = uid('tbl');
     return { project: { ...p, furniture: [...(p.furniture ?? []), { ...d.table, id, name: d.name, designId: d.id }] }, id };
   }
+  if (d.case) {
+    const id = uid('case');
+    return { project: { ...p, cases: [...(p.cases ?? []), { ...d.case, id, name: d.name }] }, id };
+  }
   const id = uid('bed');
   return { project: { ...p, beds: [...(p.beds ?? []), { ...d.bed!, id, name: d.name }] }, id };
 }
 export function updateInJob(p: Project, d: FurnitureDesign): Project {
   if (d.table) return { ...p, furniture: (p.furniture ?? []).map((t) => (t.id === d.id ? { ...d.table!, id: d.id, name: d.name } : t)) };
+  if (d.case) return { ...p, cases: (p.cases ?? []).map((c) => (c.id === d.id ? { ...d.case!, id: d.id, name: d.name } : c)) };
   return { ...p, beds: (p.beds ?? []).map((b) => (b.id === d.id ? { ...d.bed!, id: d.id, name: d.name } : b)) };
 }
 export function removeFromJob(p: Project, id: string): Project {
-  return { ...p, furniture: (p.furniture ?? []).filter((t) => t.id !== id), beds: (p.beds ?? []).filter((b) => b.id !== id) };
+  return { ...p, furniture: (p.furniture ?? []).filter((t) => t.id !== id), beds: (p.beds ?? []).filter((b) => b.id !== id), cases: (p.cases ?? []).filter((c) => c.id !== id) };
 }

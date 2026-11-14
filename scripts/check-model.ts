@@ -2,6 +2,7 @@ import { addToJob, designPrice, newDesign } from "../src/model/furnitureDesign";
 import { metalCutList, metalMembers, newMetalBase } from "../src/model/metalBase";
 import { metalSheetHtml } from "../src/model/metalSheet";
 import { bedChecks, bedParts, bedSize, newBed } from "../src/model/bed";
+import { caseChecks, caseEstimate, caseOpenings, caseParts, caseScope, newCase, rowHeights } from "../src/model/casePiece";
 import { addRoom, jobRooms, removeRoom, roomTabs, switchRoom } from "../src/model/rooms";
 import { readFileSync } from "node:fs";
 import { optionPrices, proposalSummary, withOptions } from "../src/model/proposal";
@@ -2370,6 +2371,36 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   eq('drawings: every customer sheet is well-formed (attribute values close properly)', set.filter((x) => /[^=]""[\s/>]/.test(x.svg)).map((x) => x.number).join(), '');
   eq('rooms: each title block shows its room\'s sheet number', set.find((x) => x.number === '2-A1')!.svg.includes('>2-A1</text>'), true);
   eq('rooms: removing the pantry leaves the kitchen as it was', JSON.stringify(removeRoom(back, roomTabs(back)[1].id).cabinets) === JSON.stringify(p.cabinets) && !(removeRoom(back, roomTabs(back)[1].id).rooms ?? []).length, true);
+}
+
+// Case pieces: nightstand, dresser and friends: rows on the face, fronts, base, priced as furniture
+{
+  const n = newCase('nightstand');
+  const parts = caseParts(n);
+  eq('nightstand: 2 drawer fronts, 4 tapered legs, a top', `${parts.find((x) => x.name === 'Drawer front')?.qty} ${parts.find((x) => x.role === 'leg')?.qty} ${!!parts.find((x) => x.role === 'leg')?.taperTo} ${parts.filter((x) => x.role === 'top').length}`, '2 4 true 1');
+  eq('nightstand: rows fill the face (fixed row as set, the other gets the rest)', rowHeights(n).map((h) => +h.toFixed(3)).join(), `5.5,${+(26 - 0.875 - 8 - 5.5).toFixed(3)}`);
+  const ops = caseOpenings(n);
+  eq('nightstand: openings stack from the top of the case down to the base', `${ops[0].y1} ${ops[ops.length - 1].y0}`, `${26 - 0.875} 8`);
+  const d = newCase('dresser');
+  eq('dresser: 2 over 3 is 5 drawer fronts, two knobs on each (all over 20" wide)', `${caseParts(d).find((x) => x.name === 'Drawer front')?.qty} ${caseParts(d).find((x) => x.name === 'Knob')?.qty}`, '5 10');
+  const sb = newCase('sideboard');
+  eq('sideboard: 3 doors 20" wide each stay single, with a shelf behind each', `${caseParts(sb).find((x) => x.name === 'Door')?.qty} ${caseParts(sb).find((x) => x.name === 'Adjustable shelf')?.qty}`, '3 3');
+  const wide = { ...sb, rows: [sb.rows[0], { ...sb.rows[1], split: 1 as const }] };
+  eq('a door opening over 24" wide becomes a pair', caseParts(wide).find((x) => x.name === 'Door')?.qty, 2);
+  const inset = caseParts({ ...n, fronts: 'inset' });
+  eq('inset: a face frame, and the fronts sit flush with it', `${inset.some((x) => x.name === 'Face frame stile')} ${Math.max(...inset.find((x) => x.name === 'Drawer front')!.boxes.map((b) => b.min[2] + b.size[2]))}`, `true ${16 / 2 - 0.75}`);
+  const job = { ...p, cabinets: [], cases: [n, d] };
+  const r = priceQuote(job);
+  eq('cases: priced on the furniture line', (r.groups.find((g) => g.group === 'furniture')?.price ?? 0) > 0, true);
+  eq('cases: drawer boxes and slides on the materials', caseEstimate(n, job).materials.some((m) => m.label.startsWith('Drawer boxes')), true);
+  eq('cases: in the scope in plain words', scopeItems(job).some((x) => x.text.startsWith('Nightstand: custom nightstand') && x.text.includes('(2) drawers')), true);
+  eq('cases: a tall chest is flagged to anchor to the wall', caseChecks(newCase('chest')).some((c) => c.includes('anchor it')), true);
+  eq('cases: scope says plinth for a dresser', caseScope(d).includes('set-back plinth'), true);
+  const pair = { ...n, qty: 2 };
+  const h1 = caseEstimate(n, job).hours.reduce((t, h) => t + h.hours, 0), h2 = caseEstimate(pair, job).hours.reduce((t, h) => t + h.hours, 0);
+  eq('a pair: more than one, well under two (layout once, the second faster)', h2 > h1 * 1.4 && h2 < h1 * 1.8, true);
+  eq('a pair: scope says (2) matching', caseScope(pair).startsWith('Nightstand: (2) matching custom nightstands, each approx'), true);
+  eq('one knob, centered, on a 22" nightstand drawer', caseParts(n).find((x) => x.name === 'Knob')?.qty, 2);
 }
 
 // Beds: sized from the mattress, platform or frame, headboard, drawers; priced with the furniture
