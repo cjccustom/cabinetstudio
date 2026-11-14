@@ -392,6 +392,12 @@ function caseParts(c: Cabinet, s: ShopSettings, ends: EndInfo): Part[] {
   // A separate toe kick base: the case has no toe notch and sits on a ladder built and leveled once for the run
   const sep = BL.style === 'kick' && kick > 0 && !!BL.b.separate && !fridge;
 
+  // An extended top rail (wider than 2", there to back a crown or a coffer fascia) stands above the
+  // case: the box stops at the top under it and the rail is the nailer for the detail above. Hidden
+  // sides and the back stop there too (they don't need the plywood); an exposed side still runs up.
+  const shortBox = c.kind !== 'base' && !c.island && s.topRailWidth > 2 + 1e-6;
+  const caseTop = shortBox ? H - s.topRailWidth + s.bottomReveal + ta : H;
+  const clampTop = (bs: VisualBox[]): VisualBox[] => bs.map((b) => (b.min[1] + b.size[1] > caseTop ? { ...b, size: [b.size[0], caseTop - b.min[1], b.size[2]] as [number, number, number] } : b));
   // Sides
   const sideShapes = (x: number): CutShape[] => [cutShape('z', [x, 0, 0], boxD, BL.top, ta, BL.b.foot, boxD - Math.max(0.75, BL.b.foot - s.ffThickness), BL.b.shape, BL.rise)];
   const sideBoxes = (x: number, arch = false): VisualBox[] => {
@@ -416,12 +422,14 @@ function caseParts(c: Cabinet, s: ShopSettings, ends: EndInfo): Part[] {
     if (bare) notes.push('Finished outside: paint (or stain) with the face frame');
     if (fl) notes.push('Band the front edge');
     if (hfSpans.length) notes.push(hafeleSideNote(hfSpans, false));
+    const short = shortBox && !exposed;
+    if (short) notes.push(`Stops at the case top, ${fmtShort(H - caseTop)} below the top of the face frame; the top rail stands above as the nailer for the crown`);
     parts.push({
-      name: bare ? 'Side, exposed' : 'Side', role: 'side', material: 'box', length: H - BL.lift - (sep ? kick : 0), width: boxD, thickness: tn, cut: true, banded: fl || undefined,
+      name: bare ? 'Side, exposed' : 'Side', role: 'side', material: 'box', length: (short ? caseTop : H) - BL.lift - (sep ? kick : 0), width: boxD, thickness: tn, cut: true, banded: fl || undefined,
       // A bare exposed side gets the finish (painted, or stained to match), not left as case plywood
       ...(bare ? { look: 'paint' as const } : {}),
       note: notes.join(' · '),
-      boxes: sideBoxes(x, arch), shapes: arch ? sideShapes(x) : undefined,
+      boxes: short ? clampTop(sideBoxes(x, arch)) : sideBoxes(x, arch), shapes: arch ? sideShapes(x) : undefined,
     });
   });
 
@@ -460,7 +468,7 @@ function caseParts(c: Cabinet, s: ShopSettings, ends: EndInfo): Part[] {
     topUnder = H - s.topRailWidth + s.bottomReveal;
     parts.push({
       name: 'Top', role: 'top', material: 'box', length: cutW, width: boxD - rw, thickness: tn, cut: true, banded: fl || undefined,
-      note: fl ? `In ${dados} dados, front edge banded` : `In ${dados} dados`,
+      note: `${shortBox ? `In ${dados} rabbets at the top of the hidden sides (dados in an exposed one)` : `In ${dados} dados`}${fl ? ', front edge banded' : ''}`,
       boxes: [vb(xi0, topUnder, rw, innerW, ta, boxD - rw)],
     });
   }
@@ -471,9 +479,9 @@ function caseParts(c: Cabinet, s: ShopSettings, ends: EndInfo): Part[] {
   const fr = fridge && c.rows.length > 1 ? layoutRows(c, s).rows[c.rows.length - 1] : null;
   const backBottom = fr ? fr.y1 + gapAbove(c, s, c.rows.length - 1) - ta : noBottom ? 0 : botTop - ta;
   parts.push({
-    name: 'Back', role: 'back', material: 'back', length: H - backBottom, width: cutW, thickness: bt, cut: true,
-    note: `In ${fmtShort(rw)} × ${dados} rabbet`,
-    boxes: [vb(xi0, backBottom, rw - bt, innerW, H - backBottom, bt)],
+    name: 'Back', role: 'back', material: 'back', length: caseTop - backBottom, width: cutW, thickness: bt, cut: true,
+    note: `In ${fmtShort(rw)} × ${dados} rabbet${shortBox ? ', up to the case top' : ''}`,
+    boxes: [vb(xi0, backBottom, rw - bt, innerW, caseTop - backBottom, bt)],
   });
 
   if (s.hangingRails && c.kind !== 'base') {

@@ -2390,6 +2390,17 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   eq('rooms: removing the pantry leaves the kitchen as it was', JSON.stringify(removeRoom(back, roomTabs(back)[1].id).cabinets) === JSON.stringify(p.cabinets) && !(removeRoom(back, roomTabs(back)[1].id).rooms ?? []).length, true);
 }
 
+// An extended top rail stands above the case: hidden sides and the back stop at the case top
+{
+  const tall = { ...b21, id: 'tl', kind: 'tall' as const, name: 'T1', width: 31.75, height: 98.75, depth: 12, overrides: { topRailWidth: 6 } };
+  const ps = buildParts(tall, s, { left: false, right: false });
+  const side = ps.find((x) => x.name === 'Side')!, top = ps.find((x) => x.name === 'Top')!, back = ps.find((x) => x.name === 'Back')!;
+  const caseTop = top.boxes[0].min[1] + top.boxes[0].size[1];
+  eq('6" top rail: sides stop at the case top, under the rail', Math.abs(side.boxes[0].min[1] + side.boxes[0].size[1] - caseTop) < 1e-6 && caseTop < 98.75 - 5, true);
+  eq('6" top rail: the back stops there too', Math.abs(back.boxes[0].min[1] + back.boxes[0].size[1] - caseTop) < 1e-6, true);
+  eq('6" top rail: an exposed side still runs to the top', buildParts(tall, s, { left: true, right: false }).filter((x) => x.role === 'side').some((x) => x.boxes[0].min[1] + x.boxes[0].size[1] > 98.7), true);
+}
+
 // The full shop packet: drawings, face frame assembly, cut diagrams, face frame list, labels
 {
   const { sheets } = packetSheets(p);
