@@ -207,6 +207,12 @@ export interface PilasterSpec {
   wrap?: { h: number; cap: number; t: number };
   /** With no plinth block: how high the base and cap applied over the face reach, so the panel frame starts above it. */
   foot?: number;
+  /**
+   * box: a plywood box (sides and nailers) behind the face. face: the face alone (stiles, rails and
+   * panel) fastened to the cabinets beside it, with solid returns where it stands proud of them.
+   * Unset = face when there's casework beside it, box when it stands alone.
+   */
+  build?: 'box' | 'face';
 }
 
 /** Floating shelf: 3/4" plywood top and bottom with a mitered solid face, open in the middle for the bracket. */

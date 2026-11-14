@@ -63,24 +63,25 @@ export function cutStock(p: Project, data: CutlistData, parts = optimizerParts(p
   const out = [...data.stock];
   const trim = 2 * (data.options.trim ?? 0);
   for (const m of need) {
-    if (!out.some((x) => x.material === m)) out.push({ id: `auto:${m}`, label: `4×8 ${m.replace(/^\S+ /, '')}`, material: m, length: 96, width: 48, qty: null, price: p.sheetPrices?.[m] ?? sheetPrice(m) });
-    // Parts longer than the sheets on hand (a 98" pilaster side, a tall end panel): add 4×10 sheets
-    // of the same plywood for them, priced at about 1.3× an 8' sheet until you enter the real price
-    const mine = out.filter((x) => x.material === m);
-    const longest = Math.max(...mine.map((x) => x.length)) - trim;
-    const tooLong = parts.filter((x) => x.material === m && (x.grain ? x.length : Math.max(x.length, x.width)) > longest + 1e-6);
-    if (tooLong.length && !mine.some((x) => x.length >= 120)) {
-      const base = mine[0];
-      out.push({ id: `auto10:${m}`, label: `4×10 ${m.replace(/^\S+ /, '')}`, material: m, length: 120, width: 48, qty: null, price: Math.round((base?.price ?? sheetPrice(m)) * 1.3) });
-    }
+    if (!out.some((x) => x.material === m)) out.push({ id: `auto:${m}`, label: `4×8 ${m.replace(/^\S+ /, '')}`, ...sheetSize(m), material: m, qty: null, price: p.sheetPrices?.[m] ?? sheetPrice(m) });
+    // Longer sheets (4×10) only when they're on the list: a part too long for the sheets on hand
+    // is reported as not fitting, so the design or the stock is changed on purpose
+    void trim;
   }
   return out;
 }
 
+/**
+ * A sheet's real size: the shop's prefinished birch (1/2" and 3/4") comes 48-1/2" × 96-1/2", the
+ * extra half inch to trim the factory edges; other sheet goods are taken as a true 4×8.
+ */
+export const sheetSize = (material: string): { length: number; width: number } =>
+  (/^(1\/2|3\/4)" (prefinished birch )?plywood$/.test(material) ? { length: 96.5, width: 48.5 } : { length: 96, width: 48 });
+
 export function defaultCutlist(p: Project): CutlistData {
   const mats = [...new Set((['box', 'back', 'toeSkin'] as MaterialKey[]).map((m) => sheetMaterial(m, p)!))];
   return {
-    stock: mats.map((m) => ({ id: uid('stock'), label: p.settings.plywood ? `4×8 ${m.replace(/^\S+ /, '')}` : '4×8 prefinished birch', material: m, length: 96, width: 48, qty: null, price: p.sheetPrices?.[m] ?? sheetPrice(m) })),
+    stock: mats.map((m) => ({ id: uid('stock'), label: p.settings.plywood ? `4×8 ${m.replace(/^\S+ /, '')}` : '4×8 prefinished birch', ...sheetSize(m), material: m, qty: null, price: p.sheetPrices?.[m] ?? sheetPrice(m) })),
     extra: [],
     options: { kerf: 0.125, trim: 0, considerGrain: true, minOffcut: 6, bandShelves: true, taxRate: 0 },
     grain: {},
@@ -118,7 +119,8 @@ function roomParts(p: Project, data: CutlistData): DesignPart[] {
         material,
         length: part.length,
         width: part.width,
-        grain: data.grain[id] ?? grainByRole[part.role] ?? true,
+        // MDF has no grain: it can turn any way that saves sheet
+        grain: data.grain[id] ?? (/MDF/i.test(material) ? false : grainByRole[part.role] ?? true),
         band: (part.role === 'shelf' && part.banded !== false && data.options.bandShelves) || (part.role !== 'shelf' && part.banded) ? 1 : 0,
       });
     }

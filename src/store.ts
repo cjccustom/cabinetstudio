@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import type { Cabinet, Project, WallId, WallPanel } from './model/types';
 import { cabinetFromPreset, defaultSettings, presets, sampleProject, uid } from './model/defaults';
 import { findIssues, footprint, nextFreeOffset, shiftInRoom, wallAxes, wallLength } from './model/layout';
-import { defaultCutlist, sheetPrice } from './model/cutlist';
+import { defaultCutlist, sheetPrice, sheetSize } from './model/cutlist';
 import { setCustomDrawings } from './model/moldings';
 import { crownFit } from './model/parts';
 
@@ -40,7 +40,11 @@ export function normalize(p: Project): Project {
   const base = defaultCutlist(out);
   const cl = p.cutlist;
   out.cutlist = cl
-    ? { ...base, ...cl, options: { ...base.options, ...cl.options }, stock: cl.stock.map((st) => (st.price ? st : { ...st, price: sheetPrice(st.material) })) }
+    ? { ...base, ...cl, options: { ...base.options, ...cl.options }, stock: cl.stock.map((st) => {
+      // Prefinished birch rows saved as a nominal 96 × 48 are the shop's real 96-1/2 × 48-1/2 sheets
+      const real = st.length === 96 && st.width === 48 ? { ...st, ...sheetSize(st.material) } : st;
+      return real.price ? real : { ...real, price: sheetPrice(real.material) };
+    }) }
     : base;
   return out;
 }

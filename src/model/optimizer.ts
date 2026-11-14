@@ -42,7 +42,8 @@ export interface SheetLayout { stock: Stock; placed: Placed[]; cuts: Cut[]; offc
 export interface MaterialResult { material: string; sheets: SheetLayout[]; unplaced: CutPart[] }
 
 interface Item { part: CutPart; l: number; w: number; rotated: boolean }
-interface Column { x: number; l: number; pieces: { item: Item; y: number }[] }
+/** A column across a strip; each row in it (ripped off the column) can hold several parts end to end. */
+interface Column { x: number; l: number; pieces: { item: Item; y: number; x: number }[] }
 interface Strip { y: number; w: number; columns: Column[] }
 interface OpenSheet { stock: Stock; strips: Strip[]; freeY: number }
 
@@ -57,7 +58,7 @@ function orient(p: CutPart, o: OptimizerOptions, pref: 'grain' | 'long' | 'wide'
 }
 
 /** One packing pass with a given sort order and orientation preference. */
-function pack(parts: CutPart[], stocks: Stock[], o: OptimizerOptions, order: (a: Item, b: Item) => number, pref: 'grain' | 'long' | 'wide') {
+function pack(parts: CutPart[], stocks: Stock[], o: OptimizerOptions, order: (a: Item, b: Item) => number, pref: 'grain' | 'long' | 'wide', bestFit = false) {
   const k = o.kerf;
   let items = parts.map((p) => orient(p, o, pref)).sort(order);
   const used = new Map<string, number>();
@@ -86,10 +87,12 @@ function pack(parts: CutPart[], stocks: Stock[], o: OptimizerOptions, order: (a:
     const first = items[0];
     const SW = first.w;
     // A strip goes on the first open sheet with enough width left, else a new sheet
-    let sheet = sheets.find((sh) => {
+    // First fit, or best fit: the open sheet the strip leaves the least width on
+    const open = sheets.filter((sh) => {
       const { L, W } = usable(sh.stock);
       return first.l <= L + EPS && sh.freeY + SW <= W + EPS;
     });
+    let sheet: OpenSheet | undefined = bestFit ? open.sort((a, b) => (usable(a.stock).W - a.freeY) - (usable(b.stock).W - b.freeY))[0] : open[0];
     if (!sheet) sheet = newSheet(first) ?? undefined;
     if (!sheet) {
       unplaced.push(first.part);
@@ -104,15 +107,29 @@ function pack(parts: CutPart[], stocks: Stock[], o: OptimizerOptions, order: (a:
       const idx = items.findIndex((it) => it.w <= SW + EPS && it.l <= L - x + EPS);
       if (idx < 0) break;
       const lead = items.splice(idx, 1)[0];
-      const col: Column = { x, l: lead.l, pieces: [{ item: lead, y: 0 }] };
+      const col: Column = { x, l: lead.l, pieces: [{ item: lead, y: 0, x: 0 }] };
+      // The lead's row: more parts end to end in what's left of the column's length (short parts
+      // like nailers and stretchers share a row instead of each taking one)
+      const fillRow = (y: number, w: number, from: number) => {
+        let rx = from;
+        for (;;) {
+          const j = items.findIndex((it) => it.w <= w + EPS && it.l <= col.l - rx - k + EPS);
+          if (j < 0) break;
+          const it = items.splice(j, 1)[0];
+          col.pieces.push({ item: it, y, x: rx + k });
+          rx += k + it.l;
+        }
+      };
+      fillRow(0, lead.w, lead.l);
       let usedW = lead.w;
-      // Stack narrower, no-longer parts across the rest of the strip width
+      // Stack narrower, no-longer parts across the rest of the strip width, each row filled end to end
       for (;;) {
         const room = SW - usedW - k;
         const j = items.findIndex((it) => it.l <= col.l + EPS && it.w <= room + EPS);
         if (j < 0) break;
         const it = items.splice(j, 1)[0];
-        col.pieces.push({ item: it, y: usedW + k });
+        col.pieces.push({ item: it, y: usedW + k, x: 0 });
+        fillRow(usedW + k, it.w, it.l);
         usedW += k + it.w;
       }
       strip.columns.push(col);
@@ -146,14 +163,24 @@ function finish(sh: OpenSheet, o: OptimizerOptions, startN: number): SheetLayout
     st.columns.forEach((col) => {
       const cx = t + col.x + col.l;
       if (cx < t + L - EPS) cuts.push({ n: n++, kind: 'cross', x1: cx, y1: y0, x2: cx, y2: y1, text: `Crosscut at ${fmtIn(col.l)}` });
-      col.pieces.forEach((pc, i) => {
-        placed.push({ part: pc.item.part, x: t + col.x, y: y0 + pc.y, l: pc.item.l, w: pc.item.w, rotated: pc.item.rotated, n: pn++ });
-        const bottom = pc.y + pc.item.w;
-        const more = i < col.pieces.length - 1;
+      // Rows in the column, top to bottom: rip each off, then crosscut the parts end to end in it
+      const rowYs = [...new Set(col.pieces.map((pc) => pc.y))].sort((a, b) => a - b);
+      rowYs.forEach((ry, ri) => {
+        const row = col.pieces.filter((pc) => pc.y === ry).sort((a, b) => a.x - b.x);
+        const rw = row[0].item.w;
+        const bottom = ry + rw;
+        const more = ri < rowYs.length - 1;
         if (bottom < st.w - EPS) {
-          cuts.push({ n: n++, kind: 'rip', x1: t + col.x, y1: y0 + bottom, x2: cx, y2: y0 + bottom, text: `Rip to ${fmtIn(pc.item.w)}` });
+          cuts.push({ n: n++, kind: 'rip', x1: t + col.x, y1: y0 + bottom, x2: cx, y2: y0 + bottom, text: `Rip to ${fmtIn(rw)}` });
           if (!more) keep(t + col.x, y0 + bottom + k, col.l, st.w - bottom - k);
         }
+        row.forEach((pc, i) => {
+          placed.push({ part: pc.item.part, x: t + col.x + pc.x, y: y0 + ry, l: pc.item.l, w: pc.item.w, rotated: pc.item.rotated, n: pn++ });
+          const end = pc.x + pc.item.l;
+          if (row.length > 1 && end < col.l - EPS) cuts.push({ n: n++, kind: 'cross', x1: t + col.x + end, y1: y0 + ry, x2: t + col.x + end, y2: y0 + bottom, text: `Crosscut at ${fmtIn(pc.item.l)}` });
+          if (i === row.length - 1 && end < col.l - EPS) keep(t + col.x + end + k, y0 + ry, col.l - end - k, pc.item.w);
+          // A narrower part in a row leaves a sliver under it, too small to list
+        });
       });
       endX = col.x + col.l + k;
     });
@@ -178,6 +205,8 @@ const orders: ((a: Item, b: Item) => number)[] = [
   (a, b) => b.w - a.w || b.l - a.l,
   (a, b) => b.l - a.l || b.w - a.w,
   (a, b) => b.l * b.w - a.l * a.w,
+  (a, b) => Math.max(b.l, b.w) - Math.max(a.l, a.w) || b.l * b.w - a.l * a.w,
+  (a, b) => b.l + b.w - (a.l + a.w),
 ];
 
 /**
@@ -193,9 +222,9 @@ export function optimize(parts: CutPart[], stock: Stock[], o: OptimizerOptions):
     const ordered = [...ss].sort((a, b) => (a.qty == null ? 1 : 0) - (b.qty == null ? 1 : 0) || a.length * a.width - b.length * b.width);
     let best: ReturnType<typeof pack> | null = null;
     let bestScore = Infinity;
-    for (const order of orders) {
+    for (const order of orders) for (const fit of [false, true]) {
       for (const pref of ['grain', 'long', 'wide'] as const) {
-        const r = pack(ps, ordered, o, order, pref);
+        const r = pack(ps, ordered, o, order, pref, fit);
         const area = r.sheets.reduce((s, sh) => s + sh.stock.length * sh.stock.width, 0);
         const last = r.sheets[r.sheets.length - 1];
         const lastFree = last ? last.stock.width - last.freeY : 0;

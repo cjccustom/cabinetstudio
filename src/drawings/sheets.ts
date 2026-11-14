@@ -358,19 +358,21 @@ export function shopGroups(p: Project): Cabinet[][] {
 /** A pilaster's order of work, in the shop and at install. */
 function pilasterSteps(p: Project, c: Cabinet): string[] {
   const parts = partsOf(p, c);
-  const shallow = parts.some((x) => x.name.endsWith('return') && x.role === 'side');
+  const returns = parts.some((x) => x.name.endsWith('return') && x.role === 'side');
+  const box = parts.some((x) => x.name === 'Pilaster side');
+  const shallow = returns && !box;
   const ps = c.pilaster ?? {};
   const steps = [
     'Mill the stiles and rails to size. Cut the rabbet on the back inside edge of each stile and rail for the panel (sizes in the parts list).',
     'Assemble the face frame with glue and pocket screws from the back; check it square and flat, then sand the joints flush on the front.',
     'Set the 1/4" MDF panels into the rabbets from the back; a bead of glue in the rabbet and a few pin nails hold them (MDF won’t move).',
-    shallow ? 'Glue the solid returns to the back of the face frame at its outside edges, flush with the outside, clamped every 8"–10".'
-      : 'Build the box: glue and staple the nailers between the sides, at the back, top and bottom. Check the diagonals.',
-    shallow ? 'Fasten to the wall or chimney face through the returns or blocking behind them; fill and sand.'
-      : 'Glue and nail the face frame to the front edges of the sides, flush (or proud the same amount) on both sides.',
+    ...(box ? ['Build the box: glue and staple the nailers between the sides, at the back, top and bottom. Check the diagonals.', 'Glue and nail the face frame to the front edges of the sides, flush (or proud the same amount) on both sides.']
+      : shallow ? ['Glue the solid returns to the back of the face frame at its outside edges, flush with the outside, clamped every 8"–10".', 'Fasten to the wall or chimney face through the returns or blocking behind them; fill and sand.']
+      : ['No box: the finished face (stiles, rails and panel) goes on between the cabinets at install, standing proud of their faces as drawn.', ...(returns ? ['Glue the solid returns to the back of the stiles at their outside edges, flush with the outside.'] : [])]),
     ...(parts.some((x) => x.name === 'Capital block') ? ['Glue and nail the capital block on top, flush at the back, standing proud of the face frame as drawn.'] : []),
     ...(parts.some((x) => x.name.startsWith('Plinth block')) ? ['Glue and nail the plinth block at the bottom; the base moulding wraps it at install.'] : []),
-    'At install: set it plumb between its neighbours, screw through the case sides into the cabinets beside it (screws hidden inside the cabinets), and through the nailers into the wall studs.',
+    box ? 'At install: set it plumb between its neighbours, screw through the case sides into the cabinets beside it (screws hidden inside the cabinets), and through the nailers into the wall studs.'
+      : 'At install: set the face plumb, its top level with the frames beside it, and fasten it to the cabinets on each side from inside them (blocking or cleats behind the stiles as needed). Scribe a stile to the wall where it meets one.',
     ...((ps as { wrap?: unknown }).wrap ? ['After install: run the baseboard and base cap around the plinth, mitered at the front corners, back to the casework beside it (lengths in the parts list).'] : []),
     ...(c.crown ? ['Crown goes on last, with the run across the cabinets (mouldings list).'] : []),
     'Fill nail holes, caulk the inside corners, sand, prime and paint with the millwork.',

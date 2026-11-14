@@ -915,6 +915,15 @@ function PilasterSection({ cab, set }: { cab: Cabinet; set: (patch: Partial<Cabi
             <option value="eagle">Eagle panels</option>
           </select>
         </Field>
+        {ps.face === 'shop' && (
+          <Field label="Built as" htmlFor="pil-build">
+            <select id="pil-build" value={ps.build ?? ''} onChange={(e) => put({ build: (e.target.value || undefined) as 'box' | 'face' | undefined })}>
+              <option value="">Face only between cabinets, a box when alone</option>
+              <option value="face">Face only (stiles, rails, panel), on the cabinets beside it</option>
+              <option value="box">Plywood box behind the face</option>
+            </select>
+          </Field>
+        )}
         {ps.face === 'shop' && <Field label="Stiles" htmlFor="pil-stile"><LengthInput id="pil-stile" value={ps.stile} onChange={(v) => put({ stile: v ?? defaultPilaster.stile })} /></Field>}
         {ps.face === 'shop' && <Field label="Top & bottom rails" htmlFor="pil-rail"><LengthInput id="pil-rail" value={ps.rail} onChange={(v) => put({ rail: v ?? defaultPilaster.rail })} /></Field>}
         <Field label="Plinth block (0 = none)" htmlFor="pil-plinth"><LengthInput id="pil-plinth" value={ps.plinth} onChange={(v) => put({ plinth: v ?? 0 })} /></Field>

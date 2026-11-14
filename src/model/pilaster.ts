@@ -72,7 +72,22 @@ export function pilasterParts(c: Cabinet, settings: ShopSettings, ends?: EndInfo
   // A shallow pilaster (a mantel leg standing an inch or two off the chimney) is a face frame with solid
   // returns, not a plywood box: strips of plywood that narrow split and show their plies.
   const shallow = back < 2;
-  for (const side of ['Left', 'Right'] as const) {
+  // Between cabinets the shop builds the face alone: no plywood box, the cabinets beside it carry it
+  const besideCase = !!(ends?.beside?.('left') || ends?.beside?.('right')) || (ends?.faceAt?.('left', H / 2) ?? 0) > 0 || (ends?.faceAt?.('right', H / 2) ?? 0) > 0;
+  const faceOnly = ps.face === 'shop' && !shallow && (ps.build ? ps.build === 'face' : besideCase);
+  if (faceOnly) {
+    // Solid returns where the face stands proud of what's beside it, back to that face; none at a wall
+    for (const side of ['left', 'right'] as const) {
+      if (wall[side]) continue;
+      const nb = ends?.faceAt?.(side, H / 2) ?? 0;
+      const ret = c.depth - s.ffThickness - nb;
+      if (ret < 0.0625 || nb <= 0) continue;
+      parts.push({ name: 'Pilaster return', role: 'side', material: 'faceframe', species: ps.species, length: H, width: ret, thickness: s.boxThickness, cut: true,
+        note: `solid, glued to the back of the ${side} stile at its outside edge, back to the face of the cabinet beside it`,
+        boxes: [vb(side === 'left' ? 0 : W - s.boxThickness, 0, c.depth - s.ffThickness - ret, s.boxThickness, H, ret)] });
+    }
+  }
+  if (!faceOnly) for (const side of ['Left', 'Right'] as const) {
     parts.push(shallow
       ? { name: 'Pilaster return', role: 'side', material: 'faceframe', species: ps.species, length: H, width: back, thickness: s.boxThickness, cut: true,
         note: 'solid, glued to the back of the face frame at its outside edge (one each side) so the pilaster reads as a box from the side',
@@ -80,7 +95,7 @@ export function pilasterParts(c: Cabinet, settings: ShopSettings, ends?: EndInfo
       : { name: 'Pilaster side', role: 'side', material: 'box', look: 'paint', length: H, width: back, thickness: s.boxThickness, cut: true, note: 'one each side; the face frame is glued and nailed to their front edges',
         boxes: [vb(side === 'Left' ? 0 : W - nt, 0, 0, nt, H, back)] });
   }
-  if (!shallow) for (const y of [0, H - s.nailerWidth]) parts.push({ name: 'Pilaster nailer', role: 'nailer', material: 'box', length: W - 2 * nt, width: s.nailerWidth, thickness: s.boxThickness, cut: true,
+  if (!shallow && !faceOnly) for (const y of [0, H - s.nailerWidth]) parts.push({ name: 'Pilaster nailer', role: 'nailer', material: 'box', length: W - 2 * nt, width: s.nailerWidth, thickness: s.boxThickness, cut: true,
     note: 'one at the top and one at the bottom, at the back between the sides: holds them apart and takes the screws to the wall',
     boxes: [vb(nt, y, back - nt, W - 2 * nt, s.nailerWidth, nt)] });
   if (ps.face === 'eagle') {

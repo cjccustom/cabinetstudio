@@ -236,7 +236,23 @@ eq('new terms: one notice, from the terms', (termsHtml(CJC_TERMS, Date.UTC(2026,
   const job = { ...p, room: { width: 157.25, depth: 180.5, height: 104.25 }, cabinets: [pil, { ...pil, id: 'pl2', name: 'P2', offset: 40 }] };
   const data = defaultCutlist(job);
   const res = optimize(optimizerParts(job, data), cutStock(job, data), data.options);
-  eq('pilaster sides placed (4x10 added)', res.every((m) => m.unplaced.length === 0) && cutStock(job, data).some((x) => x.length === 120), true);
+  // Box pilasters standing alone have 98 3/4" sides: too long for a 96 1/2" sheet, and no 4x10 is added on its own
+  eq('no 4x10 sheets unless they are on the stock list', cutStock(job, data).some((x) => x.length >= 120), false);
+  eq('prefinished birch sheets are 96 1/2 x 48 1/2', cutStock(job, data).filter((x) => /plywood$/.test(x.material)).every((x) => x.length === 96.5 && x.width === 48.5), true);
+  eq('a part too long for the sheets is reported, not quietly put on a 4x10', res.some((m) => m.unplaced.some((u) => u.length > 96.5)), true);
+  // The optimizer: parts inside the sheet, a kerf between neighbours, grain kept, short parts sharing rows
+  const parts = [
+    ...Array.from({ length: 8 }, (_, i) => ({ id: `s${i}`, label: 'Side', material: 'm', length: 84, width: 23.25, grain: true, band: 0 })),
+    ...Array.from({ length: 16 }, (_, i) => ({ id: `n${i}`, label: 'Nailer', material: 'm', length: 28.5, width: 3, grain: false, band: 0 })),
+    ...Array.from({ length: 6 }, (_, i) => ({ id: `p${i}`, label: 'Panel', material: 'm', length: 26, width: 3.75, grain: false, band: 0 })),
+  ];
+  const r = optimize(parts, [{ id: 'st', label: '4x8', material: 'm', length: 96.5, width: 48.5, qty: null, price: 80 }], { kerf: 0.125, trim: 0, considerGrain: true, minOffcut: 6 })[0];
+  const placed = r.sheets.flatMap((sh, i) => sh.placed.map((x) => ({ ...x, sheet: i })));
+  const inside = placed.every((x) => x.x >= -1e-6 && x.y >= -1e-6 && x.x + x.l <= 96.5 + 1e-6 && x.y + x.w <= 48.5 + 1e-6);
+  const apart = placed.every((a) => placed.every((b) => a === b || a.sheet !== b.sheet || a.x + a.l + 0.125 <= b.x + 1e-6 || b.x + b.l + 0.125 <= a.x + 1e-6 || a.y + a.w + 0.125 <= b.y + 1e-6 || b.y + b.w + 0.125 <= a.y + 1e-6));
+  eq('optimizer: every part inside its sheet, a kerf apart', `${inside} ${apart} ${r.unplaced.length}`, 'true true 0');
+  eq('optimizer: grained parts never turned', placed.filter((x) => x.part.grain).every((x) => !x.rotated), true);
+  eq('optimizer: 8 sides, 16 nailers and 6 panels on 5 sheets (short parts share rows)', r.sheets.length, 5);
 }
 
 // Frame joinery: tongue and groove adds a 3/8" tongue to each rail end; every method is noted
