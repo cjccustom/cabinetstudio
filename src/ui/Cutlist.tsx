@@ -286,7 +286,17 @@ export function CutlistSummary() {
           {cost === 0 && <p className="hint">Enter a price per sheet under Stock sheets to see material cost. It will feed the quote.</p>}
         </Section>
 
-        <OffcutRack results={results} />
+        <Section title="Usable offcuts">
+          {results.every((m) => m.sheets.every((s) => s.offcuts.length === 0))
+            ? <p className="hint">No offcuts over {fmt(data.options.minOffcut)}.</p>
+            : (
+              <ul className="offcuts">
+                {results.flatMap((m) => m.sheets.flatMap((sh, i) => sh.offcuts.map((o, j) => (
+                  <li key={`${m.material}${i}-${j}`}><span className="mono">{fmt(o.l)} × {fmt(o.w)}</span> <span className="muted">{m.material}, sheet {i + 1}</span></li>
+                ))))}
+              </ul>
+            )}
+        </Section>
 
         <Section title={`Parts from the design (${parts.length})`}>
           <input id="cl-filter" placeholder="Filter, e.g. B3 or Shelf" value={filter} onChange={(e) => setFilter(e.target.value)} />
@@ -375,7 +385,8 @@ function LabelBar({ results }: { results: MaterialResult[] }) {
  * Offcuts: what this job leaves that's worth keeping, saved to the shop's list; and what's on the
  * list from earlier jobs, picked to be cut first here.
  */
-function OffcutRack({ results }: { results: MaterialResult[] }) {
+// Kept for when the shop has a CNC and an organized offcut rack; not shown for now.
+export function OffcutRack({ results }: { results: MaterialResult[] }) {
   const { project, data, set } = useCutlist();
   const rack = useShop((s) => s.offcuts);
   const [msg, setMsg] = useState('');
