@@ -295,7 +295,7 @@ export function wallElevation(p: Project, wall: WallId, frame: Frame, mode: 'cus
 }
 
 /** The floor plan: walls, cabinets (uppers dashed), doors and windows, and runs dimensioned along each wall. */
-export function floorPlan(p: Project, frame: Frame): { svg: string; scale: number } {
+export function floorPlan(p: Project, frame: Frame, marks: Partial<Record<WallId, string>> = {}): { svg: string; scale: number } {
   const { width: W, depth: D } = p.room;
   const T = 4.5;
   const margin = 1.6;
@@ -369,6 +369,18 @@ export function floorPlan(p: Project, frame: Frame): { svg: string; scale: numbe
     right: (cs) => { if (cs.length) v.chainV([0, D, ...cs.flatMap((c) => [c.offset, c.offset + c.width])], W + T, 0.3); v.dimV(0, D, W + T, cs.length ? 0.65 : 0.3, undefined, true); },
   };
   for (const w of ['back', 'left', 'right', 'front'] as WallId[]) runs[w](cabinetsOn(p, w));
+  // Elevation markers: a pointer in front of each drawn wall, aimed at it, with the sheet it's on
+  for (const [w, label] of Object.entries(marks) as [WallId, string][]) {
+    const out = Math.max(0, ...cabinetsOn(p, w).map((c) => (c.wallInset ?? 0) + c.depth)) + v.p(0.45);
+    const r = v.p(0.13);
+    const [cx, cz] = w === 'back' ? [W / 2, out] : w === 'front' ? [W / 2, D - out] : w === 'left' ? [out, D / 2] : [W - out, D / 2];
+    const [dx, dz] = w === 'back' ? [0, -1] : w === 'front' ? [0, 1] : w === 'left' ? [-1, 0] : [1, 0];
+    const tip: [number, number] = [cx + dx * r * 1.9, cz + dz * r * 1.9];
+    const side = (s1: number): [number, number] => [cx + dz * r * 0.95 * s1 + dx * r * 0.35, cz - dx * r * 0.95 * s1 + dz * r * 0.35];
+    v.poly([tip, side(1), side(-1)], 'cut');
+    v.circle(cx, cz, r, 'tag');
+    v.text(cx, cz + v.p(0.028), label, 0.075, 'middle', 'tagt');
+  }
   return { svg: v.svg(), scale: perFoot };
 }
 

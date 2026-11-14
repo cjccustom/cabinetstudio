@@ -13,6 +13,7 @@ import { DetailsSection } from './DetailsSection';
 import { cofferOf } from '../model/coffer';
 import { wallNames, wallOrder } from '../model/layout';
 import { shopPacketDocument } from '../drawings/packet';
+import { withPictures } from './setPictures';
 import { labelFormats, type LabelFormat } from '../drawings/labels';
 
 type SetKind = 'customer' | 'shop';
@@ -42,7 +43,7 @@ const setTitle = (kind: SetKind, name: string) => `${name} - ${kind === 'custome
 
 /** The set as a file: the cover picture is put inside it, so the file stands on its own. */
 async function exportDocument(kind: SetKind): Promise<{ name: string; html: string }> {
-  const p = useStore.getState().project;
+  const p = kind === 'customer' ? await withPictures(useStore.getState().project) : useStore.getState().project;
   let d = drawingsOf(p);
   if (d.cover && !d.cover.startsWith('data:')) {
     try { d = { ...d, cover: await blobToDataUrl(await shrinkImage(await (await fetch(d.cover)).blob(), 2000, 0.85)) }; } catch { d = { ...d, cover: undefined }; }

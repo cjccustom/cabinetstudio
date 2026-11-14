@@ -13,6 +13,7 @@ import { Field } from './fields';
 import { drawingsOf, jobCustomerSet, setDocument, sheetCss } from '../drawings/sheets';
 import { FileButton } from './FileButton';
 import { renderOf } from '../model/rendering';
+import { withPictures } from './setPictures';
 import { CJC_TERMS } from '../model/terms';
 import { capability, shrinkImage, type Downloads } from '../runtime';
 import { asciiHtml, downloadLink, whereIs, writeFile } from '../dropbox';
@@ -228,7 +229,7 @@ export function ClientPortal() {
   const sendDrawings = () => run('Sending the drawings…', async () => {
     const d = drawingsOf(project);
     const title = `Drawings for review: ${project.name || 'your project'}`;
-    const sheets = jobCustomerSet(project);
+    const sheets = jobCustomerSet(await withPictures(project));
     const s2 = await publishDrawings(portal!.jobId, setDocument(title, sheets, d.paper), 'Drawings for your review', sheetCss, sheets.map((x) => ({ number: x.number, title: x.title, svg: x.svg })));
     keep(s2, portal!.jobId);
     // The 3D model goes with them, for the customer to look around and pin notes on
@@ -251,7 +252,7 @@ export function ClientPortal() {
     const jobId = portal?.jobId ?? newJobId(project);
     const d = drawingsOf(project);
     const title = `Design draft: ${proposalTitle(project)}`;
-    const sheets = jobCustomerSet(project);
+    const sheets = jobCustomerSet(await withPictures(project));
     // The request rides inside the document, so a connector that hasn't picked up new fields still carries it
     const ask = { project: proposalTitle(project), client: { first: c.first, last: c.last, email: c.email, phone: c.phone, address: c.address } };
     const carried = `<!--CJC-DESIGN ${btoa(String.fromCharCode(...new TextEncoder().encode(JSON.stringify(ask))))} -->`;

@@ -82,3 +82,58 @@ export function assemblyView(p: Project, c: Cabinet, f: Frame): { svg: string; l
   }
   return { svg: faces.join('') + balloons.join(''), legend: [...legend.values()].sort((a, b) => a.n - b.n) };
 }
+
+/** Lighten (amt > 0) or darken a hex color. */
+function shadeHex(hex: string, amt: number): string {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
+  if (!m) return hex;
+  const n = parseInt(m[1], 16);
+  const ch = (v: number) => Math.max(0, Math.min(255, Math.round(amt > 0 ? v + (255 - v) * amt : v * (1 + amt))));
+  return `#${[ch(n >> 16), ch((n >> 8) & 255), ch(n & 255)].map((v) => v.toString(16).padStart(2, '0')).join('')}`;
+}
+
+/**
+ * One wall's cabinetry in isometric, for the customer: seen from the room, a little to the right and
+ * above, in the job's paint color, with the wall, the floor in front of it and its doors and windows.
+ * Line drawing, so it prints and scales like the rest of the set.
+ */
+export function wallIso(p: Project, wall: import('../model/types').WallId, f: Frame, L: number, H: number): string {
+  const cabs = p.cabinets.filter((c) => c.wall === wall);
+  const paint = p.finishes.paint || '#ece8de';
+  type B = { min: [number, number, number]; size: [number, number, number]; fill: string };
+  const boxes: B[] = [];
+  for (const c of cabs) {
+    const z0 = c.wallInset ?? 0;
+    for (const part of partsOf(p, c)) {
+      if (['counter', 'rod', 'cushion', 'nailer', 'back'].includes(part.role)) continue;
+      const fill = part.role === 'counter' ? '#9a9a9a' : part.look === 'wood' ? '#b98a5a' : paint;
+      for (const b of part.boxes) boxes.push({ min: [c.offset + b.min[0], c.elevation + b.min[1], z0 + b.min[2]], size: b.size, fill });
+    }
+  }
+  const D = Math.max(18, ...boxes.map((b) => b.min[2] + b.size[2])) + 18;
+  const P = (x: number, y: number, z: number): [number, number] => [(x + (D - z)) * COS, -y - ((L - x) + (D - z)) * SIN];
+  const corners = [P(0, 0, 0), P(L, 0, 0), P(0, H, 0), P(L, H, 0), P(0, 0, D), P(L, 0, D)];
+  const ux0 = Math.min(...corners.map((q) => q[0])), ux1 = Math.max(...corners.map((q) => q[0]));
+  const uy0 = Math.min(...corners.map((q) => q[1])), uy1 = Math.max(...corners.map((q) => q[1]));
+  const k = Math.min((f.w - 0.2) / (ux1 - ux0), (f.h - 0.2) / (uy1 - uy0));
+  const ox = f.x + (f.w - (ux1 - ux0) * k) / 2 - ux0 * k, oy = f.y + (f.h - (uy1 - uy0) * k) / 2 - uy0 * k;
+  const S = (q: [number, number]) => `${(ox + q[0] * k).toFixed(3)},${(oy + q[1] * k).toFixed(3)}`;
+  const poly = (q: [number, number][], fill: string, stroke = '#333', sw = 0.006) => `<polygon points="${q.map(S).join(' ')}" fill="${fill}" stroke="${stroke}" stroke-width="${sw}" stroke-linejoin="round"/>`;
+  const out: string[] = [];
+  // The floor in front of the wall, then the wall itself, with its openings
+  out.push(poly([P(0, 0, 0), P(L, 0, 0), P(L, 0, D), P(0, 0, D)], '#efe9de', '#999'));
+  out.push(poly([P(0, 0, 0), P(L, 0, 0), P(L, H, 0), P(0, H, 0)], '#f6f5f2', '#999'));
+  for (const o of (p.openings ?? []).filter((x) => x.wall === wall)) {
+    const y0 = o.kind === 'window' ? o.sill : 0;
+    out.push(poly([P(o.offset, y0, 0.1), P(o.offset + o.width, y0, 0.1), P(o.offset + o.width, y0 + o.height, 0.1), P(o.offset, y0 + o.height, 0.1)], o.kind === 'window' ? '#dfe8ee' : '#e4e1da', '#888'));
+  }
+  const far = (b: B) => (L - (b.min[0] + b.size[0])) + (D - (b.min[2] + b.size[2])) - (b.min[1] + b.size[1]) * 0.5;
+  for (const b of [...boxes].sort((a, c) => far(c) - far(a))) {
+    const [x0, y0, z0] = b.min, [sx, sy, sz] = b.size;
+    const x1 = x0 + sx, y1 = y0 + sy, z1 = z0 + sz;
+    out.push(poly([P(x0, y1, z0), P(x1, y1, z0), P(x1, y1, z1), P(x0, y1, z1)], shadeHex(b.fill, 0.35)));
+    out.push(poly([P(x0, y0, z1), P(x1, y0, z1), P(x1, y1, z1), P(x0, y1, z1)], b.fill));
+    out.push(poly([P(x1, y0, z0), P(x1, y0, z1), P(x1, y1, z1), P(x1, y1, z0)], shadeHex(b.fill, -0.18)));
+  }
+  return out.join('');
+}

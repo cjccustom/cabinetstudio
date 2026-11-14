@@ -875,7 +875,11 @@ eq('panel sticks out past frame', panelExtents(b21, s, { left: true, right: fals
   const d = drawingsOf(p);
   const cust = customerSet(p, d);
   const walls = new Set(p.cabinets.map((c) => c.wall)).size;
-  eq('customer set: cover, plan, an elevation per wall with cabinets, door style', cust.length, 3 + walls);
+  eq('customer set: cover, plan, an elevation per wall, 3D views (two walls a sheet), schedule & selections, door style', cust.length, 3 + walls + Math.ceil(walls / 2) + 1);
+  eq('customer set: the plan points each wall to its elevation sheet', cust[1].svg.includes('>A2<'), true);
+  eq('customer set: the schedule lists every cabinet by tag', p.cabinets.every((c) => cust.find((x) => x.title === 'Schedule & selections')!.svg.includes(`<b>${c.name}</b>`)), true);
+  eq('customer set: an approval box on the cover', cust[0].svg.includes('Approval'), true);
+  eq('customer set: saved 3D pictures get their own sheet when sent with the set', customerSet(p, { ...d, views: ['data:image/png;base64,AAAA'] }).some((x) => x.title === '3D renderings'), true);
   eq('customer set: the door style sheet', cust[cust.length - 1].title, 'Door style');
   eq('elevation dimensions the wall', cust[2].svg.includes(`${p.room.width}"`), true);
   const shop = shopSet(p, d);
