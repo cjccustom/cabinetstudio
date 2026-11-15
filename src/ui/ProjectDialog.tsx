@@ -55,7 +55,7 @@ export function ProjectDialog({ onClose }: { onClose: () => void }) {
           <p className="ok">
             Moulding profiles sent by Claude for <b>{sent.name}</b>: {profileNames(sent.text)}.{' '}
             {sent.name.toLowerCase() !== project.name.toLowerCase() && <span className="warn-text">The design open now is “{project.name}”. Open {sent.name} first. </span>}
-            <button className="primary" onClick={() => applyProfiles(sent.text)}>Apply to this design</button>
+            <button className="primary" disabled={sent.name.toLowerCase() !== project.name.toLowerCase()} onClick={() => applyProfiles(sent.text)}>Apply to this design</button>
           </p>
         )}
         {sent && sent.kind !== 'profiles' && (

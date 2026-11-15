@@ -2588,5 +2588,15 @@ eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i
   eq('hinges: plate locations written on the sheet', shop.includes('Hinge plates'), true);
 }
 
+{
+  // Color samples on the proposal: how many are included and what more cost
+  const { materialsOf } = await import('../src/model/proposal');
+  const p0 = sampleProject();
+  const line = materialsOf(p0).find((x) => x.label === 'Color samples');
+  eq('proposal: color samples, two included, $15 each after', !!line && line.value.startsWith('Two large peel-and-stick color samples') && line.value.endsWith('additional samples are $15 each'), true);
+  const st = { ...p0, settings: { ...p0.settings, finish: 'stain' as const } };
+  eq('proposal: no paint samples on a stain-grade job', materialsOf(st).some((x) => x.label === 'Color samples'), false);
+}
+
 console.log(failed ? `${failed} check(s) failed` : 'All model checks passed');
 process.exit(failed ? 1 : 0);

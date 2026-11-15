@@ -424,7 +424,10 @@ function ExtraColors() {
     <div style={{ marginTop: 8 }}>
       <div className="grid2">
         <Num id="q-pxc" label="Each extra color or finish" suffix="$" value={each} onChange={(v) => set({ paintPerExtraColor: v })} />
+        <Num id="q-sf" label="Color samples included" value={q.samplesFree ?? 2} onChange={(v) => set({ samplesFree: Math.max(0, Math.round(v)) })} />
+        <Num id="q-sp" label="Each additional sample" suffix="$" value={q.samplePrice ?? 15} onChange={(v) => set({ samplePrice: v })} />
       </div>
+      <p className="hint">The proposal says how many color samples are included and what more cost. Order them from Samplize (trade program: 10+ samples ship free overnight; 10–25% off).</p>
       <p className="hint">{extra.length ? `${extra.length} on this job (${extra.join(', ')}): ${money(extra.length * each)} added to the painting line.` : 'One finish on this job. An accent color on some cabinets, or a stained island with painted cabinets, adds this to the painting line for each extra finish.'}</p>
     </div>
   );

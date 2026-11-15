@@ -222,6 +222,12 @@ export function materialsOf(p: Project): { label: string; value: string }[] {
   for (const a of accentFinishes(p)) out.push({ label: `Accent finish: ${a.label}`, value: a.value });
   const pg = paintGradeNote(p);
   if (pg) out.push({ label: 'About paint grade', value: pg });
+  // Color samples: painted samples to try on site, a few included, more at a set price
+  if (s.finish !== 'stain' && p.quote?.paintWhen !== 'none') {
+    const free = p.quote?.samplesFree ?? 2, each = p.quote?.samplePrice ?? 15;
+    const words = ['No', 'One', 'Two', 'Three', 'Four', 'Five', 'Six'][free] ?? String(free);
+    out.push({ label: 'Color samples', value: `${words} large peel-and-stick color sample${free === 1 ? '' : 's'} (about 9" × 15", painted in the actual paint) ${free === 1 ? 'is' : 'are'} included to try in your space; additional samples are $${each} each` });
+  }
   out.push({ label: 'Construction', value: `${s.construction === 'frameless' ? 'Frameless' : 'Face frame'} cabinets with ${plywoodInteriors(p)}` });
   if (p.cabinets.some((c) => c.rows.some((r) => r.type === 'drawer'))) out.push({ label: 'Drawers', value: 'Dovetail drawer boxes on soft-close, full-extension slides' });
   if (doors) out.push({ label: 'Hinges', value: 'Soft-close, adjustable' });

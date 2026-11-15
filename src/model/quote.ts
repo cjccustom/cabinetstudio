@@ -231,6 +231,9 @@ export interface QuoteSettings {
   paintAllowance?: number;
   /** Charged for each finish beyond the first (an accent color, a stained island on a painted job): masking, a second setup and cleanup. Unset = $250. */
   paintPerExtraColor?: number;
+  /** Paint color samples (peel-and-stick, real paint) included free, and the price of each one after. Unset = 2 free, $15 each. */
+  samplesFree?: number;
+  samplePrice?: number;
   /** When the cabinets are painted: sprayed before install (prefinished), on site after install, or not in this contract. Unset = prefinished. */
   paintWhen?: 'prefinish' | 'site' | 'none';
   /** On stain grade: stained and clear coated (unset), or clear coat only to keep the wood's natural color. */
