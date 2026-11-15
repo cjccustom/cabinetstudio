@@ -27,6 +27,17 @@ export function ProjectDialog({ onClose }: { onClose: () => void }) {
     }
   };
 
+  // Profiles only: each replaces the drawing of the same number in the open design, the rest stay
+  const profileNames = (raw: string) => { try { return Object.values(JSON.parse(raw) as Record<string, { name?: string }>).map((x) => x.name ?? 'profile').join(', '); } catch { return 'unreadable'; } };
+  const applyProfiles = (raw: string) => {
+    try {
+      const add = JSON.parse(raw) as NonNullable<Project['profiles']>;
+      useStore.getState().commit((p) => ({ ...p, profiles: { ...(p.profiles ?? {}), ...add } }));
+      void clearSent();
+      setMsg({ kind: 'ok', text: `Updated ${Object.keys(add).length} profile drawing${Object.keys(add).length === 1 ? '' : 's'} in ${project.name}.` });
+    } catch { setMsg({ kind: 'err', text: 'Those profiles couldn’t be read.' }); }
+  };
+
   const copy = () => {
     setText(json);
     navigator.clipboard.writeText(json).then(
@@ -40,7 +51,14 @@ export function ProjectDialog({ onClose }: { onClose: () => void }) {
       <div className="modal" role="dialog" aria-modal="true" aria-labelledby="pf-title" onClick={(e) => e.stopPropagation()}>
         <h2 id="pf-title">Project file</h2>
         <p>Your work saves automatically in this browser. To move a job to another computer or keep a backup, copy the project text below, or paste one in to open it.</p>
-        {sent && (
+        {sent?.kind === 'profiles' && (
+          <p className="ok">
+            Moulding profiles sent by Claude for <b>{sent.name}</b>: {profileNames(sent.text)}.{' '}
+            {sent.name.toLowerCase() !== project.name.toLowerCase() && <span className="warn-text">The design open now is “{project.name}”. Open {sent.name} first. </span>}
+            <button className="primary" onClick={() => applyProfiles(sent.text)}>Apply to this design</button>
+          </p>
+        )}
+        {sent && sent.kind !== 'profiles' && (
           <p className="ok">
             Design sent by Claude: <b>{sent.name}</b>{sent.at ? `, ${new Date(sent.at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}` : ''}.{' '}
             <button className="primary" onClick={() => load(sent.text, true)}>Open it</button>

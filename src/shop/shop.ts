@@ -68,8 +68,8 @@ interface ShopState {
   cabinets: Record<string, SavedCabinet>;
   /** Plywood offcuts kept from earlier jobs, used first by the cut diagrams. */
   offcuts: Record<string, StockOffcut>;
-  /** A design Claude put in the app's inbox to open (inbox/design: name, at, project as JSON text) */
-  sent: { name: string; at: number; text: string } | null;
+  /** A design Claude put in the app's inbox to open (inbox/design: name, at, project as JSON text; or profiles as JSON text to merge into the open design) */
+  sent: { name: string; at: number; text: string; kind: 'project' | 'profiles' } | null;
 }
 
 export const useShop = create<ShopState>(() => ({ mode: 'loading', jobs: {}, entries: {}, todos: {}, timer: null, rate: 75, prices: {}, parts: {}, furniture: {}, cabinets: {}, offcuts: {}, error: null, canExport: false, sent: null }));
@@ -131,7 +131,9 @@ export async function startShop() {
   }, lostConnection);
   db.doc('inbox/design').onSnapshot((d) => {
     const v = d.exists ? d.data() : undefined;
-    useShop.setState({ sent: v && typeof v.project === 'string' ? { name: String(v.name ?? 'Design'), at: Number(v.at) || 0, text: v.project } : null });
+    // A whole design (project), or just moulding profiles (profiles) to merge into the design that's open
+    useShop.setState({ sent: v && typeof v.project === 'string' ? { name: String(v.name ?? 'Design'), at: Number(v.at) || 0, text: v.project, kind: 'project' }
+      : v && typeof v.profiles === 'string' ? { name: String(v.name ?? 'Profiles'), at: Number(v.at) || 0, text: v.profiles, kind: 'profiles' } : null });
   }, () => {});
   db.doc('settings/shop').onSnapshot((d) => { if (d.exists) useShop.setState({ rate: Number(d.data()?.rate) || 75 }); }, lostConnection);
 }

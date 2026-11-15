@@ -2,16 +2,15 @@
 // assembly sheet per wall, then a sheet per cabinet), on 11×17 or letter, each with CJC's title
 // block. Every sheet is one SVG at true size, so it prints to scale.
 import { jobRooms } from '../model/rooms';
-import { doorDrawings } from '../model/eagleDrawings';
 import { cabinetMoldings, forCustomer, moldLabel, profileByNum, profileLabel, type MoldPiece } from '../model/moldings';
 import { resolveEnds } from '../model/layout';
 import type { Cabinet, Part, Project, WallId } from '../model/types';
 import { wallOrder, wallNames, wallLength } from '../model/layout';
 import { clientName, clientOf, COMPANY } from '../model/client';
 import { eff } from '../model/parts';
-import { doorProfileViews } from './doorProfile';
+import { doorPhotoPath, doorProfileViews } from './doorProfile';
 import { profileItems, profileViews } from './profileSheet';
-import { assemblyView, wallIso } from './assembly';
+import { assemblyView } from './assembly';
 import { styleById } from '../model/eagle';
 import { baseLabel } from '../model/cabinetBase';
 import { fmt } from '../units';
@@ -89,6 +88,10 @@ export interface DrawingSettings {
   rcpCenters?: boolean;
   /** Customer elevations: what's built on the side walls and ceiling, cut in section (shaded) or seen from the side. */
   sides?: Partial<Record<WallId, 'section' | 'side'>>;
+  /** Pictures saved from the 3D design view for the customer set's 3D views sheet, each with a caption. */
+  shots?: { url: string; label: string }[];
+  /** The door style photo, embedded when the set goes out (else its path next to the page). */
+  doorPhoto?: string;
   /** Each revision: date, what changed, and the cabinets to mark. */
   revisions?: import('../model/revisions').Revision[];
   /** The design as the set last went out (by cabinet tag), to tell what the next revision changed. */
@@ -200,7 +203,7 @@ export function jobCustomerSet(p: Project): Sheet[] {
     const one = { ...r.project, name: `${p.name} · ${r.name}` };
     jobSet = { prefix: `${i + 1}-`, title: p.name, index };
     try {
-      return customerSet(one, drawingsOf(one))
+      return customerSet(one, { ...drawingsOf(one), doorPhoto: drawingsOf(p).doorPhoto })
         .filter((x) => i === 0 || x.number !== 'A0')
         .map((x) => ({ ...x, number: x.number === 'A0' ? 'A0' : `${i + 1}-${x.number}`, title: x.number === 'A0' ? x.title : `${r.name}: ${x.title}` }));
     } finally { jobSet = null; }
@@ -243,10 +246,9 @@ function customerSheets(p: Project, s: DrawingSettings): Sheet[] {
   // After the details: the 3D views (a wall or two to a sheet, then any saved pictures), the schedule
   // and selections, the door style, the moulding and beadboard profiles, each table, then the lighting spec
   let nextNo = first + walls.length + detailIdx.length;
-  const isoWalls = walls.filter((w) => cabinetsOn(p, w).length > 0);
-  const isoNos = Array.from({ length: Math.ceil(isoWalls.length / 2) }, () => `A${nextNo++}`);
-  const pics = (s.views ?? []).filter((u) => u.startsWith('data:')).slice(0, 4);
-  const picNo = pics.length ? `A${nextNo++}` : '';
+  // 3D views saved from the design view ("Add to drawings"), then saved renderings: four to a sheet
+  const pics = [...(s.shots ?? []).map((x) => ({ url: x.url, label: x.label })), ...(s.views ?? []).filter((u) => u.startsWith('data:')).slice(0, 4).map((url) => ({ url, label: 'Rendering' }))];
+  const picNos = Array.from({ length: Math.ceil(pics.length / 4) }, () => `A${nextNo++}`);
   const schedNo = `A${nextNo++}`;
   const doorNo = `A${doorStyle ? nextNo++ : nextNo}`;
   const profiles = profileItems(p);
@@ -254,7 +256,7 @@ function customerSheets(p: Project, s: DrawingSettings): Sheet[] {
   const tableNos = furnitureOf(p).map(() => `A${nextNo++}`);
   const spec = lightingSpecHtml(p);
   const specNo = `A${nextNo}`;
-  const index = [['A0', 'Cover'], ['A1', 'Floor plan'], ...(ceiling ? [['A2', 'Ceiling plan']] : []), ...walls.map((w, i) => [`A${i + first}`, `${wallNames[w]} elevation`]), ...detailIdx, ...isoNos.map((n) => [n, '3D views']), ...(picNo ? [[picNo, '3D renderings']] : []), [schedNo, 'Schedule & selections'], ...(doorStyle ? [[doorNo, 'Door style']] : []), ...(profiles.length ? [[profNo, 'Moulding & beadboard profiles']] : []), ...furnitureOf(p).map((t, i) => [tableNos[i], t.name]), ...(spec ? [[specNo, 'Cabinet lighting']] : [])];
+  const index = [['A0', 'Cover'], ['A1', 'Floor plan'], ...(ceiling ? [['A2', 'Ceiling plan']] : []), ...walls.map((w, i) => [`A${i + first}`, `${wallNames[w]} elevation`]), ...detailIdx, ...picNos.map((n) => [n, '3D views']), [schedNo, 'Schedule & selections'], ...(doorStyle ? [[doorNo, 'Door style']] : []), ...(profiles.length ? [[profNo, 'Moulding & beadboard profiles']] : []), ...furnitureOf(p).map((t, i) => [tableNos[i], t.name]), ...(spec ? [[specNo, 'Cabinet lighting']] : [])];
   // Cover: the picture, the job, and what's in the set
   const c = clientOf(p);
   const imgW = A.w * 0.64;
@@ -289,45 +291,47 @@ function customerSheets(p: Project, s: DrawingSettings): Sheet[] {
     sheets.push(sheet(p, s, `A${i + first}`, `${wallNames[w]} elevation`, scaleName(e.scale), e.svg + notes));
   });
   sheets.push(...detailSheets(p, s, placed));
-  // 3D views: each wall's cabinetry in isometric, two walls to a sheet
   const fsN = s.paper === 'tabloid' ? 0.11 : 0.09;
-  isoNos.forEach((no, i) => {
-    const ws = isoWalls.slice(i * 2, i * 2 + 2);
-    const half = A.w / ws.length;
-    const body = ws.map((w, j) => {
-      const f = { x: A.x + j * half + 0.1, y: A.y + 0.35, w: half - 0.2, h: A.h - 0.9 };
-      const eNo = `A${walls.indexOf(w) + first}`;
-      return wallIso(p, w, f, wallLength(p.room, w), p.room.height) + `<text x="${f.x + f.w / 2}" y="${A.y + A.h - 0.3}" font-size="0.12" font-weight="700" text-anchor="middle">${esc(wallNames[w].toUpperCase())}</text>`
-        + `<text x="${f.x + f.w / 2}" y="${A.y + A.h - 0.14}" font-size="0.085" text-anchor="middle">dimensioned on ${eNo}</text>`;
+  // 3D views: pictures from the 3D model and saved renderings, two by two, each captioned
+  picNos.forEach((no, i) => {
+    const page = pics.slice(i * 4, i * 4 + 4);
+    const cols = page.length > 1 ? 2 : 1, rows = Math.ceil(page.length / cols);
+    const gap = 0.25, capH = 0.3;
+    const cw = (A.w - gap * (cols - 1)) / cols, ch = (A.h - gap * (rows - 1)) / rows;
+    const body = page.map((x, j) => {
+      const fx = A.x + (j % cols) * (cw + gap), fy = A.y + Math.floor(j / cols) * (ch + gap);
+      return `<rect x="${fx}" y="${fy}" width="${cw}" height="${ch - capH}" fill="#fff" stroke="#bbb" stroke-width="0.008"/>`
+        + `<image href="${esc(x.url)}" x="${fx + 0.06}" y="${fy + 0.06}" width="${cw - 0.12}" height="${ch - capH - 0.12}" preserveAspectRatio="xMidYMid meet"/>`
+        + `<text x="${fx + cw / 2}" y="${fy + ch - 0.1}" font-size="0.11" font-weight="700" text-anchor="middle">${esc((x.label || '3D view').toUpperCase())}</text>`;
     }).join('');
-    sheets.push(sheet(p, s, no, '3D views', 'No scale', html({ x: A.x, y: A.y, w: A.w, h: 0.35 }, '<p class="small">Seen from the room, a little to the right and above, in the paint color. Sizes are on the elevations.</p>', fsN) + body));
+    sheets.push(sheet(p, s, no, '3D views', 'No scale', body));
   });
-  // Saved 3D views and renderings, as pictures
-  if (picNo) {
-    const cols = pics.length > 1 ? 2 : 1, rows = Math.ceil(pics.length / cols);
-    const cw = A.w / cols, ch = A.h / rows;
-    const body = pics.map((u, i) => `<image href="${esc(u)}" x="${A.x + (i % cols) * cw + 0.08}" y="${A.y + Math.floor(i / cols) * ch + 0.08}" width="${cw - 0.16}" height="${ch - 0.16}" preserveAspectRatio="xMidYMid meet"/>`).join('');
-    sheets.push(sheet(p, s, picNo, '3D renderings', 'No scale', body));
-  }
   sheets.push(sheet(p, s, schedNo, 'Schedule & selections', 'No scale', scheduleSheet(p, A, fsN)));
   if (doorStyle) {
-    // The door maker's drawings of the bead and panel (not the outside edge: a picture of an eased edge shows nothing)
-    const dd = doorDrawings(p.settings).filter((d) => d.what !== 'Outside edge');
-    // With their framing bead drawing on the sheet, our own drawn section of it goes; the door moves to the left
-    const ownSection = !dd.some((d) => d.what === 'Framing bead');
-    const doorF = ownSection ? { x: A.x + A.w * 0.5, y: A.y, w: A.w * 0.24, h: A.h * 0.62 } : { x: A.x, y: A.y, w: A.w * 0.74, h: A.h * 0.62 };
-    const dv = inView('door-profile', 'Door style', () => doorProfileViews(p, ownSection ? { x: A.x, y: A.y, w: A.w * 0.5, h: A.h * 0.62 } : null, doorF));
+    // Three even columns: the door as a photo, a typical door drawn and dimensioned, what it is; the
+    // framing bead full size in section across the bottom. One set of line weights throughout.
+    const gap = 0.3, colW = (A.w - 2 * gap) / 3, topH = A.h * 0.6;
+    const col = (i: number) => A.x + i * (colW + gap);
+    const photo = s.doorPhoto ?? doorPhotoPath(p);
+    const front: Frame = { x: col(1), y: A.y, w: colW, h: topH };
+    const sec: Frame = { x: A.x, y: A.y + topH + 0.35, w: A.w, h: A.h - topH - 0.75 };
+    const dv = inView('door-profile', 'Door style', () => doorProfileViews(p, sec, front));
     if (dv) {
-      const label = (x: number, w: number, t: string) => `<text x="${x + w / 2}" y="${A.y + A.h * 0.62 + 0.15}" font-size="0.11" font-weight="700" text-anchor="middle">${esc(t)}</text>`;
-      const notes = html({ x: A.x + A.w * 0.76, y: A.y, w: A.w * 0.24, h: A.h }, `<h2>Door style</h2><ul>${dv.notes.map((n) => `<li>${esc(n)}</li>`).join('')}</ul>`, s.paper === 'tabloid' ? 0.11 : 0.09);
-      // The door maker's drawings in a row underneath
-      const rowY = A.y + A.h * 0.7, rowH = A.h * 0.24, colW = (A.w * 0.74) / Math.max(1, dd.length);
-      const pics = dd.map((d, i) => {
-        const x = A.x + i * colW + 0.1;
-        return `<image href="${d.src}" x="${x}" y="${rowY}" width="${colW - 0.2}" height="${rowH - 0.3}" preserveAspectRatio="xMidYMid meet"/>`
-          + `<text x="${x + (colW - 0.2) / 2}" y="${rowY + rowH - 0.12}" font-size="0.1" font-weight="700" text-anchor="middle">${esc(d.what.toUpperCase())}${d.label ? `: ${esc(d.label)}` : ''}</text>`;
-      }).join('');
-      sheets.push(sheet(p, s, doorNo, 'Door style', 'As noted', dv.svg + (ownSection ? label(A.x, A.w * 0.5, 'FRAMING BEAD, SECTION (FULL SIZE)') : '') + label(doorF.x, doorF.w, 'DOOR (1-1/2" = 1\'-0")') + pics + notes));
+      const fsD = s.paper === 'tabloid' ? 0.11 : 0.09;
+      const caption = (x: number, w: number, y: number, t: string) => `<text x="${x + w / 2}" y="${y}" font-size="0.11" font-weight="700" text-anchor="middle">${esc(t)}</text>`;
+      const pic = photo
+        ? `<rect x="${col(0)}" y="${A.y}" width="${colW}" height="${topH - 0.3}" fill="#fff" stroke="#bbb" stroke-width="0.008"/>`
+          + `<image href="${esc(photo)}" x="${col(0) + 0.15}" y="${A.y + 0.15}" width="${colW - 0.3}" height="${topH - 0.6}" preserveAspectRatio="xMidYMid meet"/>`
+          + caption(col(0), colW, A.y + topH - 0.1, 'THE DOOR STYLE')
+        : '';
+      const sample = html({ x: col(0), y: A.y + topH, w: colW, h: 0.3 }, `<p class="small" style="text-align:center">Sample shown unfinished; yours is ${p.settings.finish === 'stain' ? 'stained or clear finished as selected' : 'painted'}.</p>`, fsD * 0.8);
+      const notes = html({ x: col(2), y: A.y, w: colW, h: topH }, `<h2>Door style</h2><ul>${dv.notes.map((n) => `<li>${esc(n)}</li>`).join('')}</ul>`, fsD);
+      const body = pic + (photo ? sample : '') + dv.svg
+        + caption(front.x, front.w, A.y + topH - 0.1, `TYPICAL DOOR (${scaleName(dv.scale)})`)
+        + caption(sec.x, sec.w, A.y + A.h - 0.1, 'FRAMING BEAD AND PANEL, SECTION (FULL SIZE)')
+        + `<line x1="${A.x}" y1="${A.y + topH + 0.15}" x2="${A.x + A.w}" y2="${A.y + topH + 0.15}" stroke="#bbb" stroke-width="0.008"/>`
+        + notes;
+      sheets.push(sheet(p, s, doorNo, 'Door style', 'As noted', body));
     }
   }
   if (profiles.length) sheets.push(sheet(p, s, profNo, 'Moulding & beadboard profiles', 'As noted', profileViews(profiles, A)));

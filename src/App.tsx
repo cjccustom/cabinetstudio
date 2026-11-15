@@ -1,7 +1,7 @@
 import { FurnitureBuilder } from './ui/FurnitureBuilder';
 import { roomProjects } from './model/rooms';
 import { RoomTabs } from './ui/RoomTabs';
-import { CoverButton, DrawingsMain, DrawingsPanel, DrawingsSide } from './ui/Drawings';
+import { CoverButton, ShotButton, DrawingsMain, DrawingsPanel, DrawingsSide } from './ui/Drawings';
 import { ConfirmHost } from './ui/Confirm';
 import { ClientMain, ClientPanel, ClientsSide } from './ui/Clients';
 import { ViewTools, navHint } from './ui/ViewTools';
@@ -171,7 +171,7 @@ export default function App() {
           {view === 'plan' ? 'Plan view · back wall at top · ' : view === '3d' ? '' : `${wallNames[view.slice(5) as keyof typeof wallNames]} elevation · `}{navHint(view, nav.pointer, nav.mode)}
         </div>
         <Scene issueIds={issueIds} />
-        <div className="render-view"><ViewTools />{view !== 'plan' && <CoverButton />}{view !== 'plan' && <DesignRenderButton />}</div>
+        <div className="render-view"><ViewTools />{view !== 'plan' && <CoverButton />}{view !== 'plan' && <ShotButton />}{view !== 'plan' && <DesignRenderButton />}</div>
         <AddToolbar />
         {issues.length > 0 && (
           <div className="issue-bar" role="status">

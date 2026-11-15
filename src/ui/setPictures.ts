@@ -3,10 +3,17 @@
 import type { Project } from '../model/types';
 import { useStore } from '../store';
 import { revSnapshot } from '../model/revisions';
+import { doorPhotoPath } from '../drawings/doorProfile';
 import { renderOf } from '../model/rendering';
 import { blobToDataUrl, shrinkImage } from '../runtime';
 
-export async function withPictures(p: Project): Promise<Project> {
+export async function withPictures(p0: Project): Promise<Project> {
+  // The door style photo, put inside the file so it shows wherever the set is opened
+  let p = p0;
+  const door = doorPhotoPath(p);
+  if (door) {
+    try { p = { ...p, drawings: { ...p.drawings, doorPhoto: await blobToDataUrl(await (await fetch(door)).blob()) } } as Project; } catch { /* the sheet goes without it */ }
+  }
   const imgs = renderOf(p).images.filter((x) => x.kind === 'rendering').slice(-4);
   if (!imgs.length) return p;
   const views: string[] = [];

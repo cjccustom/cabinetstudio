@@ -167,6 +167,22 @@ export function DrawingsSide() {
         )}
 
         {kind === 'customer' && (
+          <Section title={`3D views sheet${(d.shots ?? []).length ? ` (${(d.shots ?? []).length})` : ''}`}>
+            {!(d.shots ?? []).length && <p className="hint">None yet. In Design, turn the 3D view to show a wall or corner the way the customer should see it and press <b>Add to drawings</b>. Do it for each view you want; saved renderings go on the sheet too.</p>}
+            <ul className="shots">
+              {(d.shots ?? []).map((x, i) => (
+                <li key={i}>
+                  <img src={x.url} alt={x.label} />
+                  <input aria-label={`Caption for view ${i + 1}`} value={x.label} onChange={(e) => put({ shots: (d.shots ?? []).map((y, k) => (k === i ? { ...y, label: e.target.value } : y)) })} />
+                  <button className="mini" disabled={i === 0} aria-label={`Move view ${i + 1} earlier`} onClick={() => { const a = [...(d.shots ?? [])]; [a[i - 1], a[i]] = [a[i], a[i - 1]]; put({ shots: a }); }}>↑</button>
+                  <button className="mini danger" aria-label={`Remove view ${i + 1}`} onClick={() => put({ shots: (d.shots ?? []).filter((_, k) => k !== i) })}>×</button>
+                </li>
+              ))}
+            </ul>
+          </Section>
+        )}
+
+        {kind === 'customer' && (
           <Section title="Notes on the cover">
             <textarea id="dw-notes" rows={4} value={d.notes} placeholder="Paint color, hardware, anything to point out" onChange={(e) => put({ notes: e.target.value })} />
           </Section>
@@ -428,6 +444,32 @@ export function DrawingsPanel() {
       </div>
     </aside>
   );
+}
+
+/** On the design view: add what's on screen to the customer set's 3D views sheet. */
+export function ShotButton() {
+  const [done, setDone] = useState('');
+  const commit = useStore((s) => s.commit);
+  const grab = async () => {
+    useStore.getState().select(null);
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    const canvas = document.querySelector<HTMLCanvasElement>('.stage canvas');
+    if (!canvas) return;
+    const flat = document.createElement('canvas');
+    flat.width = canvas.width; flat.height = canvas.height;
+    const g = flat.getContext('2d')!;
+    g.fillStyle = '#ffffff'; g.fillRect(0, 0, flat.width, flat.height);
+    g.drawImage(canvas, 0, 0);
+    const blob = await new Promise<Blob | null>((ok) => flat.toBlob(ok, 'image/jpeg', 0.9));
+    if (!blob) return;
+    // Smaller than the cover: up to eight of these ride along in the design
+    const url = await blobToDataUrl(await shrinkImage(blob, 1400, 0.82));
+    let n = 0;
+    commit((p) => { const d = drawingsOf(p); const shots = [...(d.shots ?? []), { url, label: `View ${(d.shots?.length ?? 0) + 1}` }].slice(-8); n = shots.length; return { ...p, drawings: { ...d, shots } }; });
+    setDone(`Added (${n})`);
+    setTimeout(() => setDone(''), 2000);
+  };
+  return <button onClick={grab} title="Add this view to the 3D views sheet of the customer drawings (name it in the Drawings tab)">{done || 'Add to drawings'}</button>;
 }
 
 /** On the design view: save what's on screen as the drawing set's cover. */

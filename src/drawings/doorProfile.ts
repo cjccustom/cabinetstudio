@@ -4,7 +4,7 @@
 import type { Project } from '../model/types';
 import { centerPanels, edgeText, styleById, type DoorStyle } from '../model/eagle';
 import { eff } from '../model/parts';
-import { View, type Frame } from './draw';
+import { View, fitScale, type Frame } from './draw';
 import { fmt as fmtIn } from '../units';
 
 type Pt = [number, number];
@@ -60,11 +60,21 @@ function beadEdge(style: DoorStyle, S: number, T: number): Pt[] {
   }
 }
 
+/** Where the door style's photo is published next to the page (flat or raised panel version). */
+export function doorPhotoPath(p: Project): string | null {
+  const s = eff({ overrides: undefined } as never, p.settings);
+  const style = styleById(s.doorStyleId);
+  if (style.profile === 'slab') return null;
+  const raised = !!centerPanels.find((c) => c.code === s.centerPanel)?.raised;
+  const flatOnly = style.id === 'barharbor';
+  return `doors/${style.id}${raised && !flatOnly ? '-raised' : ''}.webp`;
+}
+
 /**
- * The door style sheet's drawings: the section full size on the left, the door on the right. With no
- * section frame (the door maker's own bead drawing is on the sheet instead), just the door.
+ * The door style sheet's drawings, all in the set's own line weights: the framing bead in section,
+ * full size, and a typical door straight on, dimensioned. The notes say what the door is.
  */
-export function doorProfileViews(p: Project, section: Frame | null, front: Frame): { svg: string; notes: string[] } | null {
+export function doorProfileViews(p: Project, section: Frame, front: Frame): { svg: string; notes: string[]; scale: number } | null {
   const s = eff({ overrides: undefined } as never, p.settings);
   const style = styleById(s.doorStyleId);
   if (style.profile === 'slab') return null;
@@ -73,42 +83,41 @@ export function doorProfileViews(p: Project, section: Frame | null, front: Frame
   const panel = centerPanels.find((c) => c.code === s.centerPanel);
   const raised = !!panel?.raised, flatFront = !!panel?.flatFront;
   const W = S + 2.25;
-  // Full size: a 2-1/4" stile and its panel take about 4-1/2" of paper
-  const v = new View(section ?? { x: 0, y: 0, w: 1, h: 1 }, { x0: -0.5, y0: -0.5, x1: W + 0.3, y1: T + 0.6 }, 12);
-  // The stile, outside edge eased
+  // Full size: a stile and 2-1/4" of its panel, centered in its frame
+  const v = new View(section, { x0: -0.6, y0: -0.6, x1: W + 0.2, y1: T + 0.7 }, 12);
   const edge = beadEdge(style, S, T);
   const e = 1 / 16;
   v.poly([[0, e], [e, 0], [S, 0], [S, T - drop - 0.375], ...edge.slice().reverse(), [e, T], [0, T - e]] as Pt[], 'cut');
-  // The center panel in its groove: 1/4" flat (or raised, or flush with the frame face), tongue 3/8" into the stile
   const pt = raised ? 0.75 : 0.25;
   const pFace = flatFront ? T - 0.0625 : T - drop;
   const pBack = raised ? pFace - 0.75 * 0.6 : pFace - pt;
   const pb = Math.max(0.0625, pBack);
-  v.rect(S, pb, W - S, pFace - pb, 'o');
-  // The tongue in the stile's groove, hidden
+  v.rect(S, pb, W - S, pFace - pb, 'cut');
   v.rect(S - 0.375, pb, 0.375, pFace - pb, 'hid');
-  // Labels
-  v.text(S / 2, -0.3, 'STILE', 0.09, 'middle', 'lbl');
-  v.text(S + 1.1, pFace + 0.22, 'CENTER PANEL', 0.09, 'middle', 'lbl');
-  v.dimH(0, S, T, 0.3, undefined);
-  v.dimV(0, T, 0, -0.3, undefined);
-  // The door straight on: frame, the bead line inside it, the panel
+  v.text(S / 2, T / 2 - 0.04, 'STILE', 0.08, 'middle', 'lbl');
+  v.text(S + 1.3, pb - 0.2, 'PANEL', 0.08, 'middle', 'lbl');
+  v.dimH(0, S, T, 0.3);
+  v.dimV(0, T, 0, -0.3);
+  if (drop) v.dimV(pFace, T, W, 0.3);
+  // A typical door straight on, as big as its space allows
   const dw = 15, dh = 30;
-  const fv = new View(front, { x0: -1, y0: -1, x1: dw + 1, y1: dh + 1 }, 1.5);
+  const scale = fitScale(dw + 2, dh + 2, front.w - 0.8, front.h - 0.6);
+  const fv = new View(front, { x0: -1, y0: -1, x1: dw + 1, y1: dh + 1 }, scale);
   fv.rect(0, 0, dw, dh, 'o');
-  fv.rect(S, S, dw - 2 * S, dh - 2 * S, 'f');
-  const inset = style.profile === 'shaker' || style.profile === 'slim' ? 0 : 0.375;
-  if (inset) fv.rect(S - inset, S - inset, dw - 2 * (S - inset), dh - 2 * (S - inset), 'thin');
-  if (raised) fv.rect(S + 1.5, S + 1.5, dw - 2 * (S + 1.5), dh - 2 * (S + 1.5), 'thin');
-  if (style.line !== 'MDF') { fv.line(S, 0, S, dh, 'thin'); fv.line(dw - S, 0, dw - S, dh, 'thin'); }
+  const inset = style.profile === 'shaker' || style.profile === 'slim' ? 0 : Math.max(beadOf(style).w, 0.25);
+  if (inset) fv.rect(S, S, dw - 2 * S, dh - 2 * S, 'thin');
+  fv.rect(S + inset, S + inset, dw - 2 * (S + inset), dh - 2 * (S + inset), 'o');
+  if (raised) fv.rect(S + inset + 1.5, S + inset + 1.5, dw - 2 * (S + inset + 1.5), dh - 2 * (S + inset + 1.5), 'thin');
+  if (style.line !== 'MDF') { fv.line(S, 0, S, dh, 'o'); fv.line(dw - S, 0, dw - S, dh, 'o'); }
   fv.dimH(0, S, 0, -0.25);
+  fv.dimV(dh - S, dh, dw, 0.25);
   const notes = [
-    `${style.name}${style.bead ? `, framing bead ${style.bead}` : ''}: ${style.detail}`,
+    `${style.name}: five-piece door (stiles, rails and a center panel), ${style.detail.replace(/\.$/, '').toLowerCase()}`,
     `${style.line === 'MDF' ? 'MDF' : s.doorMaterial}, ${s.doorMount === 'inset' ? 'inset' : 'overlay'} doors and drawer fronts`,
-    panel ? `Center panel: ${panel.code}, ${panel.name}` : '',
-    `Outside edge: ${edgeText(s.outsideEdge)}`,
-    `Framing bead ${beadOf(style).w ? `${fmtIn(beadOf(style).w)} wide, ` : ''}panel ${fmtIn(beadOf(style).recess)} below the frame face (from the door maker’s profile drawing)`,
-    section ? 'Section drawn full size; the sample door is the final word.' : 'The sample door is the final word.',
+    panel ? `Center panel: ${panel.name}` : '',
+    `Outside edge: ${edgeText(s.outsideEdge).replace(/^E-\d+ \((.*)\)$/, '$1')}`,
+    `Stiles and rails ${fmtIn(S)} wide${beadOf(style).w ? `; framing bead ${fmtIn(beadOf(style).w)} wide` : ''}; panel ${fmtIn(drop)} below the frame face`,
+    'The sample door is the final word.',
   ].filter(Boolean);
-  return { svg: (section ? v.svg() : '') + fv.svg(), notes };
+  return { svg: v.svg() + fv.svg(), notes, scale };
 }
