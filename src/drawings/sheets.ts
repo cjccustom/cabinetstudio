@@ -9,6 +9,7 @@ import { wallOrder, wallNames, wallLength } from '../model/layout';
 import { clientName, clientOf, COMPANY } from '../model/client';
 import { eff } from '../model/parts';
 import { doorPhotoPath, doorProfileViews } from './doorProfile';
+import { doorDrawings } from '../model/eagleDrawings';
 import { profileItems, profileViews } from './profileSheet';
 import { assemblyView } from './assembly';
 import { wallIso } from './iso';
@@ -330,7 +331,11 @@ function customerSheets(p: Project, s: DrawingSettings): Sheet[] {
     const col = (i: number) => A.x + i * (colW + gap);
     const photo = s.doorPhoto ?? doorPhotoPath(p);
     const front: Frame = { x: col(1), y: A.y, w: colW, h: topH };
-    const sec: Frame = { x: A.x, y: A.y + topH + 0.35, w: A.w, h: A.h - topH - 0.75 };
+    // The door maker's own profile drawings across the bottom (they're the accurate ones), all at the
+    // scale that prints their lines at one weight; our drawn section only when there's no bead drawing
+    const ddr = doorDrawings(p.settings).filter((d) => d.what !== 'Outside edge');
+    const rowY = A.y + topH + 0.35, rowH = A.h - topH - 0.75;
+    const sec: Frame | null = ddr.some((d) => d.what === 'Framing bead') ? null : { x: A.x, y: rowY, w: A.w, h: rowH };
     const dv = inView('door-profile', 'Door style', () => doorProfileViews(p, sec, front));
     if (dv) {
       const fsD = s.paper === 'tabloid' ? 0.11 : 0.09;
@@ -342,9 +347,24 @@ function customerSheets(p: Project, s: DrawingSettings): Sheet[] {
         : '';
       const sample = html({ x: col(0), y: A.y + topH, w: colW, h: 0.3 }, `<p class="small" style="text-align:center">Sample shown unfinished; yours is ${p.settings.finish === 'stain' ? 'stained or clear finished as selected' : 'painted'}.</p>`, fsD * 0.8);
       const notes = html({ x: col(2), y: A.y, w: colW, h: topH }, `<h2>Door style</h2><ul>${dv.notes.map((n) => `<li>${esc(n)}</li>`).join('')}</ul>`, fsD);
-      const body = pic + (photo ? sample : '') + dv.svg
+      let drawings = '';
+      if (ddr.length) {
+        // One printed line weight for all of them: the section line weight, or less if that won't fit
+        const slotW = A.w / ddr.length - 0.4, slotH = rowH - 0.35;
+        const T = Math.min(0.012, ...ddr.map((d) => Math.min(slotW / (d.w / d.stroke), slotH / (d.h / d.stroke))));
+        drawings = '<defs><filter id="ink"><feComponentTransfer><feFuncR type="table" tableValues="0 0 0.25 1 1"/><feFuncG type="table" tableValues="0 0 0.25 1 1"/><feFuncB type="table" tableValues="0 0 0.25 1 1"/></feComponentTransfer></filter></defs>'
+          + ddr.map((d, i, all) => {
+            const tallest = Math.max(...all.map((x) => (x.h * T) / x.stroke));
+            const w = (d.w * T) / d.stroke, h = (d.h * T) / d.stroke;
+            const cx = A.x + (A.w / ddr.length) * (i + 0.5);
+            const y = rowY + (slotH - h) / 2;
+            return `<image href="${d.src}" x="${cx - w / 2}" y="${y}" width="${w}" height="${h}" filter="url(#ink)"/>`
+              + caption(cx - 1, 2, rowY + (slotH + tallest) / 2 + 0.3, `${d.what.toUpperCase()}: ${d.label}`);
+          }).join('');
+      }
+      const body = pic + (photo ? sample : '') + dv.svg + drawings
         + caption(front.x, front.w, A.y + topH - 0.1, `TYPICAL DOOR (${scaleName(dv.scale)})`)
-        + caption(sec.x, sec.w, A.y + A.h - 0.1, 'FRAMING BEAD AND PANEL, SECTION (FULL SIZE)')
+        + (sec ? caption(sec.x, sec.w, A.y + A.h - 0.1, 'FRAMING BEAD AND PANEL, SECTION (FULL SIZE)') : '')
         + `<line x1="${A.x}" y1="${A.y + topH + 0.15}" x2="${A.x + A.w}" y2="${A.y + topH + 0.15}" stroke="#bbb" stroke-width="0.008"/>`
         + notes;
       sheets.push(sheet(p, s, doorNo, 'Door style', 'As noted', body));

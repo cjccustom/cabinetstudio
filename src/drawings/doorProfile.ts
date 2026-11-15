@@ -74,7 +74,7 @@ export function doorPhotoPath(p: Project): string | null {
  * The door style sheet's drawings, all in the set's own line weights: the framing bead in section,
  * full size, and a typical door straight on, dimensioned. The notes say what the door is.
  */
-export function doorProfileViews(p: Project, section: Frame, front: Frame): { svg: string; notes: string[]; scale: number } | null {
+export function doorProfileViews(p: Project, section: Frame | null, front: Frame): { svg: string; notes: string[]; scale: number } | null {
   const s = eff({ overrides: undefined } as never, p.settings);
   const style = styleById(s.doorStyleId);
   if (style.profile === 'slab') return null;
@@ -84,7 +84,7 @@ export function doorProfileViews(p: Project, section: Frame, front: Frame): { sv
   const raised = !!panel?.raised, flatFront = !!panel?.flatFront;
   const W = S + 2.25;
   // Full size: a stile and 2-1/4" of its panel, centered in its frame
-  const v = new View(section, { x0: -0.6, y0: -0.6, x1: W + 0.2, y1: T + 0.7 }, 12);
+  const v = new View(section ?? { x: 0, y: 0, w: 1, h: 1 }, { x0: -0.6, y0: -0.6, x1: W + 0.2, y1: T + 0.7 }, 12);
   const edge = beadEdge(style, S, T);
   const e = 1 / 16;
   v.poly([[0, e], [e, 0], [S, 0], [S, T - drop - 0.375], ...edge.slice().reverse(), [e, T], [0, T - e]] as Pt[], 'cut');
@@ -119,5 +119,5 @@ export function doorProfileViews(p: Project, section: Frame, front: Frame): { sv
     `Stiles and rails ${fmtIn(S)} wide${beadOf(style).w ? `; framing bead ${fmtIn(beadOf(style).w)} wide` : ''}; panel ${fmtIn(drop)} below the frame face`,
     'The sample door is the final word.',
   ].filter(Boolean);
-  return { svg: v.svg() + fv.svg(), notes, scale };
+  return { svg: (section ? v.svg() : '') + fv.svg(), notes, scale };
 }

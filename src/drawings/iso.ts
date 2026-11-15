@@ -77,43 +77,66 @@ export function wallIso(p: Project, wall: WallId, f: Frame, L: number, H: number
     const z0 = c.wallInset ?? 0;
     const at = (x: number, y: number, z: number): V3 => [c.offset + x, c.elevation + y, z0 + z];
     const colorOf = (x: Part) => (x.role === 'counter' ? '#9a9a9a' : x.look === 'wood' || x.role === 'woodTop' ? wood : paint);
-    // The case body: the sides, top, bottom and face frame make one solid; its front is the face frame's face
-    const body = parts.filter((x) => ['side', 'top', 'bottom', 'stile', 'rail', 'endPanel', 'toekick', 'stretcher', 'divider', 'shelf'].includes(x.role));
-    const bb = (list: Part[]) => {
-      const bs = list.flatMap((x) => x.boxes);
-      return { min: [Math.min(...bs.map((b) => b.min[0])), Math.min(...bs.map((b) => b.min[1])), Math.min(...bs.map((b) => b.min[2]))] as V3, max: [Math.max(...bs.map((b) => b.min[0] + b.size[0])), Math.max(...bs.map((b) => b.min[1] + b.size[1])), Math.max(...bs.map((b) => b.min[2] + b.size[2]))] as V3 };
-    };
+    // The case body: the sides, top, bottom and face frame make one solid; its front is the face frame's
+    // face. A mantel is two: the surround below the shelf and the overmantel above, set back from it.
+    type PB = { part: Part; b: Part['boxes'][number] };
+    const all: PB[] = parts.flatMap((part) => part.boxes.map((b) => ({ part, b })));
+    const bodyRoles = ['side', 'top', 'bottom', 'stile', 'rail', 'endPanel', 'toekick', 'stretcher', 'divider', 'shelf'];
+    // A mantel's mass is the chimney: its face is the chimney sides' front, and the legs, frieze and
+    // pilasters stand out from it as pieces of their own
+    const frontRoles = c.kind === 'mantel' ? ['side'] : ['stile', 'rail', 'side'];
+    const shelf = c.kind === 'mantel' ? all.find((x) => x.part.name === 'Mantel shelf') : undefined;
+    const cuts = shelf ? [-Infinity, shelf.b.min[1], Infinity] : [-Infinity, Infinity];
+    const midY = (x: PB) => x.b.min[1] + x.b.size[1] / 2;
+    const zTop = (x: PB) => x.b.min[2] + x.b.size[2];
     const order = depthKey(c.offset + c.width, c.elevation, z0 + c.depth);
-    if (body.length) {
-      const k = bb(body);
-      const front = Math.max(...parts.filter((x) => x.role === 'stile' || x.role === 'rail' || x.role === 'side').flatMap((x) => x.boxes.map((b) => b.min[2] + b.size[2])), k.min[2]);
+    const used = new Set<PB>();
+    const bandFront: { y0: number; y1: number; front: number }[] = [];
+    let bodyX0: number | null = null;
+    for (let i = 0; i + 1 < cuts.length; i++) {
+      const inBand = (x: PB) => midY(x) >= cuts[i] && midY(x) < cuts[i + 1];
+      const body = all.filter((x) => inBand(x) && (c.kind === 'mantel' ? x.part.name.startsWith('Chimney side') : bodyRoles.includes(x.part.role)));
+      if (!body.length) continue;
+      const k = {
+        min: [Math.min(...body.map((x) => x.b.min[0])), Math.min(...body.map((x) => x.b.min[1])), Math.min(...body.map((x) => x.b.min[2]))] as V3,
+        max: [Math.max(...body.map((x) => x.b.min[0] + x.b.size[0])), Math.max(...body.map((x) => x.b.min[1] + x.b.size[1]))] as [number, number],
+      };
+      const fr = body.filter((x) => frontRoles.includes(x.part.role));
+      const front = fr.length ? Math.max(...fr.map(zTop)) : Math.max(...body.map(zTop));
+      bandFront.push({ y0: cuts[i], y1: cuts[i + 1], front });
+      bodyX0 = bodyX0 == null ? k.min[0] : Math.min(bodyX0, k.min[0]);
+      body.forEach((x) => used.add(x));
+      const sub0 = i * 10;
       // The solid, its front dark: whatever isn't covered by frame, doors or shelves reads as open
-      items.push({ order, sub: 0, s: { kind: 'box', min: at(k.min[0], k.min[1], k.min[2]), max: at(k.max[0], k.max[1], front), fill: paint } });
+      items.push({ order, sub: sub0, s: { kind: 'box', min: at(k.min[0], k.min[1], k.min[2]), max: at(k.max[0], k.max[1], front), fill: paint } });
       // A mantel's face is solid but for the firebox opening; casework's is open where nothing covers it
       const isMantel = c.kind === 'mantel';
-      items.push({ order, sub: 1, s: { kind: 'face', pts: [at(k.min[0], k.min[1], front), at(k.max[0], k.min[1], front), at(k.max[0], k.max[1], front), at(k.min[0], k.max[1], front)], fill: isMantel ? paint : shade(paint, -0.3), stroke: 0.006 } });
-      if (isMantel) {
+      items.push({ order, sub: sub0 + 1, s: { kind: 'face', pts: [at(k.min[0], k.min[1], front), at(k.max[0], k.min[1], front), at(k.max[0], k.max[1], front), at(k.min[0], k.max[1], front)], fill: isMantel ? paint : shade(paint, -0.3), stroke: 0.006 } });
+      if (isMantel && i === 0) {
         const m = mantelOf(c);
         const ox0 = (c.width - m.openingW) / 2;
-        items.push({ order, sub: 1.5, s: { kind: 'face', pts: [at(ox0, m.openingY, front), at(ox0 + m.openingW, m.openingY, front), at(ox0 + m.openingW, m.openingY + m.openingH, front), at(ox0, m.openingY + m.openingH, front)], fill: '#3d3a36', stroke: 0.006 } });
+        items.push({ order, sub: sub0 + 1.5, s: { kind: 'face', pts: [at(ox0, m.openingY, front), at(ox0 + m.openingW, m.openingY, front), at(ox0 + m.openingW, m.openingY + m.openingH, front), at(ox0, m.openingY + m.openingH, front)], fill: '#3d3a36', stroke: 0.006 } });
       }
-      // Flush faces: the frame, inset doors and fronts, shelf edges in the openings
-      const flush = parts.filter((x) => x.boxes.every((b) => b.min[2] + b.size[2] <= front + 0.1) && ['stile', 'rail', 'door', 'drawerFront', 'shelf', 'divider', 'endPanel', 'trim', 'bottom', 'top'].includes(x.role));
-      for (const x of flush) for (const b of x.boxes) {
-        const zf = b.min[2] + b.size[2];
-        if (zf < front - 2.5) continue; // well behind the face: shelves deep in an opening stay in the dark
+      // Flush faces: the frame, inset doors and fronts, shelf edges in the openings, each at its own depth
+      const flush = all.filter((x) => inBand(x) && zTop(x) <= front + 0.1 && zTop(x) >= front - 2.5 && ['stile', 'rail', 'door', 'drawerFront', 'shelf', 'divider', 'endPanel', 'trim', 'bottom', 'top'].includes(x.part.role));
+      for (const x of flush) {
+        const zf = zTop(x), b = x.b;
+        used.add(x);
         const recess = Math.max(0, front - zf);
-        const fill = recess > 0.05 ? shade(colorOf(x), -Math.min(0.3, recess * 0.15)) : colorOf(x);
-        items.push({ order, sub: 2 + zf / 100, s: { kind: 'face', pts: [at(b.min[0], b.min[1], zf), at(b.min[0] + b.size[0], b.min[1], zf), at(b.min[0] + b.size[0], b.min[1] + b.size[1], zf), at(b.min[0], b.min[1] + b.size[1], zf)], fill, stroke: 0.004 } });
+        const fill = recess > 0.05 ? shade(colorOf(x.part), -Math.min(0.3, recess * 0.15)) : colorOf(x.part);
+        items.push({ order, sub: sub0 + 2 + zf / 100, s: { kind: 'face', pts: [at(b.min[0], b.min[1], zf), at(b.min[0] + b.size[0], b.min[1], zf), at(b.min[0] + b.size[0], b.min[1] + b.size[1], zf), at(b.min[0], b.min[1] + b.size[1], zf)], fill, stroke: 0.004 } });
       }
       maxZ = Math.max(maxZ, z0 + front);
     }
-    // Proud of the face, or a piece with no case (pilaster faces, shelves, mantels): solids
-    const frontOf = body.length ? Math.max(...parts.filter((x) => x.role === 'stile' || x.role === 'rail' || x.role === 'side').flatMap((x) => x.boxes.map((b) => b.min[2] + b.size[2])), 0) : -1;
-    const proud = parts.filter((x) => !body.includes(x) && x.boxes.some((b) => b.min[2] + b.size[2] > frontOf + 0.1));
-    for (const x of proud) for (const b of x.boxes) {
+    // Proud of the face, or a piece with no case (pilaster faces, shelves, the mantel shelf): solids
+    const frontAt = (x: PB) => bandFront.find((f) => midY(x) >= f.y0 && midY(x) < f.y1)?.front ?? -1;
+    for (const x of all.filter((y) => !used.has(y) && (c.kind === 'mantel' || !bodyRoles.includes(y.part.role)) && zTop(y) > frontAt(y) + 0.1)) {
+      const b = x.b;
       const mn = at(b.min[0], b.min[1], b.min[2]), mx = at(b.min[0] + b.size[0], b.min[1] + b.size[1], b.min[2] + b.size[2]);
-      items.push({ order: depthKey(mx[0], mn[1], mx[2]), sub: 3, s: { kind: 'box', min: mn, max: mx, fill: colorOf(x) } });
+      // After the body it stands on, nearest last; but whatever runs along the far (left) side of the
+      // body is behind it from this side, so it goes first
+      const farSide = bodyX0 != null && b.min[0] + b.size[0] <= bodyX0 + 0.01;
+      items.push({ order, sub: (farSide ? -10 : 30) + (5000 - depthKey(mx[0], mn[1], mx[2])) / 10000, s: { kind: 'box', min: mn, max: mx, fill: colorOf(x.part) } });
       maxZ = Math.max(maxZ, mx[2]);
     }
     // Mouldings with their real profiles
@@ -124,7 +147,10 @@ export function wallIso(p: Project, wall: WallId, f: Frame, L: number, H: number
       const near = Math.min(...polys.flatMap((q) => q.pts.map((v) => depthKey(v[0], v[1], v[2]))));
       // The whole run draws after what's behind it; its own faces, back ones first
       polys.sort((a, b) => far(b.pts) - far(a.pts));
-      polys.forEach((q, i) => items.push({ order: near - 0.5, sub: 10 + i / 1000, s: { kind: 'poly', pts: q.pts, fill: shade(paint, q.light - 1), edge: q.edge } }));
+      // On the cabinet, after its body and face (they sit on them), before whatever stands nearer
+      const leftOfBody = bodyX0 != null && Math.max(...polys.flatMap((q) => q.pts.map((v) => v[0]))) <= c.offset + bodyX0 + 0.01;
+      const sub = (leftOfBody ? -10 : 30) + (5000 - near) / 10000;
+      polys.forEach((q, i) => items.push({ order, sub: sub + i / 1e7, s: { kind: 'poly', pts: q.pts, fill: shade(paint, q.light - 1), edge: q.edge } }));
       maxZ = Math.max(maxZ, ...polys.flatMap((q) => q.pts.map((v) => v[2])));
     }
   });

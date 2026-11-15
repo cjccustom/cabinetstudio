@@ -37,14 +37,50 @@ const img: Record<string, string> = {
 "edge:E-03": "data:image/webp;base64,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"
 };
 
-export interface DoorDrawing { what: 'Framing bead' | 'Center panel' | 'Outside edge'; label: string; src: string }
+/** Each image's size in pixels and its line weight (pixels, measured from the image), so the drawings can be
+ * shown at scales that give them all the same printed line weight. */
+const sizes: Record<string, [number, number, number]> = {
+  "bead:5pc - A": [600, 214, 2.65],
+  "bead:5pc - B": [415, 153, 1.95],
+  "bead:5pc - C": [600, 225, 2.03],
+  "bead:5pc - D": [600, 253, 2.02],
+  "bead:5pc - E": [600, 250, 1.98],
+  "bead:5pc - F": [600, 252, 1.96],
+  "bead:5pc - G": [600, 241, 2.21],
+  "bead:5pc - I": [600, 223, 2.09],
+  "bead:5pc - L": [600, 236, 2.7],
+  "bead:5pc - P": [600, 278, 2.72],
+  "bead:2pc - A": [446, 93, 1.06],
+  "bead:2pc - B": [600, 117, 1.06],
+  "bead:2pc - C": [446, 113, 0.38],
+  "bead:2pc - D": [446, 111, 0.38],
+  "bead:2pc - E": [446, 108, 0.4],
+  "bead:2pc - F": [446, 112, 0.4],
+  "bead:2pc - G": [600, 174, 0.45],
+  "panel:MDF-01": [600, 213, 3.35],
+  "panel:MDF-02": [398, 136, 2.08],
+  "panel:MDF-03": [600, 193, 3.05],
+  "panel:MDF-04": [600, 195, 2.89],
+  "panel:MDF-05": [600, 211, 2.47],
+  "panel:MDF-06": [600, 188, 3.11],
+  "panel:MDF-07": [370, 117, 2.07],
+  "panel:MDF-08": [600, 265, 3.35],
+  "panel:MDF-09": [600, 257, 3.35],
+  "panel:MDF-10": [600, 213, 3.42],
+  "edge:E-01": [451, 201, 5.01],
+  "edge:E-02": [600, 267, 3.21],
+  "edge:E-03": [600, 259, 3.15],
+};
+
+export interface DoorDrawing { what: 'Framing bead' | 'Center panel' | 'Outside edge'; label: string; src: string; /** Pixels wide and high, and the line weight in pixels. */ w: number; h: number; stroke: number }
+const dd = (what: DoorDrawing['what'], label: string, key: string): DoorDrawing => { const [w, h, stroke] = sizes[key] ?? [600, 200, 2]; return { what, label, src: img[key], w, h, stroke: Math.max(1.5, stroke) }; };
 
 /** The drawings for a job's doors: its framing bead, center panel and outside edge, where Eagle has one. */
 export function doorDrawings(s: ShopSettings): DoorDrawing[] {
   const style = styleById(s.doorStyleId);
   const out: DoorDrawing[] = [];
-  if (style.bead && img[`bead:${style.bead}`]) out.push({ what: 'Framing bead', label: style.name, src: img[`bead:${style.bead}`] });
-  if (style.panelChoice) { const p = panelByCode(s.centerPanel), src = img[`panel:${p.code}`] ?? img[`panel:${panelForFinish(p.code, 'paint')}`]; if (src) out.push({ what: 'Center panel', label: p.name, src }); }
-  if (style.profile !== 'slab' && img[`edge:${s.outsideEdge}`]) out.push({ what: 'Outside edge', label: (outsideEdges.find((e) => e.code === s.outsideEdge)?.name ?? '').replace(/ - default$/, ''), src: img[`edge:${s.outsideEdge}`] });
+  if (style.bead && img[`bead:${style.bead}`]) out.push(dd('Framing bead', style.name, `bead:${style.bead}`));
+  if (style.panelChoice) { const p = panelByCode(s.centerPanel), key = img[`panel:${p.code}`] ? `panel:${p.code}` : `panel:${panelForFinish(p.code, 'paint')}`; if (img[key]) out.push(dd('Center panel', p.name, key)); }
+  if (style.profile !== 'slab' && img[`edge:${s.outsideEdge}`]) out.push(dd('Outside edge', (outsideEdges.find((e) => e.code === s.outsideEdge)?.name ?? '').replace(/ - default$/, ''), `edge:${s.outsideEdge}`));
   return out;
 }
