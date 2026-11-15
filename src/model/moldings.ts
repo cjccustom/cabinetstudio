@@ -71,6 +71,12 @@ function customProfile(num: string): Profile | undefined {
   const c = parseCustom(num);
   if (!c) return undefined;
   const d = drawn?.[num];
+  // A drawn profile (traced from a sample or the knife drawing) is the real size; the number only names it
+  if (d && Array.isArray(d.pts) && d.pts.length > 2) {
+    const h = Math.max(...d.pts.map((q) => q[1])) - Math.min(...d.pts.map((q) => q[1]));
+    const t = Math.max(...d.pts.map((q) => q[0])) - Math.min(...d.pts.map((q) => q[0]));
+    if (h > 0.1 && t > 0.05) { c.height = +h.toFixed(4); c.projection = +t.toFixed(4); }
+  }
   return { num, category: c.category, t: c.projection, w: c.height, prices: {}, supplier: 'custom', custom: d && Array.isArray(d.pts) && d.pts.length > 2 ? { ...c, pts: d.pts } : c,
     name: d?.name || (c.by === 'shop' ? 'Milled in the shop to match' : 'Milled by the supplier to match') };
 }
