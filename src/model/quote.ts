@@ -1,5 +1,6 @@
 // Quoting: material cost from the design, labor hours from standard times, and the shop's two
 // pricing methods side by side. Every number traces back to the design or a setting.
+import { fmt as fmtShort } from "../units";
 import { bedEstimate, bedScope, bedsOf } from './bed';
 import { caseEstimate, caseScope, casesOf } from './casePiece';
 import { lightingCost, lightingJobOf, lightingParts } from './cabinetLighting';
@@ -738,12 +739,22 @@ function materialsOneRoom(p: Project, q: QuoteSettings): MaterialLine[] {
       detail: `${rods.count} rods from ${rods.lengths} × 8' lengths, ${rods.count} pairs of sockets${p.settings.closetRod === 'wood' ? '' : ' (Home Depot / Lowe’s heavy-duty chrome)'}`,
       missing: q.closetRod8ft && q.rodSockets ? undefined : 'Enter the closet rod and socket prices under Quote → Prices to fill in' });
   }
-  const cushions = p.cabinets.flatMap((c) => buildParts(c, p.settings, resolveEnds(p.room, p.cabinets, c)).filter((x) => x.role === 'cushion'));
-  if (cushions.length) {
-    const area = cushions.reduce((t, x) => t + sqft(x.length, x.width), 0);
+  // Seat cushions: the upholsterer's by the sq ft; an online maker's as quoted on its site, per cushion
+  const cushionCabs = p.cabinets.filter((c) => c.cushion);
+  const cushions = cushionCabs.flatMap((c) => buildParts(c, p.settings, resolveEnds(p.room, p.cabinets, c)).filter((x) => x.role === 'cushion').map((x) => ({ x, c })));
+  const local = cushions.filter(({ c }) => c.cushion!.source !== 'online');
+  if (local.length) {
+    const area = local.reduce((t, { x }) => t + sqft(x.length, x.width), 0);
     out.push({ group: 'cabinets', label: 'Custom seat cushions (upholsterer)', cost: area * q.cushionPerSqFt,
-      detail: `${cushions.length} cushion${cushions.length > 1 ? 's' : ''}, ${area.toFixed(1)} sq ft`,
+      detail: `${local.length} cushion${local.length > 1 ? 's' : ''}, ${area.toFixed(1)} sq ft`,
       missing: q.cushionPerSqFt ? undefined : 'Get the upholsterer’s price and enter it under Quote → Prices to fill in' });
+  }
+  const online = cushions.filter(({ c }) => c.cushion!.source === 'online');
+  if (online.length) {
+    const unpriced = online.filter(({ c }) => !c.cushion!.price).map(({ c }) => c.name);
+    out.push({ group: 'cabinets', label: 'Custom seat cushions (made to size, ordered online)', cost: online.reduce((t, { c }) => t + (c.cushion!.price ?? 0), 0),
+      detail: online.map(({ x, c }) => `${c.name} ${fmtShort(x.length)} × ${fmtShort(x.width)} × ${fmtShort(c.cushion!.thickness)}`).join(', '),
+      missing: unpriced.length ? `Enter the cushion maker’s price on ${unpriced.join(', ')} (cabinet → Seat cushion)` : undefined });
   }
   const hw = hardwareOrder(p);
   const hwCost = (g: 'hinges' | 'slides') => hw.lines.filter((l) => l.group === g).reduce((t, l) => t + l.total, 0);

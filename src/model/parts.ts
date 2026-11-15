@@ -939,7 +939,7 @@ function caseParts(c: Cabinet, s: ShopSettings, ends: EndInfo): Part[] {
     if (cu) {
       const b = top.boxes[0];
       parts.push({ name: 'Seat cushion', role: 'cushion', material: 'upholstery', length: top.length, width: top.width, thickness: cu.thickness, cut: false,
-        note: `Custom, by the upholsterer: ${fmtShort(cu.thickness)} foam, ${cu.edge === 'boxed' ? 'boxed edge with welt' : 'knife edge'}; ${cu.fabric?.trim() || 'fabric to be selected'}. Upholsterer to confirm size on site.${cu.notes?.trim() ? ` ${cu.notes.trim()}` : ''}`,
+        note: `Custom, ${cu.source === 'online' ? 'ordered made to size online' : 'by the upholsterer'}: ${fmtShort(cu.thickness)} foam, ${cu.edge === 'boxed' ? 'boxed edge with welt' : 'knife edge'}; ${cu.fabric?.trim() || 'fabric to be selected'}. ${cu.source === 'online' ? 'Order once the bench is built and measured.' : 'Upholsterer to confirm size on site.'}${cu.notes?.trim() ? ` ${cu.notes.trim()}` : ''}`,
         boxes: [vb(b.min[0], b.min[1] + b.size[1], b.min[2], b.size[0], cu.thickness, b.size[2], 0.9)] });
     }
   }

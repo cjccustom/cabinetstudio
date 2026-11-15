@@ -453,8 +453,22 @@ export function Inspector({ cab, issues, tab }: { cab: Cabinet; issues: string[]
                     </Field>
                     <Field label="Fabric" htmlFor="cab-cu-f"><input id="cab-cu-f" value={cab.cushion.fabric ?? ''} placeholder="To be selected" onChange={(e) => set({ cushion: { ...cab.cushion!, fabric: e.target.value || undefined } })} /></Field>
                   </div>
-                  <Field label="Notes for the upholsterer" htmlFor="cab-cu-n"><input id="cab-cu-n" value={cab.cushion.notes ?? ''} placeholder="Ties, zipper cover, back cushions…" onChange={(e) => set({ cushion: { ...cab.cushion!, notes: e.target.value || undefined } })} /></Field>
-                  <p className="hint">Sized to the seat; seat height with the cushion {fmt(cab.elevation + cab.height + (cab.topThickness ?? 1.25) + cab.cushion.thickness)}. Priced per sq ft under Quote → Prices to fill in.</p>
+                  <div className="grid3">
+                    <Field label="Made by" htmlFor="cab-cu-s">
+                      <select id="cab-cu-s" value={cab.cushion.source ?? 'upholsterer'} onChange={(e) => set({ cushion: { ...cab.cushion!, source: e.target.value as 'upholsterer' | 'online' } })}>
+                        <option value="upholsterer">Local upholsterer</option>
+                        <option value="online">Online cushion maker</option>
+                      </select>
+                    </Field>
+                    {cab.cushion.source === 'online' && <Field label="Their price ($)" htmlFor="cab-cu-p"><input id="cab-cu-p" inputMode="decimal" value={cab.cushion.price || ''} placeholder="From their site" onChange={(e) => set({ cushion: { ...cab.cushion!, price: parseFloat(e.target.value) || undefined } })} /></Field>}
+                  </div>
+                  <Field label={cab.cushion.source === 'online' ? 'Notes for the order' : 'Notes for the upholsterer'} htmlFor="cab-cu-n"><input id="cab-cu-n" value={cab.cushion.notes ?? ''} placeholder="Ties, zipper cover, back cushions…" onChange={(e) => set({ cushion: { ...cab.cushion!, notes: e.target.value || undefined } })} /></Field>
+                  {(() => {
+                    const cu = buildParts(cab, settings, ends).find((x) => x.role === 'cushion');
+                    return cab.cushion.source === 'online' && cu
+                      ? <p className="hint">Enter on the maker’s site: rectangle, {fmt(cu.length)} wide × {fmt(cu.width)} deep × {fmt(cab.cushion.thickness)} thick, {cab.cushion.edge === 'boxed' ? 'boxed edge with welt (piping)' : 'knife edge'}, zipper cover; then put their price here. Measure the built seat before ordering.</p>
+                      : <p className="hint">Sized to the seat; seat height with the cushion {fmt(cab.elevation + cab.height + (cab.topThickness ?? 1.25) + cab.cushion.thickness)}. Priced per sq ft under Quote → Prices to fill in.</p>;
+                  })()}
                 </>
               )}
             </div>

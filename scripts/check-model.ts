@@ -875,13 +875,14 @@ eq('panel sticks out past frame', panelExtents(b21, s, { left: true, right: fals
   const d = drawingsOf(p);
   const cust = customerSet(p, d);
   const walls = new Set(p.cabinets.map((c) => c.wall)).size;
-  eq('customer set: cover, plan, an elevation per wall, schedule & selections, door style (no 3D sheet until views are saved)', cust.length, 3 + walls + 1);
+  eq('customer set: cover, plan, an elevation per wall, 3D drawings (two walls a sheet), schedule & selections, door style', cust.length, 3 + walls + Math.ceil(walls / 2) + 1);
   eq('customer set: the plan points each wall to its elevation sheet', cust[1].svg.includes('>A2<'), true);
   eq('customer set: the schedule lists every cabinet by tag', p.cabinets.every((c) => cust.find((x) => x.title === 'Schedule & selections')!.svg.includes(`<b>${c.name}</b>`)), true);
   eq('customer set: an approval box on the cover', cust[0].svg.includes('Approval'), true);
   eq('customer set: saved renderings go on the 3D views sheet when sent with the set', customerSet(p, { ...d, views: ['data:image/png;base64,AAAA'] }).some((x) => x.title === '3D views'), true);
   const five = Array.from({ length: 5 }, (_, i) => ({ url: 'data:image/jpeg;base64,AAAA', label: `View ${i + 1}` }));
   const withShots = customerSet(p, { ...d, shots: five });
+  eq('customer set: 3D drawings show the mouldings swept along with their profiles', cust.some((x) => x.title === '3D drawings' && (x.svg.match(/<polygon/g) ?? []).length > 200), true);
   eq('customer set: views saved from the 3D model, four to a sheet, captioned', [withShots.filter((x) => x.title === '3D views').length, withShots.some((x) => x.svg.includes('VIEW 5'))].join(), '2,true');
   eq('customer set: the door style sheet', cust[cust.length - 1].title, 'Door style');
   eq('elevation dimensions the wall', cust[2].svg.includes(`${p.room.width}"`), true);
@@ -1352,6 +1353,9 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   const priced = { ...proj, quote: { ...quoteOf(proj), cushionPerSqFt: 40 } };
   const placed = buildParts(bench, proj.settings, resolveEnds(proj.room, proj.cabinets, bench)).find((x) => x.role === 'cushion')!;
   eq('cushion: priced by area', +estimateMaterials(priced, quoteOf(priced)).find((l) => l.label.startsWith('Custom seat cushions'))!.cost.toFixed(2), +((placed.length * placed.width) / 144 * 40).toFixed(2));
+  const onl = { ...proj, cabinets: [{ ...bench, cushion: { ...bench.cushion!, source: 'online' as const, price: 182 } }] };
+  const ol = estimateMaterials(onl, quoteOf(onl)).find((l) => l.label.includes('ordered online'))!;
+  eq('cushion: an online maker’s quote goes on as entered, with the size to order', `${ol.cost} ${!ol.missing} ${ol.detail.startsWith('BN ')}`, '182 true true');
 }
 
 // Crown against the ceiling, two-sided islands, wall openings

@@ -11,6 +11,7 @@ import { eff } from '../model/parts';
 import { doorPhotoPath, doorProfileViews } from './doorProfile';
 import { profileItems, profileViews } from './profileSheet';
 import { assemblyView } from './assembly';
+import { wallIso } from './iso';
 import { styleById } from '../model/eagle';
 import { baseLabel } from '../model/cabinetBase';
 import { fmt } from '../units';
@@ -248,6 +249,9 @@ function customerSheets(p: Project, s: DrawingSettings): Sheet[] {
   let nextNo = first + walls.length + detailIdx.length;
   // 3D views saved from the design view ("Add to drawings"), then saved renderings: four to a sheet
   const pics = [...(s.shots ?? []).map((x) => ({ url: x.url, label: x.label })), ...(s.views ?? []).filter((u) => u.startsWith('data:')).slice(0, 4).map((url) => ({ url, label: 'Rendering' }))];
+  // Each wall's work drawn in 3D, two walls to a sheet
+  const isoWalls = walls.filter((w) => cabinetsOn(p, w).length > 0);
+  const isoNos = Array.from({ length: Math.ceil(isoWalls.length / 2) }, () => `A${nextNo++}`);
   const picNos = Array.from({ length: Math.ceil(pics.length / 4) }, () => `A${nextNo++}`);
   const schedNo = `A${nextNo++}`;
   const doorNo = `A${doorStyle ? nextNo++ : nextNo}`;
@@ -256,7 +260,7 @@ function customerSheets(p: Project, s: DrawingSettings): Sheet[] {
   const tableNos = furnitureOf(p).map(() => `A${nextNo++}`);
   const spec = lightingSpecHtml(p);
   const specNo = `A${nextNo}`;
-  const index = [['A0', 'Cover'], ['A1', 'Floor plan'], ...(ceiling ? [['A2', 'Ceiling plan']] : []), ...walls.map((w, i) => [`A${i + first}`, `${wallNames[w]} elevation`]), ...detailIdx, ...picNos.map((n) => [n, '3D views']), [schedNo, 'Schedule & selections'], ...(doorStyle ? [[doorNo, 'Door style']] : []), ...(profiles.length ? [[profNo, 'Moulding & beadboard profiles']] : []), ...furnitureOf(p).map((t, i) => [tableNos[i], t.name]), ...(spec ? [[specNo, 'Cabinet lighting']] : [])];
+  const index = [['A0', 'Cover'], ['A1', 'Floor plan'], ...(ceiling ? [['A2', 'Ceiling plan']] : []), ...walls.map((w, i) => [`A${i + first}`, `${wallNames[w]} elevation`]), ...detailIdx, ...isoNos.map((n) => [n, '3D drawings']), ...picNos.map((n) => [n, '3D views']), [schedNo, 'Schedule & selections'], ...(doorStyle ? [[doorNo, 'Door style']] : []), ...(profiles.length ? [[profNo, 'Moulding & beadboard profiles']] : []), ...furnitureOf(p).map((t, i) => [tableNos[i], t.name]), ...(spec ? [[specNo, 'Cabinet lighting']] : [])];
   // Cover: the picture, the job, and what's in the set
   const c = clientOf(p);
   const imgW = A.w * 0.64;
@@ -292,6 +296,18 @@ function customerSheets(p: Project, s: DrawingSettings): Sheet[] {
   });
   sheets.push(...detailSheets(p, s, placed));
   const fsN = s.paper === 'tabloid' ? 0.11 : 0.09;
+  isoNos.forEach((no, i) => {
+    const ws = isoWalls.slice(i * 2, i * 2 + 2);
+    const half = A.w / ws.length;
+    const body = ws.map((w, j) => {
+      const fr = { x: A.x + j * half + 0.15, y: A.y + 0.1, w: half - 0.3, h: A.h - 0.6 };
+      const eNo = `A${walls.indexOf(w) + first}`;
+      return wallIso(p, w, fr, wallLength(p.room, w), p.room.height)
+        + `<text x="${fr.x + fr.w / 2}" y="${A.y + A.h - 0.28}" font-size="0.12" font-weight="700" text-anchor="middle">${esc(wallNames[w].toUpperCase())}</text>`
+        + `<text x="${fr.x + fr.w / 2}" y="${A.y + A.h - 0.12}" font-size="0.085" text-anchor="middle">sizes on ${eNo}</text>`;
+    }).join('');
+    sheets.push(sheet(p, s, no, '3D drawings', 'No scale', body));
+  });
   // 3D views: pictures from the 3D model and saved renderings, two by two, each captioned
   picNos.forEach((no, i) => {
     const page = pics.slice(i * 4, i * 4 + 4);

@@ -170,6 +170,10 @@ export interface Cushion {
   /** Fabric, once picked; blank = owner's selection, to come. */
   fabric?: string;
   notes?: string;
+  /** Who makes it: the local upholsterer (priced per sq ft) or an online cushion maker (its quote entered here). */
+  source?: 'upholsterer' | 'online';
+  /** The online maker's price for this cushion, as quoted on its site (before your markup). */
+  price?: number;
 }
 
 /** Full-height pilaster between built-in sections: plywood sides, Eagle panels on the face, solid plinth and capital. */
