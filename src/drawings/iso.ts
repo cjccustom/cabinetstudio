@@ -86,7 +86,9 @@ export function wallIso(p: Project, wall: WallId, f: Frame, L: number, H: number
     // pilasters stand out from it as pieces of their own
     const frontRoles = c.kind === 'mantel' ? ['side'] : ['stile', 'rail', 'side'];
     const shelf = c.kind === 'mantel' ? all.find((x) => x.part.name === 'Mantel shelf') : undefined;
-    const cuts = shelf ? [-Infinity, shelf.b.min[1], Infinity] : [-Infinity, Infinity];
+    const cuts = shelf ? [-Infinity, shelf.b.min[1] + shelf.b.size[1], Infinity] : [-Infinity, Infinity];
+    // Bottom up: each part's body, face and the pieces on it before the part above it
+    const bandOf = (y: number) => Math.max(0, cuts.findIndex((v, i) => i + 1 < cuts.length && y >= v && y < cuts[i + 1]));
     const midY = (x: PB) => x.b.min[1] + x.b.size[1] / 2;
     const zTop = (x: PB) => x.b.min[2] + x.b.size[2];
     const order = depthKey(c.offset + c.width, c.elevation, z0 + c.depth);
@@ -106,7 +108,7 @@ export function wallIso(p: Project, wall: WallId, f: Frame, L: number, H: number
       bandFront.push({ y0: cuts[i], y1: cuts[i + 1], front });
       bodyX0 = bodyX0 == null ? k.min[0] : Math.min(bodyX0, k.min[0]);
       body.forEach((x) => used.add(x));
-      const sub0 = i * 10;
+      const sub0 = i * 100;
       // The solid, its front dark: whatever isn't covered by frame, doors or shelves reads as open
       items.push({ order, sub: sub0, s: { kind: 'box', min: at(k.min[0], k.min[1], k.min[2]), max: at(k.max[0], k.max[1], front), fill: paint } });
       // A mantel's face is solid but for the firebox opening; casework's is open where nothing covers it
@@ -136,7 +138,7 @@ export function wallIso(p: Project, wall: WallId, f: Frame, L: number, H: number
       // After the body it stands on, nearest last; but whatever runs along the far (left) side of the
       // body is behind it from this side, so it goes first
       const farSide = bodyX0 != null && b.min[0] + b.size[0] <= bodyX0 + 0.01;
-      items.push({ order, sub: (farSide ? -10 : 30) + (5000 - depthKey(mx[0], mn[1], mx[2])) / 10000, s: { kind: 'box', min: mn, max: mx, fill: colorOf(x.part) } });
+      items.push({ order, sub: bandOf(midY(x)) * 100 + (farSide ? -10 : 30) + (5000 - depthKey(mx[0], mn[1], mx[2])) / 10000, s: { kind: 'box', min: mn, max: mx, fill: colorOf(x.part) } });
       maxZ = Math.max(maxZ, mx[2]);
     }
     // Mouldings with their real profiles
@@ -149,7 +151,7 @@ export function wallIso(p: Project, wall: WallId, f: Frame, L: number, H: number
       polys.sort((a, b) => far(b.pts) - far(a.pts));
       // On the cabinet, after its body and face (they sit on them), before whatever stands nearer
       const leftOfBody = bodyX0 != null && Math.max(...polys.flatMap((q) => q.pts.map((v) => v[0]))) <= c.offset + bodyX0 + 0.01;
-      const sub = (leftOfBody ? -10 : 30) + (5000 - near) / 10000;
+      const sub = bandOf(pc.y) * 100 + (leftOfBody ? -10 : 30) + (5000 - near) / 10000;
       polys.forEach((q, i) => items.push({ order, sub: sub + i / 1e7, s: { kind: 'poly', pts: q.pts, fill: shade(paint, q.light - 1), edge: q.edge } }));
       maxZ = Math.max(maxZ, ...polys.flatMap((q) => q.pts.map((v) => v[2])));
     }
