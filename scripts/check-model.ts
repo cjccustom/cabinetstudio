@@ -2598,5 +2598,18 @@ eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i
   eq('proposal: no paint samples on a stain-grade job', materialsOf(st).some((x) => x.label === 'Color samples'), false);
 }
 
+{
+  // Pilasters built alike share one drawing, even a 1/16" apart or ending at a wall
+  const { shopGroups: sg, shopSet: ss, drawingsOf: dof } = await import('../src/drawings/sheets');
+  const p0 = sampleProject();
+  const pre = presets.find((x) => x.id === 'pilaster')!;
+  const mk = (id: string, offset: number, width: number) => ({ ...cabinetFromPreset(pre, 'right', offset, []), id, name: id, width });
+  const pj = { ...p0, cabinets: [mk('PA', 0, 6.0625), mk('PB', 40, 6), mk('PC', 80, 6.0625)] };
+  const groups = sg(pj).filter((g) => g[0].kind === 'pilaster');
+  eq('pilasters: one drawing for all alike', groups.length, 1);
+  const sheet = ss(pj, dof(pj)).find((x) => x.title.includes('PA'))!;
+  eq('pilasters: the sheet says how the odd one differs', sheet.svg.includes('Not all alike') && /PB: 6(&quot;|")\s*wide/.test(sheet.svg), true);
+}
+
 console.log(failed ? `${failed} check(s) failed` : 'All model checks passed');
 process.exit(failed ? 1 : 0);

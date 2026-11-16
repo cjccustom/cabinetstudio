@@ -444,8 +444,8 @@ function cabinetHeader(p: Project, c: Cabinet, same: Cabinet[] = [c]): string {
     ...forAudience(cabinetCallouts(p, c), 'shop').filter((n) => !n.text.startsWith(RESTRICTOR_NOTE) && n.text.toLowerCase() !== (baseLabel(c) ?? '').toLowerCase()),
     ...same.flatMap((x) => forAudience(cabinetCallouts(p, x), 'shop').filter((n) => n.text.startsWith(RESTRICTOR_NOTE)).map((n) => ({ ...n, text: same.length > 1 ? `${x.name}: ${n.text}` : n.text }))),
   ];
-  const make = same.length > 1 ? `<p class="big">Make ${same.length}</p><ul>${same.map((x) => `<li><b>${esc(x.name)}</b>: ${esc(where(x))}</li>`).join('')}</ul>` : `<p>${esc(where(c))}</p>`;
-  return `<h2>${esc(same.map((x) => x.name).join(', '))}</h2>${make}<p>${bits.map(esc).join('<br>')}</p>${notes.length ? `<h3>Notes</h3><ul>${notes.map((n) => `<li>${esc(n.text)}</li>`).join('')}</ul>` : ''}`;
+  const make = same.length > 1 ? `<p class="big">Make ${same.length}</p><ul>${[...same].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true })).map((x) => `<li><b>${esc(x.name)}</b>: ${esc(where(x))}</li>`).join('')}</ul>` : `<p>${esc(where(c))}</p>`;
+  return `<h2>${esc([...same].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true })).map((x) => x.name).join(', '))}</h2>${make}<p>${bits.map(esc).join('<br>')}</p>${notes.length ? `<h3>Notes</h3><ul>${notes.map((n) => `<li>${esc(n.text)}</li>`).join('')}</ul>` : ''}`;
 }
 
 /**
@@ -454,16 +454,73 @@ function cabinetHeader(p: Project, c: Cabinet, same: Cabinet[] = [c]): string {
  */
 export function shopGroups(p: Project): Cabinet[][] {
   const groups = new Map<string, Cabinet[]>();
+  // Pilasters: the same build (frame, panels, capital, plinth) with every size within 1/8"
+  const pil: { build: string; sizes: number[]; group: Cabinet[] }[] = [];
   for (const w of wallOrder) for (const c of cabinetsOn(p, w)) {
-    const parts = partRows(partsOf(p, c)).map(({ part, qty }) => [qty, part.name, part.role, part.length, part.width, part.thickness, part.material, part.species ?? '', part.sheet ?? '', part.note ?? '', part.order ? JSON.stringify(part.order) : ''].join('|'));
-    const notes = forAudience(cabinetCallouts(p, c), 'shop').map((n) => n.text).filter((t) => !t.startsWith(RESTRICTOR_NOTE));
-    // Sizes to the 1/64": two pilasters a thousandth apart are the same pilaster
-    const r = (x: number) => Math.round(x * 64) / 64;
-    const key = [c.kind, r(c.width), r(c.height), r(c.depth), baseLabel(c) ?? '', ...parts.map((x) => x.replace(/\d+\.\d+/g, (n) => String(r(+n)))).sort(), ...notes].join('\n');
+    if (c.kind === 'pilaster') {
+      const b = pilasterBuild(p, c);
+      const g = pil.find((x) => x.build === b.build && x.sizes.length === b.sizes.length && x.sizes.every((v, i) => Math.abs(v - b.sizes[i]) <= 0.126));
+      if (g) g.group.push(c);
+      else { const group = [c]; pil.push({ ...b, group }); groups.set(`pilaster:${pil.length}`, group); }
+      continue;
+    }
+    const key = exactKey(p, c);
     const g = groups.get(key);
     if (g) g.push(c); else groups.set(key, [c]);
   }
-  return [...groups.values()];
+  // A group of pilasters leads with the most common variant; the sheet lists how the others differ
+  return [...groups.values()].map((g) => {
+    if (g.length < 3 || g[0].kind !== 'pilaster') return g;
+    const keys = g.map((c) => exactKey(p, c));
+    const count = (k: string) => keys.filter((x) => x === k).length;
+    const lead = g[keys.reduce((best, k, i) => (count(k) > count(keys[best]) ? i : best), 0)];
+    return [lead, ...g.filter((c) => c !== lead)];
+  });
+}
+
+/** Sizes to the 1/64": two pieces a thousandth apart are the same piece. */
+const r64 = (x: number) => Math.round(x * 64) / 64;
+const partLines = (p: Project, c: Cabinet, round: (x: number) => number, skip: (name: string) => boolean = () => false) =>
+  partRows(partsOf(p, c)).filter(({ part }) => !skip(part.name)).map(({ part, qty }) => [qty, part.name, part.role, part.length, part.width, part.thickness, part.material, part.species ?? '', part.sheet ?? '', part.note ?? '', part.order ? JSON.stringify(part.order) : ''].join('|').replace(/\d+\.\d+/g, (n) => String(round(+n))));
+/** Built exactly alike: the same parts at the same sizes and the same notes. */
+function exactKey(p: Project, c: Cabinet): string {
+  const notes = forAudience(cabinetCallouts(p, c), 'shop').map((n) => n.text).filter((t) => !t.startsWith(RESTRICTOR_NOTE));
+  return [c.kind, r64(c.width), r64(c.height), r64(c.depth), baseLabel(c) ?? '', ...partLines(p, c, r64).sort(), ...notes].join('\n');
+}
+/** The base trim on a pilaster's plinth is fitted on site to what's beside it: not part of how it's built. */
+const siteTrim = (name: string) => /^(baseboard|base cap)\b/i.test(name);
+/**
+ * Pilasters built alike, to the 1/8": the same frame, panels, capital and plinth. The baseboard and base
+ * cap that wrap the plinth (square at a wall, returned beside casework) and a 1/16" of width from the
+ * layout don't make another pilaster to draw; the sheet lists them.
+ */
+function pilasterBuild(p: Project, c: Cabinet): { build: string; sizes: number[] } {
+  const lines = partLines(p, c, (x) => x, siteTrim).sort((a, b) => a.replace(/\d+\.\d+|\d+/g, '#').localeCompare(b.replace(/\d+\.\d+|\d+/g, '#')));
+  const all = [c.width, c.height, c.depth, ...lines.flatMap((l) => (l.match(/\d+(\.\d+)?/g) ?? []).map(Number))];
+  return { build: lines.map((l) => l.replace(/\d+(\.\d+)?/g, '#')).join('\n'), sizes: all };
+}
+
+/** For a group of pilasters drawn once: how each differs from the drawn one, in a line: its width, and how its base trim ends. */
+function pilasterDifferences(p: Project, same: Cabinet[]): string[] {
+  if (same.length < 2 || same[0].kind !== 'pilaster') return [];
+  const lead = same[0];
+  const trim = (c: Cabinet) => partsOf(p, c).filter((x) => siteTrim(x.name));
+  const returns = (c: Cabinet, side: 'left' | 'right') => trim(c).some((x) => /return/i.test(x.name) && (x.note ?? '').startsWith(side));
+  const front = (c: Cabinet) => trim(c).find((x) => /^baseboard on plinth$/i.test(x.name));
+  const out: string[] = [];
+  for (const c of [...same.slice(1)].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }))) {
+    const bits: string[] = [];
+    if (Math.abs(c.width - lead.width) > 1 / 64) bits.push(`${fmt(c.width)} wide, so its rails, panels and capital are ${fmt(Math.abs(c.width - lead.width))} ${c.width < lead.width ? 'narrower' : 'wider'}`);
+    for (const side of ['left', 'right'] as const) {
+      const was = returns(lead, side), is = returns(c, side);
+      if (was && !is) bits.push(`base trim square to the wall on the ${side}, no return there`);
+      if (!was && is) bits.push(`base trim returns on the ${side}`);
+    }
+    const f = front(c), lf = front(lead);
+    if (f && lf && Math.abs(f.length - lf.length) > 1 / 64) bits.push(`baseboard and cap across the front ${fmt(f.length)}`);
+    if (bits.length) out.push(`${c.name}: ${bits.join('; ')}`);
+  }
+  return out;
 }
 
 /** The order of work for a case, from how it's built. */
@@ -711,7 +768,9 @@ function shopSheets(p: Project, s: DrawingSettings): Sheet[] {
   const num = () => `S${sheets.length + 1}`;
   for (const same of shopGroups(p)) {
     const c = same[0];
-    const names = same.map((x) => x.name).join(', ');
+    // Named in order (a group of pilasters leads with the one it draws)
+    const byName = [...same].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+    const names = byName.map((x) => x.name).join(', ');
     const parts = partsOf(p, c);
     const hasFrame = parts.some((x) => x.material === 'faceframe' && (x.role === 'stile' || x.role === 'rail'));
     const mvOnly = c.kind === 'mantel';
@@ -730,8 +789,10 @@ function shopSheets(p: Project, s: DrawingSettings): Sheet[] {
       const mt = moldingsTable(p, c, same.length);
       // (A mantel's second view uses the middle of the sheet; there the mouldings go with the parts)
       const side = !mv && mt.rows > 0 && mt.rows <= 10;
+      const diffList = pilasterDifferences(p, same);
+      const diffs = diffList.length ? `<h3>Not all alike</h3><p class="small">Drawn and listed as ${esc(c.name)}; build the others the same, except:</p><ul>${diffList.map((t) => `<li>${esc(t)}</li>`).join('')}</ul>` : '';
       const info = mv ? html({ x: A.x + A.w * 0.76, y: A.y, w: A.w * 0.24, h: viewH }, cabinetHeader(p, c, same) + hardwareList(p, c), fs)
-        : html({ x: A.x + A.w * 0.4, y: A.y, w: A.w * 0.6, h: viewH }, `<div style="display:flex;gap:1.5em"><div style="flex:1">${cabinetHeader(p, c, same) + hardwareList(p, c)}${c.kind === 'pilaster' ? `<h3>Order of work</h3><ol>${pilasterSteps(p, c).map((t) => `<li>${esc(t)}</li>`).join('')}</ol>` : ''}</div>${side ? `<div style="flex:1.6">${mt.html}</div>` : ''}</div>`, ts);
+        : html({ x: A.x + A.w * 0.4, y: A.y, w: A.w * 0.6, h: viewH }, `<div style="display:flex;gap:1.5em"><div style="flex:1">${cabinetHeader(p, c, same) + hardwareList(p, c)}${c.kind === 'pilaster' ? `<h3>Order of work</h3><ol>${pilasterSteps(p, c).map((t) => `<li>${esc(t)}</li>`).join('')}</ol>` : ''}${side ? '' : diffs}</div>${side ? `<div style="flex:1.6">${mt.html}${diffs}</div>` : ''}</div>`, ts);
       const steps = c.kind === 'mantel' ? mantelSteps(p, c) : [];
       const pages = partsTablePages(p, c, same.length, A.w, ts, A.h - viewH - 0.25, A.h - 0.45, { noMolds: side, extra: steps.length ? `<h3>Order of work</h3><ol>${steps.map((t) => `<li>${esc(t)}</li>`).join('')}</ol>` : undefined, extraRows: steps.length + 2 });
       const table = html({ x: A.x, y: A.y + viewH + 0.25, w: A.w, h: A.h - viewH - 0.25 }, pages[0] + (pages.length > 1 ? `<p class="small">Parts continue on the next sheet.</p>` : ''), ts);
