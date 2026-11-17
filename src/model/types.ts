@@ -20,6 +20,8 @@ export interface FaceRow {
   fixedShelves?: boolean;
   /** Width of the mid rail above this row, when it isn't the cabinet's standard (e.g. a tall rail for a ladder rail). */
   railAbove?: number;
+  /** A moulding applied across the rail above this row, centered on it (a chair rail or panel moulding), running on into the next cabinet and wrapping a proud pilaster's band. */
+  railMold?: string;
   /** Hanging and shoe rows: closed with doors (a wardrobe) instead of open; doors = how many. */
   covered?: boolean;
   /** Shoe rows: shelves tipped down to the front (the default) or flat. */
@@ -189,6 +191,8 @@ export interface PilasterSpec {
   breaks: number[];
   /** Height of each band at a break. */
   band: number;
+  /** A moulding centered on each band, wrapping the pilaster's face and returning to the casework beside it. */
+  bandMold?: string;
   /** How far the plinth, bands and capital stand proud of the panel face. */
   proud: number;
   /** shop = stiles and rails with the panel let into a rabbet from the back; eagle = panels ordered from Eagle. */

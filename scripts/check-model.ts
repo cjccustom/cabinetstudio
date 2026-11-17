@@ -2611,5 +2611,21 @@ eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i
   eq('pilasters: the sheet says how the odd one differs', sheet.svg.includes('Not all alike') && /PB: 6(&quot;|")\s*wide/.test(sheet.svg), true);
 }
 
+{
+  // A moulding across a cabinet rail, wrapping a proud pilaster's band and returning to the cabinets beside it
+  const { cabinetMoldings: cm } = await import('../src/model/moldings');
+  const p0 = sampleProject();
+  const pil = { ...cabinetFromPreset(presets.find((x) => x.id === 'pilaster')!, 'right', 30, []), id: 'PX', name: 'PX', depth: 12.75 };
+  pil.pilaster = { ...(pil.pilaster ?? {}), breaks: [33], band: 5, bandMold: '7090' } as never;
+  const tall = { ...cabinetFromPreset(presets.find((x) => x.id === 'tall-open')!, 'right', 30 + pil.width, []), id: 'TX', name: 'TX', depth: 12 };
+  tall.rows = [{ ...tall.rows[0] }, { ...tall.rows[0], id: 'r2', type: 'doors' as const, height: 24, doors: 2 as const, railAbove: 5, railMold: '7090' }];
+  const pj = { ...p0, cabinets: [pil, tall] };
+  const runs = (c: typeof tall) => cm(c, eff(c, pj.settings), resolveEnds(pj.room, pj.cabinets, c)).filter((m) => m.num === '7090');
+  const t = runs(tall), q = runs(pil);
+  eq('rail moulding: across the cabinet, inside-mitered where the proud pilaster is', t.length === 1 && t[0].length === tall.width && t[0].cut?.[0] === 'in', true);
+  const ret = q.find((m) => m.along === 'z' && m.facing === 'right');
+  eq('band moulding: across the pilaster and returned to the cabinet face, mitered', !!ret && ret.z === 12 && ret.cut?.join() === 'in,out' && q.some((m) => m.along === 'x' && m.cut?.[1] === 'out'), true);
+}
+
 console.log(failed ? `${failed} check(s) failed` : 'All model checks passed');
 process.exit(failed ? 1 : 0);

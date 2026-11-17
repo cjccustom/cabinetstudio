@@ -29,7 +29,7 @@ import { friezeHeight, shelfFor, fuelLabel, hearthRequired, legWidth, mantelClea
 import { applianceKinds, appliancePresets, newAppliance, openingFor, placedAppliances, type Appliance, type ApplianceKind } from '../model/appliances';
 import { cabinetCallouts } from '../drawings/notes';
 import { archBuilds, archShapes, baseLayout, baseOf, baseStyles, cutOutline, defaultBase, floorStanding } from '../model/cabinetBase';
-import { mountShape, profileLabel, profileByNum } from '../model/moldings';
+import { catalog, mountShape, profileLabel, profileByNum } from '../model/moldings';
 import { lumberNames } from '../model/pricebook';
 import { corbelByCode, corbelCatalog, corbelLabel } from '../model/corbels';
 import { cabinetFixtures, cabLightLabel, hafeleFit, type CabLightKind } from '../model/cabinetLighting';
@@ -63,6 +63,9 @@ export function inspectorTabs(cab: Cabinet): { id: InspectorTab; label: string }
  * A cabinet's settings. In the sidebar (no tab) just the everyday ones: size, placement and the
  * openings. The full editor (double-click) shows one tab at a time; 'all' shows everything.
  */
+/** Mouldings that suit a face frame rail or a pilaster band: panel and chair rail profiles. */
+const railMoldOptions = catalog.filter((p) => (p.category === 'Panel' || p.category === 'Chair Rail') && p.w <= 4).sort((a, b) => a.w - b.w);
+
 export function Inspector({ cab, issues, tab }: { cab: Cabinet; issues: string[]; tab?: InspectorTab | 'all' }) {
   const full = tab !== undefined;
   const show = (t: InspectorTab, quick = false) => tab === 'all' || tab === t || (!full && quick);
@@ -999,6 +1002,11 @@ function PilasterSection({ cab, set }: { cab: Cabinet; set: (patch: Partial<Cabi
         <button className="mini" onClick={() => put({ breaks: [...ps.breaks, Math.round(cab.height / 2)] })}>Add break</button>
         {tops.map((h) => <button key={h} className="mini" onClick={() => put({ breaks: [...ps.breaks, h] })}>Break at base top ({fmt(h)})</button>)}
         <Field label={ps.face === 'shop' ? 'Rail at breaks' : 'Band at breaks'} htmlFor="pil-band"><LengthInput id="pil-band" value={ps.band} onChange={(v) => put({ band: v ?? defaultPilaster.band })} /></Field>
+        <Field label="Moulding on the bands (profile #)" htmlFor="pil-bm">
+          <input id="pil-bm" list="pil-mold-list" value={ps.bandMold ?? ''} placeholder="none" onChange={(e) => put({ bandMold: e.target.value.trim() || undefined })} />
+          <datalist id="pil-mold-list">{railMoldOptions.map((p) => <option key={p.num} value={p.num}>{`${p.category}, ${fmt(p.w)} × ${fmt(p.t)}`}</option>)}</datalist>
+        </Field>
+        {ps.bandMold && ps.breaks.length > 0 && <p className="hint">Centered on each band, across the face and returned to the casework beside it. Line the bands up with the cabinets’ rail mouldings: same profile, same height.</p>}
       </div>
       {ps.face === 'shop' && (
         <>
@@ -1273,6 +1281,12 @@ function FrameWidths({ cab, settings, set, setRow }: { cab: Cabinet; settings: S
             <LengthInput id={`fw-r-${r.id}`} value={r.railAbove ?? null} allowAuto placeholder={fmt(s.midRailWidth)} onChange={(v) => setRow(r.id, { railAbove: v ?? undefined })} />
           </Field>
         ))}
+        {cab.rows.slice(1).map((r, j) => (
+          <Field key={`m-${r.id}`} label={`Moulding on that rail (profile #)`} htmlFor={`fw-rm-${r.id}`}>
+            <input id={`fw-rm-${r.id}`} list="rail-mold-list" value={r.railMold ?? ''} placeholder="none" onChange={(e) => setRow(r.id, { railMold: e.target.value.trim() || undefined })} />
+          </Field>
+        ))}
+        <datalist id="rail-mold-list">{railMoldOptions.map((p) => <option key={p.num} value={p.num}>{`${p.category}, ${fmt(p.w)} × ${fmt(p.t)}`}</option>)}</datalist>
         <Field label="Bottom rail" htmlFor="fw-bot"><LengthInput id="fw-bot" value={cab.overrides?.bottomRailWidth ?? null} allowAuto placeholder={fmt(settings.bottomRailWidth)} onChange={(v) => ov('bottomRailWidth', v)} /></Field>
       </div>
     </details>

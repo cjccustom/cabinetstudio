@@ -6,10 +6,11 @@ import { mantelLayout, mantelOf, neckAt, upperSetback, upperTop } from './mantel
 import { amCatalog, type AMProfile } from './andersonMcquaid';
 import { broscoCatalog } from './brosco';
 import { nextDayCatalog } from './nextDay';
-import { crownLayout, panelExtents, type EndInfo } from './parts';
+import { crownLayout, layoutRows, panelExtents, railAbove, type EndInfo } from './parts';
 import { pilasterOf, pilasterOpenings } from './pilaster';
 import { inScope, roomMoldingPieces } from './room';
 import { resolveEnds } from './layout';
+import { fmt as fmtIn } from '../units';
 import { cofferMoldings, cofferOf, underFascia } from './coffer';
 import { baseLayout } from './cabinetBase';
 
@@ -265,6 +266,43 @@ export interface MoldPiece {
 /** Moulding pieces for one cabinet, in its own coordinates. */
 /** A cabinet's mouldings. noCrown: it runs up under a coffer's perimeter fascia, which carries the crown instead. */
 export function cabinetMoldings(c: Cabinet, s: ShopSettings, ends: EndInfo, opts: { noCrown?: boolean } = {}): MoldPiece[] {
+  const out = cabinetMoldingsBody(c, s, ends, opts);
+  if (c.kind !== 'mantel' && c.kind !== 'pilaster') out.push(...railMoldings(c, s, ends));
+  return out;
+}
+
+/**
+ * A moulding across a face frame rail (a chair rail between the open shelves and the doors): centered on
+ * the rail, the cabinet's full width. Beside a proud pilaster carrying the same moulding on its band it
+ * stops at the cabinet's edge inside-mitered to the pilaster's return; into a cabinet with the same rail
+ * moulding it carries on as one run; at a wall it's cut square.
+ */
+function railMoldings(c: Cabinet, s: ShopSettings, ends: EndInfo): MoldPiece[] {
+  const out: MoldPiece[] = [];
+  const lay = layoutRows(c, s).rows;
+  c.rows.forEach((row, i) => {
+    if (i === 0 || !row.railMold) return;
+    const p = profileByNum(row.railMold);
+    const r = lay[i];
+    if (!p || !r) return;
+    const m = mountShape(p);
+    const rail = railAbove(c, s, i);
+    const y = r.y1 + (rail - m.height) / 2;
+    const end = (side: 'left' | 'right'): { cut: MiterCut; joined: boolean } => {
+      const o = ends.beside?.(side);
+      if (!o) return { cut: 'square', joined: false };
+      const ops = o.kind === 'pilaster' ? o.pilaster : undefined;
+      if (o.kind === 'pilaster' && ops?.bandMold === p.num && o.depth > c.depth + 0.01) return { cut: 'in', joined: false };
+      const same = o.rows?.some((x) => x.railMold === p.num) && o.depth === c.depth && o.elevation === c.elevation;
+      return { cut: 'square', joined: !!same };
+    };
+    const L = end('left'), R = end('right');
+    out.push({ kind: 'panel', num: p.num, along: 'x', facing: 'front', x: 0, y, z: c.depth, length: c.width, cut: [L.cut, R.cut], joined: [L.joined, R.joined], label: 'Rail moulding', where: `centered on the rail above the ${row.type === 'drawer' ? 'drawers' : row.type === 'doors' ? 'doors' : 'opening'}` });
+  });
+  return out;
+}
+
+function cabinetMoldingsBody(c: Cabinet, s: ShopSettings, ends: EndInfo, opts: { noCrown?: boolean } = {}): MoldPiece[] {
   const out: MoldPiece[] = [];
   if (c.kind === 'mantel') return mantelMoldings(c, ends);
   const ext = panelExtents(c, s, ends);
@@ -276,6 +314,28 @@ export function cabinetMoldings(c: Cabinet, s: ShopSettings, ends: EndInfo, opts
   ];
   const bl = baseLayout(c, s);
   const ps = c.kind === 'pilaster' ? pilasterOf(c) : null;
+  // A moulding on the pilaster's bands: across its face, returned back to the casework beside it (square at a wall)
+  if (ps?.bandMold) {
+    const bp = profileByNum(ps.bandMold);
+    if (bp) {
+      const m = mountShape(bp);
+      const face = c.depth;
+      const wall = ends.wall ?? { left: false, right: false };
+      for (const b of [...ps.breaks].sort((a, b2) => a - b2)) {
+        const y = b - m.height / 2;
+        // The casework beside it, at the moulding's height: the return dies into its face
+        const back = (side: 'left' | 'right') => { const o = ends.beside?.(side); return o && o.kind !== 'pilaster' && y >= o.elevation && y <= o.elevation + o.height ? o.depth + (o.wallInset ?? 0) - (c.wallInset ?? 0) : 0; };
+        const ret = { left: !wall.left && face - back('left') > 0.01, right: !wall.right && face - back('right') > 0.01 };
+        const x0 = ret.left ? -m.depth : 0, x1 = c.width + (ret.right ? m.depth : 0);
+        out.push({ kind: 'panel', num: bp.num, along: 'x', facing: 'front', x: x0, y, z: face, length: x1 - x0, cut: [ret.left ? 'out' : 'square', ret.right ? 'out' : 'square'], label: 'Band moulding', where: `across the pilaster's band at ${fmtIn(b)}` });
+        for (const side of ['left', 'right'] as const) {
+          if (!ret[side]) continue;
+          const z0 = back(side);
+          out.push({ kind: 'panel', num: bp.num, along: 'z', facing: side, x: side === 'left' ? 0 : c.width, y, z: z0, length: face + m.depth - z0, cut: [z0 > 0.01 ? 'in' : 'square', 'out'], label: 'Band moulding', where: `${side} return, back to the casework` });
+        }
+      }
+    }
+  }
   if (ps?.wrap && ps.wrap.h > 0) {
     // A pilaster's wrapped base: the cap is the same moulding as the casework beside it, carried
     // across the pilaster's face; where the pilaster stands out past its neighbours it returns

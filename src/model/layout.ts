@@ -231,8 +231,12 @@ export function resolveEnds(room: Room, cabinets: Cabinet[], c: Cabinet): EndInf
   if (c.kind === 'pilaster') {
     // A side tight to a wall (the probe lands outside the room): the room's base dies into the wall there
     const past = ([x, z]: [number, number]) => x < 0 || z < 0 || x > room.width || z > room.depth;
+    // The casework touching each side (its face frame front is its depth): a band moulding's returns die into it
+    const besideP = (side: 'left' | 'right') => cabinets.find((o) => o.id !== c.id && o.wall === c.wall && (o.wallInset ?? 0) === (c.wallInset ?? 0)
+      && (side === 'left' ? Math.abs(o.offset + o.width - c.offset) <= 0.25 : Math.abs(o.offset - (c.offset + c.width)) <= 0.25)
+      && o.elevation < c.elevation + c.height && c.elevation < o.elevation + o.height) ?? null;
     return {
-      left: true, right: true, faceAt: (side, y) => neighbourFace(cabinets, c, side, y), baseBeside: (side) => baseBeside(cabinets, c, side),
+      left: true, right: true, faceAt: (side, y) => neighbourFace(cabinets, c, side, y), baseBeside: (side) => baseBeside(cabinets, c, side), beside: besideP,
       wall: { left: past(toRoom(room, c, -probe, c.depth / 2)), right: past(toRoom(room, c, c.width + probe, c.depth / 2)) },
     };
   }
