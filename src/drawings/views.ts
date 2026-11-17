@@ -5,7 +5,8 @@ import { tablesOf } from '../model/tableParts';
 import type { Cabinet, Part, Project, WallId } from '../model/types';
 import { buildParts, eff, topThick } from '../model/parts';
 import { footprint, resolveEnds, wallAxes, wallLength, wallNames, wallTransform } from '../model/layout';
-import { cabinetMoldings, mountShape, profileByNum, profileLabel } from '../model/moldings';
+import { cabinetMoldings, mountShape, profileByNum, profileLabel, type Profile } from '../model/moldings';
+import { profileBreaks, runFaceOn, type EndCut } from './moldElev';
 import { casingReach, openingTrim, roomMoldings, wallAccentBoxes } from '../model/room';
 import { View, dimText, fitScale, type Frame } from './draw';
 import { canSpots } from '../model/lighting';
@@ -20,7 +21,7 @@ export const partsOf = (p: Project, c: Cabinet) => buildParts(c, p.settings, res
 export const cabinetsOn = (p: Project, wall: WallId) => p.cabinets.filter((c) => c.wall === wall).sort((a, b) => a.offset - b.offset);
 const isFloor = (c: Cabinet) => c.elevation < 6 && c.kind !== 'shelf';
 
-interface Item { x: number; y: number; w: number; h: number; z: number; cls: string; pts?: [number, number][]; circle?: boolean }
+interface Item { x: number; y: number; w: number; h: number; z: number; cls: string; pts?: [number, number][]; circle?: boolean; /** Fine lines across it: a moulding's profile breaks. */ lines?: [number, number, number, number][] }
 
 /**
  * Knobs and pulls where they'd go, or the finger grips routed in their place: knobs as circles,
@@ -38,6 +39,13 @@ export function hardwareItems(p: Project, c: Cabinet, parts: Part[]): Item[] {
   });
 }
 
+/** A moulding run seen face-on: its outline (the profile showing at a mitered outside corner) and its break lines. */
+function moldItem(prof: Profile, x0: number, x1: number, yb: number, z: number, cut?: [EndCut, EndCut], hang = false): Item {
+  const r = runFaceOn(prof, x0, x1, yb, cut ?? ['square', 'square'], hang);
+  const h = mountShape(prof).height;
+  return { x: x0, y: hang ? yb - h : yb, w: x1 - x0, h, z, cls: 'o', pts: r.pts, lines: r.lines };
+}
+
 /** Everything seen looking straight at a wall, in wall coordinates, nearest last. */
 function elevationItems(p: Project, wall: WallId): Item[] {
   const items: Item[] = [];
@@ -45,7 +53,7 @@ function elevationItems(p: Project, wall: WallId): Item[] {
   for (const w of p.panels ?? []) if (w.wall === wall) items.push({ x: w.offset, y: w.bottom, w: w.width, h: w.height, z: 0.1, cls: 'ghost' });
   for (const pc of roomMoldings(p, wall)) {
     const prof = profileByNum(pc.num);
-    if (prof) items.push({ x: pc.x, y: pc.y, w: pc.length, h: mountShape(prof).height, z: 0.5, cls: 'o' });
+    if (prof) items.push(moldItem(prof, pc.x, pc.x + pc.length, pc.y, 0.5, pc.cut));
   }
   for (const o of p.openings ?? []) {
     if (o.wall !== wall) continue;
@@ -54,10 +62,21 @@ function elevationItems(p: Project, wall: WallId): Item[] {
     for (const pc of t.pieces) {
       const prof = profileByNum(pc.num);
       if (!prof) continue;
-      const m = mountShape(prof);
-      if (pc.vertical === 'left') items.push({ x: pc.x - m.height, y: pc.y, w: m.height, h: pc.length, z: 0.9, cls: 'o' });
-      else if (pc.vertical === 'right') items.push({ x: pc.x, y: pc.y, w: m.height, h: pc.length, z: 0.9, cls: 'o' });
-      else items.push({ x: pc.x, y: pc.y, w: pc.length, h: m.height, z: 0.9, cls: 'o' });
+      const m = mountShape(prof), h = m.height;
+      // Casing turns its outer (thick) edge out, away from the opening, and miters at the head: its
+      // break lines stop at the miter, which is drawn too
+      const casing = pc.kind === 'casing';
+      const vv = (v: number) => (casing ? h - v : v);
+      const br = profileBreaks(prof);
+      if (pc.vertical) {
+        const sx = pc.vertical === 'left' ? -1 : 1;
+        const lines = br.map((b): [number, number, number, number] => { const x = pc.x + sx * vv(b); return [x, pc.y, x, pc.y + pc.length - (casing ? h - vv(b) : 0)]; });
+        if (casing) lines.push([pc.x + sx * h, pc.y + pc.length, pc.x, pc.y + pc.length - h]);
+        items.push({ x: pc.vertical === 'left' ? pc.x - h : pc.x, y: pc.y, w: h, h: pc.length, z: 0.9, cls: 'o', lines });
+      } else {
+        const lines = br.map((b): [number, number, number, number] => { const y = pc.y + vv(b), inset = casing ? h - vv(b) : 0; return [pc.x + inset, y, pc.x + pc.length - inset, y]; });
+        items.push({ x: pc.x, y: pc.y, w: pc.length, h, z: 0.9, cls: 'o', lines });
+      }
     }
     items.push({ x: o.offset, y: o.sill, w: o.width, h: o.height, z: 0.2, cls: o.kind === 'window' ? 'glass' : 'o' });
     if (o.kind === 'window') items.push({ x: o.offset + 1.5, y: o.sill + o.height / 2 - 0.75, w: o.width - 3, h: 1.5, z: 0.3, cls: 'o' });
@@ -78,8 +97,7 @@ function elevationItems(p: Project, wall: WallId): Item[] {
       if (pc.along !== 'x') continue;
       const prof = profileByNum(pc.num);
       if (!prof) continue;
-      const h = mountShape(prof).height;
-      items.push({ x: c.offset + pc.x, y: c.elevation + (pc.hang ? pc.y - h : pc.y), w: pc.length, h, z: 10 + pc.z + 2, cls: 'o' });
+      items.push(moldItem(prof, c.offset + pc.x, c.offset + pc.x + pc.length, c.elevation + pc.y, 10 + pc.z + 2, pc.cut, pc.hang));
     }
   }
   // The coffered ceiling's perimeter fascia across the top of the wall, and the picture moulding under it
@@ -92,7 +110,7 @@ function elevationItems(p: Project, wall: WallId): Item[] {
     const pic = profileByNum(cc.picture);
     if (pic) {
       const m = mountShape(pic);
-      items.push({ x: 0, y: fb - m.height, w: L, h: m.height, z: zf + m.depth, cls: 'o' });
+      items.push(moldItem(pic, 0, L, fb - m.height, zf + m.depth));
     }
   }
   // Furthest first, so nearer parts cover what's behind them
@@ -117,6 +135,7 @@ function drawItems(v: View, items: Item[]) {
     if (i.pts) v.poly(i.pts, i.cls);
     else if (i.circle) v.circle(i.x, i.y, i.w, i.cls);
     else v.rect(i.x, i.y, i.w, i.h, i.cls);
+    for (const [a, b, c, d] of i.lines ?? []) v.line(a, b, c, d, 'thin');
   }
 }
 
@@ -160,6 +179,20 @@ function sideItems(p: Project, wall: WallId, mode: SideMode): Item[] {
     for (const pc of cabinetMoldings(c, eff(c, p.settings), ends, { noCrown: underFascia(p, c) })) {
       const prof = profileByNum(pc.num); if (!prof) continue;
       const m = mountShape(prof), y = pc.hang ? pc.y - m.height : pc.y;
+      // A run that comes toward you is cut through: draw the profile itself, not the block it fills
+      const t = wallTransform(room, c.wall, c.offset, c.wallInset).pos, cx = wallAxes[c.wall];
+      const room2 = (lx: number, lz: number) => proj(t[0] + lx * cx.along[0] + lz * cx.out[0], t[2] + lx * cx.along[1] + lz * cx.out[1]);
+      const run = pc.along === 'x' ? cx.along : cx.out;
+      if (Math.abs(run[0] * ax.along[0] + run[1] * ax.along[1]) < 0.5) {
+        const dir: [number, number] = pc.facing === 'front' ? [0, 1] : pc.facing === 'back' ? [0, -1] : pc.facing === 'left' ? [-1, 0] : [1, 0];
+        const pts = m.pts.map(([u, v]): [number, number] => {
+          const q = room2(pc.x + dir[0] * u, pc.z + dir[1] * u);
+          return [q[0], c.elevation + (pc.hang ? pc.y - v : pc.y + v)];
+        });
+        const ns = m.pts.map(([u]) => room2(pc.x + dir[0] * u, pc.z + dir[1] * u)[1]);
+        items.push({ x: 0, y: 0, w: 0, h: 0, z: Math.max(...ns), cls: mode === 'side' ? 'o' : 'sec', pts });
+        continue;
+      }
       const size: [number, number, number] = pc.along === 'x' ? [pc.length, m.height, m.depth] : [m.depth, m.height, pc.length];
       const min: [number, number, number] = pc.along === 'x' ? [pc.x, y, pc.facing === 'back' ? pc.z - m.depth : pc.z] : [pc.facing === 'left' ? pc.x - m.depth : pc.x, y, pc.z];
       box(c, min, size, mode === 'side' ? 'o' : 'sec');
@@ -195,7 +228,7 @@ function sideItems(p: Project, wall: WallId, mode: SideMode): Item[] {
         const atLeft = proj(...(w2 === 'left' ? [0, room.depth / 2] : w2 === 'right' ? [room.width, room.depth / 2] : w2 === 'back' ? [room.width / 2, 0] : [room.width / 2, room.depth]) as [number, number])[0] < Lw / 2;
         items.push({ x: atLeft ? 0 : Lw - d, y: H - fh, w: d, h: fh, z: 1e4, cls });
         // The picture moulding under the fascia, and the crown on its face
-        if (pm) items.push({ x: atLeft ? 0 : Lw - d - pm.depth, y: H - fh - pm.height, w: d + pm.depth, h: pm.height, z: 1e4, cls });
+        if (pm) items.push({ x: 0, y: 0, w: 0, h: 0, z: 1e4, cls, pts: pm.pts.map(([u, q]) => [atLeft ? d + u : Lw - d - u, H - fh - pm.height + q]) });
         crownAt(atLeft ? d : Lw - d, atLeft ? 1 : -1);
       }
     }
