@@ -1116,9 +1116,20 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   eq('classic mantel: breastboard panel lines up with the legs\' upper panels', `${fr.boxes[0].min[1].toFixed(3)}-${(fr.boxes[0].min[1] + fr.boxes[0].size[1]).toFixed(3)} ${upperLeg.min[1].toFixed(3)}-${(upperLeg.min[1] + upperLeg.size[1]).toFixed(3)}`, '38.625-43.147 38.625-43.147');
   eq('classic mantel: each leg breaks into two panels', legPanels.length, 4);
   const molds = cabinetMoldings(fp, s, { left: true, right: true } as never);
-  eq('classic mantel: neck moulding wraps each leg (face and both sides)', molds.filter((m) => m.num === '7092').length, 6);
+  eq('classic mantel: neck moulding wraps each leg and the chimney sides back to the wall', molds.filter((m) => m.num === '7092').length, 10);
   const caps = molds.filter((m) => m.num === '5268' && m.y > 90);
-  eq('classic mantel: cap on the upper pilasters, 1-1/2" back from the legs', `${caps.length} ${caps.find((m) => m.facing === 'front')!.z}`, '6 12.75');
+  eq('classic mantel: cap on the upper pilasters, 1-1/2" back from the legs', `${caps.length} ${caps.find((m) => m.facing === 'front')!.z}`, '11 12.75');
+  eq('classic mantel: cap runs across the chimney face between the pilasters', caps.some((m) => m.facing === 'front' && m.z === 11.25 && m.length === 47.25 - 12 && m.cut?.[0] === 'in'), true);
+  const toWall = (num: string, y0: number, y1: number) => molds.filter((m) => m.num === num && m.y > y0 && m.y < y1 && m.along === 'z' && m.z === 0).map((m) => m.x).sort((a, b) => a - b).join();
+  eq('classic mantel: bed moulding returns along the chimney sides to the wall', toWall('5268', 40, 48), '-0.75,48');
+  eq('classic mantel: cap returns along the chimney sides to the wall', toWall('5268', 90, 99), '-0.75,48');
+  eq('classic mantel: no moulding buried inside the chimney sides', molds.some((m) => m.along === 'z' && m.z === 0 && (m.x === 0 || m.x === 47.25)), false);
+  // A profiled base cap: swept round the wrap instead of square boards
+  const cm = { ...fp, mantel: { ...fp.mantel!, baseCapMold: '1527' } };
+  const cParts = buildParts(cm, s);
+  eq('classic mantel: a profiled base cap takes the place of the square cap', `${cParts.filter((x) => x.name === 'Base cap').length} ${cParts.filter((x) => x.name === 'Baseboard').length}`, '0 7');
+  const bcs = cabinetMoldings(cm, s, { left: true, right: true } as never).filter((m) => m.num === '1527');
+  eq('classic mantel: base cap wraps the chimney sides and plinths, stopping at the facing', `${bcs.length} ${bcs.every((m) => m.y === 6)} ${bcs.filter((m) => m.along === 'z' && m.z === 0).map((m) => m.x).join()}`, '6 true -0.75,48');
   eq('classic mantel: bed moulding steps in across the frieze', molds.some((m) => m.num === '5268' && m.facing === 'front' && m.z === 13.5 && m.cut?.[0] === 'in'), true);
   const sides = parts.filter((x) => x.name === 'Chimney side').map((x) => `${x.length}x${x.width}`).join();
   eq('classic mantel: chimney steps back above the shelf', sides, '48.5x12.75,50.25x11.25,48.5x12.75,50.25x11.25');

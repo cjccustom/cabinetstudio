@@ -99,7 +99,9 @@ export function blockedAlong(p: Project, wall: WallId, y0: number, y1: number, o
   const near = 1;
   const block = (c: Cabinet) => {
     if (c.elevation >= y1 || c.elevation + c.height <= y0) return;
-    const f = footprint(p.room, c);
+    // A mantel's chimney sides and the base wrapped round them stand past its width
+    const e = c.kind === 'mantel' ? (c.mantel?.chimney ? 0.75 : 0) + ((c.mantel?.baseH ?? 0) > 0 ? c.mantel?.baseT ?? 0.75 : 0) : 0;
+    const f = footprint(p.room, c, { left: e, right: e });
     if (wall === 'back' && f.z0 < near) out.push([f.x0, f.x1]);
     if (wall === 'front' && f.z1 > D - near) out.push([W - f.x1, W - f.x0]);
     if (wall === 'left' && f.x0 < near) out.push([D - f.z1, D - f.z0]);
@@ -143,18 +145,21 @@ export function roomMoldings(p: Project, wall: WallId): MoldPiece[] {
   const t = { crown: pick('crown'), base: pick('base'), chairRail: pick('chairRail'), chairHeight: capAt };
   const len = wallLength(p.room, wall);
   const out: MoldPiece[] = [];
-  const run = (kind: MoldPiece['kind'], num: string | undefined, y: (h: number) => number, windows: boolean) => {
+  const run = (kind: MoldPiece['kind'], num: string | undefined, y: (h: number) => number, windows: boolean, z = 0) => {
     const prof = profileByNum(num);
     if (!prof) return;
     const m = mountShape(prof);
     const yy = y(m.height);
     for (const [a, b] of freeRuns(len, blockedAlong(p, wall, yy, yy + m.height, { windows }))) {
-      out.push({ kind, num: prof.num, along: 'x', facing: 'front', x: a, y: yy, z: 0, length: b - a });
+      out.push({ kind, num: prof.num, along: 'x', facing: 'front', x: a, y: yy, z, length: b - a });
     }
   };
   run('roomCrown', t.crown, (h) => p.room.height - h, true);
   // Base and chair rail run under windows
   run('roomBase', t.base, () => 0, false);
+  // Its cap sits on top, against the base's face
+  const bp = profileByNum(t.base);
+  if (bp && on && !own('base')) { const bm = mountShape(bp); run('roomBase', room.baseCap, () => bm.height, false); }
   run('chairRail', t.chairRail, (h) => t.chairHeight - h, true);
   return out;
 }

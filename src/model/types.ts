@@ -459,6 +459,8 @@ export interface OpeningTrim {
 export interface RoomTrim {
   crown?: string;
   base?: string;
+  /** A cap moulding on top of the base (a flat baseboard with a base cap). */
+  baseCap?: string;
   chairRail?: string;
   /** Top of the chair rail off the floor. */
   chairHeight: number;

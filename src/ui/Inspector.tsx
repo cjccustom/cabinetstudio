@@ -1542,7 +1542,9 @@ function MantelSection({ cab, set }: { cab: Cabinet; set: (patch: Partial<Cabine
           <Field label="Base cap" htmlFor="mt-bch"><LengthInput id="mt-bch" value={m.baseCapH} onChange={(v) => put({ baseCapH: v ?? 0 })} /></Field>
           <Field label="Thickness" htmlFor="mt-bt"><LengthInput id="mt-bt" value={m.baseT} onChange={(v) => put({ baseT: v ?? 0.75 })} /></Field>
         </div>
-        {m.baseCapH > 0 && <label className="chk-row"><input type="checkbox" checked={m.baseCapAcross !== false} onChange={(e) => put({ baseCapAcross: e.target.checked })} /> Base cap runs across under the opening too (off: it wraps the legs and stops)</label>}
+        <MoldSlot kind="baseMold" label="Base cap profile (blank: a square cap)" num={m.baseCapMold} species={useStore.getState().project.settings.moldSpecies} onChange={(n) => put({ baseCapMold: n })}
+          extra={m.baseCapMold && <button className="mini" onClick={() => put({ baseCapMold: undefined })}>Remove</button>} />
+        {(m.baseCapH > 0 || !!m.baseCapMold) && <label className="chk-row"><input type="checkbox" checked={m.baseCapAcross !== false} onChange={(e) => put({ baseCapAcross: e.target.checked })} /> Base cap runs across under the opening too (off: it wraps the legs and stops)</label>}
         <p className="hint">The room's baseboard, wrapped around the chimney sides, the plinths and across the front. 0 = none.</p>
       </Section>
       <Section title="Corbels & pediment">

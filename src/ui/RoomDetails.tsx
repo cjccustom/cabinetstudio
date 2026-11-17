@@ -66,6 +66,7 @@ export function RoomDetails() {
       <Section title="Room trim">
         <MoldSlot kind="roomCrown" num={trim.crown} species={species} onChange={(n) => putTrim({ crown: n })} extra={trim.crown && <button className="mini" onClick={() => putTrim({ crown: undefined })}>Remove</button>} />
         <MoldSlot kind="roomBase" num={trim.base} species={species} onChange={(n) => putTrim({ base: n })} extra={trim.base && <button className="mini" onClick={() => putTrim({ base: undefined })}>Remove</button>} />
+        {trim.base && <MoldSlot kind="baseMold" label="Base cap on the base" num={trim.baseCap} species={species} onChange={(n) => putTrim({ baseCap: n })} extra={trim.baseCap && <button className="mini" onClick={() => putTrim({ baseCap: undefined })}>Remove</button>} />}
         <MoldSlot kind="chairRail" num={trim.chairRail} species={species} onChange={(n) => putTrim({ chairRail: n })} extra={trim.chairRail && <button className="mini" onClick={() => putTrim({ chairRail: undefined })}>Remove</button>} />
         {trim.chairRail && (
           <Field label="Chair rail top, off the floor" htmlFor="rt-chair"><LengthInput id="rt-chair" value={trim.chairHeight} onChange={(v) => putTrim({ chairHeight: v ?? 34 })} /></Field>

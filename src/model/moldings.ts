@@ -2,7 +2,7 @@
 // beadboard. Each run follows the cabinet face and returns along exposed ends.
 import { roomProjects } from './rooms';
 import type { Cabinet, Project, ShopSettings, WallPanel } from './types';
-import { mantelLayout, mantelOf, neckAt, upperSetback, upperTop } from './mantel';
+import { baseWrapOf, mantelLayout, mantelOf, neckAt, upperSetback, upperTop } from './mantel';
 import { amCatalog, type AMProfile } from './andersonMcquaid';
 import { broscoCatalog } from './brosco';
 import { nextDayCatalog } from './nextDay';
@@ -456,19 +456,33 @@ function cabinetMoldingsBody(c: Cabinet, s: ShopSettings, ends: EndInfo, opts: {
 }
 
 /** A mantel's bed moulding under the shelf, across the legs and frieze, and base around the plinths; both return to the wall. */
+/** The chimney sides' thickness (the mantel's parts put them at x -0.75). */
+const CHIMNEY_T = 0.75;
+
 function mantelMoldings(c: Cabinet, ends: EndInfo): MoldPiece[] {
   const L = mantelLayout(c);
   const m = mantelOf(c);
   const out: MoldPiece[] = [];
   const W = c.width, D = c.depth;
   const zc = D - m.stock;
-  /** Around one leg: across its face, mitered at both corners, and back along each side to `back` (or to the frieze on the inside). */
+  /**
+   * Around one leg: across its face, mitered at both corners, and back along each side to `back` (or to
+   * the frieze on the inside). With a chimney, the outer side carries on round it to the wall: an inside
+   * miter where the leg meets the chimney's front edge, a short piece across that edge, and a return
+   * along the chimney side, cut square at the wall.
+   */
   const aroundLeg = (kind: MoldKind, num: string, y: number, x0: number, w: number, face: number, back: number, inner: number | null, label?: string) => {
     const d = mountShape(profileByNum(num)!).depth;
     const left = x0 < W / 2;
     out.push({ kind, num, along: 'x', facing: 'front', x: x0 - d, y, z: face, length: w + 2 * d, cut: ['out', 'out'], label, where: 'each leg, across its face' });
     const outer = left ? x0 : x0 + w, innerX = left ? x0 + w : x0;
-    out.push({ kind, num, along: 'z', facing: left ? 'left' : 'right', x: outer, y, z: back, length: face + d - back, cut: ['square', 'out'], label, where: 'each leg, outer side, back to the chimney' });
+    const ch = m.chimney && back > 0.01 && back < face ? CHIMNEY_T : 0;
+    if (ch) {
+      const sx = left ? outer - ch : outer + ch;
+      out.push({ kind, num, along: 'z', facing: left ? 'left' : 'right', x: outer, y, z: back, length: face + d - back, cut: ['in', 'out'], label, where: 'each leg, outer side, back to the chimney' });
+      out.push({ kind, num, along: 'x', facing: 'front', x: left ? sx - d : outer, y, z: back, length: ch + d, cut: left ? ['out', 'in'] : ['in', 'out'], label, where: "across the chimney side's front edge" });
+      out.push({ kind, num, along: 'z', facing: left ? 'left' : 'right', x: sx, y, z: 0, length: back + d, cut: ['square', 'out'], label, where: 'along the chimney side, back to the wall' });
+    } else out.push({ kind, num, along: 'z', facing: left ? 'left' : 'right', x: outer, y, z: back, length: face + d - back, cut: ['square', 'out'], label, where: 'each leg, outer side, back to the chimney' });
     const ib = inner ?? back;
     out.push({ kind, num, along: 'z', facing: left ? 'right' : 'left', x: innerX, y, z: ib, length: face + d - ib, cut: [inner != null ? 'in' : 'square', 'out'], label, where: inner != null ? 'each leg, inner side, back to the frieze' : 'each leg, inner side, back to the chimney' });
   };
@@ -477,7 +491,7 @@ function mantelMoldings(c: Cabinet, ends: EndInfo): MoldPiece[] {
   const stepped = !!bed && m.legs !== 'none' && L.proud > 0.01 && L.legW > 0.5;
   if (stepped) {
     const y = L.shelfBottom - mountShape(bed).height;
-    for (const x0 of [0, W - L.legW]) aroundLeg('crown', bed.num, y, x0, L.legW, L.legFace, 0, D, 'Bed moulding under the shelf');
+    for (const x0 of [0, W - L.legW]) aroundLeg('crown', bed.num, y, x0, L.legW, L.legFace, m.chimney ? zc : 0, D, 'Bed moulding under the shelf');
     out.push({ kind: 'crown', num: bed.num, along: 'x', facing: 'front', x: L.legW, y, z: D, length: W - 2 * L.legW, cut: ['in', 'in'], label: 'Bed moulding under the shelf', where: 'across the frieze, between the legs' });
   }
   // Neck moulding around the legs where their panels break
@@ -487,11 +501,31 @@ function mantelMoldings(c: Cabinet, ends: EndInfo): MoldPiece[] {
   const cap = profileByNum(m.upper.capMold);
   if (cap && m.upper.on && L.legW > 0.5) {
     const sb = upperSetback(m);
-    for (const x0 of [0, W - L.legW]) aroundLeg('crown', cap.num, upperTop(c, m) - mountShape(cap).height, x0, L.legW, L.legFace - sb, m.chimney ? zc - sb : 0, null, 'Cap moulding atop the upper pilasters');
+    const y = upperTop(c, m) - mountShape(cap).height;
+    // Across the chimney face (or the frame on it) between them too, so the whole overmantel is capped where it meets the ceiling
+    const between = zc - sb + (m.upper.between !== 'wall' ? m.stock : 0);
+    for (const x0 of [0, W - L.legW]) aroundLeg('crown', cap.num, y, x0, L.legW, L.legFace - sb, m.chimney ? zc - sb : 0, between, 'Cap moulding atop the overmantel');
+    if (W - 2 * L.legW > 0.5) out.push({ kind: 'crown', num: cap.num, along: 'x', facing: 'front', x: L.legW, y, z: between, length: W - 2 * L.legW, cut: ['in', 'in'], label: 'Cap moulding atop the overmantel', where: 'across the chimney face, between the pilasters' });
+  }
+  // A profiled base cap: swept around the base wrap on top of the baseboard
+  const bc = profileByNum(m.baseCapMold);
+  if (bc && m.baseH > 0) {
+    const { plinthFace: pf, sideX } = baseWrapOf(c, m);
+    // It sits on the baseboard with its back on the face the board is nailed to, like the room's
+    const d = mountShape(bc).depth, y = m.baseH;
+    const across = m.baseCapAcross !== false;
+    const label = 'Base cap';
+    for (const left of [true, false]) {
+      const side = left ? sideX : W - sideX, innerX = left ? L.legW : W - L.legW;
+      out.push({ kind: 'baseMold', num: bc.num, along: 'z', facing: left ? 'left' : 'right', x: side, y, z: 0, length: pf + d, cut: ['square', 'out'], label, where: 'along the chimney side, from the wall' });
+      out.push({ kind: 'baseMold', num: bc.num, along: 'x', facing: 'front', x: (left ? side : innerX) - d, y, z: pf, length: Math.abs(innerX - side) + 2 * d, cut: ['out', 'out'], label, where: 'across the plinth' });
+      if (pf - D > 0.01) out.push({ kind: 'baseMold', num: bc.num, along: 'z', facing: left ? 'right' : 'left', x: innerX, y, z: D, length: pf + d - D, cut: [across ? 'in' : 'square', 'out'], label, where: across ? 'plinth return, to the front' : 'plinth return, stopping square against the facing' });
+    }
+    if (across && W - 2 * L.legW > 0.5) out.push({ kind: 'baseMold', num: bc.num, along: 'x', facing: 'front', x: L.legW, y, z: D, length: W - 2 * L.legW, cut: ['in', 'in'], label, where: 'across the front, under the opening' });
   }
   const runs: { kind: MoldKind; num?: string; y: (h: number) => number; z: number; x0: number; x1: number }[] = [
     ...(stepped ? [] : [{ kind: 'crown' as MoldKind, num: c.crown, y: (h: number) => L.shelfBottom - h, z: L.legFace, x0: 0, x1: c.width }]),
-    { kind: 'baseMold', num: c.baseMold, y: () => 0, z: L.legFace + (m.plinth > 0 ? m.blockProud : 0), x0: -(m.plinth > 0 ? m.blockProud : 0), x1: c.width + (m.plinth > 0 ? m.blockProud : 0) },
+    ...(m.baseH > 0 ? [] : [{ kind: 'baseMold' as MoldKind, num: c.baseMold, y: () => 0, z: L.legFace + (m.plinth > 0 ? m.blockProud : 0), x0: -(m.plinth > 0 ? m.blockProud : 0), x1: c.width + (m.plinth > 0 ? m.blockProud : 0) }]),
   ];
   for (const r of runs) {
     const p = profileByNum(r.num);

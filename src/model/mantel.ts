@@ -85,6 +85,8 @@ export interface MantelSpec {
   neckMold?: string;
   /** false: the base cap wraps the legs and stops at them, leaving the baseboard alone across under the opening. */
   baseCapAcross?: boolean;
+  /** The base cap as a moulding profile (the room's own, often custom): swept around the wrap on top of the baseboard instead of a square cap. */
+  baseCapMold?: string;
   /** The room's baseboard wrapped around the chimney, plinths and front: flat board, cap, thickness. 0 = none. */
   baseH: number;
   baseCapH: number;
@@ -132,6 +134,20 @@ export const friezeHeight = (c: Cabinet, m = mantelOf(c)) => c.height - m.shelfT
 export const shelfFor = (m: MantelSpec, frieze: number) => m.openingY + m.openingH + m.margin + Math.max(0, frieze) + m.shelfThickness;
 
 /** The heights everything hangs off. */
+/** The base cap's height: its profile's when it's a moulding. */
+export const baseCapHeight = (m: MantelSpec): number => { const p = profileByNum(m.baseCapMold); return p ? mountShape(p).height : m.baseCapH; };
+
+/**
+ * Where the base wrap's faces are: the plinth face it lies on (a pilaster leg with no plinth block
+ * takes the base straight on its face) and the outside of the chimney sides.
+ */
+export function baseWrapOf(c: Cabinet, m = mantelOf(c)) {
+  const L = mantelLayout(c, m);
+  const pil = m.legs === 'pilaster' && m.legBuild === 'pilaster';
+  const plinthFace = pil ? L.legFace + ((m.pilaster.plinth ?? defaultPilaster.plinth) > 0 ? m.pilaster.proud ?? 0.75 : 0) : L.legFace + m.blockProud;
+  return { plinthFace, sideX: m.chimney ? -0.75 : 0, L };
+}
+
 export function mantelLayout(c: Cabinet, m = mantelOf(c)) {
   const bed = profileByNum(c.crown);
   const bedH = bed ? mountShape(bed).height : 0;
@@ -182,7 +198,7 @@ export function mantelParts(c: Cabinet, s: ShopSettings): Part[] {
   const pilasterAt = (name: string, x0: number, y0: number, w: number, h: number, plinth: number, o: { setback?: number; breaks?: number[]; topRail?: number; capital?: number } = {}): Part[] => {
     const back = m.chimney ? zc - (o.setback ?? 0) : 0;
     const virt: Cabinet = { ...c, kind: 'pilaster', width: w, height: h, depth: L.legFace - (o.setback ?? 0) - back, crown: undefined,
-      pilaster: { ...defaultPilaster, proud: 0.75, species: sp, ...m.pilaster, plinth, breaks: o.breaks ?? [], ...(o.topRail != null ? { topRail: o.topRail } : {}), ...(o.capital != null ? { capital: o.capital } : {}), ...(plinth > 0 ? {} : { foot: y0 === 0 ? m.baseH + m.baseCapH : 0 }) } };
+      pilaster: { ...defaultPilaster, proud: 0.75, species: sp, ...m.pilaster, plinth, breaks: o.breaks ?? [], ...(o.topRail != null ? { topRail: o.topRail } : {}), ...(o.capital != null ? { capital: o.capital } : {}), ...(plinth > 0 ? {} : { foot: y0 === 0 ? m.baseH + baseCapHeight(m) : 0 }) } };
     // The two legs are mirror images built alike: no side in the notes, so the parts list once for both
     return pilasterParts(virt, s).map((p) => ({ ...p, name: p.name.replace(/^Pilaster/, name).replace(/^Plinth block/, `${name} plinth`).replace(/^Capital block/, `${name} capital`), boxes: p.boxes.map((b) => shift(b, x0, y0, back)) }));
   };
@@ -308,10 +324,10 @@ export function mantelParts(c: Cabinet, s: ShopSettings): Part[] {
   }
   // The room's two-piece baseboard wrapped around the chimney sides, the plinths and across the front
   if (m.baseH > 0) {
-    const bt = m.baseT, bh = m.baseH, ch = m.baseCapH;
-    // A pilaster leg with no plinth block takes the base straight on its face
-    const plinthFace = pil ? L.legFace + ((m.pilaster.plinth ?? defaultPilaster.plinth) > 0 ? m.pilaster.proud ?? 0.75 : 0) : L.legFace + m.blockProud;
-    const sideX = m.chimney ? -0.75 : 0;
+    const bt = m.baseT, bh = m.baseH;
+    // A profiled cap is a moulding (mantelMoldings sweeps it round the same path), not a square board
+    const ch = profileByNum(m.baseCapMold) ? 0 : m.baseCapH;
+    const { plinthFace, sideX } = baseWrapOf(c, m);
     type Run = { name: string; len: number; box: (y: number, h: number) => VisualBox };
     const all: Run[] = [
       { name: 'left side, to the wall', len: plinthFace + bt, box: (y, h) => vb(sideX - bt, y, 0, bt, h, plinthFace + bt) },
