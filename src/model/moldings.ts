@@ -517,9 +517,11 @@ function mantelMoldings(c: Cabinet, ends: EndInfo): MoldPiece[] {
     const label = 'Base cap';
     for (const left of [true, false]) {
       const side = left ? sideX : W - sideX, innerX = left ? L.legW : W - L.legW;
-      out.push({ kind: 'baseMold', num: bc.num, along: 'z', facing: left ? 'left' : 'right', x: side, y, z: 0, length: pf + d, cut: ['square', 'out'], label, where: 'along the chimney side, from the wall' });
+      out.push({ kind: 'baseMold', num: bc.num, along: 'z', facing: left ? 'left' : 'right', x: side, y, z: 0, length: pf + d, cut: ['in', 'out'], label, where: "along the chimney side, mitered into the room's base cap at the wall" });
       out.push({ kind: 'baseMold', num: bc.num, along: 'x', facing: 'front', x: (left ? side : innerX) - d, y, z: pf, length: Math.abs(innerX - side) + 2 * d, cut: ['out', 'out'], label, where: 'across the plinth' });
-      if (pf - D > 0.01) out.push({ kind: 'baseMold', num: bc.num, along: 'z', facing: left ? 'right' : 'left', x: innerX, y, z: D, length: pf + d - D, cut: [across ? 'in' : 'square', 'out'], label, where: across ? 'plinth return, to the front' : 'plinth return, stopping square against the facing' });
+      // Turned round the inside of the leg: into the cap across the front, or back to die square into the chimney face
+      const rz = across ? D : D - m.stock;
+      if (pf - rz > 0.01) out.push({ kind: 'baseMold', num: bc.num, along: 'z', facing: left ? 'right' : 'left', x: innerX, y, z: rz, length: pf + d - rz, cut: [across ? 'in' : 'square', 'out'], label, where: across ? 'plinth return, to the front' : 'inside of the leg, back to the chimney face' });
     }
     if (across && W - 2 * L.legW > 0.5) out.push({ kind: 'baseMold', num: bc.num, along: 'x', facing: 'front', x: L.legW, y, z: D, length: W - 2 * L.legW, cut: ['in', 'in'], label, where: 'across the front, under the opening' });
   }

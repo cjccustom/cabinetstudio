@@ -221,7 +221,7 @@ function toRoom(room: Room, c: Cabinet, lx: number, lz: number): [number, number
  * finished end, unless the cabinet says otherwise.
  */
 /** The wall that meets each wall at its left and right ends, facing it from inside the room. */
-const nextWall: Record<WallId, { left: WallId; right: WallId }> = {
+export const nextWall: Record<WallId, { left: WallId; right: WallId }> = {
   back: { left: 'left', right: 'right' }, right: { left: 'back', right: 'front' },
   front: { left: 'right', right: 'left' }, left: { left: 'front', right: 'back' },
 };

@@ -3,8 +3,8 @@
 // gets in the way. Everything here is in wall coordinates: x along the wall from its left end
 // (as you face it), y up from the floor, z out from the wall into the room.
 import type { Cabinet, Floor, Opening, Project, RoomTrim, VisualBox, WallFinish, WallId } from './types';
-import { footprint, wallLength, wallOrder, type Issue } from './layout';
-import { mountShape, profileByNum, type MoldPiece } from './moldings';
+import { footprint, nextWall, wallLength, wallOrder, type Issue } from './layout';
+import { mountShape, profileByNum, type MiterCut, type MoldPiece } from './moldings';
 import { uid } from './defaults';
 
 export const defaultRoomTrim: RoomTrim = { chairHeight: 34, walls: ['back', 'left', 'right', 'front'] };
@@ -93,19 +93,22 @@ const stoolPieces = (o: Opening): MoldPiece[] => {
 };
 
 /** Stretches of a wall, between y0 and y1, that a cabinet, panel or opening's casing already covers. */
-export function blockedAlong(p: Project, wall: WallId, y0: number, y1: number, opts: { windows: boolean } = { windows: true }): [number, number][] {
+export function blockedAlong(p: Project, wall: WallId, y0: number, y1: number, opts: { windows: boolean; mantelEnds?: number[]; capOnly?: boolean } = { windows: true }): [number, number][] {
   const { width: W, depth: D } = p.room;
   const out: [number, number][] = [];
   const near = 1;
   const block = (c: Cabinet) => {
     if (c.elevation >= y1 || c.elevation + c.height <= y0) return;
     // A mantel's chimney sides and the base wrapped round them stand past its width
-    const e = c.kind === 'mantel' ? (c.mantel?.chimney ? 0.75 : 0) + ((c.mantel?.baseH ?? 0) > 0 ? c.mantel?.baseT ?? 0.75 : 0) : 0;
+    // (a base cap runs on past the wrap's baseboard to the chimney side, to miter into the wrap's own cap)
+    const e = c.kind === 'mantel' ? (c.mantel?.chimney ? 0.75 : 0) + ((c.mantel?.baseH ?? 0) > 0 && !opts.capOnly ? c.mantel?.baseT ?? 0.75 : 0) : 0;
     const f = footprint(p.room, c, { left: e, right: e });
+    const n = out.length;
     if (wall === 'back' && f.z0 < near) out.push([f.x0, f.x1]);
     if (wall === 'front' && f.z1 > D - near) out.push([W - f.x1, W - f.x0]);
     if (wall === 'left' && f.x0 < near) out.push([D - f.z1, D - f.z0]);
     if (wall === 'right' && f.x1 > W - near) out.push([f.z0, f.z1]);
+    if (c.kind === 'mantel' && out.length > n) opts.mantelEnds?.push(...out[n]);
   };
   p.cabinets.forEach(block);
   for (const w of p.panels ?? []) if (w.wall === wall && w.bottom < y1 && w.bottom + w.height > y0) out.push([w.offset, w.offset + w.width]);
@@ -145,13 +148,18 @@ export function roomMoldings(p: Project, wall: WallId): MoldPiece[] {
   const t = { crown: pick('crown'), base: pick('base'), chairRail: pick('chairRail'), chairHeight: capAt };
   const len = wallLength(p.room, wall);
   const out: MoldPiece[] = [];
-  const run = (kind: MoldPiece['kind'], num: string | undefined, y: (h: number) => number, windows: boolean, z = 0) => {
+  // Inside miters where a run reaches a room corner with the same trim round it, or a mantel's wrapped cap
+  const cornerIn = (end: 'left' | 'right') => room.walls.includes(nextWall[wall][end]);
+  const run = (kind: MoldPiece['kind'], num: string | undefined, y: (h: number) => number, windows: boolean, cap = false) => {
     const prof = profileByNum(num);
     if (!prof) return;
     const m = mountShape(prof);
     const yy = y(m.height);
-    for (const [a, b] of freeRuns(len, blockedAlong(p, wall, yy, yy + m.height, { windows }))) {
-      out.push({ kind, num: prof.num, along: 'x', facing: 'front', x: a, y: yy, z, length: b - a });
+    const mantelEnds: number[] = [];
+    for (const [a, b] of freeRuns(len, blockedAlong(p, wall, yy, yy + m.height, { windows, mantelEnds, capOnly: cap }))) {
+      const at = (x: number) => mantelEnds.some((e) => Math.abs(e - x) < 0.01);
+      const cut: [MiterCut, MiterCut] = [(a < 0.01 && cornerIn('left')) || (cap && at(a)) ? 'in' : 'square', (b > len - 0.01 && cornerIn('right')) || (cap && at(b)) ? 'in' : 'square'];
+      out.push({ kind, num: prof.num, along: 'x', facing: 'front', x: a, y: yy, z: 0, length: b - a, cut });
     }
   };
   run('roomCrown', t.crown, (h) => p.room.height - h, true);
@@ -159,7 +167,7 @@ export function roomMoldings(p: Project, wall: WallId): MoldPiece[] {
   run('roomBase', t.base, () => 0, false);
   // Its cap sits on top, against the base's face
   const bp = profileByNum(t.base);
-  if (bp && on && !own('base')) { const bm = mountShape(bp); run('roomBase', room.baseCap, () => bm.height, false); }
+  if (bp && on && !own('base')) { const bm = mountShape(bp); run('roomBase', room.baseCap, () => bm.height, false, true); }
   run('chairRail', t.chairRail, (h) => t.chairHeight - h, true);
   return out;
 }
