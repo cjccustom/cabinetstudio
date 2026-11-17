@@ -109,7 +109,8 @@ export class View {
   /** Text at a world point; size in paper inches. */
   text(x: number, y: number, s: string, size = 0.1, anchor: 'start' | 'middle' | 'end' = 'middle', cls = 't', rotate = 0) {
     const X = this.X(x), Y = this.Y(y);
-    this.out.push(`<text class="${cls}" x="${X}" y="${Y}" font-size="${size}" text-anchor="${anchor}"${rotate ? ` transform="rotate(${rotate} ${X} ${Y})"` : ''}>${esc(s)}</text>`);
+    // Dimension figures go on last, over a thin white mask, so no line drawn after them strikes through them
+    (cls === 'dt' ? this.late : this.out).push(`<text class="${cls}" x="${X}" y="${Y}" font-size="${size}" text-anchor="${anchor}"${rotate ? ` transform="rotate(${rotate} ${X} ${Y})"` : ''}>${esc(s)}</text>`);
   }
   /** A cabinet tag: its name in a small circle. */
   tag(x: number, y: number, s: string) {
@@ -125,7 +126,7 @@ export class View {
     const r = (v: number) => Math.round(v * 16) / 16;
     return `${this.vkey}|${dir}|${r(Math.min(a, b))}|${r(Math.max(a, b))}|${r(at)}`;
   }
-  dimH(x1: number, x2: number, y: number, off: number, label?: string, feet = false, lift = 0) {
+  dimH(x1: number, x2: number, y: number, off: number, label?: string, feet = false, lift = 0, slide = 0) {
     if (Math.abs(x2 - x1) < 0.01) return;
     const id = this.dimId('h', x1, x2, y);
     const ed = this.dimEdits[id];
@@ -142,7 +143,15 @@ export class View {
     this.tick(x1, yd); this.tick(x2, yd);
     const text = label ?? dimText(Math.abs(x2 - x1), feet);
     const fits = Math.abs(x2 - x1) * this.k > 0.09 * text.length * 0.55;
-    this.text((x1 + x2) / 2, yd + (this.yUp ? 1 : -1) * this.p(0.035 + lift) * Math.sign(off || 1), text, fits ? 0.09 : 0.072, 'middle', 'dt');
+    const size = fits ? 0.09 : 0.072;
+    // Text on the far side of the line from the work. Placed by its baseline, so text hanging below
+    // the line drops by its own height too, or its figures sit on the line and get struck through
+    const below = (off || 1) < 0;
+    // Wider than the space it measures: the figures run out past the extension lines, so they also
+    // stand clear of the lines' overrun and the ticks
+    const tight = Math.abs(x2 - x1) * this.k < size * text.length * 0.5 + 0.06;
+    const clear = (tight ? 0.09 : 0.035) + lift + (below ? size * 0.75 : 0);
+    this.text((x1 + x2) / 2 + this.p(slide), yd + (this.yUp ? 1 : -1) * this.p(clear) * Math.sign(off || 1), text, size, 'middle', 'dt');
     if (lift) this.line((x1 + x2) / 2, yd, (x1 + x2) / 2, yd + (this.yUp ? 1 : -1) * this.p(lift) * Math.sign(off || 1), 'd');
   }
   /** A vertical dimension from y1 to y2 at world x, drawn `off` paper inches to the right (+) or left (−). */
@@ -163,31 +172,69 @@ export class View {
     const text = label ?? dimText(Math.abs(y2 - y1), feet);
     const fits = Math.abs(y2 - y1) * this.k > 0.09 * text.length * 0.55;
     const side = Math.sign(off || 1);
-    this.text(xd - this.p(0.035) + (side > 0 ? this.p(lift) : -this.p(lift)), (y1 + y2) / 2, text, fits ? 0.09 : 0.072, 'middle', 'dt', -90);
+    const size = fits ? 0.09 : 0.072;
+    // Turned to read from the right, the figures stand to the left of their baseline: on the right of
+    // the line the baseline moves out past them so they clear it
+    // Too long for its space it would cross the extension lines coming in from the work: it goes
+    // outside the line instead, clear of their overrun
+    const tight = Math.abs(y2 - y1) * this.k < size * text.length * 0.5 + 0.06;
+    const c0 = tight ? 0.09 : 0.035;
+    const bx = side > 0 && (lift > 0 || tight) ? xd + this.p(c0 + lift + size * 0.75) : xd - this.p(c0 + (side < 0 ? lift : 0));
+    this.text(bx, (y1 + y2) / 2, text, size, 'middle', 'dt', -90);
   }
   /** A chain of dimensions between sorted points along x. */
   /** A chain of dimensions between points; text on short pieces is lifted clear of its neighbors, alternately. */
   chainH(xs: number[], y: number, off: number) {
+    // Along a horizontal chain a crowded figure slides along the line beside its neighbor rather than
+    // stepping out, where it would run into the overall dimension above it
     const pts = [...new Set(xs.map((v) => Math.round(v * 64) / 64))].sort((a, b) => a - b);
-    let small = 0;
+    // ...and the figures at its ends stay inside it, off the overall dimension's extension lines
+    const place = this.chainLevels(0, true, [pts[0] * this.k, pts[pts.length - 1] * this.k]);
     for (let i = 1; i < pts.length; i++) {
       const d = pts[i] - pts[i - 1];
       if (d <= 0.1) continue;
-      const tight = d * this.k < 0.42;
-      this.dimH(pts[i - 1], pts[i], y, off, undefined, false, tight ? (small++ % 2 ? 0.12 : 0) : 0);
-      if (!tight) small = 0;
+      this.dimH(pts[i - 1], pts[i], y, off, undefined, false, 0, place(pts[i - 1], pts[i]));
     }
   }
   chainV(ys: number[], x: number, off: number) {
+    const place = this.chainLevels(0.13);
     const pts = [...new Set(ys.map((v) => Math.round(v * 64) / 64))].sort((a, b) => a - b);
-    let small = 0;
     for (let i = 1; i < pts.length; i++) {
       const d = pts[i] - pts[i - 1];
       if (d <= 0.1) continue;
-      const tight = d * this.k < 0.42;
-      this.dimV(pts[i - 1], pts[i], x, off, undefined, false, tight ? (small++ % 2 ? 0.13 : 0) : 0);
-      if (!tight) small = 0;
+      this.dimV(pts[i - 1], pts[i], x, off, undefined, false, place(pts[i - 1], pts[i]));
     }
+  }
+  /**
+   * For a chain: how far to step each figure out from the line so it doesn't land on a neighbor's.
+   * Each figure takes the first level (on the line, one step out, two...) where nothing already
+   * placed overlaps it along the line, with a little air between.
+   */
+  private chainLevels(step: number, slide = false, ends?: [number, number]) {
+    const taken: [number, number][][] = [];
+    return (a: number, b: number) => {
+      const len = Math.abs(b - a) * this.k;
+      const t = dimText(Math.abs(b - a));
+      const size = len > 0.09 * t.length * 0.55 ? 0.09 : 0.072;
+      const half = (size * t.length * 0.5) / 2 + 0.03;
+      const mid = ((a + b) / 2) * this.k;
+      const span: [number, number] = [mid - half, mid + half];
+      if (slide) {
+        const row = (taken[0] ??= []);
+        let dx = 0;
+        if (ends) {
+          if (span[0] < ends[0] + 0.02) dx = ends[0] + 0.02 - span[0];
+          else if (span[1] > ends[1] - 0.02) dx = ends[1] - 0.02 - span[1];
+        }
+        for (let hit = row.find(([p, q]) => span[0] + dx < q && p < span[1] + dx), guard = 0; hit && guard < 64; hit = row.find(([p, q]) => span[0] + dx < q && p < span[1] + dx), guard++) dx = Math.max(dx + 1e-4, hit[1] - span[0] + 1e-4);
+        row.push([span[0] + dx, span[1] + dx]);
+        return dx;
+      }
+      let lvl = 0;
+      while ((taken[lvl] ?? []).some(([p, q]) => span[0] < q && p < span[1])) lvl++;
+      (taken[lvl] ??= []).push(span);
+      return lvl * step;
+    };
   }
   private tick(x: number, y: number) {
     const X = this.X(x), Y = this.Y(y), t = 0.035;
@@ -210,7 +257,8 @@ export class View {
   private hits: string[] = [];
   /** Paper inches per world inch, with the sign of y on paper (for dragging in the viewer). */
   get scaleAttrs() { return { k: n(this.k), yup: this.yUp ? 1 : 0 }; }
-  svg() { return this.out.join('') + this.hits.join(''); }
+  private late: string[] = [];
+  svg() { return this.out.join('') + this.late.join('') + this.hits.join(''); }
 }
 
 /** Line weights and text styles, in paper inches. */
@@ -235,7 +283,7 @@ export const drawingCss = `
 .dwg .hw{fill:#555;stroke:#111;stroke-width:.004}
 .dwg .hw.finger{fill:#bbb;stroke:#333;stroke-width:.004;stroke-dasharray:.03 .02}
 .dwg text{font-family:"Helvetica Neue",Arial,sans-serif;fill:#111}
-.dwg .dt{font-weight:500}
+.dwg .dt{font-weight:500;paint-order:stroke;stroke:#fff;stroke-width:.025;stroke-linejoin:round}
 .dwg .tagt{font-weight:700}
 .dwg .lbl{font-weight:700;letter-spacing:.02em}
 .dwg .hit{fill:none;stroke:none}
