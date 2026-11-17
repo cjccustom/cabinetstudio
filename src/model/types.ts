@@ -22,6 +22,8 @@ export interface FaceRow {
   railAbove?: number;
   /** A moulding applied across the rail above this row, centered on it (a chair rail or panel moulding), running on into the next cabinet and wrapping a proud pilaster's band. */
   railMold?: string;
+  /** Rail showing between the bottom of that moulding and the opening below it (unset: the moulding is centered on the rail). */
+  railMoldBelow?: number;
   /** Hanging and shoe rows: closed with doors (a wardrobe) instead of open; doors = how many. */
   covered?: boolean;
   /** Shoe rows: shelves tipped down to the front (the default) or flat. */

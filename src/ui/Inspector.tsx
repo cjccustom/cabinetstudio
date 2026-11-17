@@ -1286,6 +1286,11 @@ function FrameWidths({ cab, settings, set, setRow }: { cab: Cabinet; settings: S
             <input id={`fw-rm-${r.id}`} list="rail-mold-list" value={r.railMold ?? ''} placeholder="none" onChange={(e) => setRow(r.id, { railMold: e.target.value.trim() || undefined })} />
           </Field>
         ))}
+        {cab.rows.slice(1).filter((r) => r.railMold).map((r) => (
+          <Field key={`mb-${r.id}`} label="Rail showing below the moulding" htmlFor={`fw-rb-${r.id}`}>
+            <LengthInput id={`fw-rb-${r.id}`} value={r.railMoldBelow ?? null} allowAuto placeholder="centered" onChange={(v) => setRow(r.id, { railMoldBelow: v ?? undefined })} />
+          </Field>
+        ))}
         <datalist id="rail-mold-list">{railMoldOptions.map((p) => <option key={p.num} value={p.num}>{`${p.category}, ${fmt(p.w)} × ${fmt(p.t)}`}</option>)}</datalist>
         <Field label="Bottom rail" htmlFor="fw-bot"><LengthInput id="fw-bot" value={cab.overrides?.bottomRailWidth ?? null} allowAuto placeholder={fmt(settings.bottomRailWidth)} onChange={(v) => ov('bottomRailWidth', v)} /></Field>
       </div>

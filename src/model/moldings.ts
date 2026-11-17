@@ -192,13 +192,18 @@ function rawMount(p: Profile): { pts: [number, number][]; depth: number; height:
   // bottom). Stand those up: the drawing's width becomes the face, its thickness the projection.
   if (lyingDown(p)) {
     const along = (axis: 0 | 1, at: number) => edgeRun(p.shape!, axis, at);
-    const backBottom = along(1, 0) >= along(1, sh);
+    // The drawing's own extents: some catalog drawings run past the size listed with them (a flange
+    // drawn below the line), so the flat back is looked for where the outline really ends
+    const xs = p.shape!.map((q) => q[0]), ys = p.shape!.map((q) => q[1]);
+    const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+    const backBottom = along(1, y0) >= along(1, y1);
+    const W = x1 - x0, H = y1 - y0;
     // The thicker end goes at the bottom (a baseboard's foot, a casing's outer edge)
-    const thick = (lo: boolean) => Math.max(0, ...p.shape!.filter(([x]) => (lo ? x < sw * 0.1 : x > sw * 0.9)).map(([, y]) => (backBottom ? y : sh - y)));
+    const thick = (lo: boolean) => Math.max(0, ...p.shape!.filter(([x]) => (lo ? x < x0 + W * 0.1 : x > x1 - W * 0.1)).map(([, y]) => (backBottom ? y - y0 : y1 - y)));
     const thickLeft = thick(true) >= thick(false);
     return {
-      pts: p.shape!.map(([x, y]) => [backBottom ? y : sh - y, thickLeft ? x : sw - x]),
-      depth: sh, height: sw,
+      pts: p.shape!.map(([x, y]) => [backBottom ? y - y0 : y1 - y, thickLeft ? x - x0 : x1 - x]),
+      depth: H, height: W,
     };
   }
   const flat = (atX: number) => {
@@ -287,7 +292,7 @@ function railMoldings(c: Cabinet, s: ShopSettings, ends: EndInfo): MoldPiece[] {
     if (!p || !r) return;
     const m = mountShape(p);
     const rail = railAbove(c, s, i);
-    const y = r.y1 + (rail - m.height) / 2;
+    const y = r.y1 + (row.railMoldBelow != null ? Math.min(row.railMoldBelow, Math.max(0, rail - m.height)) : (rail - m.height) / 2);
     const end = (side: 'left' | 'right'): { cut: MiterCut; joined: boolean } => {
       const o = ends.beside?.(side);
       if (!o) return { cut: 'square', joined: false };
