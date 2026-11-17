@@ -2,7 +2,7 @@
 // cost and the price follows, the same way the Quote tab works it out. For fine-tuning a job's
 // price and for comparing estimates against what the job really took.
 import type { Project } from '../model/types';
-import { groupLabel, paintLineLabel, priceQuote, quoteOf, type Group } from '../model/quote';
+import { extraHours, extraLabel, extraMaterials, groupLabel, paintLineLabel, priceQuote, quoteOf, type Group } from '../model/quote';
 import { ballpark, comparableQuote, rateCardOf } from '../model/ballpark';
 import { writeXlsx, type Cell, type Row, type Workbook } from './xlsx';
 
@@ -82,11 +82,12 @@ export function pricingWorkbook(p: Project): Workbook {
     const pr = r.extras.find((x) => x.id === e.id)?.price ?? 0;
     workRows.push(n);
     sum.push([
-      q.lineLabels?.[`extra:${e.id}`]?.trim() || e.label,
-      { v: e.hours, s: 'input' },
+      q.lineLabels?.[`extra:${e.id}`]?.trim() || extraLabel(e),
+      { v: extraHours(e), s: 'input' },
       { v: e.amount, s: 'inputMoney' },
-      money(e.hours * q.laborCost * q.multiplier + e.amount, `B${n}*LaborCost*Multiplier+C${n}`),
-      money(e.hours * q.billRate + e.amount, `B${n}*BillRate+C${n}`),
+      // Interior work's materials go through the same markup as the cabinets'
+      money((extraHours(e) * q.laborCost + extraMaterials(e) * (1 + r.tax)) * q.multiplier + e.amount, `(B${n}*LaborCost+${extraMaterials(e)}*(1+Tax))*Multiplier+C${n}`),
+      money(extraHours(e) * q.billRate + extraMaterials(e) * (1 + r.tax) * (1 + q.materialMarkup) + e.amount, `B${n}*BillRate+${extraMaterials(e) * (1 + r.tax) * (1 + q.materialMarkup)}+C${n}`),
       set != null ? { v: set, s: 'inputMoney' } : { s: 'inputMoney' },
       money(pr, `IF(F${n}<>"",F${n}/(1+Workload),IF(Method="bill rate",E${n},D${n}))`),
     ]);
@@ -108,8 +109,8 @@ export function pricingWorkbook(p: Project): Workbook {
   sum.push([{ v: 'Cabinet Studio’s total when exported', s: 'note' }, null, null, null, null, null, money(r.total)]);
   sum.push([]);
   const painterCost = q.paintWhen === 'none' ? 0 : q.paintMode && q.paintMode !== 'quote' ? r.painter / (1 + q.painterMarkup) : q.painter;
-  const extraAmt = q.extras.reduce((t, e) => t + e.amount, 0);
-  const extraHrs = q.extras.reduce((t, e) => t + e.hours, 0);
+  const extraAmt = q.extras.reduce((t, e) => t + e.amount + extraMaterials(e) * (1 + r.tax), 0);
+  const extraHrs = q.extras.reduce((t, e) => t + extraHours(e), 0);
   const cost = sum.length + 1;
   sum.push(['What it costs you', null, null, null, null, null, money(r.cost, `Materials!D${matEnd + 2}*(1+Tax)+(Labor!F${laborEnd + 2}+${extraHrs})*LaborCost+${Math.round(painterCost * 100) / 100}+${extraAmt}`)]);
   sum.push([{ v: '(materials with tax, all hours at your labor cost, the painter’s cost and extras’ amounts)', s: 'note' }]);

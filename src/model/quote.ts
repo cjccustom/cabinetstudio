@@ -185,7 +185,67 @@ export const defaultStandards: LaborStandards = {
 
 export type Workload = 'full' | 'normal' | 'light';
 
-export interface QuoteExtra { id: string; label: string; hours: number; amount: number; /** Offered as part of this named option. */ option?: string }
+export interface QuoteExtra {
+  id: string; label: string; hours: number; amount: number; /** Offered as part of this named option. */ option?: string;
+  /**
+   * Interior work priced by quantity (crown, casing, wainscoting, doors): which kind it is, how much,
+   * and the hours and material cost for each unit. Its hours and materials are priced like the
+   * cabinets' (your multiplier, or bill rate plus markup); `amount` is added on top as a flat sum.
+   */
+  kind?: string;
+  qty?: number;
+  unit?: InteriorUnit;
+  hoursPer?: number;
+  matPer?: number;
+  /** What the customer reads for it on the proposal; unset = the kind's wording. */
+  scope?: string;
+}
+
+export type InteriorUnit = 'LF' | 'SF' | 'ea' | 'side' | 'window' | 'door' | 'hr' | 'lot';
+export interface InteriorPreset { key: string; label: string; unit: InteriorUnit; hoursPer: number; matPer: number; scope: string; /** How the quantity can be filled in from the room. */ from?: 'perimeter' | 'doorSides' | 'windows' | 'doors' }
+
+/**
+ * Interior work outside the cabinetry, ready to add to a quote. The hours and material costs are
+ * starting points for finish carpentry (install only, painting by others); set your own on the Quote
+ * tab and they're kept as your rates for every job.
+ */
+export const interiorPresets: InteriorPreset[] = [
+  { key: 'crown', label: 'Crown moulding', unit: 'LF', hoursPer: 0.12, matPer: 4, from: 'perimeter', scope: 'Crown moulding installed around the room: inside corners coped, outside corners mitered, nail holes filled and ready for paint' },
+  { key: 'base', label: 'Baseboard', unit: 'LF', hoursPer: 0.08, matPer: 3, from: 'perimeter', scope: 'Baseboard installed: inside corners coped, outside corners mitered, ready for paint' },
+  { key: 'chair', label: 'Chair rail', unit: 'LF', hoursPer: 0.06, matPer: 2.5, from: 'perimeter', scope: 'Chair rail installed, ready for paint' },
+  { key: 'wainscotPanel', label: 'Wainscoting, frame and panel', unit: 'LF', hoursPer: 0.75, matPer: 16, from: 'perimeter', scope: 'Frame-and-panel wainscoting with a cap and base, laid out to the room, ready for paint' },
+  { key: 'wainscotBead', label: 'Wainscoting, beadboard', unit: 'LF', hoursPer: 0.35, matPer: 9, from: 'perimeter', scope: 'Beadboard wainscoting with a cap and base, ready for paint' },
+  { key: 'boardBatten', label: 'Board and batten', unit: 'LF', hoursPer: 0.4, matPer: 7, from: 'perimeter', scope: 'Board and batten wall treatment, ready for paint' },
+  { key: 'doorCasing', label: 'Door casing, install', unit: 'side', hoursPer: 1, matPer: 30, from: 'doorSides', scope: 'Door casing installed (each side of the opening counted), mitered and ready for paint' },
+  { key: 'doorCasingReplace', label: 'Door casing, remove and replace', unit: 'side', hoursPer: 1.5, matPer: 30, from: 'doorSides', scope: 'Existing door casing removed and new casing installed (each side of the opening counted), ready for paint' },
+  { key: 'windowTrim', label: 'Window trim, install', unit: 'window', hoursPer: 2.5, matPer: 55, from: 'windows', scope: 'Window trim installed: stool, apron and casing, ready for paint' },
+  { key: 'windowTrimReplace', label: 'Window trim, remove and replace', unit: 'window', hoursPer: 3, matPer: 55, from: 'windows', scope: 'Existing window trim removed and new stool, apron and casing installed, ready for paint' },
+  { key: 'doorPrehung', label: 'Interior door, prehung, install', unit: 'door', hoursPer: 2.5, matPer: 0, from: 'doors', scope: 'Prehung interior door installed: set plumb and level, shimmed and fastened, hardware installed' },
+  { key: 'doorSlab', label: 'Interior door, new slab in the existing jamb', unit: 'door', hoursPer: 3, matPer: 0, from: 'doors', scope: 'New door slab fit to the existing jamb: trimmed to size, hinges mortised, bored for the lockset and hung' },
+  { key: 'doorHardware', label: 'Door hardware, install', unit: 'door', hoursPer: 0.5, matPer: 0, from: 'doors', scope: 'Door hardware installed' },
+  { key: 'other', label: 'Other interior work', unit: 'hr', hoursPer: 1, matPer: 0, scope: '' },
+];
+export const interiorUnits: Record<InteriorUnit, string> = { LF: 'LF', SF: 'sq ft', ea: 'each', side: 'sides', window: 'windows', door: 'doors', hr: 'hours', lot: 'lot' };
+/** Interior work is a quote extra with a quantity. */
+export const isInterior = (e: QuoteExtra) => e.qty != null;
+/** An extra's hours: by the unit for interior work. */
+export const extraHours = (e: QuoteExtra) => (isInterior(e) ? (e.qty ?? 0) * (e.hoursPer ?? 0) : e.hours);
+/** Material cost (before tax and markup) of interior work; plain extras have none apart from their flat amount. */
+export const extraMaterials = (e: QuoteExtra) => (isInterior(e) ? (e.qty ?? 0) * (e.matPer ?? 0) : 0);
+const qtyText = (v: number) => (Math.round(v * 100) / 100).toLocaleString('en-US');
+/** How it reads on the agreement: its name and how much. */
+export const extraLabel = (e: QuoteExtra) => (isInterior(e) && e.unit !== 'lot' && e.unit !== 'hr' && e.qty ? `${e.label} (${qtyText(e.qty)} ${e.qty === 1 && e.unit !== 'LF' ? interiorUnits[e.unit ?? 'ea'].replace(/s$/, '') : interiorUnits[e.unit ?? 'ea']})` : e.label);
+/** What the customer reads for it in the scope. */
+export const extraScope = (e: QuoteExtra) => {
+  const words = e.scope?.trim() || interiorPresets.find((x) => x.key === e.kind)?.scope || e.label;
+  return isInterior(e) && e.unit !== 'lot' && e.unit !== 'hr' && e.qty ? `${words} (${qtyText(e.qty)} ${interiorUnits[e.unit ?? 'ea']})` : words;
+};
+/** A new line of interior work, at your rates when you've set them. */
+export function newInterior(key: string, q: QuoteSettings): QuoteExtra {
+  const pr = interiorPresets.find((x) => x.key === key) ?? interiorPresets[interiorPresets.length - 1];
+  const mine = q.interiorRates?.[pr.key];
+  return { id: uid('extra'), label: pr.label, hours: 0, amount: 0, kind: pr.key, qty: 0, unit: pr.unit, hoursPer: mine?.hoursPer ?? pr.hoursPer, matPer: mine?.matPer ?? pr.matPer };
+}
 
 export interface QuoteSettings {
   laborCost: number;
@@ -258,6 +318,8 @@ export interface QuoteSettings {
   payments?: import('./schedule').PaymentStep[];
   finalPaymentLabel?: string;
   extras: QuoteExtra[];
+  /** Your own hours and material cost per unit for each kind of interior work (by preset key). */
+  interiorRates?: Record<string, { hoursPer: number; matPer: number }>;
   /** Hours you set yourself for a labor line, by lineKey: used in place of the estimate. */
   hourOverrides?: Record<string, number>;
   /** Cost you set yourself for a material line, by lineKey. */
@@ -876,7 +938,7 @@ export function priceQuote(p: Project): QuoteResult {
   const adjOf = 1 + q.workloadAdj[q.workload];
   const extras = q.extras.map((e) => {
     const set = q.linePrices?.[`extra:${e.id}`];
-    return { id: e.id, label: e.label, price: set != null ? set / adjOf : price(e.hours, 0).chosen + e.amount };
+    return { id: e.id, label: extraLabel(e), price: set != null ? set / adjOf : price(extraHours(e), extraMaterials(e)).chosen + e.amount };
   });
   const painter = q.paintWhen === 'none' ? 0 : q.linePrices?.painting ?? paintCalculated(p, q);
   const work = groups.reduce((t, g) => t + g.price, 0) + extras.reduce((t, e) => t + e.price, 0);
@@ -885,14 +947,14 @@ export function priceQuote(p: Project): QuoteResult {
   const raw = calculated + workloadAmount + q.adjustment;
   const total = q.roundTo > 0 ? Math.round(raw / q.roundTo) * q.roundTo : raw;
   const materialCost = materials.reduce((t, m) => t + m.cost, 0) * (1 + tax);
-  const allHours = hours.reduce((t, h) => t + h.hours, 0) + q.extras.reduce((t, e) => t + e.hours, 0);
+  const allHours = hours.reduce((t, h) => t + h.hours, 0) + q.extras.reduce((t, e) => t + extraHours(e), 0);
   return {
     hours, materials, tax, groups, extras, painter, calculated, workloadAmount, total,
     shopHours: hours.filter((h) => !h.install).reduce((t, h) => t + h.hours, 0),
     installHours: hours.filter((h) => h.install).reduce((t, h) => t + h.hours, 0),
     materialCost,
     // The painter's cost to you: their quote, or the estimate or allowance less your usual markup
-    cost: materialCost + allHours * q.laborCost + (q.paintWhen === 'none' ? 0 : q.paintMode && q.paintMode !== 'quote' ? painter / (1 + q.painterMarkup) : q.painter) + q.extras.reduce((t, e) => t + e.amount, 0),
+    cost: materialCost + allHours * q.laborCost + (q.paintWhen === 'none' ? 0 : q.paintMode && q.paintMode !== 'quote' ? painter / (1 + q.painterMarkup) : q.painter) + q.extras.reduce((t, e) => t + e.amount + extraMaterials(e) * (1 + tax), 0),
   };
 }
 

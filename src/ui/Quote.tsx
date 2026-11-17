@@ -2,6 +2,7 @@ import { defaultFinishing } from '../model/finishing';
 import { useMemo, useState } from 'react';
 import { useStore } from '../store';
 import { ballpark, categoryLabel, categoryOf, comparableQuote, featureLabel, rateCardOf, type Band, type BallparkCategory, type BallparkFeature } from '../model/ballpark';
+import { interiorPresets, interiorUnits, isInterior, newInterior, type InteriorUnit, type QuoteExtra } from '../model/quote';
 import { defaultStandards, groupLabel, lineKey, newExtra, paintEstimate, paintLineLabel, paintRates, type Group, priceQuote, quoteOf, scopeItems, type LaborStandards, type QuoteSettings, type Workload, extraFinishes } from '../model/quote';
 import { Field, Section } from './fields';
 import { QuoteRendering } from './Rendering';
@@ -323,9 +324,11 @@ export function QuoteSummary() {
 
         <FurnitureSection />
 
+        <InteriorSection />
+
         <Section title="Additional work" aside={<button className="mini" onClick={() => set({ extras: [...q.extras, newExtra()] })}>Add</button>}>
-          {q.extras.length === 0 && <p className="hint">Demo, trim, casing, hardware installs: anything priced by hours or a flat amount.</p>}
-          {q.extras.map((e) => (
+          {!q.extras.some((e) => !isInterior(e)) && <p className="hint">Demo, hardware installs, anything else priced by hours or a flat amount.</p>}
+          {q.extras.filter((e) => !isInterior(e)).map((e) => (
             <div key={e.id} className="stock-row">
               <div className="sr-head">
                 <input id={`ex-l-${e.id}`} aria-label="Description" value={e.label} onChange={(ev) => set({ extras: q.extras.map((x) => (x.id === e.id ? { ...x, label: ev.target.value } : x)) })} />
@@ -563,6 +566,77 @@ function BallparkSection() {
         </table>
         {q.rateCard && <button className="mini" onClick={() => set({ rateCard: undefined })}>Back to the v5 rate card</button>}
       </details>
+    </Section>
+  );
+}
+
+/** How much of a kind of interior work the room's own plan shows: its walls, door sides and windows. */
+function fromRoom(p: ReturnType<typeof useStore.getState>['project'], from: string | undefined): { qty: number; text: string } | null {
+  const ops = p.openings ?? [];
+  if (from === 'perimeter') { const lf = Math.round(((2 * (p.room.width + p.room.depth)) / 12) * 10) / 10; return { qty: lf, text: `${lf} LF around the room` }; }
+  if (from === 'doorSides') { const n = ops.filter((o) => o.kind === 'door' || o.kind === 'cased').length; return n ? { qty: n * 2, text: `${n * 2} sides (${n} opening${n === 1 ? '' : 's'}, both sides)` } : null; }
+  if (from === 'windows') { const n = ops.filter((o) => o.kind === 'window').length; return n ? { qty: n, text: `${n} window${n === 1 ? '' : 's'}` } : null; }
+  if (from === 'doors') { const n = ops.filter((o) => o.kind === 'door').length; return n ? { qty: n, text: `${n} door${n === 1 ? '' : 's'}` } : null; }
+  return null;
+}
+
+/**
+ * Interior work beyond the cabinetry (crown, base, casing, wainscoting, doors), priced by the foot,
+ * the opening or the door at your rates, and listed under its own heading on the proposal.
+ */
+function InteriorSection() {
+  const { project, q, set, result } = useQuote();
+  const items = q.extras.filter(isInterior);
+  const put = (id: string, patch: Partial<QuoteExtra>) => set({ extras: q.extras.map((x) => (x.id === id ? { ...x, ...patch } : x)) });
+  const add = (key: string) => key && set({ extras: [...q.extras, newInterior(key, q)] });
+  const adj = 1 + q.workloadAdj[q.workload];
+  const per = (u: InteriorUnit | undefined) => (u === 'LF' ? 'LF' : u === 'SF' ? 'sq ft' : u === 'lot' ? 'lot' : interiorUnits[u ?? 'ea'].replace(/s$/, ''));
+  return (
+    <Section title="Interior work" aside={
+      <select aria-label="Add interior work" value="" onChange={(e) => add(e.target.value)}>
+        <option value="">Add…</option>
+        {interiorPresets.map((pr) => <option key={pr.key} value={pr.key}>{pr.label}</option>)}
+      </select>}>
+      {items.length === 0 && <p className="hint">Crown, baseboard, wainscoting, door and window casing, interior doors: priced by the foot, the opening or the door at your rates, and listed on the proposal under “Interior work”. Works on a job with no cabinets too. Painting isn’t included; add it as its own line if you’re doing it.</p>}
+      {items.map((e) => {
+        const pr = interiorPresets.find((x) => x.key === e.kind);
+        const room = fromRoom(project, pr?.from);
+        const mine = e.kind ? q.interiorRates?.[e.kind] : undefined;
+        const rateChanged = !!pr && ((mine?.hoursPer ?? pr.hoursPer) !== e.hoursPer || (mine?.matPer ?? pr.matPer) !== e.matPer);
+        const price = (result.extras.find((x) => x.id === e.id)?.price ?? 0) * adj;
+        return (
+          <div key={e.id} className="stock-row">
+            <div className="sr-head">
+              <input id={`in-l-${e.id}`} aria-label="Description" value={e.label} onChange={(ev) => put(e.id, { label: ev.target.value })} />
+              <button className="icon-btn" aria-label="Remove" onClick={() => set({ extras: q.extras.filter((x) => x.id !== e.id) })}>×</button>
+            </div>
+            <div className="grid3">
+              <Num id={`in-q-${e.id}`} label="Quantity" value={e.qty ?? 0} step="0.5" onChange={(v) => put(e.id, { qty: v })} />
+              <Field label="Unit" htmlFor={`in-u-${e.id}`}>
+                <select id={`in-u-${e.id}`} value={e.unit ?? 'ea'} onChange={(ev) => put(e.id, { unit: ev.target.value as InteriorUnit })}>
+                  {(Object.keys(interiorUnits) as InteriorUnit[]).map((u) => <option key={u} value={u}>{interiorUnits[u]}</option>)}
+                </select>
+              </Field>
+              <Field label="Price" htmlFor={`in-p-${e.id}`}><output id={`in-p-${e.id}`} className="in-price">{money(price)}</output></Field>
+            </div>
+            {room && Math.abs((e.qty ?? 0) - room.qty) > 0.01 && <p className="hint">From the room’s plan: {room.text}. <button className="link-btn" onClick={() => put(e.id, { qty: room.qty })}>Use it</button></p>}
+            <div className="grid3">
+              <Num id={`in-h-${e.id}`} label={`Hours per ${per(e.unit)}`} step="0.05" value={e.hoursPer ?? 0} onChange={(v) => put(e.id, { hoursPer: v })} />
+              <Num id={`in-m-${e.id}`} label={`Materials per ${per(e.unit)}`} suffix="$" value={e.matPer ?? 0} onChange={(v) => put(e.id, { matPer: v })} />
+              <Num id={`in-a-${e.id}`} label="Plus a flat amount" suffix="$" value={e.amount} onChange={(v) => put(e.id, { amount: v })} />
+            </div>
+            {rateChanged && <p className="hint">Not your usual rate for {pr!.label.toLowerCase()}. <button className="link-btn" onClick={() => set({ interiorRates: { ...q.interiorRates, [pr!.key]: { hoursPer: e.hoursPer ?? 0, matPer: e.matPer ?? 0 } } })}>Make these my rates</button></p>}
+            {(e.kind === 'doorPrehung' || e.kind === 'doorSlab') && !e.matPer && <p className="hint">Supplying the door? Put its cost in Materials per door.</p>}
+            <Field label="On the proposal" htmlFor={`in-s-${e.id}`}>
+              <textarea id={`in-s-${e.id}`} rows={2} value={e.scope ?? ''} placeholder={pr?.scope || 'What the customer reads for this line'} onChange={(ev) => put(e.id, { scope: ev.target.value || undefined })} />
+            </Field>
+            <Field label="Offered as an option (blank = included)" htmlFor={`in-o-${e.id}`}>
+              <input id={`in-o-${e.id}`} list="option-names-q" value={e.option ?? ''} placeholder="Included in the base price" onChange={(ev) => put(e.id, { option: ev.target.value || undefined })} />
+            </Field>
+          </div>
+        );
+      })}
+      {items.length > 0 && <p className="hint">Hours and materials are priced like the cabinets ({q.method === 'multiplier' ? `cost × ${q.multiplier}` : `$${q.billRate}/hr plus ${Math.round(q.materialMarkup * 100)}% on materials`}). The starting rates are rough finish-carpentry numbers: set yours once and “Make these my rates” keeps them for every job.</p>}
     </Section>
   );
 }

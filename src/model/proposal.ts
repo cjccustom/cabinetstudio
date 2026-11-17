@@ -6,7 +6,7 @@ import { caseScope, casesOf } from './casePiece';
 import { jobRooms } from './rooms';
 import { hardwareScope } from './pulls';
 import type { Cabinet, Project, WallId } from './types';
-import { cofferScope, priceQuote, scopeLine } from './quote';
+import { cofferScope, extraScope, isInterior, priceQuote, scopeLine } from './quote';
 import { furnitureOf, tableScope } from './furniture';
 import { wallNames } from './layout';
 import { styleById } from './eagle';
@@ -69,7 +69,7 @@ export function optionPrices(p: Project): ProposalOption[] {
   const base = priceQuote(withOptions(p)).total;
   return names.map((name) => {
     const price = Math.round((priceQuote(withOptions(p, [name])).total - base) / 10) * 10;
-    const extras = (p.quote?.extras ?? []).filter((e) => e.option?.trim() === name).map((e) => e.label);
+    const extras = (p.quote?.extras ?? []).filter((e) => e.option?.trim() === name).map((e) => (isInterior(e) ? extraScope(e) : e.label));
     const rs = jobRooms(withOptions(p, [name])).map((r) => r.project);
     const cabItems = rs.flatMap((r) => plainItems(r, r.cabinets.filter((c) => c.option?.trim() === name)));
     const lights = jobRooms(p).flatMap((r) => lightingOptions(r.project)).filter((o) => o.name === name).map((o) => `${lightWords[o.kind] ?? 'LED lighting'} (${o.cabs.length === 1 ? o.cabs[0].name : `${o.cabs.map((c) => c.name).join(', ').replace(/, ([^,]*)$/, ' and $1')}`})`);
@@ -136,12 +136,14 @@ export function proposalSummary(p: Project): ProposalSummary {
     });
     // The job as a whole: every room's cabinets for the finishing and materials
     const all: Project = { ...withOptions(p), rooms: undefined, cabinets: each.flatMap((e) => e.base.cabinets) };
-    const extras = [...(all.quote?.extras ?? []).map((e) => e.label), ...(all.quote?.scopeExtra ?? [])].filter((x) => x?.trim());
+    const extras = [...(all.quote?.extras ?? []).filter((e) => !isInterior(e)).map((e) => e.label), ...(all.quote?.scopeExtra ?? [])].filter((x) => x?.trim());
+    const interior = (all.quote?.extras ?? []).filter(isInterior).map(extraScope);
     const tables = furnitureOf(all).map((t) => { const x = tableScope(t).replace(/^[^:]*:\s*/, ''); return x.charAt(0).toUpperCase() + x.slice(1); });
     if (tables.length) areas.push({ title: furnitureOf(all).length === 1 ? furnitureOf(all)[0].name || 'Furniture' : 'Furniture', items: tables });
     for (const b of bedsOf(all)) { const x = bedScope(b).replace(/^[^:]*:\s*/, ''); areas.push({ title: b.name || 'Bed', items: [x.charAt(0).toUpperCase() + x.slice(1)] }); }
     for (const c of casesOf(all)) { const x = caseScope(c).replace(/^[^:]*:\s*/, ''); areas.push({ title: c.name || 'Furniture', items: [x.charAt(0).toUpperCase() + x.slice(1)] }); }
     if (all.cabinets.length) areas.push({ title: 'Finishing', items: finishingItems(all) });
+    if (interior.length) areas.push({ title: 'Interior work', items: interior });
     if (extras.length) areas.push({ title: 'Also included', items: extras });
     return { areas, materials: materialsOf(all), options: optionPrices(p) };
   }
@@ -176,7 +178,8 @@ export function proposalSummary(p: Project): ProposalSummary {
       return { title, items };
     }).filter((a) => a.items.length);
   }
-  const extras = [...(base.quote?.extras ?? []).map((e) => e.label), ...(base.quote?.scopeExtra ?? [])].filter((x) => x?.trim());
+  const extras = [...(base.quote?.extras ?? []).filter((e) => !isInterior(e)).map((e) => e.label), ...(base.quote?.scopeExtra ?? [])].filter((x) => x?.trim());
+  const interior = (base.quote?.extras ?? []).filter(isInterior).map(extraScope);
   // Tables and the ceiling, each under its own heading, in the same words as the scope of work
   const tables = furnitureOf(base).map((t) => { const x = tableScope(t).replace(/^[^:]*:\s*/, ''); return x.charAt(0).toUpperCase() + x.slice(1); });
   if (tables.length) areas.push({ title: furnitureOf(base).length === 1 ? furnitureOf(base)[0].name || 'Furniture' : 'Furniture', items: tables });
@@ -185,6 +188,7 @@ export function proposalSummary(p: Project): ProposalSummary {
   const ceiling = cofferScope(base);
   if (ceiling) areas.push({ title: 'Coffered ceiling', items: [ceiling.charAt(0).toUpperCase() + ceiling.slice(1)] });
   if (base.cabinets.length) areas.push({ title: 'Finishing', items: finishingItems(base) });
+  if (interior.length) areas.push({ title: 'Interior work', items: interior });
   if (extras.length) areas.push({ title: 'Also included', items: extras });
   return { areas, materials: materialsOf(base), options: optionPrices(p) };
 }

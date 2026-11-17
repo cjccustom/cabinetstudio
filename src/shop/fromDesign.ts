@@ -1,7 +1,7 @@
 // What the shop clock needs from a design: the quoted price, what materials cost, the labor estimate
 // split into the clock's tasks, and a starting to-do list for ordering and install.
 import type { Project } from '../model/types';
-import { priceQuote, quoteOf, type HourLine } from '../model/quote';
+import { extraHours, extraMaterials, priceQuote, quoteOf, type HourLine } from '../model/quote';
 import { eagleRequests, requestTitle } from '../model/eagleRequest';
 import { hardwareOrder } from '../model/hardware';
 import { fmt } from '../units';
@@ -29,15 +29,15 @@ export function jobNumbers(p: Project): Pick<ShopJob, 'quote' | 'materials' | 'e
   const q = quoteOf(p);
   const estByPhase: Partial<Record<Phase, number>> = {};
   for (const h of r.hours) estByPhase[phaseOf(h)] = (estByPhase[phaseOf(h)] ?? 0) + h.hours;
-  const extraHours = q.extras.reduce((t, e) => t + e.hours, 0);
-  if (extraHours) estByPhase.Other = (estByPhase.Other ?? 0) + extraHours;
+  const exHours = q.extras.reduce((t, e) => t + extraHours(e), 0);
+  if (exHours) estByPhase.Other = (estByPhase.Other ?? 0) + exHours;
   const round = (v: number) => Math.round(v * 10) / 10;
   for (const k of Object.keys(estByPhase) as Phase[]) estByPhase[k] = round(estByPhase[k]!);
   return {
     quote: Math.round(r.total),
     // Materials with purchase tax, plus what the painter and any flat extras cost
-    materials: Math.round(r.materialCost + q.painter + q.extras.reduce((t, e) => t + e.amount, 0)),
-    estHours: round(r.shopHours + r.installHours + extraHours),
+    materials: Math.round(r.materialCost + q.painter + q.extras.reduce((t, e) => t + e.amount + extraMaterials(e) * (1 + p.settings.purchaseTax), 0)),
+    estHours: round(r.shopHours + r.installHours + exHours),
     estByPhase,
   };
 }

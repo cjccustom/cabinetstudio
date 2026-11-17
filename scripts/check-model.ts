@@ -57,7 +57,7 @@ import { defaultFaceFrameStock, faceFrameNeeds, faceFramePieces, otherSpecies, r
 import { panelAbove, panelBetween, panelOrder } from "../src/model/panels";
 import { amCatalog } from "../src/model/andersonMcquaid";
 import { cabinetMoldings, moldingOrder, mountShape, priceOf, profileByNum, profileLabel, setCustomDrawings } from "../src/model/moldings";
-import { closetRods, scopeItems, estimateHours, estimateMaterials, extraFinishes, paintCalculated, paintEstimate, priceQuote, proposalScope, quoteOf, scopeLine } from "../src/model/quote";
+import { closetRods, scopeItems, estimateHours, estimateMaterials, extraFinishes, paintCalculated, paintEstimate, priceQuote, proposalScope, newInterior, quoteOf, scopeLine } from "../src/model/quote";
 import { cutStock, defaultCutlist, designParts, optimizerParts } from "../src/model/cutlist";
 import { applyBook, choosePlywood, chooseSpecies, priceBook, setJobFinish, stalePrices } from "../src/model/pricebook";
 import { doorMaterials as eagleDoorMaterials, eagleWoodFactor } from "../src/model/eagle";
@@ -2636,6 +2636,33 @@ eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i
   eq('rail moulding: across the cabinet, inside-mitered where the proud pilaster is', t.length === 1 && t[0].length === tall.width && t[0].cut?.[0] === 'in', true);
   const ret = q.find((m) => m.along === 'z' && m.facing === 'right');
   eq('band moulding: across the pilaster and returned to the cabinet face, mitered', !!ret && ret.z === 12 && ret.cut?.join() === 'in,out' && q.some((m) => m.along === 'x' && m.cut?.[1] === 'out'), true);
+}
+
+// Interior work priced by the unit: its own heading on the proposal, its quantity on the agreement, on a job with no cabinets too
+{
+  const sp = sampleProject();
+  const base = { ...sp, cabinets: [], quote: { ...quoteOf(sp), extras: [] } };
+  const q0 = quoteOf(base);
+  const crown = { ...newInterior('crown', q0), qty: 60 };
+  const doors = { ...newInterior('doorPrehung', q0), qty: 3, matPer: 250 };
+  const job = { ...base, quote: { ...q0, extras: [crown, doors], method: 'multiplier' as const, multiplier: 2, laborCost: 50, workload: 'normal' as const, adjustment: 0, roundTo: 0 } };
+  const r = priceQuote(job);
+  const tax = job.settings.purchaseTax;
+  const want = (60 * 0.12 * 50 + 60 * 4 * (1 + tax)) * 2;
+  eq('interior work: crown priced from LF × hours and materials, through the multiplier', Math.round(r.extras.find((e) => e.id === crown.id)!.price), Math.round(want));
+  eq('interior work: agreement line carries the quantity', r.extras.map((e) => e.label).join(' | '), 'Crown moulding (60 LF) | Interior door, prehung, install (3 doors)');
+  const s = proposalSummary(job);
+  const area = s.areas.find((a) => a.title === 'Interior work');
+  eq('interior work: own heading on the proposal, in the customer\'s words', area?.items.length === 2 && /^Crown moulding installed around the room.*\(60 LF\)$/.test(area.items[0]), true);
+  eq('interior work: not repeated under Also included, no cabinet finishing on a trim-only job', s.areas.some((a) => a.title === 'Also included' || a.title === 'Finishing'), false);
+  const lines = proposalLines(job);
+  eq('interior work: agreement lines add up to the total', Math.round(lines.reduce((t, l) => t + l.price, 0)), Math.round(r.total));
+  // Your own rate sticks for the next line of that kind
+  const mine = newInterior('crown', { ...q0, interiorRates: { crown: { hoursPer: 0.2, matPer: 6 } } });
+  eq('interior work: your saved rates start the next line', `${mine.hoursPer} ${mine.matPer}`, '0.2 6');
+  // Offered as an option: out of the base price, listed with the option
+  const opt = { ...job, quote: { ...job.quote, extras: [crown, { ...doors, option: 'New doors' }] } };
+  eq('interior work: as an option it comes out of the base and lists under the option', `${Math.round(priceQuote(withOptions(opt)).total) < Math.round(r.total)} ${optionPrices(opt)[0]?.items[0]?.startsWith('Prehung interior door installed')}`, 'true true');
 }
 
 console.log(failed ? `${failed} check(s) failed` : 'All model checks passed');
