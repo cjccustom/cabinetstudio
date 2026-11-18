@@ -2,8 +2,8 @@
 // clear coated"), and a Finishing section that says how it's done, when, and what they choose.
 // The section's wording is Cabinet Studio's starting point; your own replaces it on the Quote tab.
 import type { Cabinet, Project } from './types';
-import { eff } from './parts';
-import { quoteOf } from './quote';
+import { eff, isOpenRow } from './parts';
+import { legacyPaint, quoteOf } from './quote';
 import { colorText } from './paintColors';
 
 export type StainCoat = 'stain' | 'clear';
@@ -58,8 +58,13 @@ export function defaultFinishing(p: Project): string[] {
       const ply = p.settings.plywood ?? 'Prefinished birch';
       if (!/prefinished/i.test(ply)) return [];
       const cases = p.cabinets.filter((c) => c.kind === 'base' || c.kind === 'wall' || c.kind === 'tall');
-      const painted = cases.filter((c) => c.build?.interior === 'paint');
-      if (cases.length && painted.length === cases.length) return ['Open sections and hanging areas painted inside to match'];
+      // Only open sections are painted inside; behind doors and drawers the interior stays prefinished whatever the cabinet says
+      const open = (c: (typeof cases)[number]) => c.rows.some((r) => isOpenRow(r.type, r.covered));
+      const painted = cases.filter((c) => c.build?.interior === 'paint' && open(c));
+      const bareOpen = cases.filter((c) => open(c) && c.build?.interior !== 'paint');
+      const closed = cases.filter((c) => !open(c));
+      if (painted.length && !bareOpen.length && !closed.length) return ['Open sections and hanging areas painted inside to match'];
+      if (painted.length && !bareOpen.length && !legacyPaint(p)) return [`Open sections and hanging areas painted inside to match; cabinets with doors and drawers have ${ply.toLowerCase()} plywood interiors, left in their clear factory finish`];
       if (painted.length) return [`Open sections painted inside to match where noted; other cabinet interiors are ${ply.toLowerCase()} plywood, left in their clear factory finish`];
       return [`Cabinet interiors are ${ply.toLowerCase()} plywood, left in their clear factory finish`];
     })(),

@@ -1,3 +1,4 @@
+import { defaultFinishing } from '../src/model/finishing';
 import { addToJob, designPrice, newDesign } from "../src/model/furnitureDesign";
 import { metalCutList, metalMembers, newMetalBase } from "../src/model/metalBase";
 import { metalSheetHtml } from "../src/model/metalSheet";
@@ -2683,6 +2684,18 @@ eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i
   const moved = { ...sent, quote: { ...sent.quote, paintRates2: true } };
   eq('paint estimate: a sent job can be switched to the new estimate', paintEstimate(moved, quoteOf(moved)).legacy, false);
   eq('paint estimate: the fitted rates land on her Fine quote (12 fronts, 23.75 sq ft)', Math.round(r.setup + 12 * r.perFront + 23.75 * r.perSqFt), 1393);
+}
+
+// Finishing wording: open sections painted inside, cabinets with doors and drawers left prefinished (Cohen)
+{
+  const sp = sampleProject();
+  const open = cabinetFromPreset(presets.find((x) => x.id === 'wall-open') ?? presets.find((x) => x.kind === 'wall')!, 'back', 0, []);
+  const openCab = { ...open, rows: [{ id: 'r-open', type: 'open' as const, height: null, doors: 1, shelves: 3 }], build: { ...open.build, interior: 'paint' as const } };
+  const closed = cabinetFromPreset(presets.find((x) => x.kind === 'base')!, 'back', 40, []);
+  const closedCab = { ...closed, build: { ...closed.build, interior: 'paint' as const } };
+  const words = (cabs: Cabinet[]) => defaultFinishing({ ...sp, settings: { ...sp.settings, plywood: 'Prefinished birch' }, cabinets: cabs }).filter((x) => /inside|interior/i.test(x)).join(' | ');
+  eq('finishing: all open and painted inside', words([openCab]), 'Open sections and hanging areas painted inside to match');
+  eq('finishing: painted open sections with closed door cabinets (even ones set to painted) left prefinished', /cabinets with doors and drawers have prefinished birch plywood interiors/.test(words([openCab, closedCab])), true);
 }
 
 console.log(failed ? `${failed} check(s) failed` : 'All model checks passed');
