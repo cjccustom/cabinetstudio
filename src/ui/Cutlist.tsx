@@ -11,6 +11,32 @@ import { labelDocument, labelFormats, partLabels, type LabelFormat } from '../dr
 import { capability, type Downloads } from '../runtime';
 import { useShop, saveOffcut, deleteOffcut, type StockOffcut } from '../shop/shop';
 import { askConfirm } from './Confirm';
+import { cncLayouts, cncOf, defaultCnc, layerGuide, partOps, sheetDxf, sheetOps, type CncOp, type CncSettings } from '../model/cnc';
+import { zipStored } from '../export/xlsx';
+
+/** Save a file the way the rest of the app does: through the viewer's download prompt, or a plain link. */
+async function saveFile(name: string, blob: Blob): Promise<string> {
+  try {
+    const downloads = await capability<Downloads>('downloads');
+    if (downloads) await downloads.save({ filename: name.replace(/[\\/:*?"<>|]/g, ''), data: blob });
+    else { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name.replace(/[\\/:*?"<>|]/g, ''); a.click(); }
+    return '';
+  } catch (e) {
+    const code = (e as { code?: string }).code;
+    return code === 'declined' || code === 'cancelled' ? '' : 'Couldn’t save the file.';
+  }
+}
+
+/** The router's layouts and each part's machining, for the CNC cut list. */
+function useCnc() {
+  const project = useStore((s) => s.project);
+  return useMemo(() => {
+    const data = project.cutlist ?? defaultCutlist(project);
+    const cnc = cncOf(data);
+    return { results: cncLayouts(project, data), ops: partOps(project, cnc), cnc };
+  }, [project]);
+}
+type CncView = ReturnType<typeof useCnc>;
 
 function useCutlist() {
   const project = useStore((s) => s.project);
@@ -42,21 +68,39 @@ export function CutlistInputs() {
   const setStock = (id: string, patch: Partial<Stock>) => set((d) => ({ ...d, stock: d.stock.map((s) => (s.id === id ? { ...s, ...patch } : s)) }));
   const setExtra = (id: string, patch: Partial<ExtraPart>) => set((d) => ({ ...d, extra: d.extra.map((e) => (e.id === id ? { ...e, ...patch } : e)) }));
   const missing = mats.filter((m) => !data.stock.some((s) => s.material === m));
+  const cnc = cncOf(data);
+  const setCnc = (patch: Partial<CncSettings>) => set((d) => ({ ...d, cnc: { ...d.cnc, ...patch } }));
 
   return (
     <aside className="sidebar">
       <div className="side-body">
         <Section title="Options">
+          {data.method === 'cnc' ? (
+            <div className="grid2">
+              <Field label="Cutting bit" htmlFor="co-bit"><LengthInput id="co-bit" value={cnc.bit} onChange={(v) => setCnc({ bit: v ?? defaultCnc.bit })} /></Field>
+              <Field label="Clear of sheet edges" htmlFor="co-edge"><LengthInput id="co-edge" value={cnc.edge} onChange={(v) => setCnc({ edge: v ?? defaultCnc.edge })} /></Field>
+              <Field label="Cut into spoilboard" htmlFor="co-thru"><LengthInput id="co-thru" value={cnc.through} onChange={(v) => setCnc({ through: v ?? defaultCnc.through })} /></Field>
+              <Field label="Shelf pin hole depth" htmlFor="co-pin"><LengthInput id="co-pin" value={cnc.pinDepth} onChange={(v) => setCnc({ pinDepth: v ?? defaultCnc.pinDepth })} /></Field>
+              <Field label="DXF units" htmlFor="co-units">
+                <select id="co-units" value={cnc.units} onChange={(e) => setCnc({ units: e.target.value as CncSettings['units'] })}>
+                  <option value="mm">Millimetres</option>
+                  <option value="in">Inches</option>
+                </select>
+              </Field>
+              <Field label="Keep offcuts over" htmlFor="co-min"><LengthInput id="co-min" value={o.minOffcut} onChange={(v) => setOpt({ minOffcut: v! })} /></Field>
+            </div>
+          ) : (
           <div className="grid2">
             <Field label="Blade kerf" htmlFor="co-kerf"><LengthInput id="co-kerf" value={o.kerf} onChange={(v) => setOpt({ kerf: v! })} /></Field>
             <Field label="Edge trim" htmlFor="co-trim"><LengthInput id="co-trim" value={o.trim} onChange={(v) => setOpt({ trim: v! })} /></Field>
             <Field label="Keep offcuts over" htmlFor="co-min"><LengthInput id="co-min" value={o.minOffcut} onChange={(v) => setOpt({ minOffcut: v! })} /></Field>
           </div>
+          )}
           <div className="checks">
             <label><input id="co-grain" type="checkbox" checked={o.considerGrain} onChange={(e) => setOpt({ considerGrain: e.target.checked })} /> Respect grain direction</label>
             <label><input id="co-band" type="checkbox" checked={o.bandShelves} onChange={(e) => setOpt({ bandShelves: e.target.checked })} /> Edge band shelf fronts</label>
           </div>
-          <p className="hint">Edge trim is cleaned off each factory edge before the first rip.</p>
+          <p className="hint">{data.method === 'cnc' ? 'Parts are laid out at least a bit’s width apart and kept clear of the sheet edges. Same parts, sheets and part numbers as the table saw list.' : 'Edge trim is cleaned off each factory edge before the first rip.'}</p>
         </Section>
 
         <Section title="Stock sheets" aside={
@@ -133,22 +177,70 @@ export function CutlistInputs() {
 /* ---------- Center: sheet layouts ---------- */
 
 export function CutlistLayouts() {
-  const results = useOptimized();
+  const { project, data, set } = useCutlist();
+  const saw = useOptimized();
+  const cncView = useCnc();
+  const method = data.method ?? 'saw';
+  const results = method === 'cnc' ? cncView.results : saw;
   const [showCuts, setShowCuts] = useState(true);
+  const [msg, setMsg] = useState('');
+  const job = project.client?.last || project.name;
+  const sheetName = (m: MaterialResult, i: number) => `${job} - ${m.material.replace(/"/g, 'in')} - sheet ${i + 1} of ${m.sheets.length}.dxf`;
+  const allDxf = async () => {
+    const files: Record<string, string> = {};
+    for (const m of cncView.results) m.sheets.forEach((sh, i) => { files[sheetName(m, i).replace(/[\\/:*?"<>|]/g, '')] = sheetDxf(sh, cncView.ops, cncView.cnc, `${job}, ${m.material}, sheet ${i + 1}`); });
+    files['READ ME - layers.txt'] = layerGuide(cncView.cnc).join('\r\n') + '\r\n';
+    setMsg(await saveFile(`${job} - CNC sheets.zip`, new Blob([zipStored(files)], { type: 'application/zip' })));
+  };
+  const count = cncView.results.reduce((t, m) => t + m.sheets.length, 0);
   return (
     <main className="stage cut-stage">
       <div className="cut-toolbar">
-        <label><input id="co-showcuts" type="checkbox" checked={showCuts} onChange={(e) => setShowCuts(e.target.checked)} /> Show cut sequence</label>
-        <span className="muted">Rip strips the full length first, then crosscut, then rip each piece to width. Numbers follow the order to cut.</span>
+        <div className="seg" role="group" aria-label="Cut on">
+          {([['saw', 'Table saw'], ['cnc', 'CNC']] as const).map(([k, label]) => (
+            <button key={k} className={method === k ? 'on' : ''} aria-pressed={method === k} onClick={() => set((d) => ({ ...d, method: k === 'saw' ? undefined : k }))}>{label}</button>
+          ))}
+        </div>
+        {method === 'saw' ? (
+          <>
+            <label><input id="co-showcuts" type="checkbox" checked={showCuts} onChange={(e) => setShowCuts(e.target.checked)} /> Show cut sequence</label>
+            <span className="muted">Rip strips the full length first, then crosscut, then rip each piece to width. Numbers follow the order to cut.</span>
+          </>
+        ) : (
+          <>
+            <button className="primary" disabled={!count} onClick={allDxf}>Download all {count} sheets (DXF, zipped)</button>
+            <span className="muted">One DXF per sheet: outlines cut through, dados and rabbets pocketed into the inside face of the sides, shelf pin holes drilled. Each operation is on its own layer, named with its depth.</span>
+            {msg && <span className="warn-text">{msg}</span>}
+          </>
+        )}
       </div>
+      {method === 'cnc' && count > 0 && (
+        <details className="cut-seq pad-x">
+          <summary>What’s on each layer</summary>
+          <ul>{layerGuide(cncView.cnc).map((x) => <li key={x}>{x}</li>)}</ul>
+          <p className="muted">The table saw cut list is still here: switch back to it any time, for any job, with the same parts and part numbers.</p>
+        </details>
+      )}
       {results.some((m) => m.sheets.length) && <LabelBar results={results} />}
       {results.length === 0 && <div className="empty pad"><p>No sheet-goods parts yet. Add cabinets in Design.</p></div>}
-      {results.map((m) => <MaterialBlock key={m.material} m={m} showCuts={showCuts} />)}
+      {results.map((m) => <MaterialBlock key={m.material} m={m} showCuts={method === 'saw' && showCuts} cnc={method === 'cnc' ? { view: cncView, name: (i) => sheetName(m, i), job, onMsg: setMsg } : undefined} />)}
     </main>
   );
 }
 
-function MaterialBlock({ m, showCuts }: { m: MaterialResult; showCuts: boolean }) {
+/** A sheet's machining drawn over its layout: pockets shaded, holes as dots, outlines with their notches. */
+function CncOverlay({ ops }: { ops: { n: number; ops: CncOp[] }[] }) {
+  return (
+    <g>
+      {ops.flatMap((p) => p.ops.map((o, i) => (o.kind === 'drill'
+        ? <circle key={`${p.n}d${i}`} cx={o.at[0]} cy={o.at[1]} r={Math.max(0.2, o.dia / 2)} className="sv-drill" />
+        : <polygon key={`${p.n}p${i}`} points={o.pts.map((q) => q.join(',')).join(' ')} className={o.kind === 'pocket' ? 'sv-pocket' : 'sv-outline'} />)))}
+    </g>
+  );
+}
+
+type CncSheetProps = { view: CncView; name: (i: number) => string; job: string; onMsg: (m: string) => void };
+function MaterialBlock({ m, showCuts, cnc }: { m: MaterialResult; showCuts: boolean; cnc?: CncSheetProps }) {
   const area = m.sheets.reduce((s, sh) => s + sh.stock.length * sh.stock.width, 0);
   const used = m.sheets.reduce((s, sh) => s + sh.usedArea, 0);
   return (
@@ -161,13 +253,15 @@ function MaterialBlock({ m, showCuts }: { m: MaterialResult; showCuts: boolean }
         <p className="warn">Won’t fit on any stock: {m.unplaced.map((p) => `${p.label} (${fmt(p.length)} × ${fmt(p.width)})`).join(', ')}. Add larger stock or turn off grain for these parts.</p>
       )}
       <div className="sheets">
-        {m.sheets.map((sh, i) => <SheetCard key={i} sh={sh} index={i + 1} showCuts={showCuts} />)}
+        {m.sheets.map((sh, i) => <SheetCard key={i} sh={sh} index={i + 1} showCuts={showCuts} cnc={cnc} dxfName={cnc?.name(i)} />)}
       </div>
     </section>
   );
 }
 
-function SheetCard({ sh, index, showCuts }: { sh: SheetLayout; index: number; showCuts: boolean }) {
+function SheetCard({ sh, index, showCuts, cnc, dxfName }: { sh: SheetLayout; index: number; showCuts: boolean; cnc?: CncSheetProps; dxfName?: string }) {
+  const ops = useMemo(() => (cnc ? sheetOps(sh, cnc.view.ops) : []), [sh, cnc]);
+  const dxf = async () => { if (cnc && dxfName) cnc.onMsg(await saveFile(dxfName, new Blob([sheetDxf(sh, cnc.view.ops, cnc.view.cnc, `${cnc.job}, ${sh.stock.material}, sheet ${index}`)], { type: 'application/dxf' }))); };
   const { length: L, width: W } = sh.stock;
   const yieldPct = Math.round((100 * sh.usedArea) / (L * W));
   const pad = 3;
@@ -176,6 +270,7 @@ function SheetCard({ sh, index, showCuts }: { sh: SheetLayout; index: number; sh
       <figcaption>
         <strong>Sheet {index}</strong>
         <span className="muted">{sh.stock.label} {fmt(L)} × {fmt(W)} · {sh.placed.length} parts · {yieldPct}%</span>
+        {cnc && <button className="mini" onClick={dxf}>DXF</button>}
       </figcaption>
       <svg viewBox={`${-pad} ${-pad} ${L + 2 * pad} ${W + 2 * pad}`} className="sheet-svg" role="img" aria-label={`Sheet ${index} layout`}>
         <rect x={0} y={0} width={L} height={W} className="sv-sheet" />
@@ -212,6 +307,7 @@ function SheetCard({ sh, index, showCuts }: { sh: SheetLayout; index: number; sh
             </g>
           );
         })}
+        {cnc && <CncOverlay ops={ops} />}
         {showCuts && sh.cuts.map((c) => (
           <g key={`c${c.n}`}>
             <line x1={c.x1} y1={c.y1} x2={c.x2} y2={c.y2} className={`sv-cut ${c.kind}`} />

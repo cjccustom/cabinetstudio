@@ -31,6 +31,10 @@ export interface CutlistData {
   skip: Record<string, boolean>;
   /** Offcuts from the shop's list set aside for this job: cut first, before new sheets. */
   onHand?: { id: string; material: string; l: number; w: number; from: string }[];
+  /** Which cut list the tab shows: the table saw's (unset) or the CNC's. Both can always be made. */
+  method?: 'saw' | 'cnc';
+  /** The router's settings, where they differ from the defaults. */
+  cnc?: Partial<import('./cnc').CncSettings>;
 }
 
 /** Parts whose face shows get their grain locked; hidden structural parts can turn to save plywood. */

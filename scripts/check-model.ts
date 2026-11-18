@@ -1,3 +1,5 @@
+import { cncLayouts, cncOf, partOps, sheetDxf, sheetOps } from '../src/model/cnc';
+import { parseDxf } from '../src/import/cad';
 import { defaultFinishing } from '../src/model/finishing';
 import { addToJob, designPrice, newDesign } from "../src/model/furnitureDesign";
 import { metalCutList, metalMembers, newMetalBase } from "../src/model/metalBase";
@@ -2696,6 +2698,35 @@ eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i
   const words = (cabs: Cabinet[]) => defaultFinishing({ ...sp, settings: { ...sp.settings, plywood: 'Prefinished birch' }, cabinets: cabs }).filter((x) => /inside|interior/i.test(x)).join(' | ');
   eq('finishing: all open and painted inside', words([openCab]), 'Open sections and hanging areas painted inside to match');
   eq('finishing: painted open sections with closed door cabinets (even ones set to painted) left prefinished', /cabinets with doors and drawers have prefinished birch plywood interiors/.test(words([openCab, closedCab])), true);
+}
+
+// CNC: the same parts laid out for a router, each side's machining, one DXF per sheet; the table saw list unchanged
+{
+  const sp = sampleProject();
+  const data = defaultCutlist(sp);
+  const cnc = cncOf(data);
+  const ops = partOps(sp, cnc);
+  const b1 = sp.cabinets.find((c) => c.kind === 'base')!;
+  const left = ops.get(`${b1.id}:Side:1`)!, right = ops.get(`${b1.id}:Side:2`)!;
+  const outline = left.find((o) => o.kind === 'outline') as { pts: [number, number][] };
+  eq('cnc: a base side\'s outline has its toe notch (six corners)', outline.pts.length, 6);
+  eq('cnc: the side\'s bottom dado, back rabbet and stretcher rabbets are pocketed, 1/4" deep', left.filter((o) => o.kind === 'pocket').map((o) => (o as { what: string }).what).sort().join(', ') + ' ' + left.filter((o) => o.kind === 'pocket').every((o) => (o as { depth: number }).depth === 0.25), 'dado for the bottom, rabbet for the back, rabbet for the back stretcher, rabbet for the front stretcher true');
+  const vOf = (list: typeof left) => (list.find((o) => o.kind === 'pocket' && (o as { what: string }).what === 'rabbet for the back') as { pts: [number, number][] }).pts.map((q) => q[1]);
+  eq('cnc: the right side is the left side\'s mirror (inside face up)', `${Math.min(...vOf(left)).toFixed(3)} ${Math.max(...vOf(right)).toFixed(3)}`, `0.000 ${(23.25).toFixed(3)}`);
+  const res = cncLayouts(sp, data);
+  const sheet = res[0].sheets[0];
+  const sops = sheetOps(sheet, ops);
+  const inside = sops.every((pt) => { const o = pt.ops.find((x) => x.kind === 'outline') as { pts: [number, number][] }; return o.pts.every(([x, y]) => x >= cnc.edge - 1e-6 && y >= cnc.edge - 1e-6 && x <= sheet.stock.length - cnc.edge + 1e-6 && y <= sheet.stock.width - cnc.edge + 1e-6); });
+  eq('cnc: every part clear of the sheet edges', inside, true);
+  const dxf = sheetDxf(sheet, ops, cnc, 'test');
+  const back = parseDxf(dxf);
+  const layers = [...new Set(back.ents.map((e) => e.layer))].sort().join(',');
+  eq('cnc: DXF reads back in millimetres with its layers', `${back.scale.toFixed(5)} ${layers}`, `${(1 / 25.4).toFixed(5)} DRILL_5MM_D9.5MM,LABELS,POCKET_6.4MM,PROFILE_THRU_19.4MM,SHEET`);
+  eq('cnc: one closed outline per part', back.ents.filter((e) => e.kind === 'poly' && e.layer.startsWith('PROFILE') && (e as { closed: boolean }).closed).length, sheet.placed.length);
+  // The table saw's list doesn't move when the CNC one is picked
+  const saw = optimize(optimizerParts(sp, data), cutStock(sp, data), data.options);
+  const sawCnc = optimize(optimizerParts(sp, { ...data, method: 'cnc' }), cutStock(sp, { ...data, method: 'cnc' }), { ...data.options });
+  eq('cnc: the table saw layout is the same with CNC picked', JSON.stringify(saw.map((m) => m.sheets.map((s) => s.cuts.length))), JSON.stringify(sawCnc.map((m) => m.sheets.map((s) => s.cuts.length))));
 }
 
 console.log(failed ? `${failed} check(s) failed` : 'All model checks passed');

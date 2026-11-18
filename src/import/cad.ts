@@ -41,8 +41,20 @@ interface RawEnt { type: string; g: Group[] }
 function entities(gs: Group[]): RawEnt[] {
   const out: RawEnt[] = [];
   let cur: RawEnt | null = null;
+  // An old-style (R12) POLYLINE comes as the polyline, its VERTEXes and a SEQEND: folded into one
+  // entity with the vertices' points, read like a LWPOLYLINE
+  let poly: RawEnt | null = null, inVertex = false;
   for (const g of gs) {
-    if (g.code === 0) { cur = { type: g.value, g: [] }; out.push(cur); } else if (cur) cur.g.push(g);
+    if (g.code === 0) {
+      if (poly && g.value === 'VERTEX') { inVertex = true; continue; }
+      if (poly && g.value === 'SEQEND') { poly = null; inVertex = false; cur = null; continue; }
+      poly = null; inVertex = false;
+      cur = { type: g.value, g: [] };
+      out.push(cur);
+      if (g.value === 'POLYLINE') poly = cur;
+    } else if (poly) {
+      if (inVertex ? g.code === 10 || g.code === 20 : g.code !== 10 && g.code !== 20 && g.code !== 30) poly.g.push(g);
+    } else if (cur) cur.g.push(g);
   }
   return out;
 }
@@ -58,7 +70,7 @@ function convert(e: RawEnt, xf: Xf, rot: number, k: number, layerFor: (l: string
   const layer = layerFor(str(e, 8) || '0');
   switch (e.type) {
     case 'LINE': out.push({ kind: 'line', layer, a: xf([num(e, 10), num(e, 20)]), b: xf([num(e, 11), num(e, 21)]) }); break;
-    case 'LWPOLYLINE': {
+    case 'LWPOLYLINE': case 'POLYLINE': {
       const xs = e.g.filter((g) => g.code === 10).map((g) => parseFloat(g.value));
       const ys = e.g.filter((g) => g.code === 20).map((g) => parseFloat(g.value));
       out.push({ kind: 'poly', layer, pts: xs.map((x, i) => xf([x, ys[i] ?? 0])), closed: (num(e, 70) & 1) === 1 });

@@ -232,6 +232,9 @@ td.spec { font-size: 11.5px; }
 .sv-offcut { fill: none; stroke: var(--ok); stroke-width: 0.25; stroke-dasharray: 1 0.8; }
 .sv-part { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 0.22; }
 .sv-part.free { fill: var(--canvas); }
+.sv-pocket { fill: var(--ink-2, #555); fill-opacity: 0.28; stroke: var(--ink-2, #555); stroke-width: 0.12; }
+.sv-drill { fill: var(--ink, #222); }
+.sv-outline { fill: none; stroke: var(--accent); stroke-width: 0.3; }
 .sv-grain { stroke: var(--accent); stroke-width: 0.25; opacity: 0.6; }
 .sv-label { fill: var(--fg); font-family: var(--font-mono); font-weight: 500; }
 .sv-dim { fill: var(--muted); font-weight: 400; }
