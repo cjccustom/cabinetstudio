@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react';
 import { useStore } from '../store';
 import { ballpark, categoryLabel, categoryOf, comparableQuote, featureLabel, rateCardOf, type Band, type BallparkCategory, type BallparkFeature } from '../model/ballpark';
 import { interiorPresets, interiorUnits, isInterior, newInterior, type InteriorUnit, type QuoteExtra } from '../model/quote';
+import { paintCostOf, paintCostRates, paintModeOf } from '../model/quote';
 import { defaultStandards, groupLabel, lineKey, newExtra, paintEstimate, paintLineLabel, paintRates, type Group, priceQuote, quoteOf, scopeItems, type LaborStandards, type QuoteSettings, type Workload, extraFinishes } from '../model/quote';
 import { Field, Section } from './fields';
 import { QuoteRendering } from './Rendering';
@@ -78,6 +79,9 @@ function keyed<T>(map: Record<string, T> | undefined, key: string, v: T | undefi
 export function QuoteInputs() {
   const { project, q, set } = useQuote();
   const pe = useMemo(() => paintEstimate(project, q), [project]); // eslint-disable-line react-hooks/exhaustive-deps
+  const mode = paintModeOf(project, q);
+  const pc = paintCostOf(q);
+  const setPc = (patch: Partial<typeof paintCostRates>) => set({ paintCost: { ...q.paintCost, ...patch } });
   const setStd = (patch: Partial<LaborStandards>) => set({ standards: { ...q.standards, ...patch } });
   const stdFields: [keyof LaborStandards, string][] = [
     ['jobSetup', 'Drawings, ordering, setup (per job)'], ['perBox', 'Case (per cabinet)'], ['tallBox', 'Tall case extra'], ['faceFrame', 'Face frame (per cabinet)'],
@@ -154,21 +158,39 @@ export function QuoteInputs() {
           <FinishingText />
           {q.paintWhen !== 'none' && <div className="seg" role="group" aria-label="How painting is priced" style={{ marginTop: 6 }}>
             {([['quote', 'Painter’s quote'], ['estimate', 'Estimate'], ['allowance', 'Allowance']] as const).map(([k, label]) => (
-              <button key={k} className={(q.paintMode ?? 'quote') === k ? 'on' : ''} aria-pressed={(q.paintMode ?? 'quote') === k} onClick={() => set({ paintMode: k === 'quote' ? undefined : k })}>{label}</button>
+              <button key={k} className={mode === k ? 'on' : ''} aria-pressed={mode === k} onClick={() => set({ paintMode: k })}>{label}</button>
             ))}
           </div>}
           {q.paintWhen !== 'none' && q.linePrices?.painting != null && <p className="warn">You set painting at {money(q.linePrices.painting)} on the agreement; that’s used in place of the price below. <button className="mini" onClick={() => set({ linePrices: keyed(q.linePrices, 'painting', undefined) })}>Use the calculated price</button></p>}
-          {q.paintWhen !== 'none' && (q.paintMode ?? 'quote') === 'quote' && (
+          {q.paintWhen !== 'none' && mode === 'quote' && (
             <>
               <div className="grid2" style={{ marginTop: 8 }}>
                 <Num id="q-paint" label="Painter’s price" suffix="$" value={q.painter} onChange={(v) => set({ painter: v })} />
                 <Num id="q-pmup" label="Markup" suffix="%" value={q.painterMarkup * 100} onChange={(v) => set({ painterMarkup: v / 100 })} />
               </div>
-              <p className="hint">Leave at $0 when the customer deals with the painter directly. Without a quote yet, the estimate for this job is {money(pe.amount)}.</p>
+              <p className="hint">Leave at $0 when the customer deals with the painter directly. Without her quote yet, {pe.legacy ? <>the estimate for this job is {money(pe.amount)}</> : <>her price should come to about {money(pe.cost)}</>}.</p>
             </>
           )}
-          {q.paintWhen !== 'none' && q.paintMode === 'estimate' && (
+          {q.paintWhen !== 'none' && mode === 'estimate' && !pe.legacy && (
             <>
+              <div className="grid3" style={{ marginTop: 8 }}>
+                <Num id="q-pc-setup" label="Setup, per job" suffix="$" value={pc.setup} onChange={(v) => setPc({ setup: v })} />
+                <Num id="q-pc-front" label="Each door, drawer front or end panel" suffix="$" value={pc.perFront} onChange={(v) => setPc({ perFront: v })} />
+                <Num id="q-pc-int" label="Painted open interior, per sq ft" suffix="$" value={pc.perInteriorSqFt} onChange={(v) => setPc({ perInteriorSqFt: v })} />
+                <Num id="q-pc-sq" label={`Cabinet face, first ${pc.firstSqFt} sq ft`} suffix="$/sq ft" value={pc.perSqFt} onChange={(v) => setPc({ perSqFt: v })} />
+                <Num id="q-pc-first" label="Full rate up to" suffix="sq ft" value={pc.firstSqFt} onChange={(v) => setPc({ firstSqFt: v })} />
+                <Num id="q-pc-after" label="Cabinet face beyond that" suffix="$/sq ft" value={pc.perSqFtAfter} onChange={(v) => setPc({ perSqFtAfter: v })} />
+              </div>
+              <div className="grid2">
+                <Num id="q-pmup2" label="Your markup on her price" suffix="%" value={q.painterMarkup * 100} onChange={(v) => set({ painterMarkup: v / 100 })} />
+              </div>
+              <p className="hint">{pe.fronts} fronts and panels, {Math.round(pe.sqft)} sq ft of cabinet face{pe.interior > 0 ? `, ${Math.round(pe.interior)} sq ft of open sections painted inside` : ''}. Her price, about <strong>{money(pe.cost)}</strong>; to the customer <strong>{money(pe.amount)}</strong>{q.painterMarkup ? ` with your ${Math.round(q.painterMarkup * 100)}%` : ' (no markup set)'}.</p>
+              <p className="hint">Her rates are fitted to her quotes on Fine ($1,400), Crossen ($4,000), Weisberg ($3,985 with the table and bench) and Pope ($5,600 with the walls and trim), within about 5% of each. Room walls and existing trim aren't in it: add them under Interior work or Additional work.{q.paintCost && Object.keys(q.paintCost).length ? <> <button className="link-btn" onClick={() => set({ paintCost: undefined })}>Back to the fitted rates</button></> : null}</p>
+            </>
+          )}
+          {q.paintWhen !== 'none' && mode === 'estimate' && pe.legacy && (
+            <>
+              <p className="warn">This proposal went out with the earlier painting rates, so they’re kept here and its price doesn’t change. <button className="link-btn" onClick={() => set({ paintRates2: true })}>Use the new estimate from her quotes</button></p>
               <div className="grid2" style={{ marginTop: 8 }}>
                 <Num id="q-ppf" label="Per door, drawer front or end panel" suffix="$" value={q.paintPerFront ?? paintRates.perFront} onChange={(v) => set({ paintPerFront: v })} />
                 <Num id="q-pps" label="Per sq ft of cabinet face" suffix="$" value={q.paintPerSqFt ?? paintRates.perSqFt} onChange={(v) => set({ paintPerSqFt: v })} />
@@ -177,12 +199,12 @@ export function QuoteInputs() {
               <p className="hint">{pe.fronts} fronts and panels, {Math.round(pe.sqft)} sq ft of cabinet face{pe.interior > 0 ? `, ${Math.round(pe.interior)} sq ft of open sections painted inside (scuff, bonding primer, paint)` : ''}: <strong>{money(pe.amount)}</strong> to the customer. {q.paintWhen === 'site' ? 'Starting rates are from your prefinishing prices; set your own for site finishing.' : 'Starting rates fit your past prefinishing prices; Massachusetts cabinet painters run about $90 to $175 a door.'}</p>
             </>
           )}
-          {q.paintWhen !== 'none' && q.paintMode === 'allowance' && (
+          {q.paintWhen !== 'none' && mode === 'allowance' && (
             <>
               <div className="grid2" style={{ marginTop: 8 }}>
                 <Num id="q-pal" label="Painting allowance" suffix="$" value={q.paintAllowance ?? 0} onChange={(v) => set({ paintAllowance: v })} />
               </div>
-              <p className="hint">A flat amount on the agreement as an allowance. The estimate for this job is {money(pe.amount)}.</p>
+              <p className="hint">A flat amount on the agreement as an allowance. The estimate for this job is {money(pe.amount)}{pe.legacy ? '' : ` (her price about ${money(pe.cost)})`}.</p>
             </>
           )}
           {q.paintWhen !== 'none' && <ExtraColors />}

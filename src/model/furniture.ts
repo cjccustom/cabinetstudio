@@ -278,10 +278,13 @@ export function tableEstimate(t: DiningTable, p: Project): { hours: TableLine[];
     const per = p.quote?.cushionPerSqFt ?? 0;
     materials.push({ label: 'Upholstered seat cushion (upholsterer)', cost: area * per, detail: `${area.toFixed(1)} sq ft${per ? ` at $${per}/sq ft` : ': enter the upholsterer’s price under Quote → Prices'}` });
   }
-  if (t.finish === 'painter') materials.push({ label: 'Finishing (by others)', cost: t.finishPrice, detail: 'Finisher’s price' });
+  if (t.finish === 'painter') materials.push(t.finishPrice ? { label: 'Finishing (by others)', cost: t.finishPrice, detail: 'Finisher’s price' } : { label: 'Finishing (by others)', cost: Math.round((area + leafSqft(t)) * FINISHER_PER_TOP_SQFT), detail: `Estimated at the finisher’s ~$${FINISHER_PER_TOP_SQFT}/sq ft of top; enter her price when you have it` });
   else materials.push({ label: 'Finish materials', cost: (area + leafSqft(t)) * 2 * (t.finish === 'oil' ? 1.2 : 0.9) + 25, detail: tableFinishLabel[t.finish] });
   return { hours, materials, bf: total };
 }
+
+/** The finisher's price per sq ft of a table or bench top (base and underside included), from her Weisberg quote. */
+export const FINISHER_PER_TOP_SQFT = 35;
 
 export const furnitureOf = (p: Project): DiningTable[] => (p.furniture ?? []).map((t) => ({ ...newTable(), ...t }));
 

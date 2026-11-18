@@ -283,6 +283,13 @@ export interface QuoteSettings {
    * from the job's size, or a flat allowance. Unset = the painter's quote.
    */
   paintMode?: 'quote' | 'estimate' | 'allowance';
+  /** The finisher's price rates for the estimate, where they differ from the shop's (paintCostRates). */
+  paintCost?: Partial<PaintCostRates>;
+  /**
+   * A job whose proposal went out before the estimate worked from the finisher's price keeps the old
+   * rates (charged straight to the customer) so its price doesn't move; true switches it to the new one.
+   */
+  paintRates2?: boolean;
   /** Estimate rates, as charged to the customer: each door, drawer front or end panel, and each sq ft of cabinet face. */
   paintPerFront?: number;
   paintPerSqFt?: number;
@@ -420,7 +427,8 @@ export function proposalScope(p: Project): string[] {
 /** What painting comes to before any price you set yourself: the painter's quote with markup, the estimate or the allowance. */
 export function paintCalculated(p: Project, q: QuoteSettings): number {
   if (q.paintWhen === 'none') return 0;
-  const base = q.paintMode === 'estimate' ? paintEstimate(p, q).amount : q.paintMode === 'allowance' ? q.paintAllowance ?? 0 : q.painter * (1 + q.painterMarkup);
+  const mode = paintModeOf(p, q);
+  const base = mode === 'estimate' ? paintEstimate(p, q).amount : mode === 'allowance' ? q.paintAllowance ?? 0 : q.painter * (1 + q.painterMarkup);
   return base + extraFinishes(p).length * (q.paintPerExtraColor ?? 250);
 }
 
@@ -453,14 +461,45 @@ export interface MaterialLine { group: Group; label: string; cost: number; detai
  */
 export const paintRates = { perFront: 150, perSqFt: 40, perInteriorSqFt: 30 };
 
-/** The painting estimate from the job's size: fronts (doors, drawer fronts, end panels) and cabinet face. */
-export function paintEstimate(p: Project, q: QuoteSettings): { fronts: number; sqft: number; interior: number; amount: number } {
-  // A multi-room job: every room's fronts and faces
+/**
+ * What the finisher charges, fitted to her quotes on four jobs (Nov 2026): Fine dining room $1,400
+ * (12 fronts, 24 sq ft of face), Crossen $4,000, Weisberg $3,985 with the table and bench, Pope
+ * $5,600 with the room's walls and trim. A setup charge, each front both sides, the cabinet face (the
+ * first 40 sq ft at the full rate, the rest cheaper: big runs spray faster) and painted open interiors.
+ * The customer's price adds the job's painter markup.
+ */
+export const paintCostRates = { setup: 200, perFront: 40, perSqFt: 30, firstSqFt: 40, perSqFtAfter: 18, perInteriorSqFt: 38, perTableSqFt: 35 };
+export type PaintCostRates = typeof paintCostRates;
+export const paintCostOf = (q: QuoteSettings): PaintCostRates => ({ ...paintCostRates, ...q.paintCost });
+
+/**
+ * A job already priced before the estimate worked from the finisher's price keeps the rates it went
+ * out with: a proposal published or signed on the portal, a signed contract, or a job moved on from To
+ * quote (sold, in progress, done).
+ */
+export const legacyPaint = (p: Project): boolean => !p.quote?.paintRates2 && (
+  (!!p.portal?.status && ((p.portal.status.publishedAt ?? 0) > 0 || !!p.portal.status.signed))
+  || !!p.contract
+  || (!!p.dropbox?.stage && p.dropbox.stage !== 'quote'));
+
+/** How painting is priced: as set, or the estimate on a job with no painter's number yet (a sent job keeps the painter's quote). */
+export const paintModeOf = (p: Project, q: QuoteSettings): 'quote' | 'estimate' | 'allowance' => q.paintMode ?? (legacyPaint(p) || q.painter > 0 ? 'quote' : 'estimate');
+
+/** What the finisher costs you, for the job's cost: her quote, the estimate of it, or the line less your markup. */
+export function painterCost(p: Project, q: QuoteSettings, line: number): number {
+  if (q.paintWhen === 'none') return 0;
+  const mode = paintModeOf(p, q);
+  if (mode === 'quote') return q.painter;
+  if (mode === 'estimate' && !legacyPaint(p)) return paintEstimate(p, q).cost;
+  return line / (1 + q.painterMarkup);
+}
+
+function paintMeasure(p: Project): { fronts: number; sqft: number; interior: number } {
   const rooms = jobRooms(p);
   if (rooms.length > 1) {
-    const each = rooms.map((r) => paintEstimate(r.project, q));
-    const sum = (k: 'fronts' | 'sqft' | 'interior' | 'amount') => each.reduce((t, e) => t + e[k], 0);
-    return { fronts: sum('fronts'), sqft: sum('sqft'), interior: sum('interior'), amount: sum('amount') };
+    const each = rooms.map((r) => paintMeasure(r.project));
+    const sum = (k: 'fronts' | 'sqft' | 'interior') => each.reduce((t, e) => t + e[k], 0);
+    return { fronts: sum('fronts'), sqft: sum('sqft'), interior: sum('interior') };
   }
   let fronts = 0, sqft = 0, interior = 0;
   for (const c of p.cabinets) {
@@ -471,8 +510,23 @@ export function paintEstimate(p: Project, q: QuoteSettings): { fronts: number; s
     // Painted open sections: priced by the opening's face area (sides, back and shelves inside it)
     if (c.build?.interior && c.build.interior !== 'prefinished') interior += openSpans(c, eff(c, p.settings)).reduce((t, o) => t + (c.width * (o.y1 - o.y0)) / 144, 0);
   }
-  const perFront = q.paintPerFront ?? paintRates.perFront, perSqFt = q.paintPerSqFt ?? paintRates.perSqFt, perInterior = q.paintPerInteriorSqFt ?? paintRates.perInteriorSqFt;
-  return { fronts, sqft, interior, amount: fronts * perFront + sqft * perSqFt + interior * perInterior };
+  return { fronts, sqft, interior };
+}
+
+/** The painting estimate from the job's size: fronts (doors, drawer fronts, end panels) and cabinet face. */
+export function paintEstimate(p: Project, q: QuoteSettings): { fronts: number; sqft: number; interior: number; amount: number; cost: number; legacy: boolean } {
+  const { fronts, sqft, interior } = paintMeasure(p);
+  // Sent before the new estimate: the old rates, charged straight to the customer
+  if (legacyPaint(p)) {
+    const perFront = q.paintPerFront ?? paintRates.perFront, perSqFt = q.paintPerSqFt ?? paintRates.perSqFt, perInterior = q.paintPerInteriorSqFt ?? paintRates.perInteriorSqFt;
+    const amount = fronts * perFront + sqft * perSqFt + interior * perInterior;
+    return { fronts, sqft, interior, amount, cost: amount, legacy: true };
+  }
+  const r = paintCostOf(q);
+  const cost = fronts + sqft + interior > 0
+    ? r.setup + fronts * r.perFront + Math.min(sqft, r.firstSqFt) * r.perSqFt + Math.max(0, sqft - r.firstSqFt) * r.perSqFtAfter + interior * r.perInteriorSqFt
+    : 0;
+  return { fronts, sqft, interior, cost, amount: cost * (1 + q.painterMarkup), legacy: false };
 }
 
 /** What a quote line is known by when you adjust it: its group and label. */
@@ -954,7 +1008,7 @@ export function priceQuote(p: Project): QuoteResult {
     installHours: hours.filter((h) => h.install).reduce((t, h) => t + h.hours, 0),
     materialCost,
     // The painter's cost to you: their quote, or the estimate or allowance less your usual markup
-    cost: materialCost + allHours * q.laborCost + (q.paintWhen === 'none' ? 0 : q.paintMode && q.paintMode !== 'quote' ? painter / (1 + q.painterMarkup) : q.painter) + q.extras.reduce((t, e) => t + e.amount + extraMaterials(e) * (1 + tax), 0),
+    cost: materialCost + allHours * q.laborCost + painterCost(p, q, painter) + q.extras.reduce((t, e) => t + e.amount + extraMaterials(e) * (1 + tax), 0),
   };
 }
 

@@ -57,7 +57,7 @@ import { defaultFaceFrameStock, faceFrameNeeds, faceFramePieces, otherSpecies, r
 import { panelAbove, panelBetween, panelOrder } from "../src/model/panels";
 import { amCatalog } from "../src/model/andersonMcquaid";
 import { cabinetMoldings, moldingOrder, mountShape, priceOf, profileByNum, profileLabel, setCustomDrawings } from "../src/model/moldings";
-import { closetRods, scopeItems, estimateHours, estimateMaterials, extraFinishes, paintCalculated, paintEstimate, priceQuote, proposalScope, newInterior, quoteOf, scopeLine } from "../src/model/quote";
+import { closetRods, scopeItems, estimateHours, estimateMaterials, extraFinishes, paintCalculated, paintEstimate, priceQuote, proposalScope, newInterior, paintCostRates, paintModeOf, paintRates, quoteOf, scopeLine } from "../src/model/quote";
 import { cutStock, defaultCutlist, designParts, optimizerParts } from "../src/model/cutlist";
 import { applyBook, choosePlywood, chooseSpecies, priceBook, setJobFinish, stalePrices } from "../src/model/pricebook";
 import { doorMaterials as eagleDoorMaterials, eagleWoodFactor } from "../src/model/eagle";
@@ -448,7 +448,7 @@ eq('panel sticks out past frame', panelExtents(b21, s, { left: true, right: fals
   const busy = priceQuote({ ...base, quote: { ...base.quote, workload: 'full' } });
   eq('booked-up raises price 8%', Math.abs(busy.workloadAmount - (busy.calculated - busy.painter) * 0.08) < 0.01, true);
   const painted = priceQuote({ ...base, quote: { ...base.quote, painter: 1500, painterMarkup: 0.1 } });
-  eq('painter line passes through with markup', Math.abs(painted.calculated - r.calculated - 1650) < 0.01, true);
+  eq('painter line passes through with markup (in place of the size estimate)', Math.abs(painted.calculated - (r.calculated - r.painter) - 1650) < 0.01, true);
   eq('hours estimated', r.shopHours > 20 && r.installHours > 5, true);
   eq('scope line wording', scopeLine(base.cabinets[1], base).startsWith('B2: Approx: 30”W x 34-1/2”H x 24”D; (2) overlay doors; (1) drawer'), true);
 }
@@ -1453,7 +1453,7 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
 {
   const q0 = quoteOf(p);
   const pe = paintEstimate(p, q0);
-  eq('paint estimate: $150 a front + $40 a sq ft of face', Math.round(pe.amount), Math.round(pe.fronts * 150 + pe.sqft * 40));
+  eq('paint estimate: her price with no markup set', Math.round(pe.amount), Math.round(pe.cost));
   const est = priceQuote({ ...p, quote: { ...q0, paintMode: 'estimate' } });
   eq('paint estimate: on the agreement', Math.round(est.painter), Math.round(pe.amount));
   const al = priceQuote({ ...p, quote: { ...q0, paintMode: 'allowance', paintAllowance: 3000 } });
@@ -2663,6 +2663,26 @@ eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i
   // Offered as an option: out of the base price, listed with the option
   const opt = { ...job, quote: { ...job.quote, extras: [crown, { ...doors, option: 'New doors' }] } };
   eq('interior work: as an option it comes out of the base and lists under the option', `${Math.round(priceQuote(withOptions(opt)).total) < Math.round(r.total)} ${optionPrices(opt)[0]?.items[0]?.startsWith('Prehung interior door installed')}`, 'true true');
+}
+
+// Painting estimate: her price from the fitted rates on jobs still to quote; jobs already sent or sold keep the old rates
+{
+  const sp = sampleProject();
+  const job = { ...sp, quote: { ...quoteOf(sp), painter: 0, painterMarkup: 0.4 } };
+  const e = paintEstimate(job, quoteOf(job));
+  const r = paintCostRates;
+  const want = r.setup + e.fronts * r.perFront + Math.min(e.sqft, r.firstSqFt) * r.perSqFt + Math.max(0, e.sqft - r.firstSqFt) * r.perSqFtAfter + e.interior * r.perInteriorSqFt;
+  eq('paint estimate: her price from the fitted rates, the markup on top', `${e.legacy} ${Math.round(e.cost)} ${Math.round(e.amount)}`, `false ${Math.round(want)} ${Math.round(want * 1.4)}`);
+  eq('paint estimate: no painter number yet on a job to quote: the estimate prices the line', `${paintModeOf(job, quoteOf(job))} ${Math.round(paintCalculated(job, quoteOf(job)))}`, `estimate ${Math.round(want * 1.4) + extraFinishes(job).length * 250}`);
+  const old = e.fronts * paintRates.perFront + e.sqft * paintRates.perSqFt + e.interior * paintRates.perInteriorSqFt;
+  const sent = { ...job, portal: { jobId: 'x', status: { publishedAt: 1, signed: null } as never } };
+  const se = paintEstimate(sent, quoteOf(sent));
+  eq('paint estimate: a proposal already on the portal keeps the old rates and its painter-quote setting', `${se.legacy} ${Math.round(se.amount)} ${paintModeOf(sent, quoteOf(sent))}`, `true ${Math.round(old)} quote`);
+  const sold = { ...job, dropbox: { id: 'id:x', path: '/CJC/Jobs/In Progress/X', stage: 'progress' as const } };
+  eq('paint estimate: a job past To quote keeps the old rates', paintEstimate(sold, quoteOf(sold)).legacy, true);
+  const moved = { ...sent, quote: { ...sent.quote, paintRates2: true } };
+  eq('paint estimate: a sent job can be switched to the new estimate', paintEstimate(moved, quoteOf(moved)).legacy, false);
+  eq('paint estimate: the fitted rates land on her Fine quote (12 fronts, 23.75 sq ft)', Math.round(r.setup + 12 * r.perFront + 23.75 * r.perSqFt), 1393);
 }
 
 console.log(failed ? `${failed} check(s) failed` : 'All model checks passed');

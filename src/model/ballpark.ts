@@ -4,7 +4,7 @@
 // can be checked against the range Cody would have given at the first meeting.
 import type { Cabinet, Project } from './types';
 import { buildParts, isOpenRow } from './parts';
-import { paintEstimate, priceQuote, quoteOf } from './quote';
+import { paintEstimate, paintModeOf, priceQuote, quoteOf } from './quote';
 import { resolveEnds } from './layout';
 import { baseOf } from './cabinetBase';
 
@@ -134,5 +134,7 @@ export function comparableQuote(p: Project): { amount: number; paintEstimated: b
   if (!painted) return { amount: r.total - r.painter, paintEstimated: false };
   // No painter's number in yet: the card's painted rates include painting, so use the size-based estimate
   if (r.painter <= 0) return { amount: r.total + paintEstimate(only, quoteOf(only)).amount, paintEstimated: true };
+  // Priced from the size estimate (no painter's number in)
+  if (paintModeOf(only, quoteOf(only)) === 'estimate') return { amount: r.total, paintEstimated: true };
   return { amount: r.total, paintEstimated: false };
 }
