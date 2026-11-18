@@ -13,6 +13,8 @@ import { useShop, saveOffcut, deleteOffcut, type StockOffcut } from '../shop/sho
 import { askConfirm } from './Confirm';
 import { cncLayouts, cncOf, defaultCnc, layerGuide, partOps, sheetDxf, sheetOps, type CncOp, type CncSettings } from '../model/cnc';
 import { zipStored } from '../export/xlsx';
+import { camOf, defaultTools, posts, sheetGcode, sheetProgram, type CamSettings, type PostId, type Tool, type ToolJob } from '../model/toolpath';
+import { saveMachine } from '../shop/shop';
 
 /** Save a file the way the rest of the app does: through the viewer's download prompt, or a plain link. */
 async function saveFile(name: string, blob: Blob): Promise<string> {
@@ -35,6 +37,11 @@ function useCnc() {
     const cnc = cncOf(data);
     return { results: cncLayouts(project, data), ops: partOps(project, cnc), cnc };
   }, [project]);
+}
+/** The CNC's tools and settings, shared by every job. */
+function useCam(): CamSettings {
+  const machine = useShop((s) => s.machine);
+  return useMemo(() => camOf(machine ?? undefined), [machine]);
 }
 type CncView = ReturnType<typeof useCnc>;
 
@@ -79,7 +86,7 @@ export function CutlistInputs() {
             <div className="grid2">
               <Field label="Cutting bit" htmlFor="co-bit"><LengthInput id="co-bit" value={cnc.bit} onChange={(v) => setCnc({ bit: v ?? defaultCnc.bit })} /></Field>
               <Field label="Clear of sheet edges" htmlFor="co-edge"><LengthInput id="co-edge" value={cnc.edge} onChange={(v) => setCnc({ edge: v ?? defaultCnc.edge })} /></Field>
-              <Field label="Cut into spoilboard" htmlFor="co-thru"><LengthInput id="co-thru" value={cnc.through} onChange={(v) => setCnc({ through: v ?? defaultCnc.through })} /></Field>
+              <Field label="Cut into spoilboard (mm)" htmlFor="co-thru"><MmInput id="co-thru" value={cnc.through} onChange={(v) => setCnc({ through: v })} /></Field>
               <Field label="Shelf pin hole depth" htmlFor="co-pin"><LengthInput id="co-pin" value={cnc.pinDepth} onChange={(v) => setCnc({ pinDepth: v ?? defaultCnc.pinDepth })} /></Field>
               <Field label="DXF units" htmlFor="co-units">
                 <select id="co-units" value={cnc.units} onChange={(e) => setCnc({ units: e.target.value as CncSettings['units'] })}>
@@ -102,6 +109,8 @@ export function CutlistInputs() {
           </div>
           <p className="hint">{data.method === 'cnc' ? 'Parts are laid out at least a bit’s width apart and kept clear of the sheet edges. Same parts, sheets and part numbers as the table saw list.' : 'Edge trim is cleaned off each factory edge before the first rip.'}</p>
         </Section>
+
+        {data.method === 'cnc' && <MachinePanel />}
 
         <Section title="Stock sheets" aside={
           <button className="mini" onClick={() => set((d) => ({ ...d, stock: [...d.stock, { id: uid('stock'), label: 'Sheet', material: mats[0] ?? '3/4" plywood', length: 96, width: 48, qty: null, price: sheetPrice(mats[0] ?? '3/4"') }] }))}>Add</button>
@@ -193,6 +202,15 @@ export function CutlistLayouts() {
     setMsg(await saveFile(`${job} - CNC sheets.zip`, new Blob([zipStored(files)], { type: 'application/zip' })));
   };
   const count = cncView.results.reduce((t, m) => t + m.sheets.length, 0);
+  const cam = useCam();
+  const [showPaths, setShowPaths] = useState(false);
+  const ncName = (m: MaterialResult, i: number) => sheetName(m, i).replace(/\.dxf$/, `.${posts[cam.post].ext}`);
+  const totalMin = useMemo(() => (method === 'cnc' ? cncView.results.reduce((t, m) => t + m.sheets.reduce((u, sh) => u + sheetProgram(sh, cncView.ops, cncView.cnc, cam).minutes, 0), 0) : 0), [method, cncView, cam]);
+  const allNc = async () => {
+    const files: Record<string, string> = {};
+    for (const m of cncView.results) m.sheets.forEach((sh, i) => { files[ncName(m, i).replace(/[\\/:*?"<>|]/g, '')] = sheetGcode(sh, cncView.ops, cncView.cnc, cam, `${job}, ${m.material}, sheet ${i + 1}`).text; });
+    setMsg(await saveFile(`${job} - CNC programs.zip`, new Blob([zipStored(files)], { type: 'application/zip' })));
+  };
   return (
     <main className="stage cut-stage">
       <div className="cut-toolbar">
@@ -208,7 +226,10 @@ export function CutlistLayouts() {
           </>
         ) : (
           <>
-            <button className="primary" disabled={!count} onClick={allDxf}>Download all {count} sheets (DXF, zipped)</button>
+            <button className="primary" disabled={!count} onClick={allNc}>G-code for all {count} sheets ({posts[cam.post].name.replace(/ \(.*$/, '')})</button>
+            <button disabled={!count} onClick={allDxf}>DXF for all sheets</button>
+            <label><input type="checkbox" checked={showPaths} onChange={(e) => setShowPaths(e.target.checked)} /> Show toolpaths</label>
+            {count > 0 && <span className="muted">About {Math.round(totalMin)} min of cutting at these feeds.</span>}
             <span className="muted">One DXF per sheet: outlines cut through, dados and rabbets pocketed into the inside face of the sides, shelf pin holes drilled. Each operation is on its own layer, named with its depth.</span>
             {msg && <span className="warn-text">{msg}</span>}
           </>
@@ -223,8 +244,27 @@ export function CutlistLayouts() {
       )}
       {results.some((m) => m.sheets.length) && <LabelBar results={results} />}
       {results.length === 0 && <div className="empty pad"><p>No sheet-goods parts yet. Add cabinets in Design.</p></div>}
-      {results.map((m) => <MaterialBlock key={m.material} m={m} showCuts={method === 'saw' && showCuts} cnc={method === 'cnc' ? { view: cncView, name: (i) => sheetName(m, i), job, onMsg: setMsg } : undefined} />)}
+      {results.map((m) => <MaterialBlock key={m.material} m={m} showCuts={method === 'saw' && showCuts} cnc={method === 'cnc' ? { view: cncView, name: (i) => sheetName(m, i), ncName: (i) => ncName(m, i), job, onMsg: setMsg, cam, showPaths } : undefined} />)}
     </main>
+  );
+}
+
+/** The tool's center path over the sheet: cutting moves in each tool's color, rapids left out. */
+function PathOverlay({ prog }: { prog: ReturnType<typeof sheetProgram> }) {
+  const colors = ['#c2410c', '#0f766e', '#7c3aed', '#be123c'];
+  return (
+    <g className="sv-paths">
+      {prog.blocks.map((b, bi) => {
+        let x = 0, y = 0;
+        const d: string[] = [];
+        for (const mv of b.moves) {
+          const nx = mv.x ?? x, ny = mv.y ?? y;
+          if (mv.kind === 'feed' && (nx !== x || ny !== y)) d.push(`M${x} ${y}L${nx} ${ny}`);
+          [x, y] = [nx, ny];
+        }
+        return <path key={bi} d={d.join('')} stroke={colors[bi % colors.length]} strokeWidth={0.15} fill="none" />;
+      })}
+    </g>
   );
 }
 
@@ -239,7 +279,7 @@ function CncOverlay({ ops }: { ops: { n: number; ops: CncOp[] }[] }) {
   );
 }
 
-type CncSheetProps = { view: CncView; name: (i: number) => string; job: string; onMsg: (m: string) => void };
+type CncSheetProps = { view: CncView; name: (i: number) => string; ncName: (i: number) => string; job: string; onMsg: (m: string) => void; cam: CamSettings; showPaths: boolean };
 function MaterialBlock({ m, showCuts, cnc }: { m: MaterialResult; showCuts: boolean; cnc?: CncSheetProps }) {
   const area = m.sheets.reduce((s, sh) => s + sh.stock.length * sh.stock.width, 0);
   const used = m.sheets.reduce((s, sh) => s + sh.usedArea, 0);
@@ -253,14 +293,16 @@ function MaterialBlock({ m, showCuts, cnc }: { m: MaterialResult; showCuts: bool
         <p className="warn">Won’t fit on any stock: {m.unplaced.map((p) => `${p.label} (${fmt(p.length)} × ${fmt(p.width)})`).join(', ')}. Add larger stock or turn off grain for these parts.</p>
       )}
       <div className="sheets">
-        {m.sheets.map((sh, i) => <SheetCard key={i} sh={sh} index={i + 1} showCuts={showCuts} cnc={cnc} dxfName={cnc?.name(i)} />)}
+        {m.sheets.map((sh, i) => <SheetCard key={i} sh={sh} index={i + 1} showCuts={showCuts} cnc={cnc} dxfName={cnc?.name(i)} ncName={cnc?.ncName(i)} />)}
       </div>
     </section>
   );
 }
 
-function SheetCard({ sh, index, showCuts, cnc, dxfName }: { sh: SheetLayout; index: number; showCuts: boolean; cnc?: CncSheetProps; dxfName?: string }) {
+function SheetCard({ sh, index, showCuts, cnc, dxfName, ncName }: { sh: SheetLayout; index: number; showCuts: boolean; cnc?: CncSheetProps; dxfName?: string; ncName?: string }) {
   const ops = useMemo(() => (cnc ? sheetOps(sh, cnc.view.ops) : []), [sh, cnc]);
+  const prog = useMemo(() => (cnc ? sheetProgram(sh, cnc.view.ops, cnc.view.cnc, cnc.cam) : null), [sh, cnc]);
+  const nc = async () => { if (cnc && ncName) cnc.onMsg(await saveFile(ncName, new Blob([sheetGcode(sh, cnc.view.ops, cnc.view.cnc, cnc.cam, `${cnc.job}, ${sh.stock.material}, sheet ${index}`).text], { type: 'text/plain' }))); };
   const dxf = async () => { if (cnc && dxfName) cnc.onMsg(await saveFile(dxfName, new Blob([sheetDxf(sh, cnc.view.ops, cnc.view.cnc, `${cnc.job}, ${sh.stock.material}, sheet ${index}`)], { type: 'application/dxf' }))); };
   const { length: L, width: W } = sh.stock;
   const yieldPct = Math.round((100 * sh.usedArea) / (L * W));
@@ -270,8 +312,11 @@ function SheetCard({ sh, index, showCuts, cnc, dxfName }: { sh: SheetLayout; ind
       <figcaption>
         <strong>Sheet {index}</strong>
         <span className="muted">{sh.stock.label} {fmt(L)} × {fmt(W)} · {sh.placed.length} parts · {yieldPct}%</span>
+        {cnc && <button className="mini" onClick={nc}>G-code</button>}
         {cnc && <button className="mini" onClick={dxf}>DXF</button>}
+        {prog && <span className="muted">~{Math.round(prog.minutes)} min · {prog.blocks.map((b) => `T${b.tool.slot}`).join(', ')}</span>}
       </figcaption>
+      {prog && prog.warnings.length > 0 && <p className="warn">{prog.warnings.join(' ')}</p>}
       <svg viewBox={`${-pad} ${-pad} ${L + 2 * pad} ${W + 2 * pad}`} className="sheet-svg" role="img" aria-label={`Sheet ${index} layout`}>
         <rect x={0} y={0} width={L} height={W} className="sv-sheet" />
         {sh.offcuts.map((o, i) => <rect key={`o${i}`} x={o.x} y={o.y} width={o.l} height={o.w} className="sv-offcut" />)}
@@ -308,6 +353,7 @@ function SheetCard({ sh, index, showCuts, cnc, dxfName }: { sh: SheetLayout; ind
           );
         })}
         {cnc && <CncOverlay ops={ops} />}
+        {cnc?.showPaths && prog && <PathOverlay prog={prog} />}
         {showCuts && sh.cuts.map((c) => (
           <g key={`c${c.n}`}>
             <line x1={c.x1} y1={c.y1} x2={c.x2} y2={c.y2} className={`sv-cut ${c.kind}`} />
@@ -535,4 +581,70 @@ export function OffcutRack({ results }: { results: MaterialResult[] }) {
       </Section>
     </>
   );
+}
+
+/** The CNC itself: which controller the G-code is written for, the tool library and how outlines are cut. Shared by every job. */
+function MachinePanel() {
+  const cam = useCam();
+  const put = (patch: Partial<CamSettings>) => void saveMachine({ ...cam, ...patch });
+  const putTool = (slot: number, patch: Partial<Tool>) => put({ tools: cam.tools.map((t) => (t.slot === slot ? { ...t, ...patch } : t)) });
+  const jobs: Record<ToolJob, string> = { profile: 'Outlines', pocket: 'Dados & rabbets', drill: 'Shelf pin holes' };
+  const free = Array.from({ length: 12 }, (_, i) => i + 1).find((n) => !cam.tools.some((t) => t.slot === n));
+  const ipm = (v: number) => `${Math.round(v * 25.4).toLocaleString('en-US')} mm/min`;
+  return (
+    <Section title="Machine (every job)">
+      <Field label="Controller (G-code written for)" htmlFor="cam-post">
+        <select id="cam-post" value={cam.post} onChange={(e) => put({ post: e.target.value as PostId })}>
+          {Object.values(posts).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+        </select>
+      </Field>
+      <p className="hint">{posts[cam.post].note}</p>
+      <div className="grid2">
+        <Field label="Safe height" htmlFor="cam-safe"><LengthInput id="cam-safe" value={cam.safeZ} onChange={(v) => put({ safeZ: v ?? 0.4 })} /></Field>
+        <Field label="Onion skin (mm)" htmlFor="cam-skin"><MmInput id="cam-skin" value={cam.skin} onChange={(v) => put({ skin: v })} /></Field>
+        <Field label="Ramp in over" htmlFor="cam-ramp"><LengthInput id="cam-ramp" value={cam.ramp} onChange={(v) => put({ ramp: v ?? 0 })} /></Field>
+      </div>
+      <div className="checks"><label><input type="checkbox" checked={cam.climb} onChange={(e) => put({ climb: e.target.checked })} /> Climb cut the outlines</label></div>
+      <p className="hint">Outlines are cut down to the onion skin first, smallest parts first, then a last pass cuts the skin through in the same order, so small parts hold on the vacuum until the end.</p>
+      <h4 className="sub">Tool library</h4>
+      {cam.tools.map((t) => (
+        <div key={t.slot} className="stock-row">
+          <div className="sr-head">
+            <strong>T{t.slot}</strong>
+            <input aria-label={`Tool ${t.slot} name`} value={t.name} onChange={(e) => putTool(t.slot, { name: e.target.value })} />
+            <button className="icon-btn" aria-label={`Remove tool ${t.slot}`} onClick={() => put({ tools: cam.tools.filter((x) => x.slot !== t.slot) })}>×</button>
+          </div>
+          <div className="grid2">
+            <Field label="Used for" htmlFor={`t-job-${t.slot}`}>
+              <select id={`t-job-${t.slot}`} value={t.job} onChange={(e) => putTool(t.slot, { job: e.target.value as ToolJob })}>
+                {(Object.keys(jobs) as ToolJob[]).map((k) => <option key={k} value={k}>{jobs[k]}</option>)}
+              </select>
+            </Field>
+            <Field label="Pocket (T)" htmlFor={`t-slot-${t.slot}`}>
+              <select id={`t-slot-${t.slot}`} value={t.slot} onChange={(e) => { const n = +e.target.value; if (!cam.tools.some((x) => x.slot === n)) putTool(t.slot, { slot: n }); }}>
+                {Array.from({ length: 12 }, (_, i) => i + 1).map((n) => <option key={n} value={n} disabled={n !== t.slot && cam.tools.some((x) => x.slot === n)}>{n}</option>)}
+              </select>
+            </Field>
+            <Field label="Diameter" htmlFor={`t-dia-${t.slot}`}><LengthInput id={`t-dia-${t.slot}`} value={t.dia} onChange={(v) => putTool(t.slot, { dia: v ?? t.dia })} /></Field>
+            <Field label="Spindle (rpm)" htmlFor={`t-rpm-${t.slot}`}><input id={`t-rpm-${t.slot}`} inputMode="numeric" value={t.rpm} onChange={(e) => putTool(t.slot, { rpm: parseInt(e.target.value, 10) || 0 })} /></Field>
+            <Field label="Feed (in/min)" htmlFor={`t-feed-${t.slot}`} hint={ipm(t.feed)}><input id={`t-feed-${t.slot}`} inputMode="decimal" value={t.feed} onChange={(e) => putTool(t.slot, { feed: parseFloat(e.target.value) || 0 })} /></Field>
+            <Field label="Plunge (in/min)" htmlFor={`t-plg-${t.slot}`} hint={ipm(t.plunge)}><input id={`t-plg-${t.slot}`} inputMode="decimal" value={t.plunge} onChange={(e) => putTool(t.slot, { plunge: parseFloat(e.target.value) || 0 })} /></Field>
+            {t.job !== 'drill' && <Field label="Deepest pass" htmlFor={`t-step-${t.slot}`}><LengthInput id={`t-step-${t.slot}`} value={t.stepdown} onChange={(v) => putTool(t.slot, { stepdown: v ?? t.stepdown })} /></Field>}
+          </div>
+        </div>
+      ))}
+      <div className="order-actions">
+        {free && <button className="mini" onClick={() => put({ tools: [...cam.tools, { slot: free, name: 'New tool', dia: 0.25, job: 'pocket', rpm: 18000, feed: 200, plunge: 60, stepdown: 0.25, stepover: 0.45 }] })}>Add a tool</button>}
+        <button className="mini" onClick={() => put({ tools: defaultTools })}>Starting tools</button>
+      </div>
+      <p className="hint">Feeds and speeds are starting points: set them from the bit maker's chart and what your machine likes. The first program on a new machine should be run in its own simulation, then as an air cut with Z raised.</p>
+    </Section>
+  );
+}
+
+/** A small depth typed in millimetres (too fine for sixteenths): kept in inches like every other size. */
+function MmInput({ id, value, onChange }: { id: string; value: number; onChange: (inches: number) => void }) {
+  const [text, setText] = useState<string | null>(null);
+  const shown = text ?? String(Math.round(value * 25.4 * 10) / 10);
+  return <input id={id} inputMode="decimal" value={shown} onChange={(e) => setText(e.target.value)} onBlur={() => { const v = parseFloat(shown); if (Number.isFinite(v) && v >= 0) onChange(v / 25.4); setText(null); }} />;
 }

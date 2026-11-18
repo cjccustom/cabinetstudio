@@ -1,3 +1,5 @@
+import { camOf, offsetPolygon, sheetGcode, sheetProgram } from '../src/model/toolpath';
+import { checkGcode, readGcode } from '../src/model/gcode';
 import { cncLayouts, cncOf, partOps, sheetDxf, sheetOps } from '../src/model/cnc';
 import { parseDxf } from '../src/import/cad';
 import { defaultFinishing } from '../src/model/finishing';
@@ -2727,6 +2729,41 @@ eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i
   const saw = optimize(optimizerParts(sp, data), cutStock(sp, data), data.options);
   const sawCnc = optimize(optimizerParts(sp, { ...data, method: 'cnc' }), cutStock(sp, { ...data, method: 'cnc' }), { ...data.options });
   eq('cnc: the table saw layout is the same with CNC picked', JSON.stringify(saw.map((m) => m.sheets.map((s) => s.cuts.length))), JSON.stringify(sawCnc.map((m) => m.sheets.map((s) => s.cuts.length))));
+}
+
+// Our own CAM: toolpaths for a sheet and G-code in each manufacturer's dialect, checked line by line
+{
+  const sq = offsetPolygon([[0, 0], [10, 0], [10, 5], [0, 5]], 0.1875).map((q) => q.map((v) => +v.toFixed(4)).join(',')).join(' ');
+  eq('toolpath: outline pushed out by the bit\'s radius, square corners', sq, '-0.1875,-0.1875 10.1875,-0.1875 10.1875,5.1875 -0.1875,5.1875');
+  const sp = sampleProject();
+  const data = defaultCutlist(sp);
+  const cnc = cncOf(data);
+  const ops = partOps(sp, cnc);
+  const sheet = cncLayouts(sp, data)[0].sheets[0];
+  for (const post of ['vendorA', 'vendorB'] as const) {
+    const cam = camOf({ post });
+    const { text, program } = sheetGcode(sheet, ops, cnc, cam);
+    const g = readGcode(text);
+    const issues = checkGcode(g, { length: sheet.stock.length * 25.4, width: sheet.stock.width * 25.4, deepest: (0.75 + cnc.through) * 25.4, margin: 0.01 });
+    eq(`gcode ${post}: drills, then pockets, then outlines; nothing off the sheet, too deep or rapid through the work`, `${program.blocks.map((b) => b.tool.job).join(',')} ${issues.length}`, 'drill,pocket,profile 0');
+    eq(`gcode ${post}: outlines go to full depth`, g.bounds.z0.toFixed(1), (-(0.75 + cnc.through) * 25.4).toFixed(1));
+  }
+  const a = sheetGcode(sheet, ops, cnc, camOf({ post: 'vendorA' })).text.split('\r\n');
+  eq('gcode vendor A: starts like their sample (T#M6, G43H#, M03S…)', a.slice(0, 3).join(' '), 'T3M6 G43H3 M03S6000');
+  eq('gcode vendor A: later tool changes as in their sample (M05, T2, G43H2)', a.some((l, i) => l === 'M05' && a[i + 1] === 'T2' && a[i + 2] === 'G43H2'), true);
+  const b = sheetGcode(sheet, ops, cnc, camOf({ post: 'vendorB' })).text.split('\r\n');
+  eq('gcode vendor B: starts like their Vectric post (T# , G43 H#, S…M03)', b.slice(0, 3).join('|'), 'T3 |G43 H3|S6000M03');
+  eq('gcode vendor B: each new tool restates its height first', b.some((l, i) => l === 'S18000M03' && b[i + 1] === 'G0Z10.160'), true);
+  eq('gcode vendor B: ends M5, home, M30', b.filter(Boolean).slice(-3).join('|'), 'M5|G0Z10.160X0.000Y0.000|M30');
+  // The onion skin: every outline cut to the skin first, the skin cut through last
+  const prof = sheetProgram(sheet, ops, cnc, camOf()).blocks.find((x) => x.tool.job === 'profile')!;
+  const deepest = Math.min(...prof.moves.map((m) => m.z ?? 0));
+  const firstFull = prof.moves.findIndex((m) => m.z === deepest);
+  const lastSkin = prof.moves.map((m, i) => (Math.abs((m.z ?? 0) + (0.75 + cnc.through - camOf().skin)) < 1e-9 ? i : -1)).reduce((x, y) => Math.max(x, y), -1);
+  eq('toolpath: the onion skin comes off after every outline is cut to it', firstFull > lastSkin, true);
+  // The manufacturer's own sample program reads cleanly
+  const sample = readGcode(readFileSync('vendor/cnc-samples/vendor-a-t1t2.nc', 'utf8'));
+  eq('gcode reader: vendor A\'s sample (two tools, no warnings)', `${sample.tools.join(',')} ${sample.warnings.length}`, '1,2 0');
 }
 
 console.log(failed ? `${failed} check(s) failed` : 'All model checks passed');

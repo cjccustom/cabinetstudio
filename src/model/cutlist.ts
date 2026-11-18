@@ -35,6 +35,8 @@ export interface CutlistData {
   method?: 'saw' | 'cnc';
   /** The router's settings, where they differ from the defaults. */
   cnc?: Partial<import('./cnc').CncSettings>;
+  /** Cabinet Studio's own CAM: the tool library, how outlines are cut and which controller the G-code is for. */
+  cam?: Partial<import('./toolpath').CamSettings>;
 }
 
 /** Parts whose face shows get their grain locked; hidden structural parts can turn to save plywood. */
