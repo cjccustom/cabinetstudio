@@ -114,9 +114,10 @@ export function CaseEditor({ c, put }: { c: CasePiece; put: (p: Partial<CasePiec
           <select id={id('gr')} value={c.grade} onChange={(e) => { const grade = e.target.value as CasePiece['grade']; put({ grade, ...(grade === 'paint' ? { species: 'Poplar', finish: 'paint' as TableFinish } : c.species === 'Poplar' ? { species: 'White oak', finish: 'clear' as TableFinish } : {}) }); }}>
             <option value="paint">Paint grade (birch plywood, poplar)</option>
             <option value="stain">Stain grade (veneer plywood and solid wood)</option>
+            <option value="solid">Solid wood (plywood only for the back, bottom and web frames)</option>
           </select>
         </Field>
-        {c.grade === 'stain' && (
+        {c.grade !== 'paint' && (
           <Field label="Species" htmlFor={id('sp')}>
             <select id={id('sp')} value={c.species} onChange={(e) => put({ species: e.target.value })}>{tableSpecies.filter((x) => x.name !== 'Poplar').map((x) => <option key={x.name} value={x.name}>{x.label}</option>)}</select>
           </Field>

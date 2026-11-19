@@ -2921,5 +2921,19 @@ eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i
   eq('bed feet: scope says it', /frame on block feet at the corners/.test(bedScope(b)), true);
 }
 
+// Solid wood grade: lumber for everything that shows, plywood only where it's hidden
+{
+  const sp0 = sampleProject();
+  const bed = { ...newBed(), style: 'platform' as const, headboard: 'panel' as const, species: 'Walnut', finish: 'clear' as const, pricePerBF: 20 };
+  const stain = bedEstimate({ ...bed, grade: 'stain' }, sp0), solid = bedEstimate({ ...bed, grade: 'solid' }, sp0);
+  const bf = (e: typeof stain) => e.materials.find((m) => /lumber/.test(m.label))!.cost;
+  eq('solid bed: more lumber than stain grade', bf(solid) > bf(stain), true);
+  eq('solid bed: the only plywood left is birch (the hidden deck)', /birch/.test(solid.materials[0].label), true);
+  eq('solid bed: glue-up time added', solid.hours.some((h) => /Glue-ups/.test(h.label)), true);
+  eq('solid bed: proposal says solid throughout', /solid walnut throughout/.test(bedScope({ ...bed, grade: 'solid' })), true);
+  const dresser = { ...newCase('dresser'), grade: 'solid' as const, species: 'Cherry', finish: 'clear' as const };
+  eq('solid dresser: case sides are solid cherry', /solid cherry/.test(caseParts(dresser).find((x) => x.name === 'Case side')!.note ?? ''), true);
+}
+
 console.log(failed ? `${failed} check(s) failed` : 'All model checks passed');
 process.exit(failed ? 1 : 0);

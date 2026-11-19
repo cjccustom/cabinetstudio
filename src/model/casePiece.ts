@@ -57,7 +57,8 @@ export interface CasePiece {
   frontStyle: 'slab' | 'shaker';
   hardware: 'knobs' | 'pulls' | 'none';
   species: string;
-  grade: 'paint' | 'stain';
+  /** paint: birch plywood and poplar. stain: veneer plywood and the species. solid: the species for everything you see; plywood only for the back, bottom and web frames. */
+  grade: 'paint' | 'stain' | 'solid';
   finish: TableFinish;
   finishPrice: number;
   /** Lumber price per board foot typed in; 0 = A&M's list price for the species. */
@@ -131,11 +132,12 @@ export function caseParts(c: CasePiece): TablePart[] {
   const back = faceZ - cd, hw = cw / 2, inset = c.fronts === 'inset';
   // The case's front edges sit behind the overlay fronts, or behind the face frame
   const caseFront = faceZ - FRONT_T;
-  const sheet = c.grade === 'paint' ? 'paint-grade birch' : `${c.species.toLowerCase()}`;
+  const sheet = c.grade === 'paint' ? 'paint-grade birch' : c.grade === 'solid' ? 'birch' : `${c.species.toLowerCase()}`;
+  const solidNote = `solid ${c.species.toLowerCase()}, glued up from boards`;
   // Top: solid, glued up, overhanging the case
   out.push({ role: 'top', name: 'Top', qty: 1, length: c.width, width: c.depth, thick: c.topT, note: 'glued up from boards about 5" wide; fastened with figure-8s or buttons so it can move', boxes: [box(-c.width / 2, y1, -c.depth / 2, c.width / 2, c.height, c.depth / 2)] });
   // Case: sides, bottom, sub-top, back
-  out.push({ role: 'apron', name: 'Case side', qty: 2, length: cd - FRONT_T, width: y1 - y0, thick: PLY, note: `3/4" ${sheet} plywood, front edge banded solid`, boxes: [box(-hw, y0, back, -hw + PLY, y1, caseFront), box(hw - PLY, y0, back, hw, y1, caseFront)] });
+  out.push({ role: 'apron', name: 'Case side', qty: 2, length: cd - FRONT_T, width: y1 - y0, thick: PLY, note: c.grade === 'solid' ? solidNote : `3/4" ${sheet} plywood, front edge banded solid`, boxes: [box(-hw, y0, back, -hw + PLY, y1, caseFront), box(hw - PLY, y0, back, hw, y1, caseFront)] });
   out.push({ role: 'apron', name: 'Case bottom and sub-top', qty: 2, length: cw - 2 * PLY, width: cd - FRONT_T - BACK, thick: PLY, note: `3/4" ${sheet} plywood, dadoed into the sides`, boxes: [box(-hw + PLY, y0, back + BACK, hw - PLY, y0 + PLY, caseFront), box(-hw + PLY, y1 - PLY, back + BACK, hw - PLY, y1, caseFront)] });
   out.push({ role: 'apron', name: 'Back', qty: 1, length: cw - 2 * PLY, width: y1 - y0, thick: BACK, note: '1/4" plywood in a rabbet', boxes: [box(-hw + PLY, y0, back, hw - PLY, y1, back + BACK)] });
   if (inset) {
@@ -180,7 +182,7 @@ export function caseParts(c: CasePiece): TablePart[] {
       shelfBoxes.push(box(o.x0 + (o.col ? PLY / 2 : PLY), y - PLY / 2, back + BACK, o.x1 - (o.col < r.split - 1 ? PLY / 2 : PLY), y + PLY / 2, caseFront - 0.25));
     }
   });
-  if (shelfBoxes.length) out.push({ role: 'shelf', name: 'Adjustable shelf', qty: shelfBoxes.length, length: Math.max(...shelfBoxes.map((b) => b.size[0])), width: cd - FRONT_T - BACK - 0.25, thick: PLY, note: 'plywood, solid edge, on shelf pins', boxes: shelfBoxes });
+  if (shelfBoxes.length) out.push({ role: 'shelf', name: 'Adjustable shelf', qty: shelfBoxes.length, length: Math.max(...shelfBoxes.map((b) => b.size[0])), width: cd - FRONT_T - BACK - 0.25, thick: PLY, note: c.grade === 'solid' ? `${solidNote}, on shelf pins` : 'plywood, solid edge, on shelf pins', boxes: shelfBoxes });
   // Hardware: a knob per front (two on a drawer over 20" wide), or a pull
   if (c.hardware !== 'none') {
     const hb: TableBox[] = [];
@@ -282,11 +284,13 @@ export function caseEstimate(c: CasePiece, p: Project): { hours: { label: string
   hours.push({ label: `Delivery and set in place${n > 1 ? ` (${n})` : ''}`, hours: n * (s.delivery + s.deliveryPerCuFt * ((c.width * c.depth * c.height) / 1728)) });
 
   // Materials: plywood by area, solid stock by board foot, drawer boxes and slides, hinges, hardware
-  const plyArea = parts.filter((x) => x.thick === PLY && x.qty > 0).reduce((t, x) => t + x.qty * x.length * x.width, 0) * 1.25;
+  // Solid wood: the sides, shelves, plinth and fronts are lumber; the plywood left is the bottom, sub-top and web frames
+  const lumber = (x: TablePart) => c.grade === 'solid' && ['Case side', 'Adjustable shelf', 'Plinth', 'Drawer front', 'Door'].includes(x.name);
+  const plyArea = parts.filter((x) => x.thick === PLY && x.qty > 0 && !lumber(x)).reduce((t, x) => t + x.qty * x.length * x.width, 0) * 1.25;
   const sheets = Math.max(1, Math.ceil(plyArea / (48 * 96)));
-  const sheetMat = c.grade === 'paint' ? '3/4" paint-grade birch plywood' : `3/4" ${c.species.toLowerCase()} plywood`;
+  const sheetMat = c.grade === 'stain' ? `3/4" ${c.species.toLowerCase()} plywood` : '3/4" paint-grade birch plywood';
   const sheetPrice = p.sheetPrices?.[sheetMat] ?? p.cutlist?.stock.find((x) => x.material === sheetMat)?.price ?? 0;
-  const solid = parts.filter((x) => x.qty > 0 && (x.role === 'top' || x.role === 'leg' || x.role === 'breadboard' || (x.role === 'stretcher' && x.thick !== PLY)));
+  const solid = parts.filter((x) => x.qty > 0 && (x.role === 'top' || x.role === 'leg' || x.role === 'breadboard' || (x.role === 'stretcher' && x.thick !== PLY) || lumber(x)));
   const solidBF = solid.reduce((t, x) => t + (x.qty * x.length * x.width * Math.max(1, x.thick + 0.25)) / 144, 0) * 1.35 + (cd * 2 + cw) * 0.1 / 12; // plus edge banding stock
   const sp = c.grade === 'paint' ? 'Poplar' : c.species;
   const perBF = c.pricePerBF || amPerBF(sp)?.perBF || 0;
@@ -328,7 +332,7 @@ export function caseScope(c: CasePiece): string {
   const kinds = { nightstand: 'nightstands', dresser: 'dressers', chest: 'chests of drawers', sideboard: 'sideboards', media: 'media consoles' }[c.kind];
   return [
     `${c.name}: ${n > 1 ? `(${n}) matching custom ${kinds}, each` : `custom ${kind},`} approx ${fmt(c.width)}W x ${fmt(c.depth)}D x ${fmt(c.height)}H`,
-    c.grade === 'paint' ? 'paint grade' : `${c.species.toLowerCase()}`,
+    c.grade === 'paint' ? 'paint grade' : c.grade === 'solid' ? `solid ${c.species.toLowerCase()} throughout` : `${c.species.toLowerCase()}`,
     faceWords(c),
     `${c.frontStyle === 'shaker' ? 'five-piece' : 'slab'} ${c.fronts} fronts${c.rows.some((r) => r.type === 'drawer') ? ', dovetailed drawer boxes on full-extension soft-close slides' : ''}`,
     `solid ${c.grade === 'paint' ? '' : `${c.species.toLowerCase()} `}top`.replace('  ', ' '),

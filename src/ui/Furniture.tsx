@@ -319,9 +319,10 @@ export function BedEditor({ b, put, remove, embedded }: { b: Bed; put: (p: Parti
           <select id={id('gr')} value={b.grade} onChange={(e) => { const grade = e.target.value as Bed['grade']; put({ grade, ...(grade === 'paint' ? { species: 'Poplar', finish: 'paint' as TableFinish } : b.species === 'Poplar' ? { species: 'White oak', finish: 'clear' as TableFinish } : {}) }); }}>
             <option value="paint">Paint grade (birch plywood, poplar)</option>
             <option value="stain">Stain grade (veneer plywood and solid wood)</option>
+            <option value="solid">Solid wood (plywood only in the deck under the mattress)</option>
           </select>
         </Field>
-        {b.grade === 'stain' && (
+        {b.grade !== 'paint' && (
           <Field label="Species" htmlFor={id('sp')}>
             <select id={id('sp')} value={b.species} onChange={(e) => put({ species: e.target.value })}>{tableSpecies.filter((x) => x.name !== 'Poplar').map((x) => <option key={x.name} value={x.name}>{x.label}</option>)}</select>
           </Field>

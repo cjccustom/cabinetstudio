@@ -66,8 +66,8 @@ export interface Bed {
   footboard: boolean;
   footH: number;
   species: string;
-  /** Paint grade: plywood and poplar, painted. Stain grade: veneer plywood and the species. */
-  grade: 'paint' | 'stain';
+  /** Paint grade: plywood and poplar, painted. Stain grade: veneer plywood and the species. Solid: the species throughout, plywood only in the deck under the mattress. */
+  grade: 'paint' | 'stain' | 'solid';
   finish: TableFinish;
   finishPrice: number;
   /** Lumber price per board foot typed in; 0 = A&M's list price for the species. */
@@ -125,12 +125,12 @@ export function bedParts(b: Bed): TablePart[] {
   if (b.style === 'platform') {
     // Deck: 3/4" plywood with a solid border band all around, the mattress sitting on it
     const deckY = b.deckH - PLY;
-    out.push({ role: 'top', name: 'Deck', qty: 1, length: L, width: W, thick: PLY, note: `3/4" ${b.grade === 'paint' ? 'paint-grade birch' : b.species.toLowerCase()} plywood, edged with ${fmt(BORDER)} solid stock`, boxes: [box(-hw, deckY, z0, hw, b.deckH, footZ)] });
+    out.push({ role: 'top', name: 'Deck', qty: 1, length: L, width: W, thick: PLY, note: `3/4" ${b.grade === 'stain' ? b.species.toLowerCase() : 'birch'} plywood, edged with ${fmt(BORDER)} solid ${b.grade === 'paint' ? 'stock' : b.species.toLowerCase()}`, boxes: [box(-hw, deckY, z0, hw, b.deckH, footZ)] });
     out.push({ role: 'lip', name: 'Mattress stop', qty: 3, length: innerW, width: 1.5, thick: 0.75, note: 'solid, around the foot and sides, keeps the mattress from sliding', boxes: [box(-hw, b.deckH, footZ - BORDER, hw, b.deckH + 1.5, footZ), box(-hw, b.deckH, z0, -hw + BORDER, b.deckH + 1.5, footZ), box(hw - BORDER, b.deckH, z0, hw, b.deckH + 1.5, footZ)] });
     // Base: a plywood box set back from the deck edge, with a center spine and cross supports
     const bx = hw - SETBACK, bz0 = z0 + (headZ ? 0 : 1), bz1 = footZ - SETBACK, bh = deckY;
-    out.push({ role: 'apron', name: 'Base side', qty: 2, length: bz1 - bz0, width: bh, thick: PLY, note: b.drawers ? `cut out for ${b.drawers} drawer${b.drawers > 1 ? 's' : ''}` : '3/4" plywood', boxes: [box(-bx, 0, bz0, -bx + PLY, bh, bz1), box(bx - PLY, 0, bz0, bx, bh, bz1)] });
-    out.push({ role: 'apron', name: 'Base end', qty: 2, length: 2 * bx, width: bh, thick: PLY, note: '3/4" plywood', boxes: [box(-bx, 0, bz0, bx, bh, bz0 + PLY), box(-bx, 0, bz1 - PLY, bx, bh, bz1)] });
+    out.push({ role: 'apron', name: 'Base side', qty: 2, length: bz1 - bz0, width: bh, thick: PLY, note: `${b.grade === 'solid' ? `solid ${b.species.toLowerCase()}, glued up` : '3/4" plywood'}${b.drawers ? `, cut out for ${b.drawers} drawer${b.drawers > 1 ? 's' : ''}` : ''}`, boxes: [box(-bx, 0, bz0, -bx + PLY, bh, bz1), box(bx - PLY, 0, bz0, bx, bh, bz1)] });
+    out.push({ role: 'apron', name: 'Base end', qty: 2, length: 2 * bx, width: bh, thick: PLY, note: b.grade === 'solid' ? `solid ${b.species.toLowerCase()}, glued up` : '3/4" plywood', boxes: [box(-bx, 0, bz0, bx, bh, bz0 + PLY), box(-bx, 0, bz1 - PLY, bx, bh, bz1)] });
     out.push({ role: 'stretcher', name: 'Center spine and cross supports', qty: 1, length: bz1 - bz0, width: bh, thick: PLY, note: 'spine down the middle, a cross support every 24"', boxes: [box(-PLY / 2, 0, bz0, PLY / 2, bh, bz1)] });
     // Drawers: fronts in the base sides
     if (b.drawers > 0) {
@@ -147,7 +147,7 @@ export function bedParts(b: Bed): TablePart[] {
     out.push({ role: 'apron', name: 'Side rail', qty: 2, length: L, width: f.railH, thick: t, note: `solid ${b.grade === 'paint' ? 'poplar' : b.species.toLowerCase()}, full length; the end rails fit between them (dowels or bed bolts)`, boxes: [box(-hw, ry0, 0, -hw + t, b.deckH, L), box(hw - t, ry0, 0, hw, b.deckH, L)] });
     out.push({ role: 'apron', name: 'End rail', qty: 2, length: W - 2 * t, width: f.railH, thick: t, note: 'between the side rails', boxes: [box(-hw + t, ry0, 0, hw - t, b.deckH, t), box(-hw + t, ry0, L - t, hw - t, b.deckH, L)] });
     out.push({ role: 'stretcher', name: 'Deck cleat', qty: 4, length: innerL, width: 1.5, thick: 1.5, note: 'glued and screwed inside the rails, 3/4" down, carrying the deck', boxes: [box(-hw + t, b.deckH - PLY - 1.5, t, -hw + t + 1.5, b.deckH - PLY, L - t), box(hw - t - 1.5, b.deckH - PLY - 1.5, t, hw - t, b.deckH - PLY, L - t)] });
-    out.push({ role: 'top', name: 'Deck', qty: innerW > 50 ? 2 : 1, length: innerL, width: innerW > 50 ? innerW / 2 : innerW, thick: PLY, note: `3/4" ${b.grade === 'paint' ? 'birch' : b.species.toLowerCase()} plywood, flush with the top of the frame${innerW > 50 ? '; two pieces meeting over the center support' : ''}; a few 1" holes to let the mattress breathe`, boxes: [box(-hw + t, b.deckH - PLY, t, hw - t, b.deckH, L - t)] });
+    out.push({ role: 'top', name: 'Deck', qty: innerW > 50 ? 2 : 1, length: innerL, width: innerW > 50 ? innerW / 2 : innerW, thick: PLY, note: `3/4" ${b.grade === 'stain' ? b.species.toLowerCase() : 'birch'} plywood${b.grade === 'solid' ? ' (hidden under the mattress)' : ''}, flush with the top of the frame${innerW > 50 ? '; two pieces meeting over the center support' : ''}; a few 1" holes to let the mattress breathe`, boxes: [box(-hw + t, b.deckH - PLY, t, hw - t, b.deckH, L - t)] });
     if (innerW > 50) {
       out.push({ role: 'stretcher', name: 'Center support', qty: 1, length: innerL, width: 3.5, thick: 1.5, note: 'down the middle under the deck seam, into the end rails', boxes: [box(-0.75, b.deckH - PLY - 3.5, t, 0.75, b.deckH - PLY, L - t)] });
       const fz = [L / 3, (2 * L) / 3];
@@ -250,6 +250,11 @@ export function bedEstimate(b: Bed, p: Project): { hours: { label: string; hours
     hours.push({ label: b.headboard === 'upholstered' ? 'Headboard back and mounting (upholstered by others)' : `Headboard, ${b.headboard === 'panel' ? 'frame and flat panels' : 'solid slab'}`, hours: base + (b.headboard === 'upholstered' ? 0 : s.headPerSqFt * hbSqFt) });
     if (b.headMount === 'wall') hours.push({ label: 'French cleat, hung on the wall', hours: s.wallCleat });
   }
+  if (b.grade === 'solid') {
+    const glued = parts.filter((x) => x.qty > 0 && x.thick === PLY && x.role !== 'top' && x.role !== 'lip' && x.role !== 'slat').reduce((t, x) => t + (x.qty * x.length * x.width) / 144, 0)
+      + (b.headboard === 'panel' ? hbSqFt * 0.6 : 0);
+    if (glued > 0) hours.push({ label: `Glue-ups and flattening, solid wood (${glued.toFixed(1)} sq ft)`, hours: 1 + 0.08 * glued });
+  }
   const finishArea = deckSqFt * 1.5 + hbSqFt * 2;
   hours.push({ label: 'Sanding', hours: s.sandPerSqFt * finishArea + 1 });
   if (b.finish !== 'painter') hours.push({ label: tableFinishLabel[b.finish], hours: s.finishBase[b.finish] + s.finishPerSqFt * finishArea });
@@ -259,13 +264,16 @@ export function bedEstimate(b: Bed, p: Project): { hours: { label: string; hours
   // Materials: sheet goods by area, solid stock by board foot, drawer boxes and slides, hardware
   // A paneled headboard is about 40% solid frame and 60% plywood panels; an upholstered one is a plywood back
   const built = parts.filter((x) => x.qty > 0);
-  const hbSolid = (x: TablePart) => (x.name.startsWith('Upholstered') ? 0 : x.name.includes('flat panel') || x.name.includes('Footboard') ? 0.4 : 1);
-  const sheetArea = (built.filter((x) => x.thick === PLY && x.role !== 'lip' && x.role !== 'slat' && x.name !== 'Drawer front').reduce((t, x) => t + x.qty * x.length * x.width, 0)
+  const allSolid = b.grade === 'solid';
+  const hbSolid = (x: TablePart) => (x.name.startsWith('Upholstered') ? 0 : allSolid ? 1 : x.name.includes('flat panel') || x.name.includes('Footboard') ? 0.4 : 1);
+  // Solid wood: every 3/4" part but the deck is lumber too (the base, drawer fronts)
+  const plyPart = (x: TablePart) => x.thick === PLY && x.role !== 'lip' && x.role !== 'slat' && x.name !== 'Drawer front' && (!allSolid || x.role === 'top');
+  const sheetArea = (built.filter(plyPart).reduce((t, x) => t + x.qty * x.length * x.width, 0)
     + built.filter((x) => x.role === 'breadboard' || x.role === 'cushion').reduce((t, x) => t + (1 - hbSolid(x)) * x.length * x.width, 0)) * 1.2;
   const sheets = Math.max(1, Math.ceil(sheetArea / (48 * 96)));
-  const sheetMat = b.grade === 'paint' ? '3/4" paint-grade birch plywood' : `3/4" ${b.species.toLowerCase()} plywood`;
+  const sheetMat = b.grade === 'stain' ? `3/4" ${b.species.toLowerCase()} plywood` : '3/4" paint-grade birch plywood';
   const sheetPrice = p.sheetPrices?.[sheetMat] ?? p.cutlist?.stock.find((x) => x.material === sheetMat)?.price ?? 0;
-  const solidBF = built.filter((x) => x.thick !== PLY || x.role === 'lip' || x.role === 'slat').reduce((t, x) => t + ((x.role === 'breadboard' || x.role === 'cushion' ? hbSolid(x) : 1) * x.qty * x.length * x.width * Math.max(1, x.thick + 0.25)) / 144, 0) * 1.3;
+  const solidBF = built.filter((x) => x.thick !== PLY || x.role === 'lip' || x.role === 'slat' || (allSolid && !plyPart(x) && x.role !== 'breadboard' && x.role !== 'cushion')).reduce((t, x) => t + ((x.role === 'breadboard' || x.role === 'cushion' ? hbSolid(x) : 1) * x.qty * x.length * x.width * Math.max(1, x.thick + 0.25)) / 144, 0) * 1.3;
   const sp = b.grade === 'paint' ? 'Poplar' : b.species;
   const perBF = b.pricePerBF || amPerBF(sp)?.perBF || 0;
   const materials: { label: string; cost: number; detail: string; missing?: string }[] = [
@@ -292,7 +300,7 @@ export function bedScope(b: Bed): string {
   const size = b.mattress === 'custom' ? `${fmt(m.w)} × ${fmt(m.l)} mattress` : `${mattressSizes[b.mattress].label.replace(/ \(.*/, '').toLowerCase()} mattress`;
   return [
     `${b.name}: custom ${b.style === 'platform' ? 'platform bed' : 'bed frame'} for a ${size}, approx ${fmt(W)}W x ${fmt(L)}L, mattress top about ${fmt(top)} off the floor`,
-    b.grade === 'paint' ? 'paint grade' : `${b.species.toLowerCase()}`,
+    b.grade === 'paint' ? 'paint grade' : b.grade === 'solid' ? `solid ${b.species.toLowerCase()} throughout` : `${b.species.toLowerCase()}`,
     b.style === 'platform' ? `solid deck on a set-back base${b.drawers ? ` with (${b.drawers * (b.drawerSides === 'both' ? 2 : 1)}) drawers` : ''}` : b.style === 'feet' ? `solid ${fmt(feetOf(b).railH)} frame on block feet at the corners, plywood deck` : `legs, rails and slats${b.footboard ? ' with a footboard' : ''}`,
     b.headboard === 'none' ? '' : `${b.headboard === 'panel' ? 'flat panel' : b.headboard === 'slab' ? 'solid' : 'upholstered (fabric to be selected)'} headboard about ${fmt(b.headH)} high${b.headMount === 'wall' ? ', wall mounted' : ''}`,
     b.finish === 'painter' ? 'finish by others' : tableFinishLabel[b.finish].replace(' (shop)', '').toLowerCase() + ' finish',
