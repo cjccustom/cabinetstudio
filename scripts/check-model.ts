@@ -62,7 +62,7 @@ import { defaultFaceFrameStock, faceFrameNeeds, faceFramePieces, otherSpecies, r
 import { panelAbove, panelBetween, panelOrder } from "../src/model/panels";
 import { amCatalog } from "../src/model/andersonMcquaid";
 import { cabinetMoldings, moldingOrder, mountShape, priceOf, profileByNum, profileLabel, setCustomDrawings } from "../src/model/moldings";
-import { closetRods, scopeItems, estimateHours, estimateMaterials, extraFinishes, paintCalculated, paintEstimate, priceQuote, proposalScope, newInterior, highWork, paintCostRates, paintModeOf, paintRates, quoteOf, scopeLine } from "../src/model/quote";
+import { closetRods, scopeItems, estimateHours, estimateMaterials, extraFinishes, paintCalculated, paintEstimate, priceQuote, proposalScope, newInterior, highWork, heightOf, setShopHeight, paintCostRates, paintModeOf, paintRates, quoteOf, scopeLine } from "../src/model/quote";
 import { cutStock, defaultCutlist, designParts, optimizerParts } from "../src/model/cutlist";
 import { applyBook, choosePlywood, chooseSpecies, priceBook, setJobFinish, stalePrices } from "../src/model/pricebook";
 import { doorMaterials as eagleDoorMaterials, eagleWoodFactor } from "../src/model/eagle";
@@ -2800,6 +2800,15 @@ eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i
   eq('height: floor protection prices asked for until entered', priceQuote(high).materials.filter((m) => /Floor protection|Masonite/.test(m.label)).every((m) => !!m.missing), true);
   const sent = { ...high, portal: { jobId: 'x', status: { publishedAt: 1, signed: null } as never } };
   eq('height: a quote already sent keeps its price', priceQuote(sent).total, priceQuote({ ...sent, quote: { ...quoteOf(sent), height: { off: true } } }).total);
+}
+
+// Work-at-height prices are the shop's, shared by every job; a job keeps only whether it's left off
+{
+  const sp = sampleProject();
+  setShopHeight({ masonite: 18, protectPerSqFt: 0.9 });
+  eq('height: the shop\'s prices reach every job', `${heightOf(quoteOf(sp)).masonite} ${heightOf(quoteOf(sp)).protectPerSqFt}`, '18 0.9');
+  eq('height: a job can still leave it off', heightOf({ ...quoteOf(sp), height: { off: true } }).off && heightOf({ ...quoteOf(sp), height: { off: true } }).masonite === 18, true);
+  setShopHeight(null);
 }
 
 console.log(failed ? `${failed} check(s) failed` : 'All model checks passed');

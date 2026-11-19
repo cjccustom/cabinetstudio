@@ -9,6 +9,7 @@ import { useNav } from './three/navigation';
 import { DesignRenderButton } from './ui/DesignRender';
 import { RenderInputs, RenderSide, RenderStage } from './ui/Rendering';
 import { useEffect, useMemo, useState } from 'react';
+import { startShop } from './shop/shop';
 import { freeStanding, picked, useStore, type ViewMode } from './store';
 import { shiftInRoom, wallAxes } from './model/layout';
 import type { WallId } from './model/types';
@@ -48,6 +49,8 @@ const views: { v: ViewMode; label: string }[] = [
 ];
 
 export default function App() {
+  // The shop's shared data (machine, work-at-height prices, saved cabinets...) from the start, whatever tab opens first
+  useEffect(() => { void startShop(); }, []);
   const project = useStore((s) => s.project);
   const selectedId = useStore((s) => s.selectedId);
   const view = useStore((s) => s.view);

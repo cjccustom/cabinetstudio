@@ -1,3 +1,4 @@
+import { setShopHeight } from '../model/quote';
 // Shop Clock, built in: jobs, a clock-in timer by task, time entries and a to-do list per job.
 // Kept in the artifact's shared database so the shop phone and the office computer see the same
 // clock; falls back to this browser's storage where the database isn't available.
@@ -72,9 +73,11 @@ interface ShopState {
   sent: { name: string; at: number; text: string; kind: 'project' | 'profiles' } | null;
   /** The CNC: its tool library, cutting settings and controller, the same for every job. */
   machine: Partial<import('../model/toolpath').CamSettings> | null;
+  /** Prices and hours for work at height (staging, floor protection), the same for every job. */
+  height: Partial<import('../model/quote').HeightSettings> | null;
 }
 
-export const useShop = create<ShopState>(() => ({ mode: 'loading', jobs: {}, entries: {}, todos: {}, timer: null, rate: 75, prices: {}, parts: {}, furniture: {}, cabinets: {}, offcuts: {}, error: null, canExport: false, sent: null, machine: null }));
+export const useShop = create<ShopState>(() => ({ mode: 'loading', jobs: {}, entries: {}, todos: {}, timer: null, rate: 75, prices: {}, parts: {}, furniture: {}, cabinets: {}, offcuts: {}, error: null, canExport: false, sent: null, machine: null, height: null }));
 
 type Db = {
   doc(path: string): { set(d: Record<string, unknown>): Promise<void>; delete(): Promise<void>; onSnapshot(n: (s: { exists: boolean; data(): Record<string, unknown> | undefined }) => void, e?: (err: { code: string }) => void): () => void };
@@ -89,12 +92,13 @@ const LKEY = 'cabinet-studio.shop.v1';
 
 function saveLocal() {
   const s = useShop.getState();
-  try { localStorage.setItem(LKEY, JSON.stringify({ jobs: s.jobs, entries: s.entries, todos: s.todos, timer: s.timer, rate: s.rate, prices: s.prices, parts: s.parts, furniture: s.furniture, cabinets: s.cabinets, offcuts: s.offcuts, machine: s.machine })); } catch { /* storage blocked */ }
+  try { localStorage.setItem(LKEY, JSON.stringify({ jobs: s.jobs, entries: s.entries, todos: s.todos, timer: s.timer, rate: s.rate, prices: s.prices, parts: s.parts, furniture: s.furniture, cabinets: s.cabinets, offcuts: s.offcuts, machine: s.machine, height: s.height })); } catch { /* storage blocked */ }
 }
 function loadLocal() {
   try {
     const d = JSON.parse(localStorage.getItem(LKEY) || 'null');
-    if (d) useShop.setState({ jobs: d.jobs ?? {}, entries: d.entries ?? {}, todos: d.todos ?? {}, timer: d.timer ?? null, rate: d.rate ?? 75, prices: d.prices ?? {}, parts: d.parts ?? {}, furniture: d.furniture ?? {}, cabinets: d.cabinets ?? {}, offcuts: d.offcuts ?? {}, machine: d.machine ?? null });
+    if (d) useShop.setState({ jobs: d.jobs ?? {}, entries: d.entries ?? {}, todos: d.todos ?? {}, timer: d.timer ?? null, rate: d.rate ?? 75, prices: d.prices ?? {}, parts: d.parts ?? {}, furniture: d.furniture ?? {}, cabinets: d.cabinets ?? {}, offcuts: d.offcuts ?? {}, machine: d.machine ?? null, height: d.height ?? null });
+    setShopHeight(d.height);
   } catch { /* storage blocked */ }
 }
 
@@ -138,7 +142,17 @@ export async function startShop() {
       : v && typeof v.profiles === 'string' ? { name: String(v.name ?? 'Profiles'), at: Number(v.at) || 0, text: v.profiles, kind: 'profiles' } : null });
   }, () => {});
   db.doc('settings/shop').onSnapshot((d) => { if (d.exists) useShop.setState({ rate: Number(d.data()?.rate) || 75 }); }, lostConnection);
+  db.doc('settings/height').onSnapshot((d) => { const h = d.exists ? (d.data() as Partial<import('../model/quote').HeightSettings>) : null; setShopHeight(h); useShop.setState({ height: h }); }, () => {});
   db.doc('settings/machine').onSnapshot((d) => useShop.setState({ machine: d.exists ? (d.data() as Partial<import('../model/toolpath').CamSettings>) : null }), () => {});
+}
+
+/** Save the prices and hours for work at height, for every job. */
+export async function saveHeight(h: Partial<import('../model/quote').HeightSettings>) {
+  setShopHeight(h);
+  useShop.setState({ height: h });
+  if (!db) { saveLocal(); return; }
+  try { await db.doc('settings/height').set(h as Record<string, unknown>); }
+  catch { useShop.setState({ error: 'Couldn’t save the work-at-height settings. Check the connection and try again.' }); }
 }
 
 /** Save the CNC's tools and settings for every job. */

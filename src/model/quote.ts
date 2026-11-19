@@ -569,7 +569,10 @@ export interface HeightSettings {
   on?: boolean;
 }
 export const defaultHeight: HeightSettings = { above: 120, extra: 0.4, setupHours: 4, moveHours: 0.5, stagingRun: 72, protectOut: 48, protectHoursPerSqFt: 0.02, protectPerSqFt: 0, masonite: 0, stagingCharge: 0 };
-export const heightOf = (q: QuoteSettings): HeightSettings => ({ ...defaultHeight, ...q.height });
+/** The shop's own prices and hours for work at height, the same on every job (set from the shop's shared settings). */
+let shopHeight: Partial<HeightSettings> = {};
+export function setShopHeight(h: Partial<HeightSettings> | null | undefined) { shopHeight = h ?? {}; }
+export const heightOf = (q: QuoteSettings): HeightSettings => ({ ...defaultHeight, ...shopHeight, ...q.height });
 
 /** The high work on a job: which cabinets, how long a run of wall the staging covers, and the floor area to protect. */
 export function highWork(p: Project, q: QuoteSettings): { cabs: Cabinet[]; run: number; moves: number; sqft: number; sheets: number; installHours: number; applies: boolean } {

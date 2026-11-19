@@ -1,6 +1,7 @@
 import { defaultFinishing } from '../model/finishing';
 import { useMemo, useState } from 'react';
 import { useStore } from '../store';
+import { saveHeight, useShop } from '../shop/shop';
 import { ballpark, categoryLabel, categoryOf, comparableQuote, featureLabel, rateCardOf, type Band, type BallparkCategory, type BallparkFeature } from '../model/ballpark';
 import { interiorPresets, interiorUnits, isInterior, newInterior, type InteriorUnit, type QuoteExtra } from '../model/quote';
 import { paintCostOf, paintCostRates, paintModeOf, heightOf, highWork, type HeightSettings } from '../model/quote';
@@ -26,7 +27,9 @@ function useQuote() {
   const commit = useStore((s) => s.commit);
   const q = quoteOf(project);
   const set = (patch: Partial<QuoteSettings>) => commit((p) => ({ ...p, quote: { ...quoteOf(p), ...patch } }));
-  const result = useMemo(() => priceQuote(project), [project]);
+  // The shop's work-at-height prices are shared by every job: a change there reprices this one too
+  const shopHeight = useShop((s) => s.height);
+  const result = useMemo(() => priceQuote(project), [project, shopHeight]); // eslint-disable-line react-hooks/exhaustive-deps
   return { project, q, set, result };
 }
 
@@ -670,7 +673,17 @@ function HeightSection() {
   const { project, q, set } = useQuote();
   const h = heightOf(q);
   const w = useMemo(() => highWork(project, q), [project, q]);
-  const put = (patch: Partial<HeightSettings>) => set({ height: { ...q.height, ...patch } });
+  const shopH = useShop((s) => s.height);
+  // Prices and hours are the shop's, for every job; leaving it off (or on, for a job already sent) is this job's own
+  const put = (patch: Partial<HeightSettings>) => {
+    const { off, on, ...vals } = patch;
+    if (Object.keys(vals).length) {
+      void saveHeight({ ...shopH, ...vals });
+      // A job saved with its own numbers before they were shop-wide gives them up, so the shop's show
+      if (q.height && Object.keys(vals).some((k) => k in q.height!)) { const own = { ...q.height }; for (const k of Object.keys(vals)) delete (own as Record<string, unknown>)[k]; set({ height: own }); }
+    }
+    if ('off' in patch || 'on' in patch) set({ height: { ...q.height, ...(('off' in patch) ? { off } : {}), ...(('on' in patch) ? { on } : {}) } });
+  };
   const ft = (v: number) => `${Math.floor(v / 12)}'${Math.round(v % 12) ? `-${Math.round(v % 12)}"` : ''}`;
   if (!w.cabs.length) return (
     <Section title="Work at height">
@@ -693,7 +706,7 @@ function HeightSection() {
         <Num id="h-mas" label="Masonite, per 4×8 sheet" suffix="$" value={h.masonite} onChange={(v) => put({ masonite: v })} />
         <Num id="h-chg" label="Toward the staging, per job" suffix="$" value={h.stagingCharge} onChange={(v) => put({ stagingCharge: v })} />
       </div>
-      <p className="hint">Priced like the rest of the job. The painter works from the same staging, so the painting estimate for the high work goes up by the same share. The hours are starting points: change them here, or click any line in the breakdown to set your own.</p>
+      <p className="hint">These prices and hours are the shop's: set them once and every job uses them. Priced like the rest of the job. The painter works from the same staging, so the painting estimate for the high work goes up by the same share. The hours are starting points: change them here, or click any line in the breakdown to set your own.</p>
       {w.applies && <div className="order-actions"><button className="mini" onClick={() => put({ off: true, on: undefined })}>Leave it off this quote</button></div>}
     </Section>
   );
