@@ -6,7 +6,7 @@ import { defaultFinishing } from '../src/model/finishing';
 import { addToJob, designPrice, newDesign } from "../src/model/furnitureDesign";
 import { metalCutList, metalMembers, newMetalBase } from "../src/model/metalBase";
 import { metalSheetHtml } from "../src/model/metalSheet";
-import { bedChecks, bedParts, bedSize, newBed } from "../src/model/bed";
+import { bedChecks, bedEstimate, bedParts, bedScope, bedSize, newBed } from "../src/model/bed";
 import { caseChecks, caseEstimate, caseOpenings, caseParts, caseScope, newCase, rowHeights } from "../src/model/casePiece";
 import { addRoom, jobRooms, removeRoom, roomTabs, switchRoom } from "../src/model/rooms";
 import { readFileSync } from "node:fs";
@@ -2903,6 +2903,22 @@ eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i
   eq('plan import: wall cabinet over a base kept', o.cabinets.map((c) => c.kind).sort().join(' '), 'base wall');
   const pr = o.openings.filter((x) => x.kind === 'door');
   eq('plan import: a pair of doors is one opening, two leaves', `${pr.length} ${pr[0]?.door?.leaves} ${Math.round(pr[0]?.width ?? 0)}`, '1 2 40');
+}
+
+// Bed: a platform frame on corner feet, slab headboard to the floor (the low modern platform look)
+{
+  const b = { ...newBed(), mattress: 'custom' as const, mattressW: 66, mattressL: 82, style: 'feet' as const, deckH: 9, headboard: 'slab' as const, headH: 44, headT: 1.75, grade: 'stain' as const, species: 'Walnut', finish: 'clear' as const };
+  const parts = bedParts(b);
+  const feet = parts.find((x) => x.name === 'Foot')!;
+  eq('bed feet: four feet, 4" tall under a 5" rail on a 9" deck', `${feet.qty} ${feet.length}`, '4 4');
+  eq('bed feet: frame 3-1/2" wider than the 66" mattress plus clearance', bedSize(b).W, 66 + 1 + 3.5);
+  eq('bed feet: wide bed gets a center support with hidden feet', parts.some((x) => x.name === 'Center support foot'), true);
+  const hb = parts.find((x) => x.name.startsWith('Headboard'))!;
+  eq('bed feet: slab headboard down to the floor, 1-3/4" thick', `${hb.boxes[0].min[1]} ${hb.thick} ${hb.width}`, '0 1.75 44');
+  eq('bed feet: stops at the frame bottom when asked', bedParts({ ...b, headToFloor: false }).find((x) => x.name.startsWith('Headboard'))!.boxes[0].min[1], 4);
+  const est = bedEstimate(b, sampleProject());
+  eq('bed feet: priced with rails, feet and deck', ['Frame rails', 'Corner feet', 'Cleats and plywood deck'].every((t) => est.hours.some((h) => h.label.startsWith(t))), true);
+  eq('bed feet: scope says it', /frame on block feet at the corners/.test(bedScope(b)), true);
 }
 
 console.log(failed ? `${failed} check(s) failed` : 'All model checks passed');

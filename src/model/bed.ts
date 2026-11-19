@@ -1,4 +1,5 @@
-// Beds: a platform bed on a set-back plywood base (drawers in its sides if wanted), or a frame bed on
+// Beds: a platform bed on a set-back plywood base (drawers in its sides if wanted), a low solid frame on
+// block feet at the corners (the modern platform look), or a frame bed on
 // legs with rails and slats; a headboard (flat panel, slab, or upholstered by others) on the bed or
 // hung on the wall; a footboard for a frame bed. Sized from the mattress. The hours are starting
 // standards for a one-off bed in a cabinet shop, to be adjusted as Cody builds them.
@@ -37,8 +38,20 @@ export interface Bed {
   mattressL?: number;
   /** How thick the mattress is: where its top lands, and how much headboard shows above it. */
   mattressH: number;
-  /** platform: a deck on a set-back plywood base. frame: legs, rails and slats. */
-  style: 'platform' | 'frame';
+  /** platform: a deck on a set-back plywood base. feet: a solid rail frame on block feet at the corners, a plywood deck inside. frame: legs, rails and slats. */
+  style: 'platform' | 'feet' | 'frame';
+  /** Feet style: the frame rails' height and thickness. */
+  railH?: number;
+  railT?: number;
+  /** Feet style: the square block feet's size, and how far in from the frame's outside faces they sit. */
+  footW?: number;
+  footIn?: number;
+  /** Headboard thickness (a slab of glued-up boards is often 1-1/2"–1-3/4"). */
+  headT?: number;
+  /** Headboard past the frame each side (0 = flush with the frame). */
+  headOver?: number;
+  /** Feet style: the headboard runs down to the floor behind the frame (unset = yes), or stops at the frame's bottom. */
+  headToFloor?: boolean;
   /** Top of the deck (platform) or the slats (frame) off the floor. */
   deckH: number;
   /** Platform: drawers in the base under each side (0 = none). */
@@ -84,10 +97,17 @@ export function mattressOf(b: Bed): { w: number; l: number } {
 /** Clearance around the mattress, each side; the frame's members. */
 const CLEAR = 0.5, BORDER = 1.5, SETBACK = 3, LEG = 3, RAIL_T = 1.5, RAIL_H = 7, HB_T = 1.25, PLY = 0.75;
 
+/** The feet style's sizes, with the starting ones filled in. */
+export function feetOf(b: Bed) {
+  return { railH: b.railH ?? 5, railT: b.railT ?? 1.75, footW: b.footW ?? 4.5, footIn: b.footIn ?? 2.5, headToFloor: b.headToFloor ?? true };
+}
+const headT = (b: Bed) => b.headT ?? HB_T;
+
 /** Outside size: width across, length from the headboard face to the foot, and where the mattress sits. */
 export function bedSize(b: Bed): { W: number; L: number; innerW: number; innerL: number; top: number } {
   const m = mattressOf(b);
   const innerW = m.w + 2 * CLEAR, innerL = m.l + 2 * CLEAR;
+  if (b.style === 'feet') { const t = feetOf(b).railT; return { W: innerW + 2 * t, L: innerL + 2 * t, innerW, innerL, top: b.deckH + b.mattressH }; }
   const side = b.style === 'platform' ? BORDER : LEG;
   return { W: innerW + 2 * side, L: innerL + (b.style === 'platform' ? BORDER : LEG) + (b.headboard !== 'none' && b.headMount === 'bed' ? 0 : b.style === 'platform' ? BORDER : LEG), innerW, innerL, top: b.deckH + b.mattressH };
 }
@@ -121,6 +141,20 @@ export function bedParts(b: Bed): TablePart[] {
         out.push({ role: 'shelf', name: 'Drawer front', qty: 1, length: fw, width: fh, thick: 0.75, note: `drawer under the ${sd < 0 ? 'left' : 'right'} side`, boxes: [box(sd * bx, 1, z, sd * (bx + 0.75), 1 + fh, z + fw)] });
       }
     }
+  } else if (b.style === 'feet') {
+    // A solid rail frame, the deck flush with its top, on square block feet set in from the corners
+    const f = feetOf(b), t = f.railT, ry0 = b.deckH - f.railH;
+    out.push({ role: 'apron', name: 'Side rail', qty: 2, length: L, width: f.railH, thick: t, note: `solid ${b.grade === 'paint' ? 'poplar' : b.species.toLowerCase()}, full length; the end rails fit between them (dowels or bed bolts)`, boxes: [box(-hw, ry0, 0, -hw + t, b.deckH, L), box(hw - t, ry0, 0, hw, b.deckH, L)] });
+    out.push({ role: 'apron', name: 'End rail', qty: 2, length: W - 2 * t, width: f.railH, thick: t, note: 'between the side rails', boxes: [box(-hw + t, ry0, 0, hw - t, b.deckH, t), box(-hw + t, ry0, L - t, hw - t, b.deckH, L)] });
+    out.push({ role: 'stretcher', name: 'Deck cleat', qty: 4, length: innerL, width: 1.5, thick: 1.5, note: 'glued and screwed inside the rails, 3/4" down, carrying the deck', boxes: [box(-hw + t, b.deckH - PLY - 1.5, t, -hw + t + 1.5, b.deckH - PLY, L - t), box(hw - t - 1.5, b.deckH - PLY - 1.5, t, hw - t, b.deckH - PLY, L - t)] });
+    out.push({ role: 'top', name: 'Deck', qty: innerW > 50 ? 2 : 1, length: innerL, width: innerW > 50 ? innerW / 2 : innerW, thick: PLY, note: `3/4" ${b.grade === 'paint' ? 'birch' : b.species.toLowerCase()} plywood, flush with the top of the frame${innerW > 50 ? '; two pieces meeting over the center support' : ''}; a few 1" holes to let the mattress breathe`, boxes: [box(-hw + t, b.deckH - PLY, t, hw - t, b.deckH, L - t)] });
+    if (innerW > 50) {
+      out.push({ role: 'stretcher', name: 'Center support', qty: 1, length: innerL, width: 3.5, thick: 1.5, note: 'down the middle under the deck seam, into the end rails', boxes: [box(-0.75, b.deckH - PLY - 3.5, t, 0.75, b.deckH - PLY, L - t)] });
+      const fz = [L / 3, (2 * L) / 3];
+      out.push({ role: 'leg', name: 'Center support foot', qty: 2, length: b.deckH - PLY - 3.5, width: 3, thick: 3, note: 'under the center support, out of sight', boxes: fz.map((z) => box(-1.5, 0, z - 1.5, 1.5, b.deckH - PLY - 3.5, z + 1.5)) });
+    }
+    const fx = hw - f.footIn - f.footW, fzs = [f.footIn, L - f.footIn - f.footW];
+    out.push({ role: 'leg', name: 'Foot', qty: 4, length: Math.max(0.5, ry0), width: f.footW, thick: f.footW, note: `solid block ${fmt(f.footW)} square, ${fmt(f.footIn)} in from the frame's outside faces, glued and screwed up into the rails`, boxes: [-1, 1].flatMap((sx) => fzs.map((z) => box(sx < 0 ? -hw + f.footIn : fx, 0, z, sx < 0 ? -hw + f.footIn + f.footW : fx + f.footW, Math.max(0.5, ry0), z + f.footW))) });
   } else {
     // Frame: four legs, side and end rails, cleats and slats; a center rail on legs for wide beds
     const legH = Math.max(b.deckH + 4, b.footboard ? b.footH : 0);
@@ -138,15 +172,16 @@ export function bedParts(b: Bed): TablePart[] {
   }
   // Headboard: across the full width at the head, from the deck (or the wall cleat) up to its height
   if (b.headboard !== 'none') {
-    const y0 = b.headMount === 'wall' ? b.deckH + 2 : b.style === 'platform' ? 0 : b.deckH - 3.5;
-    const x0 = b.style === 'frame' && b.headMount === 'bed' ? -hw + LEG : -hw, x1 = -x0;
+    const ht = headT(b), over = b.style === 'frame' && b.headMount === 'bed' ? 0 : b.headOver ?? 0;
+    const y0 = b.headMount === 'wall' ? b.deckH + 2 : b.style === 'platform' ? 0 : b.style === 'feet' ? (feetOf(b).headToFloor ? 0 : b.deckH - feetOf(b).railH) : b.deckH - 3.5;
+    const x0 = (b.style === 'frame' && b.headMount === 'bed' ? -hw + LEG : -hw) - over, x1 = -x0;
     out.push({ role: b.headboard === 'upholstered' ? 'cushion' : 'breadboard', name: b.headboard === 'upholstered' ? 'Upholstered headboard' : b.headboard === 'panel' ? 'Headboard, frame and flat panels' : 'Headboard, solid slab',
-      qty: 1, length: x1 - x0, width: b.headH - y0, thick: HB_T,
-      note: b.headMount === 'wall' ? 'hung on the wall on a French cleat, its bottom just above the mattress' : b.style === 'platform' ? 'fastened to the base and deck' : 'between the headboard posts',
-      boxes: [box(x0, y0, -HB_T, x1, b.headH, 0)] });
+      qty: 1, length: x1 - x0, width: b.headH - y0, thick: ht,
+      note: b.headMount === 'wall' ? 'hung on the wall on a French cleat, its bottom just above the mattress' : b.style === 'platform' ? 'fastened to the base and deck' : b.style === 'feet' ? `behind the frame${feetOf(b).headToFloor ? ', down to the floor' : ''}, bolted to the head rail${b.headboard === 'slab' ? '; boards glued up edge to edge, a batten across the back to keep it flat' : ''}` : 'between the headboard posts',
+      boxes: [box(x0, y0, -ht, x1, b.headH, 0)] });
   }
   // The mattress, for scale in the 3D (not built, not priced)
-  const mz0 = b.style === 'platform' ? 0 : LEG, mw = mattressOf(b).w, ml = mattressOf(b).l;
+  const mz0 = b.style === 'platform' ? 0 : b.style === 'feet' ? feetOf(b).railT - CLEAR : LEG, mw = mattressOf(b).w, ml = mattressOf(b).l;
   out.push({ role: 'cushion', name: 'Mattress (for scale)', qty: 0, length: ml, width: mw, thick: b.mattressH, boxes: [box(-mw / 2, b.deckH, mz0 + CLEAR, mw / 2, b.deckH + b.mattressH, mz0 + CLEAR + ml)] });
   return applyEdits(out, b);
 }
@@ -165,6 +200,12 @@ export function bedChecks(b: Bed): string[] {
     if (fh < 6) out.push(`The base is only ${fmt(b.deckH - PLY)} tall: drawers ${fmt(fh)} high hold little; raise the deck to 16"+ for useful drawers.`);
     out.push('Leave about 22" clear beside the bed for the drawers to open, plus room to stand.');
   }
+  if (b.style === 'feet') {
+    const f = feetOf(b), lift = b.deckH - f.railH;
+    if (lift < 1.5) out.push(`The feet are only ${fmt(lift)} tall: raise the deck or lower the rails so the frame floats on them.`);
+    if (f.footIn > 6) out.push(`The feet are ${fmt(f.footIn)} in from the corners; past about 6" the corners can tip when someone sits on the edge.`);
+    if (mattressOf(b).w > 50) out.push('A bed this wide gets a center support with two hidden feet under the deck seam.');
+  }
   if (b.style === 'frame' && mattressOf(b).w > 50) out.push('A bed this wide gets a center rail on two legs under the slats so the slats don’t sag.');
   if (b.headboard === 'upholstered') out.push('Upholstered headboard by the upholsterer: fabric to be selected; the shop builds the plywood back and the mounting.');
   if (b.headMount === 'wall') out.push('A wall-hung headboard goes on a French cleat screwed into the studs; locate them before setting its width.');
@@ -176,6 +217,7 @@ export const bedStandards = {
   layout: 2,
   platformBase: 6, deckPerSqFt: 0.06, drawerEach: 1.5,
   legs: 3, rails: 4, slats: 2, centerRail: 1, footboard: 5,
+  feetRails: 5, feet: 1.5, deckCleats: 1.5, centerSupport: 1,
   headPanel: 6, headSlab: 3, headUpholstered: 2, wallCleat: 0.5, headPerSqFt: 0.06,
   sandPerSqFt: 0.04, finishBase: { clear: 3, stain: 4, paint: 4, oil: 2, painter: 0 } as Record<TableFinish, number>, finishPerSqFt: 0.05,
   delivery: 3,
@@ -194,6 +236,10 @@ export function bedEstimate(b: Bed, p: Project): { hours: { label: string; hours
   if (b.style === 'platform') {
     hours.push({ label: `Platform base and deck (${deckSqFt.toFixed(1)} sq ft)`, hours: s.platformBase + s.deckPerSqFt * deckSqFt });
     if (fronts.length) hours.push({ label: `${fronts.length} drawers: fronts, slides and fitting`, hours: fronts.length * s.drawerEach });
+  } else if (b.style === 'feet') {
+    hours.push({ label: 'Frame rails, joined at the corners', hours: s.feetRails }, { label: 'Corner feet', hours: s.feet },
+      { label: `Cleats and plywood deck (${deckSqFt.toFixed(1)} sq ft)`, hours: s.deckCleats + s.deckPerSqFt * deckSqFt });
+    if (parts.some((x) => x.name === 'Center support')) hours.push({ label: 'Center support and its feet', hours: s.centerSupport });
   } else {
     hours.push({ label: 'Legs and posts', hours: s.legs }, { label: 'Rails with bed rail fasteners, cleats', hours: s.rails }, { label: 'Slats', hours: s.slats });
     if (parts.some((x) => x.name === 'Center rail on legs')) hours.push({ label: 'Center rail on legs', hours: s.centerRail });
@@ -247,7 +293,7 @@ export function bedScope(b: Bed): string {
   return [
     `${b.name}: custom ${b.style === 'platform' ? 'platform bed' : 'bed frame'} for a ${size}, approx ${fmt(W)}W x ${fmt(L)}L, mattress top about ${fmt(top)} off the floor`,
     b.grade === 'paint' ? 'paint grade' : `${b.species.toLowerCase()}`,
-    b.style === 'platform' ? `solid deck on a set-back base${b.drawers ? ` with (${b.drawers * (b.drawerSides === 'both' ? 2 : 1)}) drawers` : ''}` : `legs, rails and slats${b.footboard ? ' with a footboard' : ''}`,
+    b.style === 'platform' ? `solid deck on a set-back base${b.drawers ? ` with (${b.drawers * (b.drawerSides === 'both' ? 2 : 1)}) drawers` : ''}` : b.style === 'feet' ? `solid ${fmt(feetOf(b).railH)} frame on block feet at the corners, plywood deck` : `legs, rails and slats${b.footboard ? ' with a footboard' : ''}`,
     b.headboard === 'none' ? '' : `${b.headboard === 'panel' ? 'flat panel' : b.headboard === 'slab' ? 'solid' : 'upholstered (fabric to be selected)'} headboard about ${fmt(b.headH)} high${b.headMount === 'wall' ? ', wall mounted' : ''}`,
     b.finish === 'painter' ? 'finish by others' : tableFinishLabel[b.finish].replace(' (shop)', '').toLowerCase() + ' finish',
     'delivered and assembled in place',

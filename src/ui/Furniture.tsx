@@ -10,7 +10,7 @@ import { Field, LengthInput, Section } from './fields';
 import { fmt } from '../units';
 import { designPrice, jobPieces } from '../model/furnitureDesign';
 import { useFurnitureUI } from './FurnitureBuilder';
-import { bedChecks, bedEstimate, bedSize, mattressSizes, type Bed, type MattressSize } from '../model/bed';
+import { bedChecks, bedEstimate, bedSize, mattressSizes, type Bed, type MattressSize, feetOf } from '../model/bed';
 
 const money = (v: number) => `$${Math.round(v).toLocaleString('en-US')}`;
 
@@ -251,12 +251,23 @@ export function BedEditor({ b, put, remove, embedded }: { b: Bed; put: (p: Parti
         <Field label="Style" htmlFor={id('st')}>
           <select id={id('st')} value={b.style} onChange={(e) => put({ style: e.target.value as Bed['style'] })}>
             <option value="platform">Platform: deck on a set-back base</option>
+            <option value="feet">Platform frame on corner feet</option>
             <option value="frame">Frame: legs, rails and slats</option>
           </select>
         </Field>
         {len('deckH', b.style === 'platform' ? 'Top of the deck' : 'Top of the slats')}
       </div>
-      <p className="hint">About {fmt(size.W)} wide × {fmt(size.L + (b.headboard !== 'none' ? 1.25 : 0))} long; the mattress top lands at {fmt(size.top)}.</p>
+      {b.style === 'feet' && (() => {
+        const f = feetOf(b);
+        const n = (k: 'railH' | 'railT' | 'footW' | 'footIn', label: string) => <Field label={label} htmlFor={id(k)}><LengthInput id={id(k)} value={f[k]} onChange={(v) => v != null && put({ [k]: v })} /></Field>;
+        return (
+          <>
+            <div className="grid3">{n('railH', 'Frame rail height')}{n('railT', 'Frame rail thickness')}</div>
+            <div className="grid3">{n('footW', 'Foot size (square)')}{n('footIn', 'Feet in from the corners')}<Field label="Foot height" htmlFor={id('fh')}><input id={id('fh')} readOnly value={fmt(Math.max(0, b.deckH - f.railH))} /></Field></div>
+          </>
+        );
+      })()}
+      <p className="hint">About {fmt(size.W)} wide × {fmt(size.L + (b.headboard !== 'none' ? (b.headT ?? 1.25) : 0))} long; the mattress top lands at {fmt(size.top)}.{b.style === 'feet' ? ' Foot height is the deck top less the rail height.' : ''}</p>
       {b.style === 'platform' && (
         <div className="grid3">
           <Field label="Drawers under each side" htmlFor={id('dr')}>
@@ -289,6 +300,13 @@ export function BedEditor({ b, put, remove, embedded }: { b: Bed; put: (p: Parti
           </Field>
         )}
       </div>
+      {b.headboard !== 'none' && b.headMount === 'bed' && b.style !== 'frame' && (
+        <div className="grid3">
+          <Field label="Headboard thickness" htmlFor={id('ht')}><LengthInput id={id('ht')} value={b.headT ?? 1.25} onChange={(v) => v != null && put({ headT: v })} /></Field>
+          <Field label="Past the frame, each side" htmlFor={id('ho')}><LengthInput id={id('ho')} value={b.headOver ?? 0} onChange={(v) => v != null && put({ headOver: v })} /></Field>
+          {b.style === 'feet' && <label className="chk-row"><input type="checkbox" checked={feetOf(b).headToFloor} onChange={(e) => put({ headToFloor: e.target.checked })} /> Down to the floor behind the frame</label>}
+        </div>
+      )}
       {b.headboard === 'upholstered' && <Field label="Upholsterer’s price ($)" htmlFor={id('up')}><input id={id('up')} inputMode="decimal" value={b.upholsteryPrice || ''} onChange={(e) => put({ upholsteryPrice: parseFloat(e.target.value) || 0 })} /></Field>}
       {b.style === 'frame' && (
         <div className="grid3">
