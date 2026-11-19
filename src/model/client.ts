@@ -2,7 +2,7 @@
 // their folder lives in Dropbox (/CJC/Jobs/<stage>/<Last, First - Location>). The documents written
 // into that folder are built here as plain text so they read well in the Dropbox app.
 import { forCustomer } from './moldings';
-import { cardLines, cardOf, checkDiscountOf, paySchedule, pctText as discPct } from './payDiscount';
+import { cardLines, cardOf, checkDiscountOf, paySchedule, payWaysText, pctText as discPct } from './payDiscount';
 import type { Project } from './types';
 import { finishingItems } from './finishing';
 import { agreementLines, priceQuote, proposalScope } from './quote';
@@ -176,6 +176,7 @@ ${summary.options.length ? `<h3>Options</h3><p>Added to the work above only when
 <table class="price">${cardLines(rounded, d).map((l) => `<tr><th>${esc(l.label)}</th><td>${money(l.price)}</td></tr>`).join('')}<tr class="total"><th>Total Project Investment${summary.options.length ? ' (before options)' : ''}</th><td>${money(cardOf(r.total, d))}</td></tr>${d ? `<tr class="total"><th>Paying by check or bank transfer: ${discPct(d)} off</th><td>${money(r.total)}</td></tr>` : ''}</table>
 ${summary.options.length ? `<table class="price">${summary.options.map((o) => `<tr><th>Option: ${esc(o.label)}</th><td>add ${money(cardOf(o.price, d))}${d ? ` (${money(o.price)} by check or bank transfer)` : ''}</td></tr>`).join('')}</table><p style="font-size:9.5pt">${opts.online ? 'Options chosen when signing are added to the total and listed with the signature; the deposit and final payment follow that total.' : 'Options chosen: ____________________ &nbsp; Total with options: $__________'}</p>` : ''}
 <p><b>Project Payment Schedule</b><br>${d ? paySchedule(p, r.total, d).map((l) => `${esc(l.label)} – ${money(l.card)} (${money(l.check)} by check or bank transfer)${summary.options.length ? ` (plus ${pctText(l.pct)} of options chosen)` : ''}`).join('<br>') : scheduleHtml(p, r.total, summary.options.length > 0)}</p>
+${payWaysText(p) ? `<p style="font-size:9.5pt">${esc(payWaysText(p))}</p>` : ''}
 ${d ? `<p style="font-size:9.5pt">Prices listed are for paying by card. Paying by check or bank transfer takes ${discPct(d)} off every amount, as shown.${opts.online ? ' You choose how you’ll pay when you sign.' : ' Paying by: &#9744; check or bank transfer &nbsp; &#9744; card'}</p>` : ''}
 <p style="font-size:9.5pt">This agreement supersedes all conversations, statements, and agreements expressed or implied between the parties, their agents and representatives.</p>
 ${opts.online ? '<p style="font-size:9.5pt"><b>The Terms and Conditions are part of this agreement.</b> It is signed electronically on the project page.</p>' : '<div class="sign"><div>Owner</div><div>Date</div><div>CJC Custom Carpentry, LLC</div><div>Date</div></div>'}</section></body></html>`;

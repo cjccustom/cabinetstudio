@@ -3,6 +3,7 @@
 // check price (what he charges today); the card price is grossed up so the discount lands exactly on it.
 import type { Project } from './types';
 import { paymentSchedule } from './schedule';
+import type { PayWay } from './quote';
 
 /** The discount for check / bank transfer, 0–10%; 3% unless the job sets otherwise (0 turns it off). */
 export function checkDiscountOf(p: Project): number {
@@ -41,3 +42,15 @@ export function paySchedule(p: Project, checkTotal: number, d: number): { label:
 }
 
 export const pctText = (d: number) => `${+(d * 100).toFixed(1)}%`;
+
+export const payWayLabel: Record<PayWay, string> = { check: 'Check', bank: 'Bank transfer' };
+
+/** The ways to pay a one-price proposal lists: check and bank transfer unless the job says otherwise. */
+export const payWaysOf = (p: Project): PayWay[] => p.quote?.payWays ?? ['check', 'bank'];
+
+/** "Payment by check or bank transfer." under the schedule, when there's one price (no card price or discount); '' otherwise. */
+export function payWaysText(p: Project): string {
+  if (checkDiscountOf(p)) return '';
+  const w = payWaysOf(p).map((x) => (x === 'check' ? 'check' : 'bank transfer'));
+  return w.length ? `Payment by ${w.join(' or ')}.` : '';
+}

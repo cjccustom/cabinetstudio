@@ -269,6 +269,8 @@ export interface QuoteSettings {
   cushionPerSqFt: number;
   /** Discount for paying by check or bank transfer (the listed price is the card price); unset = 3%, 0 = off. */
   checkDiscount?: number;
+  /** With one price (no check discount), the ways to pay the proposal lists; unset = check and bank transfer, [] = say nothing. */
+  payWays?: PayWay[];
   beadboardSheet: number;
   /** Coffered ceiling stock bought prepped from the millwork supplier, and blocking/fasteners, per ft of beam and perimeter. */
   cofferStockPerFt: number;
@@ -391,6 +393,8 @@ export function furnitureShares(p: Project): { key: string; id: string; share: n
   const W = w.reduce((a, b) => a + b, 0);
   return pieces.map((t, i) => ({ key: `furniture:${t.id}`, id: t.id, share: W > 0 ? w[i] / W : 1 / pieces.length }));
 }
+
+export type PayWay = 'check' | 'bank';
 
 export type AgreementLine = { key: string; label: string; price: number };
 

@@ -2128,8 +2128,8 @@ eq('portal: online agreement has no paper signature lines', [quoteDoc(p).include
   const off = { ...p, quote: { ...quoteOf(p), checkDiscount: 0 } };
   const on = { ...p, quote: { ...quoteOf(p), checkDiscount: undefined } };
   const words = /by card|bank transfer|card price/i;
-  eq('discount off: quote doc has no card/check wording', words.test(quoteDoc(off)), false);
-  eq('discount off: printed quote has none', words.test(printQuote(off, { terms: '' })), false);
+  eq('discount off: quote doc has no card wording', /by card|card price|% off/i.test(quoteDoc(off)), false);
+  eq('discount off: printed quote has no card wording', /by card|card price|% off/i.test(printQuote(off, { terms: '' })), false);
   eq('discount on: quote doc mentions it', words.test(quoteDoc(on)), true);
 }
 
@@ -2859,6 +2859,17 @@ eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i
   eq('line price: a second one, still only those two move', proposalLines(bench).filter((l) => l.key !== key && l.key !== 'furniture:bn').every((l) => l.price === before.find((x) => x.key === l.key)!.price), true);
   const signed = { ...set, contract: {} as never };
   eq('line price: a signed job keeps its old arithmetic', Math.round(priceQuote(signed).total) % 100, 0);
+}
+
+// One price (no check discount): the proposal says how to pay, check and bank transfer unless the job says otherwise
+{
+  const sp = sampleProject();
+  const one = { ...sp, quote: { ...quoteOf(sp), checkDiscount: 0 } };
+  eq('pay ways: one price lists check or bank transfer', `${quoteDoc(one).includes('Payment by check or bank transfer.')} ${printQuote(one, { terms: '' }).includes('Payment by check or bank transfer.')}`, 'true true');
+  eq('pay ways: no card price or discount wording', /paying by card|% off/.test(quoteDoc(one)), false);
+  eq('pay ways: bank transfer only', quoteDoc({ ...one, quote: { ...one.quote, payWays: ['bank'] as ('check' | 'bank')[] } }).includes('Payment by bank transfer.'), true);
+  eq('pay ways: none ticked, nothing said', quoteDoc({ ...one, quote: { ...one.quote, payWays: [] } }).includes('Payment by'), false);
+  eq('pay ways: with the discount on, the card wording instead', quoteDoc(sp).includes('Payment by'), false);
 }
 
 console.log(failed ? `${failed} check(s) failed` : 'All model checks passed');
