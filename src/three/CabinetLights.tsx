@@ -9,7 +9,7 @@
 import { useMemo } from 'react';
 import * as THREE from 'three';
 import type { Cabinet, Part, Project } from '../model/types';
-import { cabinetFixtures, hafeleOf, lightingJobOf } from '../model/cabinetLighting';
+import { cabinetFixtures, hafeleOf, lightingJobOf, pucksIn } from '../model/cabinetLighting';
 import { eff, openSpans } from '../model/parts';
 
 const KELVIN: Record<number, string> = { 2700: '#ffc184', 3000: '#ffcf9a', 3500: '#ffdcb6', 4000: '#ffe8d2' };
@@ -79,13 +79,18 @@ export function CabinetLights({ cab, project, parts }: { cab: Cabinet; project: 
           void i;
         });
         if (kinds.has('puck')) {
-          const n = Math.max(1, Math.round((b1 - b0) / 18));
-          for (let k = 0; k < n; k++) {
-            const px = b0 + ((b1 - b0) * (k + 0.5)) / n;
-            glows.push({ p: [px, o.y1 - 0.1, cab.depth / 2], s: [2.2, 0.15, 2.2] });
-          }
           washes.push({ p: [cx, o.y0 + 0.03, (back + front) / 2], w, h: front - back, face: 'up', bright: 'front', opacity: 0.25 });
           washes.push({ p: [cx, (o.y0 + o.y1) / 2, back], w, h: o.y1 - o.y0, face: 'back', bright: 'top', opacity: 0.18 });
+        }
+      }
+      if (kinds.has('puck')) {
+        // As many as the cabinet's lighting count (and the quote) says, spaced evenly across the section
+        const n = pucksIn(Math.max(6, x1 - x0));
+        for (let k = 0; k < n; k++) {
+          let px = x0 + ((x1 - x0) * (k + 0.5)) / n;
+          // Not on a divider: into the middle of the nearest cubby
+          if (!bays.some(([b0, b1]) => px > b0 + 1.2 && px < b1 - 1.2)) px = bays.map(([b0, b1]) => (b0 + b1) / 2).sort((u, v) => Math.abs(u - px) - Math.abs(v - px))[0];
+          glows.push({ p: [px, o.y1 - 0.1, cab.depth / 2], s: [2.2, 0.15, 2.2] });
         }
       }
       if (kinds.has('stile')) {

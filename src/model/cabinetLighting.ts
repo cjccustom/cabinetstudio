@@ -143,6 +143,9 @@ export interface Fixture {
   byOthers?: boolean;
 }
 
+/** Recessed pucks in one open section: one lights an upper's section, another for every 48" past that. The 3D draws this many too. */
+export const pucksIn = (inner: number) => Math.max(1, Math.ceil(inner / 48));
+
 /** The light fixtures a cabinet gets from its choices. */
 export function cabinetFixtures(c: Cabinet, p: Project, job = lightingJobOf(p)): Fixture[] {
   const kinds = c.lighting ?? [];
@@ -191,7 +194,7 @@ export function cabinetFixtures(c: Cabinet, p: Project, job = lightingJobOf(p)):
       const which = spans.length > 1 ? `open section ${i + 1} (from the bottom)` : 'open section';
       if (k === 'puck') {
         // One 3" puck lights an upper's section (All Star Electric); one per 48" on a very wide one
-        const n = Math.max(1, Math.ceil(inner / 48));
+        const n = pucksIn(inner);
         out.push({ cab: c, kind: k, count: n, length: 0, watts: n * job.puckWatts, leads: 1, system: 'generic', where: `Recessed in the underside of the top of the ${which}, evenly spaced` });
       } else if (k === 'stile') {
         const L = Math.max(6, h - 1);
