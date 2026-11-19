@@ -392,6 +392,71 @@ export function furnitureShares(p: Project): { key: string; id: string; share: n
   return pieces.map((t, i) => ({ key: `furniture:${t.id}`, id: t.id, share: W > 0 ? w[i] / W : 1 / pieces.length }));
 }
 
+export type AgreementLine = { key: string; label: string; price: number };
+
+/** A signed or sold job keeps the line arithmetic it was signed with. */
+const signedLines = (p: Project) => !!p.contract || !!p.portal?.status?.signed || (!!p.dropbox?.stage && p.dropbox.stage !== 'quote');
+/** Line prices you set, worked the newer way (only that line and the total change). */
+const setLines = (p: Project) => !signedLines(p) && Object.values(p.quote?.linePrices ?? {}).some((v) => v != null);
+const withoutLinePrices = (p: Project): Project => ({ ...p, quote: { ...quoteOf(p), linePrices: undefined } });
+/** The price you set for a line; an older price for all the furniture is shared over its pieces by their calculated prices. */
+function lineSet(q: QuoteSettings, key: string, lines: AgreementLine[]): number | undefined {
+  const v = q.linePrices?.[key];
+  if (v != null) return v;
+  const all = q.linePrices?.furniture;
+  if (all == null || !key.startsWith('furniture:')) return undefined;
+  const pieces = lines.filter((l) => l.key.startsWith('furniture:'));
+  const sum = pieces.reduce((t, l) => t + l.price, 0) || 1;
+  return (all * (lines.find((l) => l.key === key)?.price ?? 0)) / sum;
+}
+
+/** The agreement's lines, adding up to the total. A line price you set changes that line and the total, and leaves the others as they were. */
+export function agreementLines(p: Project): AgreementLine[] {
+  const q = quoteOf(p);
+  if (!setLines(p)) return spreadLines(p, priceQuote(p)).lines;
+  const bp = withoutLinePrices(p);
+  const base = spreadLines(bp, priceQuote(bp)).lines;
+  return base.map((l) => { const v = lineSet(q, l.key, base); return v != null ? { ...l, price: Math.round(v) } : l; });
+}
+
+/** Workload, adjustment and rounding spread over the lines so they add up to the total (lines with a price you set keep it, on signed jobs). */
+function spreadLines(p: Project, r: QuoteResult): { lines: AgreementLine[]; total: number } {
+  const q = quoteOf(p);
+  const adj = 1 + q.workloadAdj[q.workload];
+  const named = (key: string, label: string) => q.lineLabels?.[key]?.trim() || label;
+  const lines = [
+    ...r.groups.flatMap((g) => (g.group === 'furniture' ? furnitureLines(p, g.price * adj, named) : [{ key: g.group, label: named(g.group, groupLabel[g.group]), price: g.price * adj }])),
+    ...r.extras.map((e) => ({ key: `extra:${e.id}`, label: named(`extra:${e.id}`, e.label), price: e.price * adj })),
+    ...(r.painter ? [{ key: 'painting', label: paintLineLabel(q), price: r.painter }] : []),
+    ...(r.electrician ? [{ key: 'electrical', label: electricianLabel(q), price: r.electrician }] : []),
+  ];
+  const fixed = (l: { key: string }) => q.linePrices?.[l.key] != null;
+  const free = lines.filter((l) => !fixed(l));
+  const pool = free.length ? free : lines;
+  const fixedTotal = free.length ? lines.filter(fixed).reduce((t, l) => t + l.price, 0) : 0;
+  const sum = pool.reduce((t, l) => t + l.price, 0) || 1;
+  const target = r.total - fixedTotal;
+  const rounded = lines.map((l) => (free.length && fixed(l) ? { ...l, price: Math.round(l.price) } : { ...l, price: Math.round(((l.price / sum) * target) / 10) * 10 }));
+  const first = rounded.find((l) => !free.length || !fixed(l));
+  if (first) first.price += r.total - rounded.reduce((t, l) => t + l.price, 0);
+  return { lines: rounded, total: r.total };
+}
+
+/** Each piece of furniture on its own line, its share of the furniture price by what it takes to build. A name typed for the old single furniture line stays on the first piece. */
+function furnitureLines(p: Project, price: number, named: (key: string, label: string) => string): AgreementLine[] {
+  const pieces = furnitureOf(p);
+  if (pieces.length <= 1) return [{ key: 'furniture', label: named('furniture', pieces[0]?.name || groupLabel.furniture), price }];
+  const set = quoteOf(p).linePrices ?? {};
+  const shares = furnitureShares(p);
+  const fixed = set.furniture == null ? shares.filter((x) => set[x.key] != null) : [];
+  const rest = price - fixed.reduce((t, x) => t + set[x.key], 0);
+  const freeW = shares.filter((x) => !fixed.includes(x)).reduce((t, x) => t + x.share, 0) || 1;
+  return pieces.map((t, i) => {
+    const x = shares[i];
+    return { key: x.key, label: named(x.key, i === 0 ? named('furniture', t.name) : t.name), price: fixed.includes(x) ? set[x.key] : (rest * x.share) / freeW };
+  });
+}
+
 /** The electrician's line on the agreement. */
 export const electricianLabel = (q: QuoteSettings) => q.lineLabels?.electrical?.trim() || 'Electrical (licensed electrician)';
 /** What the electrician does, as the proposal says it. */
@@ -1130,7 +1195,13 @@ export function priceQuote(p: Project): QuoteResult {
   const workloadAmount = work * q.workloadAdj[q.workload];
   const calculated = work + painter + electrician;
   const raw = calculated + workloadAmount + q.adjustment;
-  const total = q.roundTo > 0 ? Math.round(raw / q.roundTo) * q.roundTo : raw;
+  let total = q.roundTo > 0 ? Math.round(raw / q.roundTo) * q.roundTo : raw;
+  // A line price you set changes that line and the total, nothing else: the total without your prices, plus the difference on each line you set
+  if (setLines(p)) {
+    const bp = withoutLinePrices(p);
+    const base = spreadLines(bp, priceQuote(bp));
+    total = base.total + base.lines.reduce((t, l) => t + (lineSet(q, l.key, base.lines) ?? l.price) - l.price, 0);
+  }
   const materialCost = materials.reduce((t, m) => t + m.cost, 0) * (1 + tax);
   const allHours = hours.reduce((t, h) => t + h.hours, 0) + q.extras.reduce((t, e) => t + extraHours(e), 0);
   return {

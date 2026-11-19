@@ -5,12 +5,11 @@ import { forCustomer } from './moldings';
 import { cardLines, cardOf, checkDiscountOf, paySchedule, pctText as discPct } from './payDiscount';
 import type { Project } from './types';
 import { finishingItems } from './finishing';
-import { priceQuote, quoteOf, groupLabel, paintLineLabel, proposalScope, electricianLabel, furnitureShares } from './quote';
+import { agreementLines, priceQuote, proposalScope } from './quote';
 import { eagleRequests, requestText } from './eagleRequest';
 import { hardwareOrder, hardwareText } from './hardware';
 import { hardwareScope, hasHardware } from './pulls';
 import { visitsDoc } from './meeting';
-import { furnitureOf } from './furniture';
 import { releaseOf } from './release';
 import { LOGO } from '../drawings/logo';
 import { proposalSummary, withOptions } from './proposal';
@@ -122,47 +121,7 @@ const money = (v: number) => `$${Math.round(v).toLocaleString('en-US')}`;
 /** The purchase agreement's price lines: workload, adjustment and rounding spread over them so they add up to the total. */
 export function proposalLines(full: Project): { key: string; label: string; price: number }[] {
   // The base proposal: options are priced on their own and added when the customer picks them
-  const p = withOptions(full);
-  const q = quoteOf(p);
-  const r = priceQuote(p);
-  const adj = 1 + q.workloadAdj[q.workload];
-  const named = (key: string, label: string) => q.lineLabels?.[key]?.trim() || label;
-  const lines = [
-    ...r.groups.flatMap((g) => (g.group === 'furniture' ? furnitureLines(p, g.price * adj, named) : [{ key: g.group, label: named(g.group, groupLabel[g.group]), price: g.price * adj }])),
-    ...r.extras.map((e) => ({ key: `extra:${e.id}`, label: named(`extra:${e.id}`, e.label), price: e.price * adj })),
-    ...(r.painter ? [{ key: 'painting', label: paintLineLabel(q), price: r.painter }] : []),
-    ...(r.electrician ? [{ key: 'electrical', label: electricianLabel(q), price: r.electrician }] : []),
-  ];
-  // Lines with a price you set keep it exactly; the adjustment and rounding spread over the rest
-  const fixed = (l: { key: string }) => q.linePrices?.[l.key] != null;
-  const free = lines.filter((l) => !fixed(l));
-  const pool = free.length ? free : lines;
-  const fixedTotal = free.length ? lines.filter(fixed).reduce((t, l) => t + l.price, 0) : 0;
-  const sum = pool.reduce((t, l) => t + l.price, 0) || 1;
-  const target = r.total - fixedTotal;
-  const rounded = lines.map((l) => (free.length && fixed(l) ? { ...l, price: Math.round(l.price) } : { ...l, price: Math.round(((l.price / sum) * target) / 10) * 10 }));
-  const first = rounded.find((l) => !free.length || !fixed(l));
-  if (first) first.price += r.total - rounded.reduce((t, l) => t + l.price, 0);
-  return rounded;
-}
-
-/**
- * Each piece of furniture on its own line, its share of the furniture price by what it takes to
- * build (hours and materials). A name typed for the old single furniture line stays on the first piece.
- */
-function furnitureLines(p: Project, price: number, named: (key: string, label: string) => string) {
-  const pieces = furnitureOf(p);
-  if (pieces.length <= 1) return [{ key: 'furniture', label: named('furniture', pieces[0]?.name || groupLabel.furniture), price }];
-  // A piece with a price you set keeps it; the others share what's left by what they take to build
-  const set = quoteOf(p).linePrices ?? {};
-  const shares = furnitureShares(p);
-  const fixed = quoteOf(p).linePrices?.furniture == null ? shares.filter((x) => set[x.key] != null) : [];
-  const rest = price - fixed.reduce((t, x) => t + set[x.key], 0);
-  const freeW = shares.filter((x) => !fixed.includes(x)).reduce((t, x) => t + x.share, 0) || 1;
-  return pieces.map((t, i) => {
-    const x = shares[i];
-    return { key: x.key, label: named(x.key, i === 0 ? named('furniture', t.name) : t.name), price: fixed.includes(x) ? set[x.key] : (rest * x.share) / freeW };
-  });
+  return agreementLines(withOptions(full));
 }
 
 /** What the client sees as the proposal's title: yours, or "Smith Project Proposal" from their last name. */

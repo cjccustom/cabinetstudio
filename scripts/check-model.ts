@@ -2842,5 +2842,24 @@ eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i
   eq('furniture: both set, both stick, lines add to the total', `${line(both, 'furniture:tb')} ${line(both, 'furniture:bn')} ${Math.round(proposalLines(both).reduce((a, l) => a + l.price, 0)) === Math.round(priceQuote(both).total)}`, '4500 1200 true');
 }
 
+// A line price you set changes that line and the total, never the other lines (even with an adjustment and rounding)
+{
+  const sp = sampleProject();
+  const t = { ...newTable(), id: 'tb', name: 'Dining table', species: 'Red oak', pricePerBF: 8 };
+  const b = { ...newBench(), id: 'bn', name: 'Bench', species: 'Red oak', pricePerBF: 8 };
+  const base = { ...sp, furniture: [t, b], quote: { ...quoteOf(sp), roundTo: 100, adjustment: -750 } };
+  const before = proposalLines(base);
+  const key = before[0].key;
+  const set = { ...base, quote: { ...base.quote, linePrices: { [key]: before[0].price + 1234 } } };
+  const after = proposalLines(set);
+  eq('line price: the others don\'t move', after.filter((l) => l.key !== key).every((l) => l.price === before.find((x) => x.key === l.key)!.price), true);
+  eq('line price: the total moves by exactly the change', Math.round(priceQuote(set).total - priceQuote(base).total), 1234);
+  eq('line price: the lines add up to the total', Math.round(after.reduce((a, l) => a + l.price, 0)), Math.round(priceQuote(set).total));
+  const bench = { ...set, quote: { ...set.quote, linePrices: { ...set.quote.linePrices, 'furniture:bn': 900 } } };
+  eq('line price: a second one, still only those two move', proposalLines(bench).filter((l) => l.key !== key && l.key !== 'furniture:bn').every((l) => l.price === before.find((x) => x.key === l.key)!.price), true);
+  const signed = { ...set, contract: {} as never };
+  eq('line price: a signed job keeps its old arithmetic', Math.round(priceQuote(signed).total) % 100, 0);
+}
+
 console.log(failed ? `${failed} check(s) failed` : 'All model checks passed');
 process.exit(failed ? 1 : 0);

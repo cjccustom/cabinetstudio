@@ -340,7 +340,7 @@ export function QuoteSummary() {
             <Num id="q-adj" label="Your adjustment" suffix="$" value={q.adjustment} onChange={(v) => set({ adjustment: v })} />
             <Num id="q-round" label="Round to" suffix="$" value={q.roundTo} onChange={(v) => set({ roundTo: v })} />
           </div>
-          <p className="hint">Click any line’s wording or price to set your own; ↺ puts it back. A price you set stands in for that line’s hours and materials.</p>
+          <p className="hint">Click any line’s wording or price to set your own; ↺ puts it back. A price you set stands in for that line’s hours and materials, and changes only that line and the total: the other lines stay as they are. Your adjustment and rounding apply to the calculated prices.</p>
           <p className="hint">
             {options.length ? `With every option ${money(r.total)}. ` : ''}Calculated {money(r.calculated)}
             {r.workloadAmount ? `, workload ${r.workloadAmount > 0 ? '+' : '−'}${money(Math.abs(r.workloadAmount))}` : ''}
