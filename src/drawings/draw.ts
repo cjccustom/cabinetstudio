@@ -16,12 +16,17 @@ export const scaleName = (perFoot: number) => scaleNames[perFoot] ?? `1:${Math.r
  * (elev:back, plan, ff:<cabinet id>...); a dimension by its view and where it measures.
  */
 export interface DimEdit { hidden?: boolean; text?: string; /** Paper inches further out (+) or in (−). */ off?: number }
-export interface DrawingEdits { scales?: Record<string, number>; dims?: Record<string, DimEdit> }
+/**
+ * A dimension added on the drawings by hand: horizontal (from x1 to x2, measured at height `at`) or
+ * vertical (y1 to y2, at x = `at`), in the view's own world inches, set `off` paper inches out.
+ */
+export interface AddedDim { id: string; dir: 'h' | 'v'; p1: number; p2: number; at: number; off: number }
+export interface DrawingEdits { scales?: Record<string, number>; dims?: Record<string, DimEdit>; /** Dimensions added by hand, by view (its key, with #n for a second view drawn under the same key). */ added?: Record<string, AddedDim[]> }
 export interface ViewInfo { key: string; label: string; scale: number; fit: number }
 
-let ctx: { edits: DrawingEdits; key: string; label: string; views: ViewInfo[] } | null = null;
+let ctx: { edits: DrawingEdits; key: string; label: string; views: ViewInfo[]; counts: Record<string, number> } | null = null;
 /** Start drawing a set with these edits applied; views drawn are recorded for the viewer. */
-export function beginEdits(edits: DrawingEdits | undefined) { ctx = { edits: edits ?? {}, key: '', label: '', views: [] }; }
+export function beginEdits(edits: DrawingEdits | undefined) { ctx = { edits: edits ?? {}, key: '', label: '', views: [], counts: {} }; }
 export function endEdits() { ctx = null; revMark = null; }
 /** The latest revision's changed cabinets, marked with a numbered triangle beside their tags. */
 let revMark: { n: number; tags: Set<string> } | null = null;
@@ -80,8 +85,11 @@ export class View {
   /** The view's name for drawing edits, and its edited dimensions. */
   vkey = ctx?.key ?? '';
   private dimEdits = ctx?.edits.dims ?? {};
+  /** This view's own name for dimensions added by hand: its key, and #n for a second view under the same key. */
+  vid = '';
   constructor(public frame: Frame, public world: { x0: number; y0: number; x1: number; y1: number }, public perFoot: number, public yUp = true) {
     this.k = perFoot / 12;
+    if (ctx?.key) { const n = ctx.counts[ctx.key] ?? 0; ctx.counts[ctx.key] = n + 1; this.vid = n ? `${ctx.key}#${n}` : ctx.key; }
     // Center the drawing in its frame
     this.ox = frame.x + (frame.w - (world.x1 - world.x0) * this.k) / 2 - world.x0 * this.k;
     this.oy = yUp ? frame.y + (frame.h + (world.y1 - world.y0) * this.k) / 2 + world.y0 * this.k : frame.y + (frame.h - (world.y1 - world.y0) * this.k) / 2 - world.y0 * this.k;
@@ -258,7 +266,21 @@ export class View {
   /** Paper inches per world inch, with the sign of y on paper (for dragging in the viewer). */
   get scaleAttrs() { return { k: n(this.k), yup: this.yUp ? 1 : 0 }; }
   private late: string[] = [];
-  svg() { return this.out.join('') + this.late.join('') + this.hits.join(''); }
+  svg() {
+    if (this.vid && ctx) {
+      // Dimensions added by hand, drawn like the rest and marked so the viewer can delete them
+      for (const a of ctx.edits.added?.[this.vid] ?? []) {
+        const before = this.hits.length;
+        if (a.dir === 'h') this.dimH(Math.min(a.p1, a.p2), Math.max(a.p1, a.p2), a.at, a.off);
+        else this.dimV(Math.min(a.p1, a.p2), Math.max(a.p1, a.p2), a.at, a.off);
+        if (this.hits.length > before) this.hits[before] = this.hits[before].replace('<rect class="hit"', `<rect class="hit" data-added="${escAttr(`${this.vid}|${a.id}`)}"`);
+      }
+      // Where this view is on the sheet and how it maps to world inches, for adding dimensions in the viewer
+      const f = this.frame;
+      this.hits.unshift(`<rect class="varea" style="display:none" x="${n(f.x)}" y="${n(f.y)}" width="${n(f.w)}" height="${n(f.h)}" data-view="${escAttr(this.vid)}" data-ox="${n(this.ox)}" data-oy="${n(this.oy)}" data-k="${n(this.k)}" data-yup="${this.yUp ? 1 : 0}"/>`);
+    }
+    return this.out.join('') + this.late.join('') + this.hits.join('');
+  }
 }
 
 /** Line weights and text styles, in paper inches. */

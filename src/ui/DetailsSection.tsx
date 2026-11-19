@@ -4,7 +4,8 @@ import { useState } from 'react';
 import { useStore } from '../store';
 import { detailOk, detailTitle, detailsOf, newDetail, suggestedCut, type Detail } from '../drawings/details';
 import { cofferOf } from '../model/coffer';
-import { wallNames, wallOrder } from '../model/layout';
+import { nextWall, wallNames, wallOrder } from '../model/layout';
+import { mantelSideWall } from '../drawings/views';
 import type { Cabinet, Project, WallId } from '../model/types';
 import { Field, LengthInput, Section } from './fields';
 
@@ -34,6 +35,7 @@ export function DetailButtons({ cab, ceiling }: { cab?: Cabinet; ceiling?: boole
     <Section title="On the drawings">
       <div className="order-actions">
         {!cab.island && <button className="mini" disabled={wallOn} onClick={() => addDetail({ kind: 'wall', wall: cab.wall, at })}>{wallOn ? 'Wall section here is on the drawings' : `Wall section through ${cab.name}`}</button>}
+        {cab.kind === 'mantel' && <button className="mini" disabled={has(project, (d) => d.kind === 'mantelSide' && d.cabinetId === cab.id)} onClick={() => addDetail({ kind: 'mantelSide', cabinetId: cab.id })}>{has(project, (d) => d.kind === 'mantelSide' && d.cabinetId === cab.id) ? 'Side elevation is on the drawings' : 'Side elevation of the mantel'}</button>}
         {sectionable && <button className="mini" disabled={cabOn} onClick={() => addDetail({ kind: 'cabinet', cabinetId: cab.id })}>{cabOn ? `${cab.name} section is on the drawings` : `Section of ${cab.name}`}</button>}
         {!cab.island && <button className="mini" onClick={() => addDetail({ kind: 'wall', wall: cab.wall, at, zoom: 'top' })}>Enlarged: crown at the ceiling</button>}
         {!cab.island && <button className="mini" onClick={() => addDetail({ kind: 'wall', wall: cab.wall, at, zoom: 'base' })}>Enlarged: base</button>}
@@ -60,6 +62,7 @@ export function DetailsSection() {
           {wallOrder.map((w) => <option key={w} value={w}>{wallNames[w]}</option>)}
         </select>
         <button className="mini" onClick={() => addDetail({ kind: 'wall', wall, at: suggestedCut(project, wall) })}>Wall section</button>
+        {project.cabinets.filter((c) => c.kind === 'mantel').map((c) => <button key={c.id} className="mini" disabled={has(project, (d) => d.kind === 'mantelSide' && d.cabinetId === c.id)} onClick={() => addDetail({ kind: 'mantelSide', cabinetId: c.id })}>{c.name} side elevation</button>)}
       </div>
       {list.length === 0 && <p className="hint">Sections show how the important parts are built: a coffer beam with its crown, a cut through the bookcase or fireplace wall with its depths. Add them here, or from a cabinet or the ceiling when you double-click it in the design.</p>}
       {list.map((d) => (
@@ -74,6 +77,28 @@ export function DetailsSection() {
                 <option value="shop">Shop set only</option>
               </select>
             </Field>
+            {d.kind === 'mantelSide' && (() => {
+              const c = project.cabinets.find((x) => x.id === d.cabinetId);
+              if (!c) return null;
+              return (
+                <>
+                  <Field label="Looking toward" htmlFor={`dt-tw-${d.id}`}>
+                    <select id={`dt-tw-${d.id}`} value={d.toward ?? ''} onChange={(e) => put(d.id, { toward: (e.target.value || undefined) as Detail['toward'] })}>
+                      <option value="">The nearer end wall ({wallNames[mantelSideWall(project, c)].toLowerCase()})</option>
+                      <option value="left">{wallNames[nextWall[c.wall].left]}</option>
+                      <option value="right">{wallNames[nextWall[c.wall].right]}</option>
+                    </select>
+                  </Field>
+                  <Field label="How much of the room" htmlFor={`dt-fr-${d.id}`}>
+                    <select id={`dt-fr-${d.id}`} value={String(d.frac ?? 1 / 3)} onChange={(e) => put(d.id, { frac: Number(e.target.value) })}>
+                      <option value={String(1 / 4)}>A quarter</option>
+                      <option value={String(1 / 3)}>A third</option>
+                      <option value={String(1 / 2)}>Half</option>
+                    </select>
+                  </Field>
+                </>
+              );
+            })()}
             {d.kind === 'wall' && (
               <>
                 <Field label="Wall" htmlFor={`dt-w-${d.id}`}>

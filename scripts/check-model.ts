@@ -2766,5 +2766,23 @@ eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i
   eq('gcode reader: vendor A\'s sample (two tools, no warnings)', `${sample.tools.join(',')} ${sample.warnings.length}`, '1,2 0');
 }
 
+// Dimensions added by hand: drawn in their view like the others, tagged so they can be deleted; a mantel's side elevation
+{
+  const sp = sampleProject();
+  const w = sp.cabinets[0].wall;
+  const plain = customerSet({ ...sp, drawings: { ...drawingsOf(sp) } }, drawingsOf(sp)).map((s) => s.svg).join('');
+  const added = { [`elev:${w}`]: [{ id: 'ad1', dir: 'h' as const, p1: 0, p2: 30.5, at: 10, off: -0.6 }] };
+  const ds = { ...drawingsOf(sp), edits: { added } };
+  const svg = customerSet({ ...sp, drawings: ds }, ds).map((s) => s.svg).join('');
+  eq('added dimension: drawn with the measured length, marked as added', `${!plain.includes('data-added')} ${/data-added="elev:[a-z]+\|ad1"[^>]*data-text="30 1\/2&quot;"/.test(svg)}`, 'true true');
+  eq('added dimension: each drawing says where it is on the sheet, for picking points', /class="varea"[^>]*data-view="elev:/.test(svg), true);
+  // Pope-style mantel: the side elevation is a full sheet of its own, looking toward the nearer end wall
+  const mp = { ...sp, cabinets: [{ ...cabinetFromPreset(presets.find((x) => x.id === 'mantel-electric')!, 'front', 20, []), id: 'm1', name: 'M1' }] };
+  const withSide = { ...mp, details: [{ id: 'd1', kind: 'mantelSide' as const, cabinetId: 'm1' }] };
+  const sheets = shopSet(withSide, drawingsOf(withSide));
+  const det = sheets.filter((s) => s.title === 'Details');
+  eq('mantel side elevation: its own sheet, titled toward the end wall, with its depths', `${det.length} ${/M1 SIDE ELEVATION, LOOKING TOWARD THE/.test(det[0]?.svg ?? '')} ${/DEPTHS FROM THE WALL/.test(det[0]?.svg ?? '')}`, '1 true true');
+}
+
 console.log(failed ? `${failed} check(s) failed` : 'All model checks passed');
 process.exit(failed ? 1 : 0);

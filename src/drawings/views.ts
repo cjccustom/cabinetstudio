@@ -4,7 +4,7 @@ import { tvSize, tvsOf } from '../model/tv';
 import { tablesOf } from '../model/tableParts';
 import type { Cabinet, Part, Project, WallId } from '../model/types';
 import { buildParts, eff, topThick } from '../model/parts';
-import { footprint, resolveEnds, wallAxes, wallLength, wallNames, wallTransform } from '../model/layout';
+import { footprint, nextWall, resolveEnds, wallAxes, wallLength, wallNames, wallTransform } from '../model/layout';
 import { cabinetMoldings, mountShape, profileByNum, profileLabel, type Profile } from '../model/moldings';
 import { profileBreaks, runFaceOn, type EndCut } from './moldElev';
 import { casingReach, openingTrim, roomMoldings, wallAccentBoxes } from '../model/room';
@@ -817,4 +817,124 @@ export function beamSection(p: Project, frame: Frame): { svg: string; scale: num
   v.dimV(0, drop, B + ext, 0.3, `${dimText(drop)} drop`);
   v.text(B / 2, -v.p(0.75), 'BEAM SECTION', 0.12, 'middle', 'lbl');
   return { svg: v.svg(), scale: perFoot };
+}
+
+/** The end wall a mantel's side view looks toward: the nearer one; on a tie, the one with more doors and windows. */
+export function mantelSideWall(p: Project, c: Cabinet, toward?: 'left' | 'right'): WallId {
+  if (toward) return nextWall[c.wall][toward];
+  const L = wallLength(p.room, c.wall), mid = c.offset + c.width / 2;
+  if (Math.abs(mid - L / 2) > 1) return nextWall[c.wall][mid < L / 2 ? 'left' : 'right'];
+  const n = (w: WallId) => (p.openings ?? []).filter((o) => o.wall === w).length;
+  return n(nextWall[c.wall].left) >= n(nextWall[c.wall].right) ? nextWall[c.wall].left : nextWall[c.wall].right;
+}
+
+/**
+ * A mantel from the side, looking toward an end wall: the end wall's elevation (its windows, trim and
+ * ceiling) for the stretch nearest the mantel, with the mantel and chimney drawn from the side in front
+ * of it, full height. Each depth is dimensioned from the wall: chimney, legs, base, shelf, mouldings,
+ * overmantel; the heights up the open side.
+ */
+export function mantelSideView(p: Project, c: Cabinet, frame: Frame, toward?: 'left' | 'right', frac = 1 / 3): { svg: string; scale: number; side: WallId } {
+  const room = p.room, H = room.height;
+  const S = mantelSideWall(p, c, toward);
+  const Ls = wallLength(room, S);
+  // Where the mantel's wall falls along the end wall, and which way its depth runs there
+  const o = wallTransform(room, S, 0).pos, ax = wallAxes[S];
+  const t = wallTransform(room, c.wall, c.offset, c.wallInset).pos, cx = wallAxes[c.wall];
+  const along = (lz: number) => { const rx = t[0] + (c.width / 2) * cx.along[0] + lz * cx.out[0], rz = t[2] + (c.width / 2) * cx.along[1] + lz * cx.out[1]; return (rx - o[0]) * ax.along[0] + (rz - o[2]) * ax.along[1]; };
+  const z0 = -(c.wallInset ?? 0);
+  const a0 = along(z0), dir = Math.sign(along(z0 + 10) - a0) || 1;
+  const A = (z: number) => a0 + dir * (z - z0);
+  // The features and how far each stands off the wall
+  const parts = partsOf(p, c);
+  const feats: { name: string; z: number; y0: number; y1: number }[] = [];
+  for (const part of parts) for (const b of part.boxes) feats.push({ name: part.name, z: (c.wallInset ?? 0) + b.min[2] + b.size[2], y0: c.elevation + b.min[1], y1: c.elevation + b.min[1] + b.size[1] });
+  for (const pc of cabinetMoldings(c, eff(c, p.settings), resolveEnds(p.room, p.cabinets, c))) {
+    if (pc.along !== 'x' || pc.facing !== 'front') continue;
+    const prof = profileByNum(pc.num); if (!prof) continue;
+    const m = mountShape(prof);
+    const y = pc.hang ? pc.y - m.height : pc.y;
+    feats.push({ name: pc.label ?? (pc.kind === 'baseMold' ? 'Base cap' : pc.kind === 'crown' ? 'Crown' : 'Moulding'), z: (c.wallInset ?? 0) + pc.z + m.depth, y0: c.elevation + y, y1: c.elevation + y + m.height });
+  }
+  const deepest = Math.max(...feats.map((f) => f.z), 12);
+  const span = Math.max(Ls * frac, deepest + 30);
+  const x0 = dir > 0 ? a0 - 4.5 : a0 - span, x1 = dir > 0 ? a0 + span : a0 + 4.5;
+  // The drawing on the left of the sheet, the table of depths on the right
+  const df: Frame = { ...frame, w: frame.w * 0.64 };
+  const perFoot = fitScale(x1 - x0 + 2, H + 2, df.w - 1.6, df.h - 0.9);
+  const v = new View(df, { x0, y0: 0, x1, y1: H }, perFoot);
+  // The end wall's elevation and everything seen from the side, clipped to the stretch shown
+  const start = v.out.length;
+  for (const b of wallAccentBoxes(p, S)) v.rect(b.min[0], b.min[1], b.size[0], b.size[1], 'thin');
+  drawItems(v, elevationItems(p, S));
+  drawItems(v, sideItems(p, S, 'side'));
+  const clipId = `msclip-${c.id}`.replace(/[^\w-]/g, '');
+  const cx0 = Math.min(A(z0), dir > 0 ? x1 : x0), cx1 = Math.max(A(z0), dir > 0 ? x1 : x0);
+  const clip = `<clipPath id="${clipId}"><rect x="${v.X(cx0)}" y="${v.Y(H + 12)}" width="${Math.abs(v.X(cx1) - v.X(cx0))}" height="${Math.abs(v.Y(-1) - v.Y(H + 12))}"/></clipPath>`;
+  v.out.splice(start, 0, `<defs>${clip}</defs><g clip-path="url(#${clipId})">`);
+  v.out.push('</g>');
+  // The mantel's wall, cut, at the near end; floor and ceiling
+  v.rect(dir > 0 ? a0 - 4.5 : a0, 0, 4.5, H, 'wall');
+  v.line(x0, 0, x1, 0, 'heavy');
+  v.line(Math.min(cx0, cx1), H, Math.max(cx0, cx1), H, 'f');
+  // A break line where the room carries on
+  const far = dir > 0 ? x1 : x0;
+  v.line(far, -1, far, H + 1, 'thin');
+  // Depths: the main faces, each once (the deepest piece of each name), lower ones under the floor and upper ones over the ceiling
+  const short = (n: string) => n.replace(/ (under the shelf|around the legs|atop the (overmantel|upper pilasters)|, above the mantel)$/i, '').replace(/^Leg pilaster stile$/i, 'Legs').replace(/^Upper pilaster stile$/i, 'Upper pilasters').toLowerCase();
+  const keep = /stile|shelf|chimney side|baseboard|base cap|moulding|crown|leg face|plinth|capital|corbel|pediment/i;
+  const best = new Map<string, { name: string; z: number; y0: number; y1: number }>();
+  for (const f of feats) {
+    if (!keep.test(f.name)) continue;
+    // The chimney sides step back above the shelf: each height of them counts on its own
+    const key = /chimney side/i.test(f.name) ? `${f.name}|${f.y0 < c.elevation + c.height - 0.5 ? 'low' : 'high'}` : f.name;
+    const b = best.get(key);
+    if (!b || f.z > b.z + 1e-6) best.set(key, f);
+  }
+  const top = c.elevation + c.height;
+  const rows = [...best.values()].sort((a, b) => a.z - b.z);
+  const wallX = A(z0);
+  // Dimensioned on the drawing: the main faces only (the rest are in the table beside it), each depth once
+  const main = /^(chimney side|leg pilaster stile|leg face|baseboard|base cap|mantel shelf|upper pilaster stile|cap moulding.*|crown)$/i;
+  const pick = (list: typeof rows) => {
+    const out: typeof rows = [];
+    for (const f of list.filter((x) => main.test(x.name))) {
+      const same = out.findIndex((x) => Math.abs(x.z - f.z) < 1 / 16 + 1e-6);
+      if (same < 0) out.push(f);
+      else if (f.y1 - f.y0 > out[same].y1 - out[same].y0) out[same] = f;
+    }
+    return out.sort((a, b) => a.z - b.z);
+  };
+  // Each one across the side view at the height of what it measures, kept a little apart from the next
+  const placed = [...pick(rows.filter((f) => f.y0 < top - 0.5)), ...pick(rows.filter((f) => f.y0 >= top - 0.5))]
+    // A thin part (the shelf, a moulding) gets its dimension just under it, clear of its own lines
+    // (above the shelf, where the overmantel leaves room; under a moulding up top)
+    .map((f) => ({ f, y: f.y1 - f.y0 < 3 ? (f.y0 < top - 0.5 ? f.y1 + v.p(0.22) : f.y0 - v.p(0.2)) : f.y0 + Math.min(f.y1 - f.y0, 30) * 0.5 }))
+    .sort((a, b) => a.y - b.y);
+  const gap = v.p(0.3);
+  for (let i = 1; i < placed.length; i++) if (placed[i].y - placed[i - 1].y < gap) placed[i].y = Math.min(placed[i].f.y1 - 0.25, placed[i - 1].y + gap);
+  for (const { f, y } of placed) v.dimH(Math.min(wallX, A(f.z)), Math.max(wallX, A(f.z)), y, 0, `${dimText(f.z)} ${short(f.name)}`);
+  // Every depth, top to bottom, in a table: what it is, how far off the wall, and where it is up the wall
+  const tx = frame.x + frame.w * 0.67, tw = frame.w * 0.33;
+  const lines = [...rows].sort((a, b) => b.y1 - a.y1 || b.z - a.z);
+  const fs = 0.085, lh = 0.19;
+  const head = `<text x="${tx}" y="${frame.y + 0.35}" font-size="0.12" font-weight="700">DEPTHS FROM THE WALL</text>`
+    + `<text x="${tx}" y="${frame.y + 0.56}" font-size="${fs}" class="muted">Measured from the face of the ${wallNames[c.wall].toLowerCase()}${c.wallInset ? ` (the mantel stands ${dimText(c.wallInset)} off it)` : ''}.</text>`
+    + `<text x="${tx}" y="${frame.y + 0.85}" font-size="${fs}" font-weight="700">Part</text><text x="${tx + tw * 0.56}" y="${frame.y + 0.85}" font-size="${fs}" font-weight="700" text-anchor="end">Depth</text><text x="${tx + tw * 0.98}" y="${frame.y + 0.85}" font-size="${fs}" font-weight="700" text-anchor="end">Up from the floor</text>`
+    + `<line class="thin" x1="${tx}" y1="${frame.y + 0.9}" x2="${tx + tw * 0.98}" y2="${frame.y + 0.9}"/>`;
+  const body = lines.map((f, i) => {
+    const y = frame.y + 1.08 + i * lh;
+    const nm = short(f.name);
+    return `<text x="${tx}" y="${y}" font-size="${fs}">${nm.charAt(0).toUpperCase() + nm.slice(1)}</text><text x="${tx + tw * 0.56}" y="${y}" font-size="${fs}" text-anchor="end">${dimText(f.z)}</text><text x="${tx + tw * 0.98}" y="${y}" font-size="${fs}" text-anchor="end">${dimText(f.y0)} to ${dimText(f.y1)}</text>`;
+  }).join('');
+  v.out.push(head + body);
+  // Heights up the open side: base, shelf, overmantel, ceiling trim, ceiling
+  const m = mantelOf(c);
+  const capH = m.baseH > 0 ? (profileByNum(m.baseCapMold) ? mountShape(profileByNum(m.baseCapMold)!).height : m.baseCapH) : 0;
+  const ups = feats.filter((f) => /upper pilaster|chimney face, above/i.test(f.name));
+  const cc = cofferOf(p);
+  const ys = [0, H, ...(m.baseH > 0 ? [m.baseH + capH] : []), c.elevation + mantelLayout(c, m).shelfBottom, top, ...(ups.length ? [Math.max(...ups.map((f) => f.y1))] : []), ...(cc.on && cc.perimeter ? [H - fasciaHeight(cc)] : [])];
+  v.chainV(ys, far, dir > 0 ? 0.35 : -0.35);
+  v.dimV(0, H, far, dir > 0 ? 0.8 : -0.8, undefined, true);
+  return { svg: v.svg(), scale: perFoot, side: S };
 }

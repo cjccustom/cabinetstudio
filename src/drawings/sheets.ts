@@ -31,21 +31,31 @@ import { LOGO, LOGO_ASPECT } from './logo';
 import { tableViews } from './tableViews';
 import { tableParts } from '../model/tableParts';
 import { furnitureOf, tableChecks, tableFinishLabel, tableScope, type DiningTable } from '../model/furniture';
-import { detailOk, detailTitle, detailsOf, drawDetail, inSet, suggestedCut, type Detail } from './details';
+import { detailOk, detailTitle, detailsOf, drawDetail, inSet, suggestedCut, type Detail, wideDetail } from './details';
 
 /** The details for a set, numbered, two to a sheet: 1/A5, 2/A5, 3/A6… */
 function placeDetails(p: Project, set: 'customer' | 'shop', prefix: string, first: number) {
   const list = detailsOf(p).filter((d) => inSet(d, set) && detailOk(p, d));
-  return list.map((d, i) => ({ d, n: (i % 2) + 1, sheet: `${prefix}${first + Math.floor(i / 2)}` }));
+  // Two to a sheet; a wide one (a full-height side view) gets a sheet of its own
+  const out: { d: Detail; n: number; sheet: string }[] = [];
+  let sheetNo = first, n = 0;
+  for (const d of list) {
+    if (wideDetail(d)) { if (n) { sheetNo++; n = 0; } out.push({ d, n: 1, sheet: `${prefix}${sheetNo}` }); sheetNo++; continue; }
+    out.push({ d, n: n + 1, sheet: `${prefix}${sheetNo}` });
+    n++;
+    if (n === 2) { sheetNo++; n = 0; }
+  }
+  return out;
 }
 
 /** Details sheets: two details side by side, each with its bubble, title, scale and note. */
 function detailSheets(p: Project, s: DrawingSettings, placed: { d: Detail; n: number; sheet: string }[]): Sheet[] {
   const A = area(s.paper);
   const out: Sheet[] = [];
-  for (let i = 0; i < placed.length; i += 2) {
-    const pair = placed.slice(i, i + 2);
-    const w = A.w / 2;
+  const bySheet = new Map<string, typeof placed>();
+  for (const x of placed) bySheet.set(x.sheet, [...(bySheet.get(x.sheet) ?? []), x]);
+  for (const pair of bySheet.values()) {
+    const w = wideDetail(pair[0].d) ? A.w : A.w / 2;
     const body = pair.map(({ d, n }, j) => {
       const f: Frame = { x: A.x + j * w, y: A.y, w: w - 0.1, h: A.h - 0.95 };
       const dr = inView(`detail:${d.id}`, `Detail: ${detailTitle(p, d)}`, () => drawDetail(p, d, f));

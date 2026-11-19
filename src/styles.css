@@ -899,3 +899,7 @@ textarea.text-input { resize: vertical; }
 .shots li { display: flex; align-items: center; gap: 4px; }
 .shots img { width: 72px; height: 48px; object-fit: cover; border: 1px solid var(--line, #ccc); }
 .shots input { flex: 1; min-width: 0; }
+.drawings-stage .dw-scroll.adding .dwg, .drawings-stage .dw-scroll.adding .dwg .hit { cursor: crosshair; }
+.drawings-stage .dw-scroll.adding .dwg .hit:hover { fill: none; stroke: none; }
+.dwg .dw-snap { fill: #2563eb; stroke: #fff; stroke-width: 0.008; }
+.dwg .dw-snap-hover { fill: none; stroke: #2563eb; stroke-width: 0.012; }

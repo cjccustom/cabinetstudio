@@ -10,10 +10,10 @@ import { eff } from '../model/parts';
 import { OVER_NAILER, RAIL_LAP, cofferOf, fasciaHeight, perimeterBottom, perimOf, underFascia } from '../model/coffer';
 import { ladderOf } from '../model/ladder';
 import { View, dimText, fitScale, type Frame } from './draw';
-import { beamSection, cabinetsOn, partsOf, sideSection } from './views';
+import { beamSection, cabinetsOn, mantelSideView, mantelSideWall, partsOf, sideSection } from './views';
 import { uid } from '../model/defaults';
 
-export type DetailKind = 'beam' | 'wall' | 'cabinet';
+export type DetailKind = 'beam' | 'wall' | 'cabinet' | 'mantelSide';
 export interface Detail {
   id: string;
   kind: DetailKind;
@@ -22,8 +22,11 @@ export interface Detail {
   at?: number;
   /** A wall section drawn whole, or enlarged: the top (crown at the ceiling) or the base (base moulding at the floor). */
   zoom?: 'full' | 'top' | 'base';
-  /** A cabinet section: which cabinet. */
+  /** A cabinet section (or the mantel seen from the side): which cabinet. */
   cabinetId?: string;
+  /** A mantel's side view: the end wall it looks toward (unset: the nearer one) and how much of the room it shows. */
+  toward?: 'left' | 'right';
+  frac?: number;
   /** Your title and a note under it; unset = a title from what it shows. */
   title?: string;
   note?: string;
@@ -33,6 +36,8 @@ export interface Detail {
 
 export const detailsOf = (p: Project): Detail[] => p.details ?? [];
 export const newDetail = (d: Omit<Detail, 'id'>): Detail => ({ id: uid('det'), ...d });
+/** Details that need a sheet to themselves (a full-height side view). */
+export const wideDetail = (d: Detail) => d.kind === 'mantelSide';
 export const inSet = (d: Detail, set: 'customer' | 'shop') => (d.sets ?? 'both') === 'both' || d.sets === set;
 
 /** What a detail is called on the sheet. */
@@ -40,6 +45,7 @@ export function detailTitle(p: Project, d: Detail): string {
   if (d.title?.trim()) return d.title.trim();
   if (d.kind === 'beam') return 'Coffer beam section';
   if (d.kind === 'cabinet') { const c = p.cabinets.find((x) => x.id === d.cabinetId); return c ? `${c.name} section` : 'Cabinet section'; }
+  if (d.kind === 'mantelSide') { const c = p.cabinets.find((x) => x.id === d.cabinetId); return c ? `${c.name} side elevation, looking toward the ${wallNames[mantelSideWall(p, c, d.toward)].toLowerCase()}` : 'Mantel side elevation'; }
   const c = d.wall ? cutCabinets(p, d.wall, d.at ?? suggestedCut(p, d.wall))[0] : undefined;
   if (d.zoom === 'top') return `Enlarged detail: crown at the ceiling${c ? `, ${c.name}` : ''}`;
   if (d.zoom === 'base') return `Enlarged detail: base${c ? `, ${c.name}` : ''}`;
@@ -50,6 +56,7 @@ export function detailTitle(p: Project, d: Detail): string {
 export function detailOk(p: Project, d: Detail): boolean {
   if (d.kind === 'beam') return cofferOf(p).on;
   if (d.kind === 'cabinet') { const c = p.cabinets.find((x) => x.id === d.cabinetId); return !!c && c.kind !== 'shelf' && c.kind !== 'pilaster' && c.kind !== 'mantel'; }
+  if (d.kind === 'mantelSide') return p.cabinets.some((x) => x.id === d.cabinetId && x.kind === 'mantel');
   return !!d.wall;
 }
 
@@ -224,5 +231,6 @@ export function drawDetail(p: Project, d: Detail, frame: Frame): { svg: string; 
   if (!detailOk(p, d)) return null;
   if (d.kind === 'beam') return beamSection(p, frame);
   if (d.kind === 'cabinet') return sideSection(p, p.cabinets.find((x) => x.id === d.cabinetId)!, frame);
+  if (d.kind === 'mantelSide') return mantelSideView(p, p.cabinets.find((x) => x.id === d.cabinetId)!, frame, d.toward, d.frac ?? 1 / 3);
   return wallSection(p, d.wall!, d.at ?? suggestedCut(p, d.wall!), frame, d.zoom);
 }

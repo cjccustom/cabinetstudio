@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { create } from 'zustand';
 import { useStore } from '../store';
 import { customerSet, drawingsOf, papers, setDocument, sheetCss, shopSet, type DrawingSettings, type Paper, type Sheet, type SheetText } from '../drawings/sheets';
-import { scaleName, scales, type DimEdit } from '../drawings/draw';
+import { scaleName, scales, type AddedDim, type DimEdit } from '../drawings/draw';
 import { renderOf } from '../model/rendering';
 import { clientName, clientOf } from '../model/client';
 import { blobToDataUrl, capability, shrinkImage, type Downloads } from '../runtime';
@@ -242,7 +242,7 @@ export function DrawingsSide() {
 
 /** What's open for editing on a sheet: a dimension, or a note (new or existing), placed where it was clicked. */
 type Pop =
-  | { kind: 'dim'; id: string; text: string; measured: string; hidden: boolean; x: number; y: number }
+  | { kind: 'dim'; id: string; text: string; measured: string; hidden: boolean; x: number; y: number; /** A dimension added by hand: its view and id, so it can be deleted. */ added?: string }
   | { kind: 'note'; sheet: string; id?: string; px: number; py: number; text: string; size: number; x: number; y: number };
 
 /**
@@ -264,6 +264,46 @@ export function DrawingsMain() {
   const zoomBy = (f: number) => setZoom((z) => Math.min(4, Math.max(0.25, +(z * f).toFixed(2))));
   const at = (e: { clientX: number; clientY: number }) => { const box = scroller.current!.getBoundingClientRect(); return { x: e.clientX - box.left + scroller.current!.scrollLeft, y: e.clientY - box.top + scroller.current!.scrollTop }; };
 
+  // Adding a dimension: first point, second point, then where the dimension line goes
+  const [adding, setAdding] = useState<null | { a?: Snap; b?: Snap }>(null);
+  const clearMarks = () => document.querySelectorAll('.dw-snap').forEach((el) => el.remove());
+  const cancelAdd = () => { clearMarks(); setAdding(null); };
+  const addHint = 'Zoom in where corners are close together; the blue dot shows the point a click picks.';
+  const addClick = (e: React.PointerEvent) => {
+    const hit = snapAt(e);
+    if (!hit) return;
+    if (!adding?.a) { mark(hit); setAdding({ a: hit }); return; }
+    if (adding.a.view !== hit.view) return; // both points in the same drawing
+    if (!adding.b) { mark(hit); setAdding({ ...adding, b: hit }); return; }
+    // The third click places the dimension line: horizontal or vertical, whichever the two points are further apart in
+    const { a, b } = adding, v = a.area;
+    const horiz = Math.abs(b.px - a.px) >= Math.abs(b.py - a.py);
+    const toW = (px: number, py: number) => [(px - v.ox) / v.k, v.yup ? (v.oy - py) / v.k : (py - v.oy) / v.k] as const;
+    const wa = toW(a.px, a.py), wb = toW(b.px, b.py);
+    let dim: AddedDim;
+    if (horiz) {
+      const ref = Math.abs(hit.py - a.py) <= Math.abs(hit.py - b.py) ? a : b;
+      dim = { id: `ad${Date.now().toString(36)}`, dir: 'h', p1: wa[0], p2: wb[0], at: toW(ref.px, ref.py)[1], off: +(ref.py - e2p(e, hit).py).toFixed(3) };
+    } else {
+      const ref = Math.abs(hit.px - a.px) <= Math.abs(hit.px - b.px) ? a : b;
+      dim = { id: `ad${Date.now().toString(36)}`, dir: 'v', p1: wa[1], p2: wb[1], at: toW(ref.px, ref.py)[0], off: +(e2p(e, hit).px - ref.px).toFixed(3) };
+    }
+    if (Math.abs(dim.p2 - dim.p1) < 1 / 64) { cancelAdd(); return; }
+    const added = { ...(d.edits?.added ?? {}) };
+    added[a.view] = [...(added[a.view] ?? []), dim];
+    put({ edits: { ...d.edits, added } });
+    cancelAdd();
+  };
+  const deleteAdded = (key: string, id: string) => {
+    const [view, aid] = key.split('|');
+    const added = { ...(d.edits?.added ?? {}) };
+    added[view] = (added[view] ?? []).filter((x) => x.id !== aid);
+    if (!added[view].length) delete added[view];
+    const nd = { ...(d.edits?.dims ?? {}) };
+    delete nd[id];
+    put({ edits: { ...d.edits, added, dims: nd } });
+  };
+
   const dims = d.edits?.dims ?? {};
   const putDim = (id: string, patch: DimEdit | null) => {
     const next = { ...dims };
@@ -282,6 +322,7 @@ export function DrawingsMain() {
   // What was pressed: the click's own target can shift if the page moves under the pointer
   const pressed = useRef<{ dim: SVGRectElement | null; x: number; y: number } | null>(null);
   const down = (e: React.PointerEvent) => {
+    if (adding) return;
     pressed.current = { dim: (e.target as Element).closest('rect.hit[data-dim]') as SVGRectElement | null, x: e.clientX, y: e.clientY };
     const el = (e.target as Element).closest('rect.hit[data-note]') as SVGRectElement | null;
     if (!el || e.button !== 0) return;
@@ -289,6 +330,13 @@ export function DrawingsMain() {
     el.setPointerCapture(e.pointerId);
   };
   const move = (e: React.PointerEvent) => {
+    // Adding a dimension: show the point a click would pick
+    if (adding) {
+      document.querySelectorAll('.dw-snap-hover').forEach((el) => el.remove());
+      const s = snapAt(e);
+      if (s) { const c = mark(s); c.setAttribute('class', 'dw-snap dw-snap-hover'); }
+      return;
+    }
     const g = drag.current;
     if (!g) return;
     const dx = (e.clientX - g.x0) / (96 * zoom), dy = (e.clientY - g.y0) / (96 * zoom);
@@ -299,11 +347,12 @@ export function DrawingsMain() {
     (g.el.previousElementSibling as SVGElement | null)?.setAttribute('transform', `translate(${dx} ${dy})`);
   };
   const up = (e: React.PointerEvent) => {
+    if (adding) { if (e.button === 0) addClick(e); return; }
     const pr = pressed.current;
     pressed.current = null;
     if (pr?.dim && Math.hypot(e.clientX - pr.x, e.clientY - pr.y) < 6) {
       const ds = pr.dim.dataset;
-      setPop({ kind: 'dim', id: ds.dim!, text: dims[ds.dim!]?.text ?? '', measured: ds.measured ?? ds.text ?? '', hidden: !!ds.hidden, ...at(e) });
+      setPop({ kind: 'dim', id: ds.dim!, text: dims[ds.dim!]?.text ?? '', measured: ds.measured ?? ds.text ?? '', hidden: !!ds.hidden, added: ds.added, ...at(e) });
       return;
     }
     const g = drag.current;
@@ -323,6 +372,7 @@ export function DrawingsMain() {
   };
   // Double-click an empty spot on a sheet: a new note there
   const dbl = (e: React.MouseEvent) => {
+    if (adding) return;
     const t = e.target as Element;
     if (t.closest('rect.hit')) return;
     const sh = t.closest('.dw-sheet') as HTMLElement | null;
@@ -349,14 +399,25 @@ export function DrawingsMain() {
     <main className="stage drawings-stage">
       <style>{sheetCss + `@media print{@page{size:${P.w}in ${P.h}in;margin:0}}`}</style>
       <div className="dw-bar">
-        <span className="muted">{sheets.length} sheet{sheets.length === 1 ? '' : 's'} · click a dimension to change it · double-click a sheet to add a note</span>
+        {adding ? (
+          <>
+            <b>{!adding.a ? 'Click the first point' : !adding.b ? 'Click the second point' : 'Click where the dimension line goes'}</b>
+            <span className="muted">Snaps to corners and line ends. {addHint} Esc to stop.</span>
+            <button className="mini" onClick={cancelAdd}>Cancel</button>
+          </>
+        ) : (
+          <>
+            <button className="mini primary" onClick={() => setAdding({})}>Add dimension</button>
+            <span className="muted">{sheets.length} sheet{sheets.length === 1 ? '' : 's'} · click a dimension to change it · double-click a sheet to add a note</span>
+          </>
+        )}
         <span className="grow" />
         <button className="icon-btn" aria-label="Zoom out" onClick={() => zoomBy(1 / 1.25)}>−</button>
         <span className="muted">{Math.round(zoom * 100)}%</span>
         <button className="icon-btn" aria-label="Zoom in" onClick={() => zoomBy(1.25)}>+</button>
         <button className="mini" onClick={() => setZoom(fit())}>Fit</button>
       </div>
-      <div className="dw-scroll" ref={scroller} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onClick={click} onDoubleClick={dbl} onWheel={wheel}>
+      <div className={`dw-scroll${adding ? ' adding' : ''}`} tabIndex={-1} onKeyDown={(e) => { if (e.key === 'Escape' && adding) cancelAdd(); }} ref={scroller} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onClick={click} onDoubleClick={dbl} onWheel={wheel}>
         {!sheets.length && <p className="hint" style={{ padding: 20 }}>Add cabinets in Design to make drawings.</p>}
         {sheets.map((s) => (
           <div key={s.id} id={`sheet-${s.id}`} className="dw-sheet" style={{ width: `${P.w * 96 * zoom}px`, height: `${P.h * 96 * zoom}px` }}>
@@ -372,6 +433,7 @@ export function DrawingsMain() {
             <button type="button" className="mini" title="Move it closer to the drawing" onClick={() => putDim(pop.id, { off: +((dims[pop.id]?.off ?? 0) - 0.12).toFixed(2) })}>In</button>
             <button type="button" className="mini" onClick={() => { putDim(pop.id, { hidden: !pop.hidden }); setPop(null); }}>{pop.hidden ? 'Show' : 'Hide'}</button>
             <button type="button" className="mini" onClick={() => { putDim(pop.id, null); setPop(null); }}>Reset</button>
+            {pop.added && <button type="button" className="mini danger" onClick={() => { deleteAdded(pop.added!, pop.id); setPop(null); }}>Delete</button>}
             <button type="button" className="mini" onClick={() => setPop(null)}>Close</button>
           </form>
         )}
@@ -494,4 +556,59 @@ export function CoverButton() {
     setTimeout(() => setDone(false), 2000);
   };
   return <button onClick={grab} title="Use this view on the cover of the drawings">{done ? 'Cover saved' : 'Use as cover'}</button>;
+}
+
+/* ---------- Adding dimensions: where a click lands on a sheet, snapped to the drawing ---------- */
+
+interface VArea { view: string; x: number; y: number; w: number; h: number; ox: number; oy: number; k: number; yup: boolean }
+interface Snap { view: string; area: VArea; px: number; py: number; svg: SVGSVGElement }
+
+/** A pointer position as paper inches on the sheet's drawing. */
+function e2p(e: { clientX: number; clientY: number }, s: { svg: SVGSVGElement }): { px: number; py: number } {
+  const m = s.svg.getScreenCTM();
+  if (!m) return { px: 0, py: 0 };
+  const pt = new DOMPoint(e.clientX, e.clientY).matrixTransform(m.inverse());
+  return { px: pt.x, py: pt.y };
+}
+
+/** The drawing under the pointer and the nearest corner or line end to snap to (or the point itself). */
+function snapAt(e: React.PointerEvent): Snap | null {
+  const sheet = (e.target as Element).closest('.dw-sheet');
+  const svg = sheet?.querySelector('svg') as SVGSVGElement | null;
+  if (!svg) return null;
+  const { px, py } = e2p(e, { svg });
+  const areas: VArea[] = [...svg.querySelectorAll('rect.varea')].map((r) => {
+    const g = (k: string) => parseFloat(r.getAttribute(k) ?? '0');
+    return { view: r.getAttribute('data-view') ?? '', x: g('x'), y: g('y'), w: g('width'), h: g('height'), ox: g('data-ox'), oy: g('data-oy'), k: g('data-k'), yup: r.getAttribute('data-yup') === '1' };
+  }).filter((a) => px >= a.x && px <= a.x + a.w && py >= a.y && py <= a.y + a.h).sort((a, b) => a.w * a.h - b.w * b.h);
+  const area = areas[0];
+  if (!area) return null;
+  // Corners and line ends of the drawing itself (not its dimensions, labels or click targets)
+  const skip = (el: Element) => /\b(hit|varea|d|tk|dt|dw-snap|dw-snap-hover)\b/.test(el.getAttribute('class') ?? '');
+  const pts: [number, number][] = [];
+  const num = (el: Element, k: string) => parseFloat(el.getAttribute(k) ?? 'NaN');
+  for (const el of svg.querySelectorAll('line, rect, polygon, polyline')) {
+    if (skip(el)) continue;
+    if (el.tagName === 'line') pts.push([num(el, 'x1'), num(el, 'y1')], [num(el, 'x2'), num(el, 'y2')]);
+    else if (el.tagName === 'rect') { const x = num(el, 'x'), y = num(el, 'y'), w = num(el, 'width'), h = num(el, 'height'); pts.push([x, y], [x + w, y], [x, y + h], [x + w, y + h]); }
+    else for (const q of (el.getAttribute('points') ?? '').trim().split(/\s+/)) { const [x, y] = q.split(',').map(Number); pts.push([x, y]); }
+  }
+  // Within about 14 screen pixels, whatever the zoom
+  const scale = svg.getScreenCTM()?.a || 96;
+  let best: [number, number] | null = null, bd = 14 / scale;
+  for (const [x, y] of pts) {
+    if (!Number.isFinite(x) || !Number.isFinite(y) || x < area.x || x > area.x + area.w || y < area.y || y > area.y + area.h) continue;
+    const dd = Math.hypot(x - px, y - py);
+    if (dd < bd) { bd = dd; best = [x, y]; }
+  }
+  return { view: area.view, area, px: best ? best[0] : px, py: best ? best[1] : py, svg };
+}
+
+/** A small mark where a point was picked, until the dimension is placed. */
+function mark(s: Snap): SVGCircleElement {
+  const c = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+  c.setAttribute('class', 'dw-snap');
+  c.setAttribute('cx', String(s.px)); c.setAttribute('cy', String(s.py)); c.setAttribute('r', '0.03');
+  s.svg.appendChild(c);
+  return c;
 }
