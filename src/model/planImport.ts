@@ -63,15 +63,16 @@ function sideOf(r: PlanRect, p: Pt, band = 14): PlanSide | null {
  * covers the corner square, and its face part again): drop outlines inside another, then where two still
  * overlap, the second one stops at the first's face, so one runs into the corner and the other butts it.
  */
-function cornerFix<R extends { x0: number; x1: number; y0: number; y1: number }>(list: R[]): R[] {
+function cornerFix<R extends { x0: number; x1: number; y0: number; y1: number; layer: string }>(list: R[]): R[] {
   const t = 0.1;
   const within = (a: R, b: R) => a.x0 >= b.x0 - t && a.x1 <= b.x1 + t && a.y0 >= b.y0 - t && a.y1 <= b.y1 + t;
   const same = (a: R, b: R) => near(a.x0, b.x0, t) && near(a.x1, b.x1, t) && near(a.y0, b.y0, t) && near(a.y1, b.y1, t);
-  const out = list.filter((a) => !list.some((b) => b !== a && !same(a, b) && within(a, b))).map((r) => ({ ...r }));
+  // Only within one kind of cabinet: a wall cabinet over a base sits inside the base's outline and stays
+  const out = list.filter((a) => !list.some((b) => b !== a && b.layer === a.layer && !same(a, b) && within(a, b))).map((r) => ({ ...r }));
   for (let i = 0; i < out.length; i++) for (let j = i + 1; j < out.length; j++) {
     const a = out[i], b = out[j];
     const ox = Math.min(a.x1, b.x1) - Math.max(a.x0, b.x0), oy = Math.min(a.y1, b.y1) - Math.max(a.y0, b.y0);
-    if (ox <= 0.5 || oy <= 0.5) continue;
+    if (ox <= 0.5 || oy <= 0.5 || a.layer !== b.layer) continue;
     if (b.x1 - b.x0 >= b.y1 - b.y0) { if (b.x0 >= a.x0 - t) b.x0 = a.x1; else b.x1 = a.x0; }
     else { if (b.y0 >= a.y0 - t) b.y0 = a.y1; else b.y1 = a.y0; }
   }
@@ -238,12 +239,19 @@ export function planToProject(f: PlanFound, back: PlanSide, height: number): Pla
   const alongOn = (wall: WallId, p: Pt) => { const [x, z] = t.f(p); return alongWall(room, wall, x, z); };
   const openings: Opening[] = [];
   // Doors: the leaf plus a 3/4" jamb each side; hinges on the side nearer the start of the wall
-  f.doors.forEach((d, i) => {
-    const h = place(d.hinge), e = place(d.end);
-    const lo = Math.min(h.along, e.along), hi = Math.max(h.along, e.along);
-    openings.push({ id: uid('open'), name: `Door ${i + 1}`, kind: 'door', wall: h.wall, offset: round(lo - 0.75), width: round(hi - lo + 1.5), height: 80, sill: 0, trim: { flat: 3.5 },
-      door: { hinge: h.along < e.along ? 'left' : 'right', leaves: 1, prehung: false } });
-  });
+  // A pair (French or closet doors): two leaves on one wall whose latch edges meet, made one opening with two leaves
+  const leaves = f.doors.map((d) => { const h = place(d.hinge), e = place(d.end); return { wall: h.wall, hinge: h.along, end: e.along, used: false }; });
+  let n = 0;
+  for (const l of leaves) {
+    if (l.used) continue;
+    l.used = true;
+    const mate = leaves.find((m) => !m.used && m.wall === l.wall && Math.abs(m.end - l.end) < 2 && Math.sign(m.end - m.hinge) !== Math.sign(l.end - l.hinge));
+    if (mate) mate.used = true;
+    const ends = mate ? [l.hinge, mate.hinge] : [l.hinge, l.end];
+    const lo = Math.min(...ends), hi = Math.max(...ends);
+    openings.push({ id: uid('open'), name: `Door ${++n}`, kind: 'door', wall: l.wall, offset: round(lo - 0.75), width: round(hi - lo + 1.5), height: 80, sill: 0, trim: { flat: 3.5 },
+      door: { hinge: l.hinge < l.end ? 'left' : 'right', leaves: mate ? 2 : 1, prehung: false } });
+  }
   f.windows.forEach((w, i) => {
     // The wall from the window's middle: an end that runs into a corner would otherwise land on the next wall
     const wall = place([(w.a[0] + w.b[0]) / 2, (w.a[1] + w.b[1]) / 2]).wall;

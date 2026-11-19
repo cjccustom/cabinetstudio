@@ -2892,6 +2892,17 @@ eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i
   eq('plan import: a window into the corner keeps its width', Math.round(win.width), 35);
   eq('plan import: mitered corner units, one runs in at 62, the other butts it at 44', r.cabinets.map((c) => Math.round(c.width)).sort((a, b) => a - b).join(' '), '44 62');
   eq('plan import: on two different walls', new Set(r.cabinets.map((c) => c.wall)).size, 2);
+  // A wall cabinet over a base (inside its outline, another layer) stays; a pair of doors is one opening
+  const office = [
+    L('Walls_  Normal-1', [0, 0], [132, 0]), L('Walls_  Normal-1', [132, 0], [132, 160]), L('Walls_  Normal-1', [0, 160], [132, 160]), L('Walls_  Normal-1', [0, 0], [0, 160]),
+    P('Cabinets_  Base-1', [[0, 40], [18, 40], [18, 138], [0, 138]]), P('Cabinets_  Wall-1', [[0, 40], [12, 40], [12, 138], [0, 138]]),
+    { kind: 'arc' as const, layer: 'Doors-1', c: [132, 60] as [number, number], r: 19, a0: Math.PI / 2, a1: Math.PI },
+    { kind: 'arc' as const, layer: 'Doors-1', c: [132, 98] as [number, number], r: 19, a0: Math.PI, a1: 1.5 * Math.PI },
+  ];
+  const o = planToProject(readPlan({ ents: office, scale: 1, source: 'dxf' } as never)!, 'left', 96);
+  eq('plan import: wall cabinet over a base kept', o.cabinets.map((c) => c.kind).sort().join(' '), 'base wall');
+  const pr = o.openings.filter((x) => x.kind === 'door');
+  eq('plan import: a pair of doors is one opening, two leaves', `${pr.length} ${pr[0]?.door?.leaves} ${Math.round(pr[0]?.width ?? 0)}`, '1 2 40');
 }
 
 console.log(failed ? `${failed} check(s) failed` : 'All model checks passed');
