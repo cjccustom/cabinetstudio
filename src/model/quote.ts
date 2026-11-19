@@ -290,6 +290,8 @@ export interface QuoteSettings {
    * rates (charged straight to the customer) so its price doesn't move; true switches it to the new one.
    */
   paintRates2?: boolean;
+  /** Work high up (on the shop's own staging): extra install time, the staging and the floor protection under it. */
+  height?: Partial<HeightSettings>;
   /** Estimate rates, as charged to the customer: each door, drawer front or end panel, and each sq ft of cabinet face. */
   paintPerFront?: number;
   paintPerSqFt?: number;
@@ -494,16 +496,16 @@ export function painterCost(p: Project, q: QuoteSettings, line: number): number 
   return line / (1 + q.painterMarkup);
 }
 
-function paintMeasure(p: Project): { fronts: number; sqft: number; interior: number } {
+function paintMeasure(p: Project, only?: (c: Cabinet) => boolean): { fronts: number; sqft: number; interior: number } {
   const rooms = jobRooms(p);
   if (rooms.length > 1) {
-    const each = rooms.map((r) => paintMeasure(r.project));
+    const each = rooms.map((r) => paintMeasure(r.project, only));
     const sum = (k: 'fronts' | 'sqft' | 'interior') => each.reduce((t, e) => t + e[k], 0);
     return { fronts: sum('fronts'), sqft: sum('sqft'), interior: sum('interior') };
   }
   let fronts = 0, sqft = 0, interior = 0;
   for (const c of p.cabinets) {
-    if (c.kind === 'shelf') continue;
+    if (c.kind === 'shelf' || (only && !only(c))) continue;
     const parts = buildParts(c, p.settings, resolveEnds(p.room, p.cabinets, c));
     fronts += parts.filter((x) => x.role === 'door' || x.role === 'drawerFront' || x.role === 'endPanel').length;
     sqft += (c.width * c.height) / 144 * (c.island && c.islandSides === 2 ? 2 : 1);
@@ -523,10 +525,102 @@ export function paintEstimate(p: Project, q: QuoteSettings): { fronts: number; s
     return { fronts, sqft, interior, amount, cost: amount, legacy: true };
   }
   const r = paintCostOf(q);
-  const cost = fronts + sqft + interior > 0
+  let cost = fronts + sqft + interior > 0
     ? r.setup + fronts * r.perFront + Math.min(sqft, r.firstSqFt) * r.perSqFt + Math.max(0, sqft - r.firstSqFt) * r.perSqFtAfter + interior * r.perInteriorSqFt
     : 0;
+  // Painting the high work from the staging takes longer too, by the same share as the install
+  const hs = heightOf(q);
+  if (cost && highWork(p, q).applies) {
+    const hi = paintMeasure(p, (c) => c.elevation + c.height > hs.above + 1e-6);
+    cost += hs.extra * (hi.fronts * r.perFront + hi.sqft * r.perSqFtAfter + hi.interior * r.perInteriorSqFt);
+  }
   return { fronts, sqft, interior, cost, amount: cost * (1 + q.painterMarkup), legacy: false };
+}
+
+/**
+ * Work at height: anything topping out over 10' goes up from staging. Its install takes longer
+ * (climbing up and down, moving the staging), the staging is brought, set up, moved along the run and
+ * taken down, and the floor under it is protected: a padded, self-adhering waterproof roll with
+ * Masonite on top, laid and cleaned up after. The staging is the shop's own and stays through painting,
+ * so the painter works from it too.
+ */
+export interface HeightSettings {
+  /** Cabinets whose top is above this count as high work (inches off the floor). */
+  above: number;
+  /** How much longer their install takes: 0.4 = 40% longer. */
+  extra: number;
+  /** Bringing the staging, setting it up and taking it down, once a job (hours). */
+  setupHours: number;
+  /** Each move along the run (hours), one per length of staging. */
+  moveHours: number;
+  /** How much wall one setup of the staging covers (inches). */
+  stagingRun: number;
+  /** Floor protection runs this far out past the cabinets' fronts (inches). */
+  protectOut: number;
+  /** Laying the protection and cleaning it up after, per sq ft (hours). */
+  protectHoursPerSqFt: number;
+  /** The padded self-adhering roll, per sq ft, and Masonite, per 4×8 sheet: your prices. */
+  protectPerSqFt: number;
+  masonite: number;
+  /** Toward the staging the shop owns, charged on each job that uses it. */
+  stagingCharge: number;
+  /** Turn it off for this job; or on, for a job already sent (which otherwise keeps its price). */
+  off?: boolean;
+  on?: boolean;
+}
+export const defaultHeight: HeightSettings = { above: 120, extra: 0.4, setupHours: 4, moveHours: 0.5, stagingRun: 72, protectOut: 48, protectHoursPerSqFt: 0.02, protectPerSqFt: 0, masonite: 0, stagingCharge: 0 };
+export const heightOf = (q: QuoteSettings): HeightSettings => ({ ...defaultHeight, ...q.height });
+
+/** The high work on a job: which cabinets, how long a run of wall the staging covers, and the floor area to protect. */
+export function highWork(p: Project, q: QuoteSettings): { cabs: Cabinet[]; run: number; moves: number; sqft: number; sheets: number; installHours: number; applies: boolean } {
+  const h = heightOf(q);
+  const applies = !h.off && (!legacyPaint(p) || !!h.on);
+  const cabs: Cabinet[] = [];
+  let run = 0, moves = 0, area = 0, installHours = 0;
+  for (const r of jobRooms(p)) {
+    const rp = r.project;
+    const high = rp.cabinets.filter((c) => c.elevation + c.height > h.above + 1e-6);
+    cabs.push(...high);
+    const st = q.standards;
+    for (const c of high) {
+      const stain = eff(c, rp.settings).finish === 'stain';
+      installHours += (st.installPerBox + (c.kind === 'tall' ? st.installTall : 0)) * (stain ? st.stainInstall ?? 1.25 : 1);
+    }
+    // Each wall's stretch of high work, overlapping cabinets joined
+    for (const w of [...new Set(high.map((c) => c.wall))]) {
+      const spans = high.filter((c) => c.wall === w).map((c) => [c.offset, c.offset + c.width, (c.wallInset ?? 0) + c.depth] as const).sort((a, b) => a[0] - b[0]);
+      let cur: [number, number, number] | null = null;
+      const done = (s2: [number, number, number]) => { const len = s2[1] - s2[0]; run += len; moves += Math.max(0, Math.ceil(len / h.stagingRun) - 1); area += (len * (s2[2] + h.protectOut)) / 144; };
+      for (const [a, b, d] of spans) {
+        if (cur && a <= cur[1] + 1) cur = [cur[0], Math.max(cur[1], b), Math.max(cur[2], d)];
+        else { if (cur) done(cur); cur = [a, b, d]; }
+      }
+      if (cur) done(cur);
+    }
+  }
+  const sqftR = Math.round(area * 10) / 10;
+  return { cabs, run, moves, sqft: sqftR, sheets: Math.ceil(sqftR / 32), installHours, applies: applies && cabs.length > 0 };
+}
+
+/** The hours and materials the high work adds to a quote. */
+export function heightLines(p: Project, q: QuoteSettings): { hours: HourLine[]; materials: MaterialLine[] } {
+  const h = heightOf(q);
+  const w = highWork(p, q);
+  if (!w.applies) return { hours: [], materials: [] };
+  const ft = `${Math.round((h.above / 12) * 10) / 10}'`;
+  const line = (label: string, qty: number, each: number): HourLine => ({ group: 'cabinets', label, qty, each, hours: qty * each, install: true });
+  const hours = [
+    line(`Work over ${ft}: install from staging (+${Math.round(h.extra * 100)}%)`, 1, w.installHours * h.extra),
+    line('Staging: bring, set up, take down', 1, h.setupHours),
+    ...(w.moves ? [line('Staging: move along the run', w.moves, h.moveHours)] : []),
+    line('Floor protection under the staging: lay & clean up (sq ft)', w.sqft, h.protectHoursPerSqFt),
+  ].filter((l) => l.hours > 0);
+  const materials: MaterialLine[] = [
+    { group: 'cabinets', label: 'Floor protection: padded roll', cost: w.sqft * h.protectPerSqFt, detail: `${w.sqft} sq ft`, ...(h.protectPerSqFt ? {} : { missing: 'Enter the floor protection roll’s price per sq ft (Quote → Work at height)' }) },
+    { group: 'cabinets', label: 'Masonite over the floor protection', cost: w.sheets * h.masonite, detail: `${w.sheets} sheets, 4×8`, ...(h.masonite ? {} : { missing: 'Enter the Masonite sheet price (Quote → Work at height)' }) },
+    ...(h.stagingCharge ? [{ group: 'cabinets' as Group, label: 'Staging (the shop’s own)', cost: h.stagingCharge, detail: 'per job' }] : []),
+  ];
+  return { hours, materials };
 }
 
 /** What a quote line is known by when you adjust it: its group and label. */
@@ -964,6 +1058,10 @@ export function priceQuote(p: Project): QuoteResult {
     hours.push(...e.hours.map((h) => ({ group: 'furniture' as Group, label: `${t.name}: ${h.label}`, qty: 1, each: h.hours, hours: h.hours, install: h.label.startsWith('Delivery') })));
     materials.push(...e.materials.map((m) => ({ group: 'furniture' as Group, label: `${t.name}: ${m.label}`, cost: m.cost, detail: m.detail, ...(m.detail.includes('enter a $/BF') ? { missing: `${t.species} $/BF` } : {}) })));
   }
+  // Work over 10': install time, staging and floor protection, for the job as a whole
+  const hl = heightLines(p, q);
+  hours.push(...hl.hours);
+  materials.push(...hl.materials);
   // Your own numbers on any line replace the estimate (kept alongside to show and reset)
   for (const [i, h] of hours.entries()) {
     const o = q.hourOverrides?.[lineKey(h)];

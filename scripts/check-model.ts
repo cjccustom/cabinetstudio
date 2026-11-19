@@ -62,7 +62,7 @@ import { defaultFaceFrameStock, faceFrameNeeds, faceFramePieces, otherSpecies, r
 import { panelAbove, panelBetween, panelOrder } from "../src/model/panels";
 import { amCatalog } from "../src/model/andersonMcquaid";
 import { cabinetMoldings, moldingOrder, mountShape, priceOf, profileByNum, profileLabel, setCustomDrawings } from "../src/model/moldings";
-import { closetRods, scopeItems, estimateHours, estimateMaterials, extraFinishes, paintCalculated, paintEstimate, priceQuote, proposalScope, newInterior, paintCostRates, paintModeOf, paintRates, quoteOf, scopeLine } from "../src/model/quote";
+import { closetRods, scopeItems, estimateHours, estimateMaterials, extraFinishes, paintCalculated, paintEstimate, priceQuote, proposalScope, newInterior, highWork, paintCostRates, paintModeOf, paintRates, quoteOf, scopeLine } from "../src/model/quote";
 import { cutStock, defaultCutlist, designParts, optimizerParts } from "../src/model/cutlist";
 import { applyBook, choosePlywood, chooseSpecies, priceBook, setJobFinish, stalePrices } from "../src/model/pricebook";
 import { doorMaterials as eagleDoorMaterials, eagleWoodFactor } from "../src/model/eagle";
@@ -2782,6 +2782,24 @@ eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i
   const sheets = shopSet(withSide, drawingsOf(withSide));
   const det = sheets.filter((s) => s.title === 'Details');
   eq('mantel side elevation: its own sheet, titled toward the end wall, with its depths', `${det.length} ${/M1 SIDE ELEVATION, LOOKING TOWARD THE/.test(det[0]?.svg ?? '')} ${/DEPTHS FROM THE WALL/.test(det[0]?.svg ?? '')}`, '1 true true');
+}
+
+// Work over 10': extra install time, staging and floor protection; painting too; a sent job keeps its price
+{
+  const sp = sampleProject();
+  const wall = sp.cabinets.find((c) => c.kind === 'wall')!;
+  const high = { ...sp, cabinets: [...sp.cabinets, { ...wall, id: 'hi1', name: 'W9', offset: 0, width: 30, elevation: 90, height: 40 }, { ...wall, id: 'hi2', name: 'W10', offset: 30, width: 60, elevation: 90, height: 40 }] };
+  const q = quoteOf(high);
+  const w = highWork(high, q);
+  eq('height: cabinets topping out over 10\' found, their run joined, staging moved once', `${w.cabs.map((c) => c.name).join(',')} ${w.run} ${w.moves}`, 'W9,W10 90 1');
+  const labels = priceQuote(high).hours.map((h) => h.label);
+  eq('height: install, staging, move and floor protection lines', ['install from staging', 'bring, set up', 'move along', 'lay & clean up'].every((t) => labels.some((l) => l.includes(t))), true);
+  const off = { ...high, quote: { ...q, height: { off: true } } };
+  eq('height: adds to the price, and can be left off', priceQuote(high).total > priceQuote(off).total, true);
+  eq('height: the painter\'s high work costs more too', paintEstimate(high, q).cost > paintEstimate(off, quoteOf(off)).cost, true);
+  eq('height: floor protection prices asked for until entered', priceQuote(high).materials.filter((m) => /Floor protection|Masonite/.test(m.label)).every((m) => !!m.missing), true);
+  const sent = { ...high, portal: { jobId: 'x', status: { publishedAt: 1, signed: null } as never } };
+  eq('height: a quote already sent keeps its price', priceQuote(sent).total, priceQuote({ ...sent, quote: { ...quoteOf(sent), height: { off: true } } }).total);
 }
 
 console.log(failed ? `${failed} check(s) failed` : 'All model checks passed');

@@ -3,7 +3,7 @@ import { useMemo, useState } from 'react';
 import { useStore } from '../store';
 import { ballpark, categoryLabel, categoryOf, comparableQuote, featureLabel, rateCardOf, type Band, type BallparkCategory, type BallparkFeature } from '../model/ballpark';
 import { interiorPresets, interiorUnits, isInterior, newInterior, type InteriorUnit, type QuoteExtra } from '../model/quote';
-import { paintCostOf, paintCostRates, paintModeOf } from '../model/quote';
+import { paintCostOf, paintCostRates, paintModeOf, heightOf, highWork, type HeightSettings } from '../model/quote';
 import { defaultStandards, groupLabel, lineKey, newExtra, paintEstimate, paintLineLabel, paintRates, type Group, priceQuote, quoteOf, scopeItems, type LaborStandards, type QuoteSettings, type Workload, extraFinishes } from '../model/quote';
 import { Field, Section } from './fields';
 import { QuoteRendering } from './Rendering';
@@ -209,6 +209,8 @@ export function QuoteInputs() {
           )}
           {q.paintWhen !== 'none' && <ExtraColors />}
         </Section>
+
+        <HeightSection />
 
         <details className="overrides">
           <summary>Labor standards (hours)</summary>
@@ -659,6 +661,40 @@ function InteriorSection() {
         );
       })}
       {items.length > 0 && <p className="hint">Hours and materials are priced like the cabinets ({q.method === 'multiplier' ? `cost × ${q.multiplier}` : `$${q.billRate}/hr plus ${Math.round(q.materialMarkup * 100)}% on materials`}). The starting rates are rough finish-carpentry numbers: set yours once and “Make these my rates” keeps them for every job.</p>}
+    </Section>
+  );
+}
+
+/** Work over 10': install from staging, the staging itself, and the floor protection under it. */
+function HeightSection() {
+  const { project, q, set } = useQuote();
+  const h = heightOf(q);
+  const w = useMemo(() => highWork(project, q), [project, q]);
+  const put = (patch: Partial<HeightSettings>) => set({ height: { ...q.height, ...patch } });
+  const ft = (v: number) => `${Math.floor(v / 12)}'${Math.round(v % 12) ? `-${Math.round(v % 12)}"` : ''}`;
+  if (!w.cabs.length) return (
+    <Section title="Work at height">
+      <p className="hint">Nothing on this job goes above {ft(h.above)}. Anything that does gets extra install time, staging and floor protection here.</p>
+    </Section>
+  );
+  return (
+    <Section title={`Work at height (over ${ft(h.above)})`}>
+      <p className="hint">{w.cabs.map((c) => c.name).join(', ')} top out above {ft(h.above)}: {ft(w.run)} of wall from staging{w.moves ? `, moved ${w.moves} time${w.moves === 1 ? '' : 's'}` : ''}; {w.sqft} sq ft of floor protection ({w.sheets} sheet{w.sheets === 1 ? '' : 's'} of Masonite).</p>
+      {!w.applies && <p className="warn">{h.off ? 'Left off this quote.' : 'This quote already went out, so it’s left as it was.'} <button className="link-btn" onClick={() => put(h.off ? { off: undefined } : { on: true })}>Add it to this quote</button></p>}
+      <div className="grid2">
+        <Num id="h-above" label="Over this height" suffix="in" value={h.above} onChange={(v) => put({ above: v })} />
+        <Num id="h-extra" label="Install takes longer by" suffix="%" value={Math.round(h.extra * 100)} onChange={(v) => put({ extra: v / 100 })} />
+        <Num id="h-setup" label="Staging: bring, set up, take down" suffix="hrs" step="0.25" value={h.setupHours} onChange={(v) => put({ setupHours: v })} />
+        <Num id="h-move" label="Each move along the run" suffix="hrs" step="0.25" value={h.moveHours} onChange={(v) => put({ moveHours: v })} />
+        <Num id="h-run" label="Wall one setup covers" suffix="in" value={h.stagingRun} onChange={(v) => put({ stagingRun: v })} />
+        <Num id="h-out" label="Protection past the fronts" suffix="in" value={h.protectOut} onChange={(v) => put({ protectOut: v })} />
+        <Num id="h-ph" label="Lay & clean up protection, per sq ft" suffix="hrs" step="0.005" value={h.protectHoursPerSqFt} onChange={(v) => put({ protectHoursPerSqFt: v })} />
+        <Num id="h-roll" label="Padded roll, per sq ft" suffix="$" step="0.01" value={h.protectPerSqFt} onChange={(v) => put({ protectPerSqFt: v })} />
+        <Num id="h-mas" label="Masonite, per 4×8 sheet" suffix="$" value={h.masonite} onChange={(v) => put({ masonite: v })} />
+        <Num id="h-chg" label="Toward the staging, per job" suffix="$" value={h.stagingCharge} onChange={(v) => put({ stagingCharge: v })} />
+      </div>
+      <p className="hint">Priced like the rest of the job. The painter works from the same staging, so the painting estimate for the high work goes up by the same share. The hours are starting points: change them here, or click any line in the breakdown to set your own.</p>
+      {w.applies && <div className="order-actions"><button className="mini" onClick={() => put({ off: true, on: undefined })}>Leave it off this quote</button></div>}
     </Section>
   );
 }
