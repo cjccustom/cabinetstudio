@@ -127,7 +127,7 @@ export function comparableQuote(p: Project): { amount: number; paintEstimated: b
   const only: Project = {
     ...p, cabinets: p.cabinets.filter((c) => categoryOf(c) != null), panels: [], ceiling: { ...p.ceiling, on: false }, furniture: [],
     scope: { ...p.scope, doors: false, roomTrim: false },
-    quote: { ...q, extras: [], adjustment: 0, roundTo: 0, linePrices: undefined },
+    quote: { ...q, extras: [], adjustment: 0, roundTo: 0, linePrices: undefined, electrician: 0 },
   };
   const r = priceQuote(only);
   const painted = ballpark(p).painted;

@@ -279,6 +279,15 @@ export interface QuoteSettings {
   painter: number;
   painterMarkup: number;
   /**
+   * The electrician's price for their part of the job (line-voltage wiring, outlets, switches for the
+   * lighting), and your markup on it: a line of its own on the agreement, passed through like the
+   * painter's (no workload adjustment). Unset or 0 = the customer's own electrician.
+   */
+  electrician?: number;
+  electricianMarkup?: number;
+  /** What the electrician does, as the proposal says it; unset = Cabinet Studio's wording. */
+  electricianScope?: string;
+  /**
    * How the prefinishing line is priced: the painter's own quote (with your markup), an estimate
    * from the job's size, or a flat allowance. Unset = the painter's quote.
    */
@@ -374,6 +383,10 @@ export const quoteOf = (p: Project): QuoteSettings => {
 export type Group = 'cabinets' | 'tops' | 'paneling' | 'room' | 'ceiling' | 'furniture';
 
 /** The painting line's wording on the agreement: yours, or by when it's done. */
+/** The electrician's line on the agreement. */
+export const electricianLabel = (q: QuoteSettings) => q.lineLabels?.electrical?.trim() || 'Electrical (licensed electrician)';
+/** What the electrician does, as the proposal says it. */
+export const electricianScopeOf = (q: QuoteSettings) => q.electricianScope?.trim() || 'Line-voltage wiring, outlets and switches for the lighting, by our licensed electrician, with the permit and inspection';
 export const paintLineLabel = (q: QuoteSettings) => q.lineLabels?.painting?.trim() || q.paintLabel?.trim() || (q.paintWhen === 'site' ? 'Site finishing (painting)' : 'Cabinet prefinishing');
 
 export interface ScopeItem { key: string; text: string; /** What Cabinet Studio wrote, when you've changed it. */ auto?: string; custom?: boolean }
@@ -1024,6 +1037,8 @@ function materialsOneRoom(p: Project, q: QuoteSettings): MaterialLine[] {
 export interface GroupPrice { group: Group; hours: number; materials: number; methodA: number; methodB: number; price: number; /** The calculated price, when you've set your own. */ estimated?: number }
 
 export interface QuoteResult {
+  /** The electrician's line, as the customer pays it. */
+  electrician: number;
   hours: HourLine[];
   materials: MaterialLine[];
   tax: number;
@@ -1096,20 +1111,21 @@ export function priceQuote(p: Project): QuoteResult {
     return { id: e.id, label: extraLabel(e), price: set != null ? set / adjOf : price(extraHours(e), extraMaterials(e)).chosen + e.amount };
   });
   const painter = q.paintWhen === 'none' ? 0 : q.linePrices?.painting ?? paintCalculated(p, q);
+  const electrician = q.linePrices?.electrical ?? (q.electrician ?? 0) * (1 + (q.electricianMarkup ?? 0));
   const work = groups.reduce((t, g) => t + g.price, 0) + extras.reduce((t, e) => t + e.price, 0);
   const workloadAmount = work * q.workloadAdj[q.workload];
-  const calculated = work + painter;
+  const calculated = work + painter + electrician;
   const raw = calculated + workloadAmount + q.adjustment;
   const total = q.roundTo > 0 ? Math.round(raw / q.roundTo) * q.roundTo : raw;
   const materialCost = materials.reduce((t, m) => t + m.cost, 0) * (1 + tax);
   const allHours = hours.reduce((t, h) => t + h.hours, 0) + q.extras.reduce((t, e) => t + extraHours(e), 0);
   return {
-    hours, materials, tax, groups, extras, painter, calculated, workloadAmount, total,
+    hours, materials, tax, groups, extras, painter, electrician, calculated, workloadAmount, total,
     shopHours: hours.filter((h) => !h.install).reduce((t, h) => t + h.hours, 0),
     installHours: hours.filter((h) => h.install).reduce((t, h) => t + h.hours, 0),
     materialCost,
     // The painter's cost to you: their quote, or the estimate or allowance less your usual markup
-    cost: materialCost + allHours * q.laborCost + painterCost(p, q, painter) + q.extras.reduce((t, e) => t + e.amount + extraMaterials(e) * (1 + tax), 0),
+    cost: materialCost + allHours * q.laborCost + painterCost(p, q, painter) + (q.electrician ?? 0) + q.extras.reduce((t, e) => t + e.amount + extraMaterials(e) * (1 + tax), 0),
   };
 }
 

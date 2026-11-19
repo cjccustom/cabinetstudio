@@ -421,6 +421,8 @@ export function lightingSpecHtml(p: Project): string {
   const warm = job.kelvin <= 2700 ? 'warm, like an incandescent bulb' : job.kelvin <= 3000 ? 'warm white' : job.kelvin <= 3500 ? 'neutral warm white' : 'neutral white';
   const loox = job.fixed === 'loox';
   const others = job.accent === 'others';
+  // The job includes an electrician (their price is on the quote): ours, not the customer's
+  const ours = (p.quote?.electrician ?? 0) > 0;
   const what: string[] = [];
   if (kinds.has('shelves')) what.push(`<li><b>Häfele adjustable shelf lighting.</b> An LED light bar set into the underside of every adjustable shelf, hidden behind a solid wood edge that drops ${esc(fmt(H.drop))} below the shelf, so you see the light on the shelf below and not the bar. Power runs in thin bus bars in the case sides: the shelves stay adjustable and light wherever they're set, with no wires.</li>`);
   if (kinds.has('shelfFront')) what.push(`<li><b>A light in the top of each open section${fixtures.some((f) => f.kind === 'shelfFront' && f.count > 1) ? ' and each cubby' : ''}.</b> ${loox ? 'LED tape in a recessed aluminum profile with an opal diffuser, flush with the wood.' : 'LED tape in a recessed channel.'}</li>`);
@@ -433,6 +435,6 @@ export function lightingSpecHtml(p: Project): string {
 <p>Low-voltage LED, ${job.kelvin}K (${warm}), high color rendering so wood and paint colors look true. Dimmable.${kinds.has('shelves') || loox ? ' Häfele Loox5 components.' : ''}</p>
 <h3>What's lit</h3><ul>${what.join('')}</ul>
 <h3>Switching</h3><p>${esc(controlLabel[job.control])}.${kinds.has('topAccent') && !others && (job.accent ?? 'white') !== 'white' ? ' The accent uplight has its own controller and remote.' : ''}</p>
-<h3>Power</h3><p>${drivers.length} hidden driver${drivers.length === 1 ? '' : 's'}: ${esc(job.driverAt.charAt(0).toLowerCase() + job.driverAt.slice(1))}. Your electrician brings a 120 V outlet to ${drivers.length === 1 ? 'it' : 'each one'}${job.control === 'wall' ? ' and installs the wall dimmer' : ''}; we supply, wire${job.control === 'mesh' ? ', program' : ''} and test the cabinet lights. Line-voltage wiring and outlets are by your electrician.</p>
+<h3>Power</h3><p>${drivers.length} hidden driver${drivers.length === 1 ? '' : 's'}: ${esc(job.driverAt.charAt(0).toLowerCase() + job.driverAt.slice(1))}. ${ours ? 'Our' : 'Your'} electrician brings a 120 V outlet to ${drivers.length === 1 ? 'it' : 'each one'}${job.control === 'wall' ? ' and installs the wall dimmer' : ''}; we supply, wire${job.control === 'mesh' ? ', program' : ''} and test the cabinet lights. Line-voltage wiring and outlets are by ${ours ? 'our licensed' : 'your'} electrician.</p>
 <h3>By cabinet</h3><table class="parts"><thead><tr><th>Cabinet</th><th>Light</th><th>Lights</th><th>Where</th></tr></thead><tbody>${rows}</tbody></table>`;
 }

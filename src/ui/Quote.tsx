@@ -4,7 +4,8 @@ import { useStore } from '../store';
 import { saveHeight, useShop } from '../shop/shop';
 import { ballpark, categoryLabel, categoryOf, comparableQuote, featureLabel, rateCardOf, type Band, type BallparkCategory, type BallparkFeature } from '../model/ballpark';
 import { interiorPresets, interiorUnits, isInterior, newInterior, type InteriorUnit, type QuoteExtra } from '../model/quote';
-import { paintCostOf, paintCostRates, paintModeOf, heightOf, highWork, type HeightSettings } from '../model/quote';
+import { paintCostOf, paintCostRates, paintModeOf, heightOf, highWork, electricianLabel, electricianScopeOf, type HeightSettings } from '../model/quote';
+import { lightingJobOf, lightingParts } from '../model/cabinetLighting';
 import { defaultStandards, groupLabel, lineKey, newExtra, paintEstimate, paintLineLabel, paintRates, type Group, priceQuote, quoteOf, scopeItems, type LaborStandards, type QuoteSettings, type Workload, extraFinishes } from '../model/quote';
 import { Field, Section } from './fields';
 import { QuoteRendering } from './Rendering';
@@ -212,6 +213,8 @@ export function QuoteInputs() {
           )}
           {q.paintWhen !== 'none' && <ExtraColors />}
         </Section>
+
+        <ElectricianSection />
 
         <HeightSection />
 
@@ -711,3 +714,29 @@ function HeightSection() {
     </Section>
   );
 }
+
+/** The electrician: their price and your markup, a line of its own on the agreement. */
+function ElectricianSection() {
+  const { project, q, set, result } = useQuote();
+  const lit = useMemo(() => lightingParts(project), [project]);
+  const has = (q.electrician ?? 0) > 0;
+  return (
+    <Section title="Electrician">
+      <div className="grid2">
+        <Num id="q-elec" label="Electrician’s price" suffix="$" value={q.electrician ?? 0} onChange={(v) => set({ electrician: v || undefined })} />
+        <Num id="q-elec-mu" label="Markup" suffix="%" value={Math.round((q.electricianMarkup ?? 0) * 100)} onChange={(v) => set({ electricianMarkup: v ? v / 100 : undefined })} />
+      </div>
+      {has ? (
+        <>
+          <p className="hint">On the agreement as “{electricianLabel(q)}”: <strong>{money(result.electrician)}</strong>{q.electricianMarkup ? ` (${money(q.electrician ?? 0)} plus your ${Math.round(q.electricianMarkup * 100)}%)` : ' (no markup set)'}. Click the line or its price on the right to change either. Passed through like the painter’s: no workload adjustment.</p>
+          <Field label="On the proposal" htmlFor="q-elec-scope">
+            <textarea id="q-elec-scope" rows={2} value={q.electricianScope ?? ''} placeholder={electricianScopeOf({ ...q, electricianScope: undefined })} onChange={(e) => set({ electricianScope: e.target.value || undefined })} />
+          </Field>
+        </>
+      ) : (
+        <p className="hint">{lit.drivers.length ? `This job’s lighting needs ${lit.drivers.length === 1 ? 'an outlet' : `${lit.drivers.length} outlets`} for its driver${lit.drivers.length === 1 ? '' : 's'}${lightingJobControl(project) === 'wall' ? ' and a wall dimmer' : ''}. ` : ''}Leave at $0 when the customer hires their own electrician (the proposal says so). Enter your electrician’s price to include them: it goes on the agreement with your markup, and the proposal says “our electrician”.</p>
+      )}
+    </Section>
+  );
+}
+const lightingJobControl = (p: import('../model/types').Project) => lightingJobOf(p).control;

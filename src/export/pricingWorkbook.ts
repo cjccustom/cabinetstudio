@@ -2,7 +2,7 @@
 // cost and the price follows, the same way the Quote tab works it out. For fine-tuning a job's
 // price and for comparing estimates against what the job really took.
 import type { Project } from '../model/types';
-import { painterCost, extraHours, extraLabel, extraMaterials, groupLabel, paintLineLabel, priceQuote, quoteOf, type Group } from '../model/quote';
+import { electricianLabel, painterCost, extraHours, extraLabel, extraMaterials, groupLabel, paintLineLabel, priceQuote, quoteOf, type Group } from '../model/quote';
 import { ballpark, comparableQuote, rateCardOf } from '../model/ballpark';
 import { writeXlsx, type Cell, type Row, type Workbook } from './xlsx';
 
@@ -94,6 +94,8 @@ export function pricingWorkbook(p: Project): Workbook {
   }
   const paintRow = sum.length + 1;
   sum.push([q.paintWhen === 'none' ? 'Painting (not in this contract)' : paintLineLabel(q), null, null, null, null, { v: r.painter, s: 'inputMoney' }, money(r.painter, `N(F${paintRow})`)]);
+  const elecRow = sum.length + 1;
+  sum.push([electricianLabel(q), null, null, `cost ${Math.round(q.electrician ?? 0)}`, `markup ${Math.round((q.electricianMarkup ?? 0) * 100)}%`, { v: r.electrician, s: 'inputMoney' }, money(r.electrician, `N(F${elecRow})`)]);
   const work = workRows.map((n) => `G${n}`).join(',') || '0';
   const workV = r.groups.reduce((t, g) => t + g.price, 0) + r.extras.reduce((t, e) => t + e.price, 0);
   sum.push([]);
@@ -101,6 +103,7 @@ export function pricingWorkbook(p: Project): Workbook {
   sum.push([{ v: 'Work', s: 'bold' }, null, null, null, null, null, money(workV, `SUM(${work})`)]);
   sum.push(['Workload adjustment', null, null, null, null, null, money(r.workloadAmount, `G${w}*Workload`)]);
   sum.push(['Painting', null, null, null, null, null, money(r.painter, `G${paintRow}`)]);
+  sum.push(['Electrical', null, null, null, null, null, money(r.electrician, `G${elecRow}`)]);
   sum.push(['Your adjustment', null, null, null, null, null, money(q.adjustment, 'Adjust')]);
   const raw = sum.length + 1;
   sum.push(['Before rounding', null, null, null, null, null, money(r.calculated + r.workloadAmount + q.adjustment, `SUM(G${w}:G${raw - 1})`)]);
@@ -112,14 +115,14 @@ export function pricingWorkbook(p: Project): Workbook {
   const extraAmt = q.extras.reduce((t, e) => t + e.amount + extraMaterials(e) * (1 + r.tax), 0);
   const extraHrs = q.extras.reduce((t, e) => t + extraHours(e), 0);
   const cost = sum.length + 1;
-  sum.push(['What it costs you', null, null, null, null, null, money(r.cost, `Materials!D${matEnd + 2}*(1+Tax)+(Labor!F${laborEnd + 2}+${extraHrs})*LaborCost+${Math.round(painterCostV * 100) / 100}+${extraAmt}`)]);
-  sum.push([{ v: '(materials with tax, all hours at your labor cost, the painter’s cost and extras’ amounts)', s: 'note' }]);
+  sum.push(['What it costs you', null, null, null, null, null, money(r.cost, `Materials!D${matEnd + 2}*(1+Tax)+(Labor!F${laborEnd + 2}+${extraHrs})*LaborCost+${Math.round(painterCostV * 100) / 100}+${q.electrician ?? 0}+${extraAmt}`)]);
+  sum.push([{ v: '(materials with tax, all hours at your labor cost, the painter’s and electrician’s costs and extras’ amounts)', s: 'note' }]);
   sum.push(['Margin', null, null, null, null, null, money(r.total - r.cost, `G${tot}-G${cost}`)]);
   sum.push(['Margin %', null, null, null, null, null, { v: r.total ? (r.total - r.cost) / r.total : 0, f: `IF(G${tot}>0,(G${tot}-G${cost})/G${tot},0)`, s: 'pct' }]);
-  sum.push(['Effective $/hr (price less materials, per hour)', null, null, null, null, null, money(0, `IFERROR((G${tot}-Materials!D${matEnd + 2}*(1+Tax)-G${paintRow})/(Labor!F${laborEnd + 2}+${extraHrs}),0)`)]);
+  sum.push(['Effective $/hr (price less materials, per hour)', null, null, null, null, null, money(0, `IFERROR((G${tot}-Materials!D${matEnd + 2}*(1+Tax)-G${paintRow}-G${elecRow})/(Labor!F${laborEnd + 2}+${extraHrs}),0)`)]);
   // Cached value for the $/hr cell
   const allH = r.hours.reduce((t, h) => t + h.hours, 0) + extraHrs;
-  (sum[sum.length - 1][6] as Cell).v = allH ? Math.round(((r.total - r.materialCost - r.painter) / allH) * 100) / 100 : 0;
+  (sum[sum.length - 1][6] as Cell).v = allH ? Math.round(((r.total - r.materialCost - r.painter - r.electrician) / allH) * 100) / 100 : 0;
 
   // ── Ballpark: the meeting calculator's numbers for the same design ──
   const bp = ballpark(p);

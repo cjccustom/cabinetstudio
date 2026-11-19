@@ -36,7 +36,7 @@ export function jobNumbers(p: Project): Pick<ShopJob, 'quote' | 'materials' | 'e
   return {
     quote: Math.round(r.total),
     // Materials with purchase tax, plus what the painter and any flat extras cost
-    materials: Math.round(r.materialCost + q.painter + q.extras.reduce((t, e) => t + e.amount + extraMaterials(e) * (1 + p.settings.purchaseTax), 0)),
+    materials: Math.round(r.materialCost + q.painter + (q.electrician ?? 0) + q.extras.reduce((t, e) => t + e.amount + extraMaterials(e) * (1 + p.settings.purchaseTax), 0)),
     estHours: round(r.shopHours + r.installHours + exHours),
     estByPhase,
   };
@@ -76,6 +76,7 @@ export function starterTodos(p: Project): string[] {
     out.push(`Order floating shelf brackets (Amazon B088PQTYJT): ${[...byLen].map(([l, n]) => `${Math.ceil(n / bracketProduct.perPack)} × ${l}" 8-pack`).join(', ')}`);
   }
   if (quoteOf(p).painter) out.push('Schedule the painter');
+  if (quoteOf(p).electrician) out.push('Schedule the electrician (rough-in before the cabinets close up, then the finish)');
   out.push('Schedule install with the customer');
   return out;
 }

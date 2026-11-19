@@ -5,7 +5,7 @@ import { forCustomer } from './moldings';
 import { cardLines, cardOf, checkDiscountOf, paySchedule, pctText as discPct } from './payDiscount';
 import type { Project } from './types';
 import { finishingItems } from './finishing';
-import { priceQuote, quoteOf, groupLabel, paintLineLabel, proposalScope } from './quote';
+import { priceQuote, quoteOf, groupLabel, paintLineLabel, proposalScope, electricianLabel } from './quote';
 import { eagleRequests, requestText } from './eagleRequest';
 import { hardwareOrder, hardwareText } from './hardware';
 import { hardwareScope, hasHardware } from './pulls';
@@ -131,6 +131,7 @@ export function proposalLines(full: Project): { key: string; label: string; pric
     ...r.groups.flatMap((g) => (g.group === 'furniture' ? furnitureLines(p, g.price * adj, named) : [{ key: g.group, label: named(g.group, groupLabel[g.group]), price: g.price * adj }])),
     ...r.extras.map((e) => ({ key: `extra:${e.id}`, label: named(`extra:${e.id}`, e.label), price: e.price * adj })),
     ...(r.painter ? [{ key: 'painting', label: paintLineLabel(q), price: r.painter }] : []),
+    ...(r.electrician ? [{ key: 'electrical', label: electricianLabel(q), price: r.electrician }] : []),
   ];
   // Lines with a price you set keep it exactly; the adjustment and rounding spread over the rest
   const fixed = (l: { key: string }) => q.linePrices?.[l.key] != null;

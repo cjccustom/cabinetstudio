@@ -2811,5 +2811,20 @@ eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i
   setShopHeight(null);
 }
 
+// The electrician: their price plus markup, its own line on the agreement, passed through like the painter's
+{
+  const sp = sampleProject();
+  const q0 = { ...quoteOf(sp), roundTo: 0, adjustment: 0, workload: 'full' as const };
+  const base = { ...sp, quote: q0 };
+  const job = { ...sp, quote: { ...q0, electrician: 2000, electricianMarkup: 0.2 } };
+  const r0 = priceQuote(base), r = priceQuote(job);
+  eq('electrician: price plus markup, no workload on it', `${Math.round(r.electrician)} ${Math.round(r.total - r0.total)}`, '2400 2400');
+  eq('electrician: their price is part of what the job costs you', Math.round(r.cost - r0.cost), 2000);
+  const lines = proposalLines(job);
+  eq('electrician: a line of its own on the agreement, lines still add up', `${lines.some((l) => l.key === 'electrical' && /electrician/i.test(l.label))} ${Math.round(lines.reduce((t, l) => t + l.price, 0))}`, `true ${Math.round(r.total)}`);
+  eq('electrician: the proposal lists their work', proposalSummary(job).areas.some((a) => a.items.some((x) => /licensed electrician/.test(x))), true);
+  eq('electrician: none set, nothing on the agreement', proposalLines(base).some((l) => l.key === 'electrical'), false);
+}
+
 console.log(failed ? `${failed} check(s) failed` : 'All model checks passed');
 process.exit(failed ? 1 : 0);

@@ -6,7 +6,7 @@ import { caseScope, casesOf } from './casePiece';
 import { jobRooms } from './rooms';
 import { hardwareScope } from './pulls';
 import type { Cabinet, Project, WallId } from './types';
-import { cofferScope, extraScope, isInterior, priceQuote, scopeLine } from './quote';
+import { cofferScope, electricianScopeOf, extraScope, isInterior, priceQuote, quoteOf, scopeLine } from './quote';
 import { furnitureOf, tableScope } from './furniture';
 import { wallNames } from './layout';
 import { styleById } from './eagle';
@@ -136,7 +136,7 @@ export function proposalSummary(p: Project): ProposalSummary {
     });
     // The job as a whole: every room's cabinets for the finishing and materials
     const all: Project = { ...withOptions(p), rooms: undefined, cabinets: each.flatMap((e) => e.base.cabinets) };
-    const extras = [...(all.quote?.extras ?? []).filter((e) => !isInterior(e)).map((e) => e.label), ...(all.quote?.scopeExtra ?? [])].filter((x) => x?.trim());
+    const extras = [...(all.quote?.extras ?? []).filter((e) => !isInterior(e)).map((e) => e.label), ...(all.quote?.electrician ? [electricianScopeOf(quoteOf(all))] : []), ...(all.quote?.scopeExtra ?? [])].filter((x) => x?.trim());
     const interior = (all.quote?.extras ?? []).filter(isInterior).map(extraScope);
     const tables = furnitureOf(all).map((t) => { const x = tableScope(t).replace(/^[^:]*:\s*/, ''); return x.charAt(0).toUpperCase() + x.slice(1); });
     if (tables.length) areas.push({ title: furnitureOf(all).length === 1 ? furnitureOf(all)[0].name || 'Furniture' : 'Furniture', items: tables });
@@ -178,7 +178,7 @@ export function proposalSummary(p: Project): ProposalSummary {
       return { title, items };
     }).filter((a) => a.items.length);
   }
-  const extras = [...(base.quote?.extras ?? []).filter((e) => !isInterior(e)).map((e) => e.label), ...(base.quote?.scopeExtra ?? [])].filter((x) => x?.trim());
+  const extras = [...(base.quote?.extras ?? []).filter((e) => !isInterior(e)).map((e) => e.label), ...(base.quote?.electrician ? [electricianScopeOf(quoteOf(base))] : []), ...(base.quote?.scopeExtra ?? [])].filter((x) => x?.trim());
   const interior = (base.quote?.extras ?? []).filter(isInterior).map(extraScope);
   // Tables and the ceiling, each under its own heading, in the same words as the scope of work
   const tables = furnitureOf(base).map((t) => { const x = tableScope(t).replace(/^[^:]*:\s*/, ''); return x.charAt(0).toUpperCase() + x.slice(1); });
