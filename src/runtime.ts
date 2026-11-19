@@ -36,6 +36,20 @@ export async function shrinkImage(file: Blob, maxEdge: number, quality = 0.88): 
   return new Promise((ok, fail) => canvas.toBlob((b) => (b ? ok(b) : fail(new Error('encode'))), 'image/jpeg', quality));
 }
 
+/** An SVG drawing as a JPEG this many pixels wide, on white (for pictures that must be a photo format). */
+export async function svgToJpeg(svg: string, width = 1800, quality = 0.9): Promise<Blob> {
+  const img = new Image();
+  img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+  await img.decode();
+  const k = width / (img.naturalWidth || width);
+  const canvas = document.createElement('canvas');
+  canvas.width = width; canvas.height = Math.round((img.naturalHeight || width / 2) * k);
+  const g = canvas.getContext('2d')!;
+  g.fillStyle = '#fff'; g.fillRect(0, 0, canvas.width, canvas.height);
+  g.drawImage(img, 0, 0, canvas.width, canvas.height);
+  return new Promise((ok, fail) => canvas.toBlob((b) => (b ? ok(b) : fail(new Error('encode'))), 'image/jpeg', quality));
+}
+
 export const blobToDataUrl = (b: Blob) => new Promise<string>((ok, fail) => {
   const r = new FileReader();
   r.onload = () => ok(r.result as string);

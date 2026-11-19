@@ -2947,5 +2947,17 @@ eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i
   eq('separate piece: older jobs keep their pieces in the room', tablesOf({ ...tbl, furniture: tbl.furniture!.map((t) => ({ ...t, inRoom: undefined })) }).length, 1);
 }
 
+// Beds and dressers: their own sheets in both drawing sets, and a drawing on the proposal
+{
+  const sp = sampleProject();
+  const job = { ...sp, beds: [{ ...newBed(), id: 'bd', name: 'Platform bed', style: 'feet' as const, inRoom: false }], cases: [{ ...newCase('dresser'), id: 'dr', name: 'Dresser' }] };
+  const cust = customerSet(job, drawingsOf(job));
+  eq('furniture sheets: customer set has the bed and the dresser', ['Platform bed', 'Dresser'].every((n) => cust.some((s) => s.title === n)), true);
+  eq('furniture sheets: shop set has their shop drawings', ['Platform bed shop drawing', 'Dresser shop drawing'].every((n) => shopSet(job, drawingsOf(job)).some((s) => s.title === n)), true);
+  const doc = quoteDoc(job);
+  eq('furniture on the proposal: drawings of both, with sizes', /Furniture drawings/.test(doc) && /Platform bed<\/b>/.test(doc) && /Dresser<\/b>/.test(doc) && (doc.match(/<svg[^>]*class="dwg"/g) ?? []).length === 2, true);
+  eq('furniture on the proposal: none without furniture', /Furniture drawings/.test(quoteDoc(sp)), false);
+}
+
 console.log(failed ? `${failed} check(s) failed` : 'All model checks passed');
 process.exit(failed ? 1 : 0);

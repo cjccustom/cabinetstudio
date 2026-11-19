@@ -11,6 +11,7 @@ import { cardLines, cardOf, checkDiscountOf, paySchedule, payWaysText, pctText a
 import { proposalSummary, withOptions } from './proposal';
 import { priceQuote, proposalScope } from './quote';
 import { LOGO } from '../drawings/logo';
+import { furnitureDrawingsHtml } from '../drawings/pieceViews';
 import { finishingItems } from './finishing';
 import { termsHtml } from '../../portal/src/pages';
 
@@ -49,6 +50,8 @@ function printQuoteRaw(p: Project, opts: { terms: string; version?: number; publ
   else for (const a of summary.areas) sections.push(`<h4>${esc(a.title)}</h4>${bullets(a.items)}`);
   if (full && base.cabinets.length) sections.push(`<h4>Finishing</h4>${bullets(finishingItems(base))}`);
   if (full && r.extras.length) sections.push(`<h4>Additional Work</h4>${bullets(r.extras.map((e) => e.label))}`);
+  const drawn = furnitureDrawingsHtml(base, 'h4');
+  if (drawn) sections.push(drawn);
   if (!full && summary.materials.length) sections.push(`<h4>Materials &amp; Finishes</h4>${bullets(summary.materials.map((m) => `${m.label}: ${m.value}`))}`);
   if (summary.options.length) sections.push(`<h4>Options</h4><p>Added to the work above only when chosen at signing:</p>${bullets(summary.options.map((o) => `${o.label} (${money(o.price)})${o.items.length ? `: ${o.items.join('; ')}` : ''}`))}`);
   sections.push(`<h4>*Notes*</h4>${bullets([

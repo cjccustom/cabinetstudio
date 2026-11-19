@@ -6,10 +6,10 @@ import { tableParts, type TableBox, type TablePart } from '../model/tableParts';
 import { dimText, fitScale, inView, View, type Frame } from './draw';
 
 type Axis = 0 | 1 | 2;
-interface Proj { u: Axis; v: Axis; depth: Axis; near: 1 | -1 }
+export interface Proj { u: Axis; v: Axis; depth: Axis; near: 1 | -1 }
 
 /** Draws the parts as filled outlines, far to near, so nearer pieces cover what's behind them. */
-function drawParts(view: View, parts: TablePart[], pr: Proj) {
+export function drawParts(view: View, parts: TablePart[], pr: Proj) {
   const items: { part: TablePart; b: TableBox; d: number }[] = [];
   for (const part of parts) for (const b of part.boxes) items.push({ part, b, d: pr.near * (b.min[pr.depth] + b.size[pr.depth] / 2) });
   items.sort((a, b) => a.d - b.d);

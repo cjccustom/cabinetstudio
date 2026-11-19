@@ -29,6 +29,7 @@ import { beginEdits, drawingCss, endEdits, inView, markRevision, scaleName, take
 import { RESTRICTOR_NOTE, cabinetCallouts, forAudience, jobCallouts, type Audience } from './notes';
 import { LOGO, LOGO_ASPECT } from './logo';
 import { tableViews } from './tableViews';
+import { pieceViews, piecesOf, type Piece } from './pieceViews';
 import { tableParts } from '../model/tableParts';
 import { furnitureOf, tableChecks, tableFinishLabel, tableScope, type DiningTable } from '../model/furniture';
 import { detailOk, detailTitle, detailsOf, drawDetail, inSet, suggestedCut, type Detail, wideDetail } from './details';
@@ -269,9 +270,11 @@ function customerSheets(p: Project, s: DrawingSettings): Sheet[] {
   const profiles = profileItems(p);
   const profNo = `A${profiles.length ? nextNo++ : nextNo}`;
   const tableNos = furnitureOf(p).map(() => `A${nextNo++}`);
+  const pieces = piecesOf(p);
+  const pieceNos = pieces.map(() => `A${nextNo++}`);
   const spec = lightingSpecHtml(p);
   const specNo = `A${nextNo}`;
-  const index = [['A0', 'Cover'], ['A1', 'Floor plan'], ...(ceiling ? [['A2', 'Ceiling plan']] : []), ...walls.map((w, i) => [`A${i + first}`, `${wallNames[w]} elevation`]), ...detailIdx, ...isoNos.map((n) => [n, '3D drawings']), ...picNos.map((n) => [n, '3D views']), [schedNo, 'Schedule & selections'], ...(doorStyle ? [[doorNo, 'Door style']] : []), ...(profiles.length ? [[profNo, 'Moulding & beadboard profiles']] : []), ...furnitureOf(p).map((t, i) => [tableNos[i], t.name]), ...(spec ? [[specNo, 'Cabinet lighting']] : [])];
+  const index = [['A0', 'Cover'], ['A1', 'Floor plan'], ...(ceiling ? [['A2', 'Ceiling plan']] : []), ...walls.map((w, i) => [`A${i + first}`, `${wallNames[w]} elevation`]), ...detailIdx, ...isoNos.map((n) => [n, '3D drawings']), ...picNos.map((n) => [n, '3D views']), [schedNo, 'Schedule & selections'], ...(doorStyle ? [[doorNo, 'Door style']] : []), ...(profiles.length ? [[profNo, 'Moulding & beadboard profiles']] : []), ...furnitureOf(p).map((t, i) => [tableNos[i], t.name]), ...pieces.map((pc, i) => [pieceNos[i], pc.name]), ...(spec ? [[specNo, 'Cabinet lighting']] : [])];
   // Cover: the picture, the job, and what's in the set
   const c = clientOf(p);
   const imgW = A.w * 0.64;
@@ -388,6 +391,12 @@ function customerSheets(p: Project, s: DrawingSettings): Sheet[] {
     const notes = html({ x: A.x + A.w * 0.76, y: A.y, w: A.w * 0.24, h: A.h }, `<h2>${esc(t.name)}</h2><p>${esc(tableScope(t).replace(/^[^:]*:\s*/, '').replace(/^./, (c) => c.toUpperCase()))}</p>${t.notes ? `<p>${esc(t.notes)}</p>` : ''}<p class="small">Drawings show design intent; final sizes are confirmed before the lumber is milled.</p>`, fs);
     sheets.push(sheet(p, s, no, t.name, `${scaleName(v.scale)}; section ${scaleName(v.secScale)}`, v.svg + notes));
   });
+  pieces.forEach((pc, i) => {
+    const fs = s.paper === 'tabloid' ? 0.11 : 0.09;
+    const v = pieceSheetViews(pc, A, 0.74);
+    const notes = html({ x: A.x + A.w * 0.76, y: A.y, w: A.w * 0.24, h: A.h }, `<h2>${esc(pc.name)}</h2><p>${esc(pc.size)}</p><p>${esc(pc.scope.replace(/^[^:]*:\s*/, '').replace(/^./, (x) => x.toUpperCase()))}</p>${pc.notes ? `<p>${esc(pc.notes)}</p>` : ''}${pc.kind === 'bed' ? '<p class="small">The mattress is shown dashed, for size; it isn’t part of the bed.</p>' : ''}<p class="small">Drawings show design intent; final sizes are confirmed before the lumber is milled.</p>`, fs);
+    sheets.push(sheet(p, s, pieceNos[i], pc.name, scaleName(v.scale), v.svg + notes));
+  });
   // Lighting chosen on any cabinet brings its spec sheet along
   if (spec) sheets.push(sheet(p, s, specNo, 'Cabinet lighting', 'No scale', html({ x: A.x, y: A.y, w: A.w, h: A.h }, spec, s.paper === 'tabloid' ? 0.11 : 0.09)));
   return sheets;
@@ -418,6 +427,16 @@ function tableSheetViews(t: DiningTable, A: Frame, frac: number) {
     side: { x: A.x + w * 0.45, y: A.y, w: w * 0.55, h: top },
     end: { x: A.x, y: A.y + top, w: w * 0.5, h: A.h - top },
     section: { x: A.x + w * 0.5, y: A.y + top, w: w * 0.5, h: A.h - top },
+  });
+}
+
+/** A bed's or case piece's three views across the left part of a sheet: front and side over the plan. */
+function pieceSheetViews(pc: Piece, A: Frame, frac: number) {
+  const w = A.w * frac, top = A.h * 0.55;
+  return pieceViews(pc, {
+    front: { x: A.x, y: A.y, w: w * 0.45, h: top },
+    side: { x: A.x + w * 0.45, y: A.y, w: w * 0.55, h: top },
+    plan: { x: A.x, y: A.y + top, w, h: A.h - top },
   });
 }
 
@@ -867,6 +886,14 @@ function shopSheets(p: Project, s: DrawingSettings): Sheet[] {
       + `<h3>Cut list (finished sizes)</h3><table class="parts"><thead><tr><th>Qty</th><th>Part</th><th>Length</th><th>Width</th><th>Thick</th><th>Notes</th></tr></thead><tbody>${rows}</tbody></table>`
       + `<h3>Notes</h3><ul>${tableChecks(t).map((c) => `<li>${esc(c)}</li>`).join('')}${t.notes ? `<li>${esc(t.notes)}</li>` : ''}</ul>`;
     sheets.push(sheet(p, s, `S${sheets.length + 1}`, `${t.name} shop drawing`, `${scaleName(v.scale)}; section ${scaleName(v.secScale)}`, v.svg + html({ x: A.x + A.w * 0.64, y: A.y, w: A.w * 0.36, h: A.h }, info, s.paper === 'tabloid' ? 0.095 : 0.075)));
+  }
+  for (const pc of piecesOf(p)) {
+    const v = pieceSheetViews(pc, A, 0.62);
+    const rows = pc.parts.filter((x) => x.qty > 0).map((x) => `<tr><td>${x.qty}</td><td>${esc(x.name)}</td><td>${fmt(x.length)}</td><td>${fmt(x.width)}</td><td>${fmt(x.thick)}</td><td>${esc(x.note ?? '')}</td></tr>`).join('');
+    const info = `<h2>${esc(pc.name)}</h2><p>${esc(pc.size)}. ${esc(pc.scope.replace(/^[^:]*:\s*/, ''))}</p>`
+      + `<h3>Cut list (finished sizes)</h3><table class="parts"><thead><tr><th>Qty</th><th>Part</th><th>Length</th><th>Width</th><th>Thick</th><th>Notes</th></tr></thead><tbody>${rows}</tbody></table>`
+      + `<h3>Notes</h3><ul>${pc.checks.map((c) => `<li>${esc(c)}</li>`).join('')}${pc.notes ? `<li>${esc(pc.notes)}</li>` : ''}</ul>`;
+    sheets.push(sheet(p, s, `S${sheets.length + 1}`, `${pc.name} shop drawing`, scaleName(v.scale), v.svg + html({ x: A.x + A.w * 0.64, y: A.y, w: A.w * 0.36, h: A.h }, info, s.paper === 'tabloid' ? 0.095 : 0.075)));
   }
   // Every moulding profile full size, custom ones drawn from their samples, so they can be milled or matched
   const profs = profileItems(p);

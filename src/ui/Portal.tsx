@@ -15,7 +15,7 @@ import { FileButton } from './FileButton';
 import { renderOf } from '../model/rendering';
 import { markIssued, withPictures } from './setPictures';
 import { CJC_TERMS } from '../model/terms';
-import { capability, shrinkImage, type Downloads } from '../runtime';
+import { capability, shrinkImage, type Downloads, svgToJpeg } from '../runtime';
 import { asciiHtml, downloadLink, whereIs, writeFile } from '../dropbox';
 import { printQuote, printQuoteFile } from '../model/printQuote';
 import {
@@ -49,6 +49,7 @@ function cardSide(project: Project, summary: ReturnType<typeof proposalSummary>)
 }
 import type { Job, Shop as PortalShop } from '../../portal/src/store';
 import type { Project } from '../model/types';
+import { pieceDrawingSvg, piecesOf } from '../drawings/pieceViews';
 
 const money = (v: number) => `$${Math.round(v).toLocaleString('en-US')}`;
 const when = (t: number) => new Date(t).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
@@ -67,11 +68,13 @@ export const newJobId = (p: Project) => {
  * for the quote first). With none saved, the 3D views kept beside Gemini renderings and the
  * drawings' cover picture stand in, so the proposal never goes out without the design.
  */
-export function proposalPictures(p: Project): { name: string; url: string }[] {
+export function proposalPictures(p: Project): { name: string; url: string; svg?: string }[] {
   const r = renderOf(p);
   const chosen = r.images.filter((i) => i.kind === 'rendering').sort((a, b) => Number(b.id === r.quoteId) - Number(a.id === r.quoteId));
   const fallback = [...r.images.filter((i) => i.kind === 'photo' && /design view/i.test(`${i.note ?? ''} ${i.name ?? ''}`)), ...(drawingsOf(p).cover ? [{ name: '3D view of the design', url: drawingsOf(p).cover! }] : [])];
-  return (chosen.length ? chosen : fallback).slice(0, 6).map((i) => ({ name: i.name || 'Rendering', url: i.url }));
+  // Each bed or case piece's drawing goes along too, since the client doesn't have the drawings yet
+  const drawn = piecesOf(p).slice(0, 3).map((pc) => ({ name: `${pc.name}: drawing`, url: '', svg: pieceDrawingSvg(pc) }));
+  return [...(chosen.length ? chosen : fallback).slice(0, 6 - drawn.length).map((i) => ({ name: i.name || 'Rendering', url: i.url })), ...drawn];
 }
 
 async function renderingsFor(p: Project) {
@@ -79,7 +82,7 @@ async function renderingsFor(p: Project) {
   const mark = `Design by CJC Custom Carpentry for ${clientName(clientOf(p)) || 'this proposal'} · not for reuse`;
   for (const img of proposalPictures(p)) {
     try {
-      const blob = await watermark(await shrinkImage(await (await fetch(img.url)).blob(), 1800, 0.85), mark);
+      const blob = await watermark(img.svg ? await svgToJpeg(img.svg) : await shrinkImage(await (await fetch(img.url)).blob(), 1800, 0.85), mark);
       out.push({ name: img.name, mimeType: 'image/jpeg', data: await blobToBase64(blob) });
     } catch { /* a picture that can't be read is left out rather than stopping the proposal */ }
   }
@@ -339,7 +342,7 @@ export function ClientPortal() {
           : <>Proposal: <b>{money(total)}</b>, deposit {money(deposit)} · {renderings ? `${renderings} picture${renderings === 1 ? '' : 's'} of the design` : 'no pictures of the design yet'}</>}
       </p>
       {!sold && (pics.length
-        ? <div className="pic-strip">{pics.map((x, i) => <img key={i} src={x.url} alt={x.name} title={x.name} />)}</div>
+        ? <div className="pic-strip">{pics.map((x, i) => <img key={i} src={x.svg ? `data:image/svg+xml;charset=utf-8,${encodeURIComponent(x.svg)}` : x.url} alt={x.name} title={x.name} style={x.svg ? { background: '#fff' } : undefined} />)}</div>
         : <p className="warn">No pictures of the design will go with the proposal. In <b>Design</b>, turn the 3D view the way you want it and click <b>Save view for proposal</b> (or make a rendering on the Rendering tab).</p>)}
       {portal?.url && (
         <div className="portal-link">
