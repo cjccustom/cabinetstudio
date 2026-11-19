@@ -58,18 +58,72 @@ function sideOf(r: PlanRect, p: Pt, band = 14): PlanSide | null {
   return dist <= band ? s : null;
 }
 
+/**
+ * Mitered corner units (Chief draws each as the full length at the wall with a 45° end, so its outline
+ * covers the corner square, and its face part again): drop outlines inside another, then where two still
+ * overlap, the second one stops at the first's face, so one runs into the corner and the other butts it.
+ */
+function cornerFix<R extends { x0: number; x1: number; y0: number; y1: number }>(list: R[]): R[] {
+  const t = 0.1;
+  const within = (a: R, b: R) => a.x0 >= b.x0 - t && a.x1 <= b.x1 + t && a.y0 >= b.y0 - t && a.y1 <= b.y1 + t;
+  const same = (a: R, b: R) => near(a.x0, b.x0, t) && near(a.x1, b.x1, t) && near(a.y0, b.y0, t) && near(a.y1, b.y1, t);
+  const out = list.filter((a) => !list.some((b) => b !== a && !same(a, b) && within(a, b))).map((r) => ({ ...r }));
+  for (let i = 0; i < out.length; i++) for (let j = i + 1; j < out.length; j++) {
+    const a = out[i], b = out[j];
+    const ox = Math.min(a.x1, b.x1) - Math.max(a.x0, b.x0), oy = Math.min(a.y1, b.y1) - Math.max(a.y0, b.y0);
+    if (ox <= 0.5 || oy <= 0.5) continue;
+    if (b.x1 - b.x0 >= b.y1 - b.y0) { if (b.x0 >= a.x0 - t) b.x0 = a.x1; else b.x1 = a.x0; }
+    else { if (b.y0 >= a.y0 - t) b.y0 = a.y1; else b.y1 = a.y0; }
+  }
+  return out.filter((r) => r.x1 - r.x0 >= 4 && r.y1 - r.y0 >= 4);
+}
+
+/** The points an entity covers, for grouping. */
+const entPts = (e: CadEnt): Pt[] => (e.kind === 'line' ? [e.a, e.b] : e.kind === 'poly' ? e.pts : e.kind === 'arc' ? [[e.c[0] - e.r, e.c[1] - e.r], [e.c[0] + e.r, e.c[1] + e.r]] : [e.at]);
+
+/**
+ * When the walls fall into separate groups (the same room drawn twice, side by side), keep only
+ * what's around the leftmost group; one group, everything as it was.
+ */
+function firstCopy(ents: CadEnt[], gap = 36): CadEnt[] {
+  type Box = [number, number, number, number];
+  const boxes: Box[] = ents.filter(isLayer(/^walls?\b/i)).filter((e) => !/railing|foundation|invisible/i.test(e.layer)).map((e) => {
+    const ps = entPts(e);
+    return [Math.min(...ps.map((p) => p[0])), Math.min(...ps.map((p) => p[1])), Math.max(...ps.map((p) => p[0])), Math.max(...ps.map((p) => p[1]))];
+  });
+  const touch = (a: Box, b: Box) => a[0] <= b[2] + gap && b[0] <= a[2] + gap && a[1] <= b[3] + gap && b[1] <= a[3] + gap;
+  const groups: Box[] = [];
+  for (const b of boxes) {
+    let g: Box = [...b] as Box;
+    for (let i = groups.length - 1; i >= 0; i--) if (touch(groups[i], g)) { const o = groups.splice(i, 1)[0]; g = [Math.min(g[0], o[0]), Math.min(g[1], o[1]), Math.max(g[2], o[2]), Math.max(g[3], o[3])]; }
+    // Merging can make a group reach others it didn't before
+    let merged = true;
+    while (merged) { merged = false; for (let i = groups.length - 1; i >= 0; i--) if (touch(groups[i], g)) { const o = groups.splice(i, 1)[0]; g = [Math.min(g[0], o[0]), Math.min(g[1], o[1]), Math.max(g[2], o[2]), Math.max(g[3], o[3])]; merged = true; } }
+    groups.push(g);
+  }
+  const rooms = groups.filter((g) => g[2] - g[0] >= 36 && g[3] - g[1] >= 36);
+  if (rooms.length < 2) return ents;
+  const keep = rooms.sort((a, b) => a[0] - b[0])[0];
+  const m = 60;
+  const inside = (p: Pt) => p[0] >= keep[0] - m && p[0] <= keep[2] + m && p[1] >= keep[1] - m && p[1] <= keep[3] + m;
+  return ents.filter((e) => entPts(e).every(inside));
+}
+
 /** Everything the plan shows, in drawing units scaled to inches. */
 export function readPlan(dwg: CadDrawing): PlanFound | null {
   const k = dwg.scale;
-  const ents: CadEnt[] = dwg.ents.map((e) => {
+  const all: CadEnt[] = dwg.ents.map((e) => {
     const s = (p: Pt): Pt => [p[0] * k, p[1] * k];
     if (e.kind === 'line') return { ...e, a: s(e.a), b: s(e.b) };
     if (e.kind === 'poly') return { ...e, pts: e.pts.map(s) };
     if (e.kind === 'arc') return { ...e, c: s(e.c), r: e.r * k };
     return { ...e, at: s(e.at) };
   });
+  // A file can hold the room more than once (Chief exports every view on the plan): use the first copy, left to right
+  const ents = firstCopy(all);
   const walls = ents.filter(isLayer(/^walls?\b/i)).filter((e) => !/railing|foundation|invisible/i.test(e.layer));
-  const rect = roomRect(walls);
+  // A room open to the next one has an invisible wall on that side: use it when the solid walls don't close the room
+  const rect = roomRect(walls) ?? roomRect(ents.filter(isLayer(/^walls?\b/i)).filter((e) => !/railing|foundation/i.test(e.layer)));
   if (!rect) return null;
   // Doors: each swing arc is a leaf, hinged at its center; the end on the wall is the latch side
   const doors: PlanFound['doors'] = [];
@@ -118,8 +172,8 @@ export function readPlan(dwg: CadDrawing): PlanFound | null {
     return out;
   };
   const labels = ents.filter((e) => e.kind === 'text' && /cabinet/i.test(e.layer) && /label/i.test(e.layer)) as Extract<CadEnt, { kind: 'text' }>[];
-  const cabinets = rects((e) => /cabinet/i.test(e.layer) && !/label|indicator|module|countertop|backsplash|door|soffit/i.test(e.layer))
-    .filter((r) => r.x1 - r.x0 >= 4 && r.y1 - r.y0 >= 4)
+  const cabinets = cornerFix(rects((e) => /cabinet/i.test(e.layer) && !/label|indicator|module|countertop|backsplash|door|soffit/i.test(e.layer))
+    .filter((r) => r.x1 - r.x0 >= 4 && r.y1 - r.y0 >= 4))
     .map((r) => ({ ...r, label: labels.find((t) => t.at[0] >= r.x0 && t.at[0] <= r.x1 && t.at[1] >= r.y0 && t.at[1] <= r.y1)?.text ?? '' }));
   const solids = rects(isLayer(/3d solid/i));
   const roomName = (ents.find((e) => e.kind === 'text' && /room label/i.test(e.layer) && !/sq ?ft|ft²/i.test(e.text)) as { text?: string } | undefined)?.text ?? '';
@@ -191,8 +245,10 @@ export function planToProject(f: PlanFound, back: PlanSide, height: number): Pla
       door: { hinge: h.along < e.along ? 'left' : 'right', leaves: 1, prehung: false } });
   });
   f.windows.forEach((w, i) => {
-    const a = place(w.a), b = place(w.b);
-    openings.push({ id: uid('open'), name: `Window ${i + 1}`, kind: 'window', wall: a.wall, offset: round(Math.min(a.along, b.along)), width: round(Math.abs(b.along - a.along)), height: 54, sill: 32, trim: { flat: 3.5 } });
+    // The wall from the window's middle: an end that runs into a corner would otherwise land on the next wall
+    const wall = place([(w.a[0] + w.b[0]) / 2, (w.a[1] + w.b[1]) / 2]).wall;
+    const a = alongOn(wall, w.a), b = alongOn(wall, w.b);
+    openings.push({ id: uid('open'), name: `Window ${i + 1}`, kind: 'window', wall, offset: round(Math.min(a, b)), width: round(Math.abs(b - a)), height: 54, sill: 32, trim: { flat: 3.5 } });
   });
   if (f.doors.length || f.windows.length) notes.push(`${f.doors.length} door${f.doors.length === 1 ? '' : 's'} and ${f.windows.length} window${f.windows.length === 1 ? '' : 's'}; widths and positions from the plan, heights are defaults (80" doors, 54" windows on a 32" sill) until you set them.`);
   // Cabinets: width along the wall they back onto, depth out from it
@@ -202,7 +258,10 @@ export function planToProject(f: PlanFound, back: PlanSide, height: number): Pla
     const corners: Pt[] = [[r.x0, r.y0], [r.x1, r.y1]].map((p) => t.f(p as Pt));
     const x0 = Math.min(corners[0][0], corners[1][0]), x1 = Math.max(corners[0][0], corners[1][0]);
     const z0 = Math.min(corners[0][1], corners[1][1]), z1 = Math.max(corners[0][1], corners[1][1]);
-    const dist: [WallId, number][] = [['back', z0], ['front', room.depth - z1], ['left', x0], ['right', room.width - x1]];
+    // Nearest wall; a unit in a corner touches two, so it backs the one along its long side
+    const long = x1 - x0 >= z1 - z0 ? 'x' : 'z';
+    const dist: [WallId, number][] = ([['back', z0, 'x'], ['front', room.depth - z1, 'x'], ['left', x0, 'z'], ['right', room.width - x1, 'z']] as [WallId, number, string][])
+      .map(([w, d, along]) => [w, d + (along === long ? 0 : 0.5)]);
     const wall = dist.sort((a, b) => a[1] - b[1])[0][0];
     const alongs = [[x0, z0], [x1, z0], [x0, z1], [x1, z1]].map(([x, z]) => alongWall(room, wall, x, z));
     const along0 = Math.min(...alongs), along1 = Math.max(...alongs);

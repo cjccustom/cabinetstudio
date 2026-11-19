@@ -2872,5 +2872,27 @@ eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i
   eq('pay ways: with the discount on, the card wording instead', quoteDoc(sp).includes('Payment by'), false);
 }
 
+// Plan import: the room drawn twice, an open side (invisible wall), a window into the corner, mitered corner units
+{
+  const L = (layer: string, a: [number, number], b: [number, number]) => ({ kind: 'line' as const, layer, a, b });
+  const P = (layer: string, pts: [number, number][], closed = true) => ({ kind: 'poly' as const, layer, pts, closed });
+  const room = (dx: number) => [
+    L('Walls_  Normal-1', [0 + dx, 0], [194 + dx, 0]), L('Walls_  Normal-1', [194 + dx, 0], [194 + dx, 172]), L('Walls_  Normal-1', [0 + dx, 172], [194 + dx, 172]),
+    L('Walls_  Normal-1', [0 + dx, -4], [198 + dx, -4]), L('Walls_  Normal-1', [198 + dx, -4], [198 + dx, 176]), L('Walls_  Normal-1', [0 + dx, 176], [198 + dx, 176]),
+    L('Walls_  Invisible-1', [0 + dx, 0], [0 + dx, 172]),
+    L('Windows-1', [159 + dx, 174], [194 + dx, 174]),
+    // Corner: the back-wall unit 62 at the wall with a 45° end, and its face part; the side unit the same
+    P('Cabinets_  Full-1', [[194 + dx, 0], [176 + dx, 18], [176 + dx, 62], [194 + dx, 62]], false), P('Cabinets_  Full-1', [[194 + dx, 18], [176 + dx, 18], [176 + dx, 62], [194 + dx, 62]]),
+    P('Cabinets_  Full-1', [[194 + dx, 0], [176 + dx, 18], [132 + dx, 18], [132 + dx, 0]], false), P('Cabinets_  Full-1', [[176 + dx, 0], [176 + dx, 18], [132 + dx, 18], [132 + dx, 0]]),
+  ];
+  const f = readPlan({ ents: [...room(0), ...room(400)], scale: 1, source: 'dxf' } as never);
+  eq('plan import: the first copy, room found through the open side', f ? `${f.rect.R - f.rect.L} ${f.rect.T - f.rect.B}` : 'none', '194 172');
+  const r = planToProject(f!, 'right', 96);
+  const win = r.openings.find((o) => o.kind === 'window')!;
+  eq('plan import: a window into the corner keeps its width', Math.round(win.width), 35);
+  eq('plan import: mitered corner units, one runs in at 62, the other butts it at 44', r.cabinets.map((c) => Math.round(c.width)).sort((a, b) => a - b).join(' '), '44 62');
+  eq('plan import: on two different walls', new Set(r.cabinets.map((c) => c.wall)).size, 2);
+}
+
 console.log(failed ? `${failed} check(s) failed` : 'All model checks passed');
 process.exit(failed ? 1 : 0);

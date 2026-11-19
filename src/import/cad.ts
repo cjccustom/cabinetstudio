@@ -182,7 +182,13 @@ export async function readCadFile(file: File): Promise<CadDrawing> {
   if (ext === 'dwg') {
     let lib;
     try { lib = await loadDwg(); } catch { throw new Error('Couldn’t load the DWG reader in this view. Export DXF from Chief instead, or try again.'); }
-    return fromDwgDatabase(lib.read(await file.arrayBuffer()) as Parameters<typeof fromDwgDatabase>[0]);
+    try {
+      return fromDwgDatabase(lib.read(await file.arrayBuffer()) as Parameters<typeof fromDwgDatabase>[0]);
+    } catch {
+      // The reader is reset so the next file starts clean
+      dwgLib = null;
+      throw new Error('Couldn’t read this DWG. In Chief, export the plan as DXF instead (File → Export → Export DWG/DXF, file type DXF) and open that.');
+    }
   }
   throw new Error('Pick a .dxf or .dwg file.');
 }
