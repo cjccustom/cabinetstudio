@@ -2826,5 +2826,21 @@ eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i
   eq('electrician: none set, nothing on the agreement', proposalLines(base).some((l) => l.key === 'electrical'), false);
 }
 
+// A table and a bench: each line's price can be set on the agreement, and it sticks
+{
+  const sp = sampleProject();
+  const t = { ...newTable(), id: 'tb', name: 'Dining table', species: 'Red oak', pricePerBF: 8 };
+  const b = { ...newBench(), id: 'bn', name: 'Bench', species: 'Red oak', pricePerBF: 8 };
+  const base = { ...sp, furniture: [t, b], quote: { ...quoteOf(sp), roundTo: 0, adjustment: 0 } };
+  const line = (pp: typeof base, k: string) => proposalLines(pp).find((l) => l.key === k)!.price;
+  const before = proposalLines(base);
+  const set = { ...base, quote: { ...base.quote, linePrices: { 'furniture:tb': 4500 } } };
+  eq('furniture: the table\'s price you set shows on its line', line(set, 'furniture:tb'), 4500);
+  eq('furniture: the bench keeps its calculated price', Math.abs(line(set, 'furniture:bn') - line(base, 'furniture:bn')) <= 10, true);
+  eq('furniture: the total moves by the change', Math.abs(priceQuote(set).total - priceQuote(base).total - (4500 - before.find((l) => l.key === 'furniture:tb')!.price)) <= 10, true);
+  const both = { ...base, quote: { ...base.quote, linePrices: { 'furniture:tb': 4500, 'furniture:bn': 1200 } } };
+  eq('furniture: both set, both stick, lines add to the total', `${line(both, 'furniture:tb')} ${line(both, 'furniture:bn')} ${Math.round(proposalLines(both).reduce((a, l) => a + l.price, 0)) === Math.round(priceQuote(both).total)}`, '4500 1200 true');
+}
+
 console.log(failed ? `${failed} check(s) failed` : 'All model checks passed');
 process.exit(failed ? 1 : 0);

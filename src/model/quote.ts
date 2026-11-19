@@ -383,6 +383,15 @@ export const quoteOf = (p: Project): QuoteSettings => {
 export type Group = 'cabinets' | 'tops' | 'paneling' | 'room' | 'ceiling' | 'furniture';
 
 /** The painting line's wording on the agreement: yours, or by when it's done. */
+/** Each piece of furniture's share of the furniture price, by what it takes to build (hours at your labor cost plus materials). */
+export function furnitureShares(p: Project): { key: string; id: string; share: number }[] {
+  const pieces = furnitureOf(p);
+  const rate = quoteOf(p).laborCost || 65;
+  const w = pieces.map((t) => { const e = tableEstimate(t, p); return e.hours.reduce((a, h) => a + h.hours, 0) * rate + e.materials.reduce((a, m) => a + m.cost, 0); });
+  const W = w.reduce((a, b) => a + b, 0);
+  return pieces.map((t, i) => ({ key: `furniture:${t.id}`, id: t.id, share: W > 0 ? w[i] / W : 1 / pieces.length }));
+}
+
 /** The electrician's line on the agreement. */
 export const electricianLabel = (q: QuoteSettings) => q.lineLabels?.electrical?.trim() || 'Electrical (licensed electrician)';
 /** What the electrician does, as the proposal says it. */
@@ -1095,13 +1104,18 @@ export function priceQuote(p: Project): QuoteResult {
     const b = h * q.billRate + mt * (1 + q.materialMarkup);
     return { a, b, chosen: q.method === 'multiplier' ? a : b };
   };
+  // Each piece of furniture can carry its own price (Weisberg: the table and the bench); the rest share by what they take to build
+  const pieces = furnitureShares(p);
+  const pieceSet = pieces.length > 1 && pieces.some((x) => q.linePrices?.[x.key] != null);
   const groups = (['cabinets', 'tops', 'paneling', 'room', 'ceiling', 'furniture'] as Group[])
     .map((g) => {
       const h = hours.filter((x) => x.group === g).reduce((t, x) => t + x.hours, 0);
       const m = materials.filter((x) => x.group === g).reduce((t, x) => t + x.cost, 0);
       const pr = price(h, m);
       // A price you set for the whole line stands in for its hours and materials (it's what shows on the agreement, so workload comes back out)
-      const set = q.linePrices?.[g];
+      const set = g === 'furniture' && pieceSet && q.linePrices?.furniture == null
+        ? pieces.reduce((t, x) => t + (q.linePrices?.[x.key] ?? pr.chosen * (1 + q.workloadAdj[q.workload]) * x.share), 0)
+        : q.linePrices?.[g];
       return { group: g, hours: h, materials: m, methodA: pr.a, methodB: pr.b, price: set != null ? set / (1 + q.workloadAdj[q.workload]) : pr.chosen, ...(set != null ? { estimated: pr.chosen } : {}) };
     })
     .filter((g) => g.hours || g.materials);

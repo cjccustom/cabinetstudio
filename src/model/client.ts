@@ -5,12 +5,12 @@ import { forCustomer } from './moldings';
 import { cardLines, cardOf, checkDiscountOf, paySchedule, pctText as discPct } from './payDiscount';
 import type { Project } from './types';
 import { finishingItems } from './finishing';
-import { priceQuote, quoteOf, groupLabel, paintLineLabel, proposalScope, electricianLabel } from './quote';
+import { priceQuote, quoteOf, groupLabel, paintLineLabel, proposalScope, electricianLabel, furnitureShares } from './quote';
 import { eagleRequests, requestText } from './eagleRequest';
 import { hardwareOrder, hardwareText } from './hardware';
 import { hardwareScope, hasHardware } from './pulls';
 import { visitsDoc } from './meeting';
-import { furnitureOf, tableEstimate } from './furniture';
+import { furnitureOf } from './furniture';
 import { releaseOf } from './release';
 import { LOGO } from '../drawings/logo';
 import { proposalSummary, withOptions } from './proposal';
@@ -153,10 +153,16 @@ export function proposalLines(full: Project): { key: string; label: string; pric
 function furnitureLines(p: Project, price: number, named: (key: string, label: string) => string) {
   const pieces = furnitureOf(p);
   if (pieces.length <= 1) return [{ key: 'furniture', label: named('furniture', pieces[0]?.name || groupLabel.furniture), price }];
-  const rate = quoteOf(p).laborCost || 65;
-  const w = pieces.map((t) => { const e = tableEstimate(t, p); return e.hours.reduce((a, h) => a + h.hours, 0) * rate + e.materials.reduce((a, m) => a + m.cost, 0); });
-  const W = w.reduce((a, b) => a + b, 0) || pieces.length;
-  return pieces.map((t, i) => ({ key: `furniture:${t.id}`, label: named(`furniture:${t.id}`, i === 0 ? named('furniture', t.name) : t.name), price: (price * (W === pieces.length && !w[i] ? 1 : w[i])) / W }));
+  // A piece with a price you set keeps it; the others share what's left by what they take to build
+  const set = quoteOf(p).linePrices ?? {};
+  const shares = furnitureShares(p);
+  const fixed = quoteOf(p).linePrices?.furniture == null ? shares.filter((x) => set[x.key] != null) : [];
+  const rest = price - fixed.reduce((t, x) => t + set[x.key], 0);
+  const freeW = shares.filter((x) => !fixed.includes(x)).reduce((t, x) => t + x.share, 0) || 1;
+  return pieces.map((t, i) => {
+    const x = shares[i];
+    return { key: x.key, label: named(x.key, i === 0 ? named('furniture', t.name) : t.name), price: fixed.includes(x) ? set[x.key] : (rest * x.share) / freeW };
+  });
 }
 
 /** What the client sees as the proposal's title: yours, or "Smith Project Proposal" from their last name. */
