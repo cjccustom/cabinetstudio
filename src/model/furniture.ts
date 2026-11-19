@@ -69,6 +69,8 @@ export interface DiningTable {
   /** edge: rails applied around the top's edge, rising above it; onTop: rails glued on the top at its edge. */
   lipStyle?: 'edge' | 'onTop';
   /** Where it stands, its center from the left and back walls (unset = the middle of the room), and turned 90°. */
+  /** Shown in this room's 3D, floor plan and elevations; false = a separate piece, quoted and drawn on its own sheet only. Unset = in the room. */
+  inRoom?: boolean;
   roomX?: number;
   roomZ?: number;
   turned?: boolean;

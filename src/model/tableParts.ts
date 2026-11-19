@@ -137,7 +137,8 @@ export function tablePlace(p: Project, t: DiningTable): { x: number; z: number; 
   return { x: t.roomX ?? p.room.width / 2, z: t.roomZ ?? p.room.depth / 2, turned: !!t.turned };
 }
 
-export const tablesOf = (p: Project) => furnitureOf(p).map((t) => ({ t, parts: tableParts(t), place: tablePlace(p, t) }));
+/** Tables and benches standing in this room (not the separate pieces). */
+export const tablesOf = (p: Project) => furnitureOf(p).filter((t) => t.inRoom !== false).map((t) => ({ t, parts: tableParts(t), place: tablePlace(p, t) }));
 
 /** The A&M species a table can be made from (they stock both 1-1/4" and 1-5/8"), with what to call each. */
 export const tableSpecies: { name: string; label: string }[] = [

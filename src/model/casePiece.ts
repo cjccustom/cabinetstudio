@@ -65,6 +65,8 @@ export interface CasePiece {
   pricePerBF: number;
   notes: string;
   /** Where it stands: its back against a wall (unset = the back wall), its center along it. */
+  /** Shown in this room's 3D, floor plan and elevations; false = a separate piece, quoted and drawn on its own sheet only. Unset = in the room. */
+  inRoom?: boolean;
   wall?: 'back' | 'left' | 'right' | 'front';
   offset?: number;
 }

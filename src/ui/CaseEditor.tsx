@@ -129,14 +129,15 @@ export function CaseEditor({ c, put }: { c: CasePiece; put: (p: Partial<CasePiec
         <Field label="Your $/BF (blank = A&M list)" htmlFor={id('bf')}><input id={id('bf')} inputMode="decimal" value={c.pricePerBF || ''} placeholder="A&M" onChange={(e) => put({ pricePerBF: parseFloat(e.target.value) || 0 })} /></Field>
       </div>
       <h3>In the room</h3>
-      <div className="grid3">
+      <label className="chk-row"><input type="checkbox" checked={c.inRoom !== false} onChange={(e) => put({ inRoom: e.target.checked })} /> Show it in this room (3D, floor plan, elevations)</label>
+      {c.inRoom !== false && <div className="grid3">
         <Field label="Back against" htmlFor={id('wall')}>
           <select id={id('wall')} value={c.wall ?? 'back'} onChange={(e) => put({ wall: e.target.value as CasePiece['wall'], offset: undefined })}>
             {(['back', 'left', 'right', 'front'] as const).map((w) => <option key={w} value={w}>{w[0].toUpperCase() + w.slice(1)} wall</option>)}
           </select>
         </Field>
         <Field label="Its center, along that wall" htmlFor={id('off')}><LengthInput id={id('off')} value={c.offset ?? ((c.wall ?? 'back') === 'back' || c.wall === 'front' ? project.room.width / 2 : project.room.depth / 2)} onChange={(v) => v != null && put({ offset: v })} /></Field>
-      </div>
+      </div>}
       <ul className="table-checks">{caseChecks(c).map((x) => <li key={x}>{x}</li>)}</ul>
       <details>
         <summary>Hours and materials</summary>

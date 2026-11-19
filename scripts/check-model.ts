@@ -40,7 +40,7 @@ import { newOpening } from "../src/model/room";
 import { cancelDeadline, holidays } from "../portal/src/cancel";
 import { expiring } from "../src/portal";
 import { benchChecks, newBench, newTable, seatHeight, seats, tableEstimate, tableScope } from "../src/model/furniture";
-import { tableParts, tableStock } from "../src/model/tableParts";
+import { tableParts, tableStock, tablesOf } from "../src/model/tableParts";
 import { contractTotal, parseWordQuote, splitNames } from "../src/model/contract";
 import { mantelOf, shelfFor } from "../src/model/mantel";
 import { defaultPilaster } from "../src/model/pilaster";
@@ -2933,6 +2933,18 @@ eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i
   eq('solid bed: proposal says solid throughout', /solid walnut throughout/.test(bedScope({ ...bed, grade: 'solid' })), true);
   const dresser = { ...newCase('dresser'), grade: 'solid' as const, species: 'Cherry', finish: 'clear' as const };
   eq('solid dresser: case sides are solid cherry', /solid cherry/.test(caseParts(dresser).find((x) => x.name === 'Case side')!.note ?? ''), true);
+}
+
+// Furniture as a separate piece: on the quote, not in the room
+{
+  const sp = { ...sampleProject(), furniture: [], beds: [] };
+  const bedAdded = addToJob(sp, newDesign('bed')).project;
+  eq('separate piece: a bed added from the builder starts out of the room', bedAdded.beds![0].inRoom, false);
+  const tbl = addToJob(sp, newDesign('dining')).project;
+  eq('separate piece: not drawn in the room', tablesOf(tbl).length, 0);
+  eq('separate piece: still priced on the job', priceQuote(tbl).total > priceQuote(sp).total, true);
+  eq('separate piece: put it in the room and it shows', tablesOf({ ...tbl, furniture: tbl.furniture!.map((t) => ({ ...t, inRoom: true })) }).length, 1);
+  eq('separate piece: older jobs keep their pieces in the room', tablesOf({ ...tbl, furniture: tbl.furniture!.map((t) => ({ ...t, inRoom: undefined })) }).length, 1);
 }
 
 console.log(failed ? `${failed} check(s) failed` : 'All model checks passed');

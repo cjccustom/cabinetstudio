@@ -76,6 +76,8 @@ export interface Bed {
   upholsteryPrice: number;
   notes: string;
   /** Where it stands: the headboard against a wall (unset = the back wall, centered). */
+  /** Shown in this room's 3D, floor plan and elevations; false = a separate piece, quoted and drawn on its own sheet only. Unset = in the room. */
+  inRoom?: boolean;
   wall?: 'back' | 'left' | 'right' | 'front';
   offset?: number;
 }

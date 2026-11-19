@@ -147,12 +147,13 @@ export function TableEditor({ t, put, remove }: { t: DiningTable; put: (p: Parti
         </Field>
         {t.finish === 'painter' && <Field label="Finisher’s price ($)" htmlFor={id('fp')}><input id={id('fp')} inputMode="decimal" value={t.finishPrice || ''} onChange={(e) => put({ finishPrice: parseFloat(e.target.value) || 0 })} /></Field>}
       </div>
-      <div className="grid3">
+      <label className="chk-row"><input type="checkbox" checked={t.inRoom !== false} onChange={(e) => put({ inRoom: e.target.checked })} /> Show it in this room (3D, floor plan, elevations)</label>
+      {t.inRoom !== false && <div className="grid3">
         <Field label="In the room: from left wall" htmlFor={id('rx')}><LengthInput id={id('rx')} value={t.roomX ?? project.room.width / 2} onChange={(v) => v != null && put({ roomX: v })} /></Field>
         <Field label="From back wall" htmlFor={id('rz')}><LengthInput id={id('rz')} value={t.roomZ ?? project.room.depth / 2} onChange={(v) => v != null && put({ roomZ: v })} /></Field>
         <label className="chk-row"><input type="checkbox" checked={!!t.turned} onChange={(e) => put({ turned: e.target.checked })} /> Turned 90°</label>
-      </div>
-      <p className="hint">Measured to the middle of the {bench ? 'bench' : 'table'}. It shows in the 3D view and floor plan, and gets its own sheet in the customer and shop drawings.</p>
+      </div>}
+      <p className="hint">{t.inRoom !== false ? `Measured to the middle of the ${bench ? 'bench' : 'table'}. It shows in the 3D view and floor plan, and` : 'A separate piece: on the quote, not in this room. It'} gets its own sheet in the customer and shop drawings.</p>
       <ul className="table-checks">{tableChecks(t).map((c) => <li key={c}>{c}</li>)}</ul>
       <table className="totals">
         <tbody>
@@ -333,14 +334,15 @@ export function BedEditor({ b, put, remove, embedded }: { b: Bed; put: (p: Parti
         {b.finish === 'painter' && <Field label="Finisher’s price ($)" htmlFor={id('fp')}><input id={id('fp')} inputMode="decimal" value={b.finishPrice || ''} onChange={(e) => put({ finishPrice: parseFloat(e.target.value) || 0 })} /></Field>}
         <Field label="Your $/BF (blank = A&M list)" htmlFor={id('bf')}><input id={id('bf')} inputMode="decimal" value={b.pricePerBF || ''} placeholder="A&M" onChange={(e) => put({ pricePerBF: parseFloat(e.target.value) || 0 })} /></Field>
       </div>
-      <div className="grid3">
+      <label className="chk-row"><input type="checkbox" checked={b.inRoom !== false} onChange={(e) => put({ inRoom: e.target.checked })} /> Show it in this room (3D, floor plan, elevations)</label>
+      {b.inRoom !== false && <div className="grid3">
         <Field label="Headboard against" htmlFor={id('wall')}>
           <select id={id('wall')} value={b.wall ?? 'back'} onChange={(e) => put({ wall: e.target.value as Bed['wall'], offset: undefined })}>
             {(['back', 'left', 'right', 'front'] as const).map((w) => <option key={w} value={w}>{w[0].toUpperCase() + w.slice(1)} wall</option>)}
           </select>
         </Field>
         <Field label="Its center, along that wall" htmlFor={id('off')}><LengthInput id={id('off')} value={b.offset ?? ((b.wall ?? 'back') === 'back' || b.wall === 'front' ? project.room.width / 2 : project.room.depth / 2)} onChange={(v) => v != null && put({ offset: v })} /></Field>
-      </div>
+      </div>}
       <ul className="table-checks">{bedChecks(b).map((c) => <li key={c}>{c}</li>)}</ul>
       <table className="totals">
         <tbody>

@@ -315,7 +315,8 @@ function TablePanel({ t, type, put, onFab, inJob }: { t: DiningTable; type: Furn
           {t.cushion && len('cushionThick', 'Cushion thickness', 0.5)}
         </div>
       )}
-      {inJob && (
+      {inJob && <label className="chk-row"><input type="checkbox" checked={t.inRoom !== false} onChange={(e) => put({ inRoom: e.target.checked })} /> Show it in this room (3D, floor plan, elevations)</label>}
+      {inJob && t.inRoom !== false && (
         <div className="grid3">
           <Field label="In the room: from left wall" htmlFor={id('rx')}><LengthInput id={id('rx')} value={t.roomX ?? project.room.width / 2} onChange={(v) => v != null && put({ roomX: v })} /></Field>
           <Field label="From back wall" htmlFor={id('rz')}><LengthInput id={id('rz')} value={t.roomZ ?? project.room.depth / 2} onChange={(v) => v != null && put({ roomZ: v })} /></Field>

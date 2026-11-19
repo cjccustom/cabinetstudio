@@ -79,7 +79,7 @@ function PartMesh({ part, b, color, map, seed, section, onClick }: { part: Table
 
 /** Beds in the room: headboard against its wall (the back wall unless set), centered unless placed. */
 export function BedModels({ project, hidden }: { project: Project; hidden: string[] }) {
-  return <>{bedsOf(project).filter((b) => !hidden.includes(b.id)).map((b) => {
+  return <>{bedsOf(project).filter((b) => b.inRoom !== false && !hidden.includes(b.id)).map((b) => {
     const wall = b.wall ?? 'back';
     const W = project.room.width, D = project.room.depth;
     const along = b.offset ?? (wall === 'back' || wall === 'front' ? W / 2 : D / 2);
@@ -95,7 +95,7 @@ export function BedModels({ project, hidden }: { project: Project; hidden: strin
 
 /** Case pieces in the room: back against its wall (the back wall unless set), centered unless placed. */
 export function CaseModels({ project, hidden }: { project: Project; hidden: string[] }) {
-  return <>{casesOf(project).filter((c) => !hidden.includes(c.id)).map((c) => {
+  return <>{casesOf(project).filter((c) => c.inRoom !== false && !hidden.includes(c.id)).map((c) => {
     const wall = c.wall ?? 'back';
     const W = project.room.width, D = project.room.depth;
     const along = c.offset ?? (wall === 'back' || wall === 'front' ? W / 2 : D / 2);

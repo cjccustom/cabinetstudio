@@ -80,14 +80,14 @@ export function designPrice(p: Project, d: Pick<FurnitureDesign, 'table' | 'bed'
 export function addToJob(p: Project, d: FurnitureDesign): { project: Project; id: string } {
   if (d.table) {
     const id = uid('tbl');
-    return { project: { ...p, furniture: [...(p.furniture ?? []), { ...d.table, id, name: d.name, designId: d.id }] }, id };
+    return { project: { ...p, furniture: [...(p.furniture ?? []), { ...d.table, id, name: d.name, designId: d.id, inRoom: d.table.inRoom ?? false }] }, id };
   }
   if (d.case) {
     const id = uid('case');
-    return { project: { ...p, cases: [...(p.cases ?? []), { ...d.case, id, name: d.name }] }, id };
+    return { project: { ...p, cases: [...(p.cases ?? []), { ...d.case, id, name: d.name, inRoom: d.case.inRoom ?? false }] }, id };
   }
   const id = uid('bed');
-  return { project: { ...p, beds: [...(p.beds ?? []), { ...d.bed!, id, name: d.name }] }, id };
+  return { project: { ...p, beds: [...(p.beds ?? []), { ...d.bed!, id, name: d.name, inRoom: d.bed!.inRoom ?? false }] }, id };
 }
 export function updateInJob(p: Project, d: FurnitureDesign): Project {
   if (d.table) return { ...p, furniture: (p.furniture ?? []).map((t) => (t.id === d.id ? { ...d.table!, id: d.id, name: d.name } : t)) };
