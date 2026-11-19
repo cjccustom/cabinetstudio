@@ -25,7 +25,7 @@ import {
 import { askConfirm } from './Confirm';
 import { projectPage } from '../../portal/src/pages';
 import { forCustomer } from '../model/moldings';
-import { cardLines, cardOf, checkDiscountOf } from '../model/payDiscount';
+import { cardLines, cardOf, checkDiscountOf, payWaysText } from '../model/payDiscount';
 import { priceQuote } from '../model/quote';
 import { listedPrice } from '../model/selections';
 
@@ -44,6 +44,7 @@ function cardSide(project: Project, summary: ReturnType<typeof proposalSummary>)
     sections: cardLines(clean(proposalLines(project)), d),
     options: summary.options.map((o) => ({ ...o, price: cardOf(o.price, d) })),
     pay: d ? { discount: d, checkTotal: total, checkDeposit: deposit, optionCheck: Object.fromEntries(summary.options.map((o) => [o.id, o.price])) } : undefined,
+    ways: payWaysText(project) || undefined,
   };
 }
 import type { Job, Shop as PortalShop } from '../../portal/src/store';
@@ -179,7 +180,7 @@ export function ClientPortal() {
     const status = await publishProposal({
       job_id: jobId, project: proposalTitle(project),
       client: { first: c.first, last: c.last, email: c.email, phone: c.phone, address: c.address },
-      agreement_html: withCarried(quoteDoc(project, { online: true }), { summary: { areas: summary.areas, materials: summary.materials }, sections: card.sections, options: card.options, pay: card.pay }), total: card.total, deposit: card.deposit,
+      agreement_html: withCarried(quoteDoc(project, { online: true }), { summary: { areas: summary.areas, materials: summary.materials }, sections: card.sections, options: card.options, pay: card.pay, ways: card.ways }), total: card.total, deposit: card.deposit,
       renderings: await renderingsFor(project), replace_signed: replaceSigned,
     });
     keep(status, jobId);
@@ -201,7 +202,7 @@ export function ClientPortal() {
       client: { first: c.first, last: c.last, email: c.email, phone: c.phone, address: c.address },
       proposal: {
         agreementHtml: quoteDoc(project, { online: true }), total: card.total, deposit: card.deposit, publishedAt: Date.now(), version: (st?.version ?? 0) + 1, hash: '', terms: shop.terms,
-        summary: { areas: summary.areas, materials: summary.materials }, sections: card.sections.map(({ label, price }) => ({ label, price })), options: card.options, pay: card.pay,
+        summary: { areas: summary.areas, materials: summary.materials }, sections: card.sections.map(({ label, price }) => ({ label, price })), options: card.options, pay: card.pay, ways: card.ways,
       },
       renderings: rend.map((r, i) => ({ id: `r${i}`, name: r.name, mimeType: r.mimeType })), views: [],
     };

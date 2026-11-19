@@ -587,7 +587,7 @@ async function tool(name: string, a: Record<string, unknown>, env: Env, url: URL
       // The plain-language page can ride inside the agreement (a connector that still has the old list
       // of fields drops new ones); it's taken back out before the agreement is stored and fingerprinted
       const carried = readCarried(String(a.agreement_html || ''));
-      if (carried.data) for (const k of ['summary', 'sections', 'options', 'pay'] as const) if (a[k] == null && carried.data[k] != null) a[k] = carried.data[k];
+      if (carried.data) for (const k of ['summary', 'sections', 'options', 'pay', 'ways'] as const) if (a[k] == null && carried.data[k] != null) a[k] = carried.data[k];
       const agreementHtml = carried.html;
       const version = (old?.proposal.version ?? 0) + 1;
       const hash = await sha256(`${agreementHtml}\n--terms--\n${shop.terms}`);
@@ -881,12 +881,13 @@ async function tool(name: string, a: Record<string, unknown>, env: Env, url: URL
 }
 
 /** The plain-language parts of a proposal as sent, kept to plain text and numbers. */
-function cleanSummary(a: Record<string, unknown>): Pick<Job['proposal'], 'summary' | 'sections' | 'options' | 'pay'> {
+function cleanSummary(a: Record<string, unknown>): Pick<Job['proposal'], 'summary' | 'sections' | 'options' | 'pay' | 'ways'> {
   const str = (v: unknown, n = 400) => String(v ?? '').slice(0, n);
   const num = (v: unknown) => (Number.isFinite(Number(v)) ? Number(v) : 0);
   const arr = (v: unknown) => (Array.isArray(v) ? v : []) as Record<string, unknown>[];
   const sm = (a.summary ?? null) as Record<string, unknown> | null;
-  const out: Pick<Job['proposal'], 'summary' | 'sections' | 'options' | 'pay'> = {};
+  const out: Pick<Job['proposal'], 'summary' | 'sections' | 'options' | 'pay' | 'ways'> = {};
+  if (a.ways != null && String(a.ways).trim()) out.ways = str(a.ways, 160).trim();
   const py = (a.pay ?? null) as Record<string, unknown> | null;
   if (py && num(py.discount) > 0 && num(py.discount) < 0.2 && num(py.checkTotal) > 0) {
     const oc = (py.optionCheck ?? {}) as Record<string, unknown>;

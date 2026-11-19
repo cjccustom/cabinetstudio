@@ -367,7 +367,7 @@ ${commentsBlock(j, base, "proposal", "Questions about the design, or something y
   const payNote = pay && open ? `<div class="price"><div><span class="muted">Paying by check or bank transfer (${pct} off)</span><b id="ctot">${money(pay.checkTotal)}</b></div><div><span class="muted">Deposit at signing</span><b id="cdep">${money(pay.checkDeposit)}</b></div></div>` : pay && s ? `<p class="muted">${s.payBy === "check" ? `Paying by check or bank transfer (${pct} off the listed price).` : "Paying by card, at the listed price."}</p>` : "";
   const price = `<section class="card"><h2>Your investment</h2>${lines}${optionsBlock}
 <div class="price"><div><span class="muted">Total project investment${pay && open ? " (paying by card)" : ""}</span><b id="tot">${money(signedFor.total)}</b></div><div><span class="muted">Deposit at signing (${Math.round(share * 100)}%)</span><b id="dep">${money(signedFor.deposit)}</b></div></div>
-${payNote}
+${payNote}${!pay && pr.ways ? `<p class="muted">${esc(pr.ways)}</p>` : ""}
 ${open && pr.options?.length ? `<script>(()=>{const base=${pr.total},share=${share},cbase=${pay ? pay.checkTotal : 0},cshare=${pay && pay.checkTotal ? pay.checkDeposit / pay.checkTotal : 0},d=${pay ? pay.discount : 0},f=n=>'$'+Math.round(n).toLocaleString('en-US');const go=()=>{let t=base,c=cbase;document.querySelectorAll('input[data-price]').forEach(i=>{if(i.checked){t+=+i.dataset.price;c+=+(i.dataset.check||Math.round(i.dataset.price*(1-d)))}});document.getElementById('tot').textContent=f(t);document.getElementById('dep').textContent=f(Math.round(t*share));const ct=document.getElementById('ctot');if(ct){ct.textContent=f(c);document.getElementById('cdep').textContent=f(Math.round(c*cshare))}};document.querySelectorAll('input[data-price]').forEach(i=>i.addEventListener('change',go));go()})();</script>` : ""}
 <details class="agree"><summary>Read the full proposal and agreement</summary><iframe class="doc" title="Project scope and purchase agreement" sandbox srcdoc="${esc(pr.agreementHtml)}"></iframe></details>
 <p class="row"><a href="${base}/agreement" target="_blank" rel="noopener">Open the full agreement to print or save</a></p></section>`;
@@ -1454,7 +1454,7 @@ async function tool(name, a, env, url) {
       const shop = await getShop(env);
       const carried = readCarried(String(a.agreement_html || ""));
       if (carried.data) {
-        for (const k of ["summary", "sections", "options", "pay"]) if (a[k] == null && carried.data[k] != null) a[k] = carried.data[k];
+        for (const k of ["summary", "sections", "options", "pay", "ways"]) if (a[k] == null && carried.data[k] != null) a[k] = carried.data[k];
       }
       const agreementHtml = carried.html;
       const version = (old?.proposal.version ?? 0) + 1;
@@ -1775,6 +1775,7 @@ function cleanSummary(a) {
   const arr = (v) => Array.isArray(v) ? v : [];
   const sm = a.summary ?? null;
   const out = {};
+  if (a.ways != null && String(a.ways).trim()) out.ways = str(a.ways, 160).trim();
   const py = a.pay ?? null;
   if (py && num(py.discount) > 0 && num(py.discount) < 0.2 && num(py.checkTotal) > 0) {
     const oc = py.optionCheck ?? {};

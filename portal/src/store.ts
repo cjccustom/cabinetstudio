@@ -55,6 +55,7 @@ export interface Job {
     /** The plain-language page (older jobs show only the agreement). */
     summary?: ProposalSummary; sections?: { label: string; price: number }[]; options?: ProposalOption[];
     /** The check / bank transfer price, when there's a discount for paying that way. */ pay?: PayDiscount;
+    /** With one price, how the client can pay ("Payment by check or bank transfer."). */ ways?: string;
   };
   renderings: { id: string; name: string; mimeType: string }[];
   views: number[];
