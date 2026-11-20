@@ -2959,5 +2959,16 @@ eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i
   eq('furniture on the proposal: none without furniture', /Furniture drawings/.test(quoteDoc(sp)), false);
 }
 
+// Crown under a sloped ceiling: fine below where the slope starts, flagged only when it reaches into it (Cohen)
+{
+  const sp = sampleProject();
+  const wall = sp.cabinets.find((c) => c.kind === 'wall')!;
+  const room = { ...sp.room, height: 208, slopes: { right: { knee: 157, pitch: 6.375 } } } as typeof sp.room;
+  const up = { ...wall, id: 'su', name: 'W9', wall: 'right' as const, offset: 0, width: 30, depth: 12, height: 61, elevation: 83, crown: '5060' };
+  const crownMsg = (c: typeof up) => findIssues(room, [c], sp.settings).filter((i) => /crown/i.test(i.message));
+  eq('slope crown: uppers topping out at 144" under a slope starting at 157" are fine', crownMsg(up).length, 0);
+  eq('slope crown: crown that reaches the slope is flagged', /runs into the sloped ceiling/.test(crownMsg({ ...up, elevation: 93 })[0]?.message ?? ''), true);
+}
+
 console.log(failed ? `${failed} check(s) failed` : 'All model checks passed');
 process.exit(failed ? 1 : 0);

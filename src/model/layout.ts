@@ -135,8 +135,11 @@ export function findIssues(room: Room, cabinets: Cabinet[], s: ShopSettings): Is
     else if (sloped && (c.elevation + c.height > frontCeil + EPS || backTop > backCeil + EPS || (!c.slopeTop && c.elevation + c.height > k.low + EPS))) {
       const fit = slopeFit(room, c)!;
       issues.push({ cabinetId: c.id, message: `${c.name} runs into the sloped ceiling: the ceiling over it is ${fmt(k.low)} at its lowest (${fmt(backCeil)} at the back, ${fmt(frontCeil)} at the front), its top is at ${fmt(c.elevation + c.height)}. ${fit.across ? `Make it ${fmt(Math.floor((k.low - c.elevation - SLOPE_CLEAR) * 8) / 8)} tall, or split it where the ceiling steps.` : `Make it ${fmt(Math.floor((k.low - c.elevation - SLOPE_CLEAR) * 8) / 8)} tall, or cut its top to the slope (${fmt(fit.back)} at the back, ${fmt(fit.front)} at the front).`}` });
-    } else if (sloped && c.crown && c.kind !== 'base') issues.push({ cabinetId: c.id, message: `${c.name} has crown under a sloped ceiling: crown can't follow the slope; take it off or end it where the ceiling is flat` });
-    else {
+    } else if (sloped && c.crown && c.kind !== 'base') {
+      // Crown under a sloped ceiling is fine while it stays below where the slope starts; it only can't follow the slope up into it
+      const cf = crownFit(c, s, k.low);
+      if (cf && cf.over > EPS) issues.push({ cabinetId: c.id, message: `${c.name}'s crown runs into the sloped ceiling: its top is at ${fmt(cf.top)} and the ceiling over the cabinet comes down to ${fmt(k.low)}. Crown can't follow the slope: lower the cabinet ${fmt(cf.over)}, pick a smaller crown, or take it off.` });
+    } else {
       const cf = crownFit(c, s, k.low);
       if (cf && cf.over > EPS) issues.push({ cabinetId: c.id, message: `${c.name}'s crown is ${fmt(cf.over)} too tall: case top at ${fmt(cf.caseTop)}, crown drop ${fmt(cf.drop)} puts its top at ${fmt(cf.top)}, ceiling ${fmt(k.low)}. Shorten the cabinet ${fmt(cf.over)} or pick a crown with a drop under ${fmt(Math.max(0, cf.drop - cf.over))}.` });
     }
