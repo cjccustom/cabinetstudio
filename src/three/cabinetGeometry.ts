@@ -23,6 +23,17 @@ export function buildCabinetGeometry(parts: Part[]): CabinetGeometry {
       const key = `${material}:${shade}`;
       let g = groups.get(key);
       if (!g) groups.set(key, (g = { material, shade, geos: [] }));
+      // A closet rod is a round tube, with no outline (on something that thin the lines would be all you see)
+      if (p.role === 'rod') {
+        const along = longAxis([sx, sy, sz]);
+        const r = Math.min(...[sx, sy, sz].filter((_, i) => i !== along)) / 2;
+        const tube = new THREE.CylinderGeometry(r, r, [sx, sy, sz][along], 20, 1);
+        if (along === 0) tube.rotateZ(Math.PI / 2); else if (along === 2) tube.rotateX(Math.PI / 2);
+        tube.translate(x + sx / 2, y + sy / 2, z + sz / 2);
+        grainUVs(tube, along);
+        g.geos.push(tube);
+        continue;
+      }
       const geo = new THREE.BoxGeometry(sx, sy, sz);
       geo.translate(x + sx / 2, y + sy / 2, z + sz / 2);
       // Grain the long way of each piece, each piece at its own spot on the texture

@@ -33,7 +33,7 @@ import { alongWall, footprint, resolveEnds, shiftInRoom, snapOffset, wallAxes, w
 import { buildCabinetGeometry } from './cabinetGeometry';
 import { woodTexture } from './woodTexture';
 import { stoneTexture } from './stoneTexture';
-import { defaultVein, hardwareLook, sheenRoughness, stoneOf, stoneRoughness } from '../model/surfaces';
+import { METAL_ENV, defaultVein, hardwareLook, sheenRoughness, stoneOf, stoneRoughness } from '../model/surfaces';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { fmt, fmtFeet } from '../units';
 
@@ -76,6 +76,7 @@ export function Scene({ issueIds }: { issueIds: Set<string> }) {
     >
       <Cameras view={view} room={room} />
       <NavBridge />
+      <MetalShine />
       {/* In 3D the room is lit the way it will be: recessed cans casting shadows (or a high sun for
           daylight); the flat views stay evenly lit */}
       {view === '3d' && cans
@@ -145,6 +146,27 @@ function WallTVModel({ t, room }: { t: WallTV; room: Room }) {
       </mesh>
     </group>
   );
+}
+
+/**
+ * Metal takes the room's reflections more strongly than paint and wood. three.js only honors a
+ * material's own reflection strength when the material carries the environment itself, so metal
+ * parts get it handed to them (checked now and then, as parts come and go).
+ */
+function MetalShine() {
+  const scene = useThree((s) => s.scene);
+  const tick = useRef(0);
+  useFrame(() => {
+    if (tick.current++ % 20 || !scene.environment) return;
+    scene.traverse((o) => {
+      const m = (o as THREE.Mesh).material as THREE.MeshStandardMaterial | undefined;
+      if (!m || !(m as THREE.MeshStandardMaterial).isMeshStandardMaterial || m.metalness < 0.4 || m.envMap === scene.environment) return;
+      m.envMap = scene.environment;
+      m.envMapIntensity = METAL_ENV;
+      m.needsUpdate = true;
+    });
+  });
+  return null;
 }
 
 /** Hands the live controls to the view buttons, and takes the wheel before the controls do. */
@@ -340,7 +362,7 @@ function CabinetModel(props: {
   const plain = useNav((n) => n.plain) && !useStore.getState().present;
   const colorFor = (material: string, shade: number) => {
     if (plain && material !== 'counter' && material !== 'hardware') return new THREE.Color(material === 'box' || material === 'back' ? '#f2f0eb' : '#e6e3dc').multiplyScalar(shade);
-    const base = material === 'wall' ? wallTint : material === 'hardware' ? '#c9ccd1' : material === 'upholstery' ? '#9aa3ad' : material === 'box' || material === 'back' ? fc.box : material === 'counter' ? finishes.counter : material === 'solidWood' ? woodColor(cab.topSpecies) ?? finishes.wood ?? '#b9875a' : fc.paint;
+    const base = material === 'wall' ? wallTint : material === 'hardware' ? hardwareLook(s).color : material === 'upholstery' ? '#9aa3ad' : material === 'box' || material === 'back' ? fc.box : material === 'counter' ? finishes.counter : material === 'solidWood' ? woodColor(cab.topSpecies) ?? finishes.wood ?? '#b9875a' : fc.paint;
     return new THREE.Color(base).multiplyScalar(shade);
   };
   // Natural wood gets its grain: stain grade fronts and frames, solid wood tops, and veneer plywood that shows
@@ -469,6 +491,7 @@ function CabinetModel(props: {
             color={mapFor(m.material) ? new THREE.Color(1, 1, 1).multiplyScalar(m.shade) : colorFor(m.material, m.shade)}
             roughness={surface(m.material).roughness}
             metalness={surface(m.material).metalness}
+            envMapIntensity={surface(m.material).metalness >= 0.4 ? METAL_ENV : 1}
             emissive={selected ? ACCENT : '#000000'}
             emissiveIntensity={selected ? 0.08 : 0}
             polygonOffset

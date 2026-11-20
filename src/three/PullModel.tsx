@@ -1,11 +1,12 @@
 // Knobs, bar pulls and finger grips on a cabinet's fronts, in the cabinet's own coordinates.
 import { useMemo } from 'react';
 import type { PullSpot } from '../model/pulls';
+import { METAL_ENV } from '../model/surfaces';
 
 const KNOB_R = 0.6, KNOB_D = 1.0, BAR = 0.4, STAND = 1.1;
 
 export function PullModel({ spots, look }: { spots: PullSpot[]; look: { color: string; metalness: number; roughness: number } }) {
-  const metal = useMemo(() => ({ ...look }), [look.color, look.metalness, look.roughness]); // eslint-disable-line react-hooks/exhaustive-deps
+  const metal = useMemo(() => ({ ...look, envMapIntensity: look.metalness >= 0.4 ? METAL_ENV : 1 }), [look.color, look.metalness, look.roughness]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <group name="cjc-hw">
       {spots.map((h, i) => {

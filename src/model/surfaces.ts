@@ -43,11 +43,15 @@ export function hardwareLook(s: ShopSettings): { color: string; metalness: numbe
 }
 
 /** A hardware finish's metal in 3D. */
+/** How strongly metal picks up the room's reflections (the room light is kept soft for paint and wood). */
+export const METAL_ENV = 2.5;
+
 export function finishLook(finish: string | undefined): { color: string; metalness: number; roughness: number } {
   switch (finish) {
     case 'black': return { color: '#1d1e20', metalness: 0.35, roughness: 0.55 };
-    case 'brass': return { color: '#c8a35a', metalness: 1, roughness: 0.3 };
-    case 'bronze': return { color: '#3d2b1f', metalness: 0.85, roughness: 0.5 };
-    default: return { color: '#c5c7ca', metalness: 1, roughness: 0.36 };
+    case 'brass': return { color: '#cfac62', metalness: 0.5, roughness: 0.3 };
+    case 'bronze': return { color: '#4a3526', metalness: 0.5, roughness: 0.5 };
+    // Not fully metallic: a room's soft reflections alone would leave pure metal looking dark
+    default: return { color: '#cfd1d4', metalness: 0.45, roughness: 0.32 };
   }
 }
