@@ -39,7 +39,12 @@ export function defaultVein(base: string, kind: StoneKind): string {
 
 /** The hardware's metal in 3D. */
 export function hardwareLook(s: ShopSettings): { color: string; metalness: number; roughness: number } {
-  switch (s.pullFinish) {
+  return finishLook(s.pullFinish);
+}
+
+/** A hardware finish's metal in 3D. */
+export function finishLook(finish: string | undefined): { color: string; metalness: number; roughness: number } {
+  switch (finish) {
     case 'black': return { color: '#1d1e20', metalness: 0.35, roughness: 0.55 };
     case 'brass': return { color: '#c8a35a', metalness: 1, roughness: 0.3 };
     case 'bronze': return { color: '#3d2b1f', metalness: 0.85, roughness: 0.5 };

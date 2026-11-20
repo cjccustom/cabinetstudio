@@ -119,6 +119,8 @@ export interface PortalComment {
   mark?: { sheet: number; x: number; y: number; w: number; h: number };
   /** A spot pinned on the 3D model, in the model's own inches. */
   pin?: [number, number, number];
+  /** Options the client tried on their 3D page and wants: for the shop to approve and apply. */
+  picks?: { door?: { id: string; name: string }; paint?: { code: string; name: string; hex: string }; hardware?: { v: string; label: string } };
 }
 /** The drawing set split into sheets, for the proof page (dwgs:<jobId>). */
 export interface DrawingSheets { css: string; sheets: { number: string; title: string; svg: string }[] }

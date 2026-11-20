@@ -462,7 +462,7 @@ function CabinetModel(props: {
   const drawGeo = (g: CabinetGeometry) => (
     <>
       {g.meshes.map((m) => (
-        <mesh key={m.key} geometry={m.geometry} castShadow receiveShadow>
+        <mesh key={m.key} name={`cjc-m:${m.material}`} geometry={m.geometry} castShadow receiveShadow>
           <meshStandardMaterial
             key={mapFor(m.material) ? 'grain' : 'flat'}
             map={mapFor(m.material)}
@@ -503,7 +503,7 @@ function CabinetModel(props: {
         </Moving>
       ))}
       {(cab.crown || cab.lightRail || cab.baseMold) && (
-        <MoldingModel pieces={cabinetMoldings(cab, eff(cab, settings), ends, { noCrown })} color={plain ? '#e6e3dc' : fc.paint} edgeColor={edgeColor} />
+        <group name={s.finish === "stain" ? "cjc-wood" : "cjc-paint"}><MoldingModel pieces={cabinetMoldings(cab, eff(cab, settings), ends, { noCrown })} color={plain ? "#e6e3dc" : fc.paint} edgeColor={edgeColor} /></group>
       )}
       <PullModel spots={fixedSpots} look={hardwareLook(s)} />
       <ApplianceModel cab={cab} settings={settings} />

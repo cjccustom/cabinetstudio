@@ -561,6 +561,11 @@ export interface Project {
   portal?: { jobId: string; url?: string; status?: import('../portal').JobStatus; checkedAt?: number };
   /** A returning client: the design (drawings and 3D) can go on their page as a draft before there's a price. */
   designFirst?: boolean;
+  /**
+   * What the client can try on their 3D page (door styles by id, Benjamin Moore paint numbers, hardware
+   * finishes). Their picks come back to you as a note to approve; nothing changes until you apply them.
+   */
+  clientChoices?: { doors?: string[]; paints?: string[]; hardware?: string[] };
   /** The other rooms of a multi-room job (the one on screen lives in the fields above); see rooms.ts. */
   rooms?: import('./rooms').RoomTab[];
   /** The room on screen: its id, name and where its tab sits among the others. */

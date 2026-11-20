@@ -34,7 +34,7 @@ export interface ChangeOrderStatus {
   approved: { name: string; at: number } | null; declined: { at: number; reason?: string } | null; voided: number | null; invoiceId: string | null;
 }
 export interface NewChangeOrder { title: string; lines: { label: string; amount: number }[]; days?: number; hours?: number; note?: string; billing: 'now' | 'final' }
-export interface PortalComment { id: string; at: number; from: 'client' | 'shop'; name: string; text: string; about: string; read?: boolean; mark?: { sheet: number; x: number; y: number; w: number; h: number } }
+export interface PortalComment { id: string; at: number; from: 'client' | 'shop'; name: string; text: string; about: string; read?: boolean; mark?: { sheet: number; x: number; y: number; w: number; h: number }; picks?: import('./model/clientChoices').ClientPicks }
 export interface Invoice {
   id: string; kind: 'deposit' | 'final' | 'change'; number: string | null; amount: number; balance: number; paid: boolean;
   emailed: boolean; payLink: boolean; createdAt: number;

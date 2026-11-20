@@ -96,6 +96,7 @@ import { cardLines, cardOf, checkDiscountOf } from "../src/model/payDiscount";
 import { hardwareItems, partsOf } from "../src/drawings/views";
 import { cabinetLine, cofferFeet, cofferLayout, cofferMoldings, cofferParts, coffers as cofferList, fasciaBacking } from "../src/model/coffer";
 import { blockedAlong, casingReach, freeRuns, newOpening, openingIssues, openingTrim, roomMoldings } from "../src/model/room";
+import { choicesExtras, applyPicks } from "../src/model/clientChoices";
 
 let failed = 0;
 const eq = (label: string, got: unknown, want: unknown) => {
@@ -3038,6 +3039,17 @@ eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i
   eq('pilaster lap: they reach 1" past the case each side', `${st[0].boxes[0].min[0]} ${st[1].boxes[0].min[0] + st[1].boxes[0].size[0]}`, '-1 32.75');
   const boxPil = cabs.map((c) => c.kind === 'pilaster' ? { ...c, pilaster: { ...c.pilaster!, build: 'box' as const } } : c);
   eq('pilaster lap: none beside a pilaster built as a box', buildParts(boxPil[1], sp.settings, resolveEnds(sp.room, boxPil, boxPil[1])).filter((x) => x.role === 'stile').map((x) => x.width).join(' '), '1.5 1.5');
+}
+
+// Client options: what the 3D page offers, and their picks put into the design
+{
+  const sp = sampleProject();
+  const p = { ...sp, settings: { ...sp.settings, finish: 'paint' as const, doorStyleId: 'jefferson', pullFinish: 'black' as const }, finishes: { ...sp.finishes, named: { paint: { brand: 'Benjamin Moore', code: 'OC-17', name: 'White Dove' } } }, clientChoices: { doors: ['monroe'], paints: ['HC-154'], hardware: ['brass'] } };
+  const x = choicesExtras(p)!;
+  eq('client options: drawn choice first, then the offered ones', `${x.doors.map((d) => d.id).join(',')} | ${x.paints.map((c) => c.code).join(',')} | ${x.hardware.map((h) => h.v).join(',')}`, 'jefferson,monroe | OC-17,HC-154 | black,brass');
+  const q = applyPicks(p, { door: { id: 'monroe', name: 'Monroe Slim Shaker' }, paint: { code: 'HC-154', name: 'Hale Navy (HC-154)', hex: '#434B56' }, hardware: { v: 'brass', label: 'Brass' } });
+  eq('client options: picks applied', `${q.settings.doorStyleId} ${q.finishes.named?.paint?.code} ${q.settings.pullFinish}`, 'monroe HC-154 brass');
+  eq('client options: none offered, none sent', choicesExtras(sp), null);
 }
 
 console.log(failed ? `${failed} check(s) failed` : 'All model checks passed');

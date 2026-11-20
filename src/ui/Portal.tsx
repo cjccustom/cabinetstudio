@@ -23,6 +23,8 @@ import {
   type ChangeOrderStatus, type Invoice, type JobStatus, type QbStatus, type Shop, type ShopDoc,
 } from '../portal';
 import { askConfirm } from './Confirm';
+import { ClientChoices } from './ClientChoices';
+import { applyPicks, picksText } from '../model/clientChoices';
 import { projectPage } from '../../portal/src/pages';
 import { forCustomer } from '../model/moldings';
 import { cardLines, cardOf, checkDiscountOf, payWaysText } from '../model/payDiscount';
@@ -364,6 +366,7 @@ n.textContent='That opens on the client’s real page (this is a preview).';clea
           {project.designFirst && <button className="primary" disabled={!!busy} onClick={shareDraft}>{st?.design_shared && st.drawings ? `Update the design draft (now v${st.drawings.version})` : 'Share the design draft'}</button>}
         </div>
       )}
+      <ClientChoices />
       {!sold && options.length > 0 && <p className="hint">Options they can tick when signing: {options.map((o) => `${o.label} (+${money(o.price)})`).join(', ')}.</p>}
       <p>
         {sold
@@ -589,6 +592,7 @@ function PortalComments({ st, busy, run, keep }: { st: JobStatus; busy: boolean;
         <div key={c.id} className={`portal-msg ${c.from}${c.from === 'client' && !c.read ? ' unread' : ''}`}>
           <div className="hint">{c.name} · {when(c.at)}{c.about !== 'proposal' ? ` · ${c.about}` : ''}{c.mark ? ' · marked a spot' : ''}{c.mark && st.url ? <> · <a href={`${st.url}/drawings#c-${c.id}`} target="_blank" rel="noreferrer">see it</a></> : null}</div>
           <p style={{ whiteSpace: 'pre-wrap', margin: '2px 0 0' }}>{c.text}</p>
+          {c.picks && <PicksBar picks={c.picks} />}
         </div>
       ))}
       <Field label="Your answer (shows on their page)" htmlFor="pc-text"><textarea id="pc-text" rows={3} value={text} onChange={(e) => setText(e.target.value)} /></Field>
@@ -597,6 +601,21 @@ function PortalComments({ st, busy, run, keep }: { st: JobStatus; busy: boolean;
         <button className="primary" disabled={busy || !text.trim()} onClick={send}>Answer</button>
         {unread > 0 && <button disabled={busy} onClick={() => run('Marking read…', async () => keep(await markCommentsRead(st.job_id)))}>Mark read</button>}
       </div>
+    </div>
+  );
+}
+
+/** A client's picks from the 3D page: put them in the design once the price is checked. */
+function PicksBar({ picks }: { picks: import('../model/clientChoices').ClientPicks }) {
+  const commit = useStore((s) => s.commit);
+  const [done, setDone] = useState(false);
+  return (
+    <div className="order-actions" style={{ marginTop: 4 }}>
+      <button disabled={done} title="Changes the door style, paint color and hardware in the design to what they picked. Check the quote after; nothing goes to the client until you update their page." onClick={async () => {
+        if (!(await askConfirm(`Put their picks in the design? ${picksText(picks)}. Check the quote afterward (a door style change can change the price), then update their page.`, 'Apply their picks'))) return;
+        commit((p) => applyPicks(p, picks));
+        setDone(true);
+      }}>{done ? 'Applied: check the quote' : 'Apply these picks to the design'}</button>
     </div>
   );
 }

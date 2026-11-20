@@ -150,7 +150,20 @@ async function client(request: Request, env: Env, token: string, what: string, i
       // A spot on the 3D model: three finite numbers
       const p3 = ['px', 'py', 'pz'].map((k) => Number(String(f.get(k) ?? '').trim() || NaN));
       const pin = about.startsWith('model') && p3.every((v) => Number.isFinite(v) && Math.abs(v) < 1e5) ? (p3 as [number, number, number]) : undefined;
-      const c: PortalComment = { id: randomToken(8), at: Date.now(), from: 'client', name: String(f.get('name') || '').trim().slice(0, 80) || clientName(job), text, about, ...(mark ? { mark } : {}), ...(pin ? { pin } : {}) };
+      // Picks from the 3D page's options: only short strings in the known places
+      let picks: PortalComment['picks'];
+      try {
+        const raw = JSON.parse(String(f.get('picks') || 'null')) as Record<string, Record<string, unknown>> | null;
+        const str = (v: unknown, n = 80) => (typeof v === 'string' ? v.slice(0, n) : '');
+        if (raw && typeof raw === 'object' && about.startsWith('model')) {
+          const k: NonNullable<PortalComment['picks']> = {};
+          if (raw.door && str(raw.door.id)) k.door = { id: str(raw.door.id, 40), name: str(raw.door.name) };
+          if (raw.paint && str(raw.paint.code)) k.paint = { code: str(raw.paint.code, 20), name: str(raw.paint.name), hex: /^#[0-9a-f]{6}$/i.test(str(raw.paint.hex)) ? str(raw.paint.hex) : '#ffffff' };
+          if (raw.hardware && str(raw.hardware.v)) k.hardware = { v: str(raw.hardware.v, 20), label: str(raw.hardware.label) };
+          if (k.door || k.paint || k.hardware) picks = k;
+        }
+      } catch { /* no picks */ }
+      const c: PortalComment = { id: randomToken(8), at: Date.now(), from: 'client', name: String(f.get('name') || '').trim().slice(0, 80) || clientName(job), text, about, ...(mark ? { mark } : {}), ...(pin ? { pin } : {}), ...(picks ? { picks } : {}) };
       job.comments = [...(job.comments ?? []), c];
       await putJob(env, job);
       try { await notify(env, shop, job, c, new URL(request.url)); } catch { /* the comment is saved; email is a nicety */ }
