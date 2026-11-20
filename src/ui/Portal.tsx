@@ -77,17 +77,39 @@ export function proposalPictures(p: Project): { name: string; url: string; svg?:
   return [...(chosen.length ? chosen : fallback).slice(0, 6 - drawn.length).map((i) => ({ name: i.name || 'Rendering', url: i.url })), ...drawn];
 }
 
+/**
+ * The pictures for the client's page, small enough that the whole proposal goes to the portal in one
+ * call (it refuses one that's too large): full size when they fit, then smaller and lighter until they do.
+ */
+const PICTURE_BUDGET = 650_000;
 async function renderingsFor(p: Project) {
-  const out = [];
   const mark = `Design by CJC Custom Carpentry for ${clientName(clientOf(p)) || 'this proposal'} · not for reuse`;
-  for (const img of proposalPictures(p)) {
-    try {
-      const blob = await watermark(img.svg ? await svgToJpeg(img.svg) : await shrinkImage(await (await fetch(img.url)).blob(), 1800, 0.85), mark);
-      out.push({ name: img.name, mimeType: 'image/jpeg', data: await blobToBase64(blob) });
-    } catch { /* a picture that can't be read is left out rather than stopping the proposal */ }
+  const pics = proposalPictures(p);
+  const sources: (Blob | null)[] = [];
+  for (const img of pics) {
+    try { sources.push(img.svg ? null : await (await fetch(img.url)).blob()); } catch { sources.push(undefined as never); }
   }
+  let out: { name: string; mimeType: string; data: string }[] = [];
+  for (const [edge, q] of [[1800, 0.85], [1400, 0.8], [1100, 0.75], [900, 0.7], [700, 0.65]] as const) {
+    out = [];
+    for (let i = 0; i < pics.length; i++) {
+      const img = pics[i];
+      try {
+        if (!img.svg && !sources[i]) continue;
+        const blob = await watermark(img.svg ? await svgToJpeg(img.svg, edge) : await shrinkImage(sources[i]!, edge, q), mark);
+        out.push({ name: img.name, mimeType: 'image/jpeg', data: await blobToBase64(blob) });
+      } catch { /* a picture that can't be read is left out rather than stopping the proposal */ }
+    }
+    if (out.reduce((t, x) => t + x.data.length, 0) <= PICTURE_BUDGET) break;
+  }
+  // Still too much at the smallest size: the last pictures stay off this time
+  const dropped: string[] = [];
+  while (out.length > 1 && out.reduce((t, x) => t + x.data.length, 0) > PICTURE_BUDGET) dropped.push(out.pop()!.name);
+  lastDropped = dropped.reverse();
   return out;
 }
+/** Pictures that didn't fit the last time the proposal went out, to say so. */
+let lastDropped: string[] = [];
 
 /**
  * The proposal page's data tucked into the agreement as a comment. The portal takes it back out;
@@ -188,7 +210,7 @@ export function ClientPortal() {
     });
     keep(status, jobId);
     const printed = await savePrintCopy(project, status.version);
-    setNote(`Published version ${status.version}. Send ${c.first || 'the client'} the link below.${printed}`);
+    setNote(`Published version ${status.version}. Send ${c.first || 'the client'} the link below.${printed}${lastDropped.length ? ` Too many pictures to send at once: left off ${lastDropped.join(', ')}.` : ''}`);
   });
 
   /** The client's page exactly as the portal will draw it, built here from what would be published. */
