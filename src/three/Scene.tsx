@@ -6,7 +6,7 @@ import { fixedParts, frontMotions } from './fronts';
 import { isOpenIn } from './navigation';
 import { useFrame } from '@react-three/fiber';
 import type { CabinetGeometry } from './cabinetGeometry';
-import { pullColor, pullSpots } from '../model/pulls';
+import { pullSpots } from '../model/pulls';
 import { Html, Line, OrbitControls, OrthographicCamera, PerspectiveCamera } from '@react-three/drei';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import { finishColors, woodColor } from '../model/woodColors';
@@ -21,7 +21,7 @@ import { MoldingModel } from './MoldingModel';
 import { CabinetLights } from './CabinetLights';
 import { ApplianceModel } from './ApplianceModel';
 import { live, onWheel, useNav } from './navigation';
-import { WalkControls } from './WalkControls';
+import { WalkControls, mainWall } from './WalkControls';
 import { RoomModel } from './RoomModel';
 import { CofferModel } from './CofferModel';
 import { LadderModel } from './LadderModel';
@@ -32,6 +32,9 @@ import { buildParts } from '../model/parts';
 import { alongWall, footprint, resolveEnds, shiftInRoom, snapOffset, wallAxes, wallLength, wallTransform } from '../model/layout';
 import { buildCabinetGeometry } from './cabinetGeometry';
 import { woodTexture } from './woodTexture';
+import { stoneTexture } from './stoneTexture';
+import { defaultVein, hardwareLook, sheenRoughness, stoneOf, stoneRoughness } from '../model/surfaces';
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { fmt, fmtFeet } from '../units';
 
 const ACCENT = '#2f62d6';
@@ -62,7 +65,14 @@ export function Scene({ issueIds }: { issueIds: Set<string> }) {
       gl={{ antialias: true, preserveDrawingBuffer: true }}
       onPointerMissed={(e) => e.button === 0 && select(null)}
       // Neutral tone mapping keeps wood and paint colors true in the light (the default curve bleaches bright tops)
-      onCreated={({ gl }) => { gl.toneMapping = THREE.NeutralToneMapping; gl.toneMappingExposure = 0.92; }}
+      onCreated={({ gl, scene }) => {
+        gl.toneMapping = THREE.NeutralToneMapping; gl.toneMappingExposure = 0.92;
+        // Soft light from all around, as in a lit room, and something for paint, stone and hardware to reflect
+        const pm = new THREE.PMREMGenerator(gl);
+        scene.environment = pm.fromScene(new RoomEnvironment(), 0.04).texture;
+        scene.environmentIntensity = 0.3;
+        pm.dispose();
+      }}
     >
       <Cameras view={view} room={room} />
       <NavBridge />
@@ -164,7 +174,7 @@ function Cameras({ view, room }: { view: ViewMode; room: Room }) {
     return (
       <>
         <PerspectiveCamera key={`walk-${k}`} makeDefault fov={68} near={1} far={8000} />
-        <WalkControls key={`walk-ctl-${k}`} room={room} />
+        <WalkControls key={`walk-ctl-${k}`} room={room} face={mainWall(useStore.getState().project)} />
       </>
     );
   }
@@ -344,6 +354,21 @@ function CabinetModel(props: {
     return s.finish === 'stain' ? woodTexture(s.woodSpecies, fc.paint) : null;
   };
 
+  // Stone tops: quartz, marble, granite or soapstone, in the counter color
+  const stone = stoneOf(finishes);
+  const stoneMap = plain ? null : stoneTexture(stone.kind, finishes.counter, stone.vein ?? defaultVein(finishes.counter, stone.kind));
+  const mapFor = (material: string) => (material === 'counter' ? stoneMap : grainFor(material));
+  // How each surface takes the light: the paint's sheen, a clear coat on stain grade, the stone's polish, metal
+  const surface = (material: string): { roughness: number; metalness: number } => {
+    if (plain) return { roughness: 0.75, metalness: 0 };
+    if (material === 'counter') return { roughness: stoneRoughness(stone), metalness: 0 };
+    if (material === 'hardware') { const h = hardwareLook(s); return { roughness: h.roughness, metalness: h.metalness }; }
+    if (material === 'box' || material === 'back' || material === 'drawerBox') return { roughness: 0.7, metalness: 0 };
+    if (material === 'wall' || material === 'upholstery') return { roughness: 0.92, metalness: 0 };
+    if (material === 'solidWood' || s.finish === 'stain') return { roughness: 0.5, metalness: 0 };
+    return { roughness: sheenRoughness(finishes.paintSheen), metalness: 0 };
+  };
+
   const onDown = (e: ThreeEvent<PointerEvent>) => {
     // Showing the customer: a drag only turns the view
     if (e.button !== 0 || useStore.getState().present || useNav.getState().walk) return;
@@ -439,10 +464,11 @@ function CabinetModel(props: {
       {g.meshes.map((m) => (
         <mesh key={m.key} geometry={m.geometry} castShadow receiveShadow>
           <meshStandardMaterial
-            key={grainFor(m.material) ? 'grain' : 'flat'}
-            map={grainFor(m.material)}
-            color={grainFor(m.material) ? new THREE.Color(1, 1, 1).multiplyScalar(m.shade) : colorFor(m.material, m.shade)}
-            roughness={m.material === 'counter' ? 0.35 : grainFor(m.material) ? 0.62 : 0.75}
+            key={mapFor(m.material) ? 'grain' : 'flat'}
+            map={mapFor(m.material)}
+            color={mapFor(m.material) ? new THREE.Color(1, 1, 1).multiplyScalar(m.shade) : colorFor(m.material, m.shade)}
+            roughness={surface(m.material).roughness}
+            metalness={surface(m.material).metalness}
             emissive={selected ? ACCENT : '#000000'}
             emissiveIntensity={selected ? 0.08 : 0}
             polygonOffset
@@ -472,14 +498,14 @@ function CabinetModel(props: {
       {motions.map((m, i) => (
         <Moving key={i} open={opened} pivot={m.pivot} angle={m.angle} slide={m.slide} lift={m.lift}>
           {drawGeo(frontGeos[i])}
-          {m.pulls.length > 0 && <PullModel spots={m.pulls} color={pullColor(s)} />}
+          {m.pulls.length > 0 && <PullModel spots={m.pulls} look={hardwareLook(s)} />}
           {m.box && <DrawerBox {...m.box} />}
         </Moving>
       ))}
       {(cab.crown || cab.lightRail || cab.baseMold) && (
         <MoldingModel pieces={cabinetMoldings(cab, eff(cab, settings), ends, { noCrown })} color={plain ? '#e6e3dc' : fc.paint} edgeColor={edgeColor} />
       )}
-      <PullModel spots={fixedSpots} color={pullColor(s)} />
+      <PullModel spots={fixedSpots} look={hardwareLook(s)} />
       <ApplianceModel cab={cab} settings={settings} />
       {lightsOn && <CabinetLights cab={cab} project={project} parts={parts} />}
     </group>

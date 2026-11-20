@@ -545,7 +545,11 @@ const roomRect=()=>{const root=shown||(rooms.length?rooms[0]:model);const b=new 
 const clampXZ=v=>{const R=W.R,m=14;v.x=Math.min(Math.max(v.x,R.x0+m),R.x1-m);v.z=Math.min(Math.max(v.z,R.z0+m),R.z1-m);v.y=EYE;return v};
 const aim=()=>{const c=Math.cos(W.pitch);cam.position.copy(W.p);cam.lookAt(W.p.x+Math.sin(W.yaw)*c,W.p.y+Math.sin(W.pitch),W.p.z-Math.cos(W.yaw)*c)};
 const setFov=v=>{W.fov=Math.min(80,Math.max(30,v));cam.fov=W.fov;cam.updateProjectionMatrix()};
-function enter(){if(!model)return;W.R=roomRect();const R=W.R;W.p.set((R.x0+R.x1)/2,EYE,R.z1-Math.min(40,(R.z1-R.z0)/3));clampXZ(W.p);W.yaw=0;W.pitch=-0.04;W.anim=null;W.on=true;ctl.enabled=false;cam.near=1;setFov(68);aim();wb.textContent='Back to the overview';hint.hidden=false}
+function enter(){if(!model)return;W.R=roomRect();const R=W.R,root=shown||(rooms.length?rooms[0]:model);
+// Face the wall with the most cabinetry, from about a third of the room back
+const face=root.userData.cjcFace||model.userData.cjcFace||'back',Wd=R.x1-R.x0,Dp=R.z1-R.z0,bk=L=>L-Math.min(40,L/3);
+const st={back:[R.x0+Wd/2,R.z0+bk(Dp),0],front:[R.x0+Wd/2,R.z1-bk(Dp),Math.PI],left:[R.x0+bk(Wd),R.z0+Dp/2,-Math.PI/2],right:[R.x1-bk(Wd),R.z0+Dp/2,Math.PI/2]}[face]||[R.x0+Wd/2,R.z0+bk(Dp),0];
+W.p.set(st[0],EYE,st[1]);clampXZ(W.p);W.yaw=st[2];W.pitch=-0.04;W.anim=null;W.on=true;ctl.enabled=false;cam.near=1;setFov(68);aim();wb.textContent='Back to the overview';hint.hidden=false}
 function leave(){W.on=false;W.anim=null;ctl.enabled=true;cam.fov=42;cam.updateProjectionMatrix();wb.textContent='Stand in the room';hint.hidden=true;reset()}
 const turnTo=(y)=>{let d=y-W.yaw;while(d>Math.PI)d-=2*Math.PI;while(d<-Math.PI)d+=2*Math.PI;return W.yaw+d};
 // Stop three feet short of anything in the way (a cabinet, a wall), checked at knee and chest height

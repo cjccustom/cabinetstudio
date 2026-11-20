@@ -423,6 +423,8 @@ export interface Finishes {
   named?: Partial<Record<'paint' | 'wall' | 'trim', { brand: string; code: string; name: string }>>;
   /** Sheen proposed for painted cabinetry. */
   paintSheen?: string;
+  /** What the stone top is and how it's finished, for the 3D (its color is counter). */
+  stone?: import('./surfaces').StoneLook;
 }
 
 /** A door, window or cased opening cut into a wall. Offset and sill are to the rough opening's edge, like a cabinet. */

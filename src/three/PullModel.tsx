@@ -4,8 +4,8 @@ import type { PullSpot } from '../model/pulls';
 
 const KNOB_R = 0.6, KNOB_D = 1.0, BAR = 0.4, STAND = 1.1;
 
-export function PullModel({ spots, color }: { spots: PullSpot[]; color: string }) {
-  const metal = useMemo(() => ({ color, metalness: 0.55, roughness: 0.38 }), [color]);
+export function PullModel({ spots, look }: { spots: PullSpot[]; look: { color: string; metalness: number; roughness: number } }) {
+  const metal = useMemo(() => ({ ...look }), [look.color, look.metalness, look.roughness]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <group>
       {spots.map((h, i) => {

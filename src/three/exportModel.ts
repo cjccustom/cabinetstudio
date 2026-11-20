@@ -8,6 +8,7 @@ import { GLTFExporter } from 'three/examples/jsm/exporters/GLTFExporter.js';
 import { useStore } from '../store';
 import { live, useNav } from './navigation';
 import { roomTabs, switchRoom } from '../model/rooms';
+import { mainWall } from './WalkControls';
 
 const frames = (n = 3) => new Promise<void>((ok) => { const step = (k: number) => (k ? requestAnimationFrame(() => step(k - 1)) : ok()); step(n); });
 
@@ -29,11 +30,14 @@ export async function exportModel(): Promise<ArrayBuffer> {
     // Lights and anything hidden stay out of the model
     const lights: THREE.Object3D[] = [];
     scene.traverse((o) => { if ((o as THREE.Light).isLight && o.visible) { lights.push(o); o.visible = false; } });
+    // The wall to face first when the client stands in the room (glTF extras)
+    const was = scene.userData.cjcFace;
+    scene.userData.cjcFace = mainWall(useStore.getState().project);
     try {
       const out = await new GLTFExporter().parseAsync(scene, { binary: true, onlyVisible: true, maxTextureSize: 1024 });
       if (!(out instanceof ArrayBuffer)) throw new Error('The model didn’t come out as a .glb.');
       return out;
-    } finally { lights.forEach((o) => { o.visible = true; }); }
+    } finally { lights.forEach((o) => { o.visible = true; }); scene.userData.cjcFace = was; }
   } finally {
     live.exporting = false;
     useNav.setState({ plain: before.plain, walls: before.walls, allOpen: before.allOpen, open: before.open });
@@ -56,7 +60,7 @@ async function exportRooms(): Promise<ArrayBuffer> {
       const room = new THREE.Group();
       room.name = t.name;
       // The room's name rides along (glTF extras), for the client page's room switcher
-      room.userData = { ...room.userData, cjcRoom: t.name };
+      room.userData = { ...room.userData, cjcRoom: t.name, cjcFace: mainWall(useStore.getState().project) };
       for (const child of sc.children) {
         if ((child as THREE.Light).isLight || (child as THREE.Camera).isCamera || !child.visible) continue;
         room.add(child.clone(true));

@@ -5,7 +5,7 @@
 import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { useFrame, useThree } from '@react-three/fiber';
-import type { Room } from '../model/types';
+import type { Project, Room, WallId } from '../model/types';
 import { useNav } from './navigation';
 
 /** Eye height off the floor, inches. */
@@ -13,16 +13,36 @@ export const EYE = 62;
 /** How close a walk comes to anything in its way, and where a tap on a cabinet stands you. */
 const CLEAR = 36, STAND = 54, MARGIN = 14;
 
+/** The wall with the most cabinetry on it: where you face when you first stand in the room. */
+export function mainWall(p: Project): WallId {
+  const len: Record<WallId, number> = { back: 0, left: 0, right: 0, front: 0 };
+  for (const c of p.cabinets) if (!c.island) len[c.wall] += c.width;
+  return (Object.keys(len) as WallId[]).reduce((a, b) => (len[b] > len[a] ? b : a), 'back');
+}
+
+/** Where to stand and which way to look to take in a wall: from about a third of the room back, facing it. */
+export function standFacing(room: Room, wall: WallId): { x: number; z: number; yaw: number } {
+  const { width: W, depth: D } = room;
+  const back = (L: number) => L - Math.min(40, L / 3);
+  switch (wall) {
+    case 'front': return { x: W / 2, z: D - back(D), yaw: Math.PI };
+    case 'left': return { x: back(W), z: D / 2, yaw: -Math.PI / 2 };
+    case 'right': return { x: W - back(W), z: D / 2, yaw: Math.PI / 2 };
+    default: return { x: W / 2, z: back(D), yaw: 0 };
+  }
+}
+
 const visible = (o: THREE.Object3D | null): boolean => { for (; o; o = o.parent) if (!o.visible) return false; return true; };
 
-export function WalkControls({ room }: { room: Room }) {
+export function WalkControls({ room, face = 'back' }: { room: Room; face?: WallId }) {
   const camera = useThree((s) => s.camera) as THREE.PerspectiveCamera;
   const gl = useThree((s) => s.gl);
   const scene = useThree((s) => s.scene);
   const turnKey = useNav((n) => n.turnKey);
+  const start = standFacing(room, face);
   const st = useRef({
-    p: new THREE.Vector3(room.width / 2, EYE, room.depth - Math.min(40, room.depth / 3)),
-    yaw: 0, pitch: -0.04, fov: 68,
+    p: new THREE.Vector3(start.x, EYE, start.z),
+    yaw: start.yaw, pitch: -0.04, fov: 68,
     anim: null as null | { from: THREE.Vector3; to: THREE.Vector3; y0: number; y1: number; t0: number; dur: number },
     keys: new Set<string>(),
   });

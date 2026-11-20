@@ -37,8 +37,8 @@ export function figureOf(species: string | undefined): keyof typeof figures {
 }
 
 // Small seeded value noise, so each species looks the same every time
-function rng(seed: number) { return () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; }; }
-function noise2(seed: number) {
+export function rng(seed: number) { return () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; }; }
+export function noise2(seed: number) {
   const r = rng(seed), N = 256, perm = new Uint8Array(N * 2), val = new Float32Array(N);
   for (let i = 0; i < N; i++) { perm[i] = i; val[i] = r(); }
   for (let i = N - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [perm[i], perm[j]] = [perm[j], perm[i]]; }

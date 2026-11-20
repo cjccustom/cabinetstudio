@@ -1,3 +1,4 @@
+import { defaultVein, stoneKinds, stoneOf, type StoneKind } from '../model/surfaces';
 import { useState } from 'react';
 import { useStore } from '../store';
 import { joineryLabel } from '../model/parts';
@@ -192,6 +193,7 @@ function RoomPanel() {
   const room = useStore((s) => s.project.room);
   const finishes = useStore((s) => s.project.finishes);
   const settings = useStore((s) => s.project.settings);
+  const hasTops = useStore((s) => s.project.cabinets.some((c) => c.countertop));
   const stain = settings.finish === 'stain';
   const colors = finishColors(settings, finishes);
   const name = useStore((s) => s.project.name);
@@ -225,6 +227,26 @@ function RoomPanel() {
             </label>
           ))}
         </div>
+        {hasTops && (
+          <div className="grid3">
+            <Field label="Stone top" htmlFor="stone-kind">
+              <select id="stone-kind" value={stoneOf(finishes).kind} onChange={(e) => commit((p) => ({ ...p, finishes: { ...p.finishes, stone: { ...stoneOf(p.finishes), kind: e.target.value as StoneKind } } }))}>
+                {stoneKinds.map((k) => <option key={k.v} value={k.v}>{k.label}</option>)}
+              </select>
+            </Field>
+            <Field label="Finish" htmlFor="stone-fin">
+              <select id="stone-fin" value={stoneOf(finishes).finish ?? 'polished'} onChange={(e) => commit((p) => ({ ...p, finishes: { ...p.finishes, stone: { ...stoneOf(p.finishes), finish: e.target.value as 'polished' | 'honed' } } }))}>
+                <option value="polished">Polished</option><option value="honed">Honed (matte)</option>
+              </select>
+            </Field>
+            {stoneOf(finishes).kind !== 'solid' && (
+              <label className="swatch" htmlFor="stone-vein">
+                <input id="stone-vein" type="color" value={stoneOf(finishes).vein ?? defaultVein(finishes.counter, stoneOf(finishes).kind)} onChange={(e) => commit((p) => ({ ...p, finishes: { ...p.finishes, stone: { ...stoneOf(p.finishes), vein: e.target.value } } }))} />
+                <span>{stoneOf(finishes).kind === 'granite' || stoneOf(finishes).kind === 'quartz' ? 'Flecks' : 'Veins'}</span>
+              </label>
+            )}
+          </div>
+        )}
         {!stain && <PaintColorPicker k="paint" />}
         <PaintColorPicker k="wall" />
         <PaintColorPicker k="trim" />
