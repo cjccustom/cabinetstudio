@@ -55,6 +55,8 @@ async function exportRooms(): Promise<ArrayBuffer> {
       if (!sc) continue;
       const room = new THREE.Group();
       room.name = t.name;
+      // The room's name rides along (glTF extras), for the client page's room switcher
+      room.userData = { ...room.userData, cjcRoom: t.name };
       for (const child of sc.children) {
         if ((child as THREE.Light).isLight || (child as THREE.Camera).isCamera || !child.visible) continue;
         room.add(child.clone(true));
