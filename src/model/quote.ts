@@ -255,6 +255,8 @@ export interface QuoteSettings {
   materialMarkup: number;
   workload: Workload;
   workloadAdj: Record<Workload, number>;
+  /** On a job with more than one room: one agreement line per room for the cabinetry (the painter, extras and furniture keep their own lines). */
+  linesByRoom?: boolean;
   /** Purchased parts not yet in the app's price lists. */
   /** Up or down from the fitted Eagle prices, for a price increase or a pricier species. 0.05 = 5%. */
   eagleAdjust: number;
@@ -428,8 +430,11 @@ function spreadLines(p: Project, r: QuoteResult): { lines: AgreementLine[]; tota
   const q = quoteOf(p);
   const adj = 1 + q.workloadAdj[q.workload];
   const named = (key: string, label: string) => q.lineLabels?.[key]?.trim() || label;
+  const work = r.groups.filter((g) => g.group !== 'furniture');
+  const byRoom = q.linesByRoom ? roomLines(p, work.reduce((t, g) => t + g.price, 0) * adj, named) : null;
   const lines = [
-    ...r.groups.flatMap((g) => (g.group === 'furniture' ? furnitureLines(p, g.price * adj, named) : [{ key: g.group, label: named(g.group, groupLabel[g.group]), price: g.price * adj }])),
+    ...(byRoom ?? work.map((g) => ({ key: g.group, label: named(g.group, groupLabel[g.group]), price: g.price * adj }))),
+    ...r.groups.filter((g) => g.group === 'furniture').flatMap((g) => furnitureLines(p, g.price * adj, named)),
     ...r.extras.map((e) => ({ key: `extra:${e.id}`, label: named(`extra:${e.id}`, e.label), price: e.price * adj })),
     ...(r.painter ? [{ key: 'painting', label: paintLineLabel(q), price: r.painter }] : []),
     ...(r.electrician ? [{ key: 'electrical', label: electricianLabel(q), price: r.electrician }] : []),
@@ -444,6 +449,18 @@ function spreadLines(p: Project, r: QuoteResult): { lines: AgreementLine[]; tota
   const first = rounded.find((l) => !free.length || !fixed(l));
   if (first) first.price += r.total - rounded.reduce((t, l) => t + l.price, 0);
   return { lines: rounded, total: r.total };
+}
+
+/** The cabinetry split into a line per room, each room's share by what its own work prices at; null for a one-room job. */
+function roomLines(p: Project, price: number, named: (key: string, label: string) => string): AgreementLine[] | null {
+  const rooms = jobRooms(p);
+  if (rooms.length < 2) return null;
+  const w = rooms.map((rm) => {
+    const one = withoutLinePrices(rm.project);
+    return priceQuote({ ...one, quote: { ...quoteOf(one), linesByRoom: false } }).groups.filter((g) => g.group !== 'furniture').reduce((t, g) => t + g.price, 0);
+  });
+  const W = w.reduce((a, b) => a + b, 0) || rooms.length;
+  return rooms.map((rm, i) => ({ key: `room:${rm.id}`, label: named(`room:${rm.id}`, rm.name), price: (price * (W === rooms.length && !w[i] ? 1 : w[i])) / W }));
 }
 
 /** Each piece of furniture on its own line, its share of the furniture price by what it takes to build. A name typed for the old single furniture line stays on the first piece. */

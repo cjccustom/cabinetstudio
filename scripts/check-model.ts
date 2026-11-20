@@ -2986,5 +2986,21 @@ eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i
   eq('bench without a countertop keeps its cushion, on the plywood top', cu ? `${cu.length} ${cu.width}` : 'none', `${bench.width} 18`);
 }
 
+// One agreement line per room (Schmitt: the walk-in and the shoe closet)
+{
+  const sp = sampleProject();
+  const two = addRoom(sp, 'Pantry');
+  const withCabs = { ...two, rooms: two.rooms!.map((r) => ({ ...r, cabinets: sp.cabinets.slice(0, 2) })) };
+  const on = { ...withCabs, quote: { ...quoteOf(withCabs), linesByRoom: true } };
+  const lines = proposalLines(on);
+  eq('by room: a line for each room', lines.filter((l) => l.key.startsWith('room:')).length, 2);
+  eq('by room: no category lines for the cabinetry', lines.some((l) => l.key === 'cabinets'), false);
+  eq('by room: same total', Math.round(priceQuote(on).total), Math.round(priceQuote(withCabs).total));
+  eq('by room: the bigger room gets the bigger line', lines[0].price > lines[1].price, true);
+  const k = lines[1].key;
+  const set = { ...on, quote: { ...on.quote, linePrices: { [k]: 5000 } } };
+  eq('by room: a room line can be set like any other', proposalLines(set).find((l) => l.key === k)!.price, 5000);
+}
+
 console.log(failed ? `${failed} check(s) failed` : 'All model checks passed');
 process.exit(failed ? 1 : 0);

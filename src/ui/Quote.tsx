@@ -12,6 +12,7 @@ import { QuoteRendering } from './Rendering';
 import { FurnitureSection } from './Furniture';
 import { optionNames, optionPrices } from '../model/proposal';
 import { proposalLines } from '../model/client';
+import { jobRooms } from '../model/rooms';
 import { capability, type Downloads } from '../runtime';
 import { pricingFileName, pricingXlsx } from '../export/pricingWorkbook';
 import { XLSX_TYPE } from '../export/xlsx';
@@ -341,6 +342,9 @@ export function QuoteSummary() {
             <Num id="q-adj" label="Your adjustment" suffix="$" value={q.adjustment} onChange={(v) => set({ adjustment: v })} />
             <Num id="q-round" label="Round to" suffix="$" value={q.roundTo} onChange={(v) => set({ roundTo: v })} />
           </div>
+          {jobRooms(project).length > 1 && (
+            <label className="chk-row"><input type="checkbox" checked={!!q.linesByRoom} onChange={(e) => set({ linesByRoom: e.target.checked || undefined })} /> One line per room ({jobRooms(project).map((r) => r.name).join(', ')})</label>
+          )}
           <p className="hint">Click any line’s wording or price to set your own; ↺ puts it back. A price you set stands in for that line’s hours and materials, and changes only that line and the total: the other lines stay as they are. Your adjustment and rounding apply to the calculated prices.</p>
           <p className="hint">
             {options.length ? `With every option ${money(r.total)}. ` : ''}Calculated {money(r.calculated)}
