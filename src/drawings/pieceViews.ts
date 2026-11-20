@@ -7,10 +7,20 @@ import { bedParts, bedScope, bedsOf, bedChecks, bedSize, type Bed } from '../mod
 import { caseParts, caseScope, casesOf, caseChecks, type CasePiece } from '../model/casePiece';
 import { drawingCss, fitScale, inView, View, type Frame } from './draw';
 import { drawParts } from './tableViews';
+import { tableParts } from '../model/tableParts';
+import { furnitureOf, tableScope, tableChecks, type DiningTable } from '../model/furniture';
 
-export interface Piece { id: string; name: string; kind: 'bed' | 'case'; parts: TablePart[]; scope: string; checks: string[]; notes: string; heights: number[]; size: string }
+export interface Piece { id: string; name: string; kind: 'bed' | 'case' | 'table'; parts: TablePart[]; scope: string; checks: string[]; notes: string; heights: number[]; size: string }
 
 const fmtIn = (v: number) => { const w = Math.floor(v + 1e-6), f = Math.round((v - w) * 16); const g = (a: number, b: number): number => (b ? g(b, a % b) : a); return f === 0 ? `${w}"` : f === 16 ? `${w + 1}"` : `${w ? `${w} ` : ''}${f / g(f, 16)}/${16 / g(f, 16)}"`; };
+
+/** A table or bench, drawn the same way (its length across the page). */
+export function tablePiece(t: DiningTable): Piece {
+  return { id: t.id, name: t.name, kind: 'table', parts: tableParts(t), scope: tableScope(t), checks: tableChecks(t), notes: t.notes ?? '', heights: [t.height], size: `${fmtIn(t.length)} L × ${fmtIn(t.width)} W × ${fmtIn(t.height)} H` };
+}
+
+/** Everything that gets a drawing on the proposal: tables and benches, beds, case pieces. */
+export const proposalPieces = (p: Project): Piece[] => [...furnitureOf(p).map(tablePiece), ...piecesOf(p)];
 
 /** The beds and case pieces on a job, ready to draw. */
 export function piecesOf(p: Project): Piece[] {
@@ -52,7 +62,7 @@ export function pieceViews(pc: Piece, f: { front: Frame; side: Frame; plan?: Fra
   fv.dimH(lo[0], hi[0], 0, -0.4);
   fv.chainV(heights, hi[0], 0.4);
   if (heights.length > 2) fv.dimV(0, H, hi[0], 0.8);
-  fv.text((lo[0] + hi[0]) / 2, -fv.p(0.85), pc.kind === 'bed' ? 'FOOT ELEVATION' : 'FRONT ELEVATION', 0.12, 'middle', 'lbl');
+  fv.text((lo[0] + hi[0]) / 2, -fv.p(0.85), pc.kind === 'bed' ? 'FOOT ELEVATION' : pc.kind === 'table' ? 'SIDE ELEVATION' : 'FRONT ELEVATION', 0.12, 'middle', 'lbl');
   out.push(fv.svg());
 
   // Side: seen from the right (+x), depth along the page
@@ -62,7 +72,7 @@ export function pieceViews(pc: Piece, f: { front: Frame; side: Frame; plan?: Fra
   for (const x of sideParts(ghost)) for (const b of x.boxes) sv.rect(b.min[0], b.min[1], b.size[0], b.size[1], 'hid');
   sv.line(lo[2] - 4, 0, hi[2] + 4, 0, 'heavy');
   sv.dimH(lo[2], hi[2], 0, -0.4);
-  sv.text((lo[2] + hi[2]) / 2, -sv.p(0.85), 'SIDE ELEVATION', 0.12, 'middle', 'lbl');
+  sv.text((lo[2] + hi[2]) / 2, -sv.p(0.85), pc.kind === 'table' ? 'END ELEVATION' : 'SIDE ELEVATION', 0.12, 'middle', 'lbl');
   out.push(sv.svg());
 
   if (!f.plan) return { svg: out.join(''), scale };
@@ -94,7 +104,7 @@ export function pieceDrawingSvg(pc: Piece, width = 7.2, height = 2.8): string {
 
 /** The proposal's drawings of the custom furniture (beds, dressers and the like): name, size, front and side. */
 export function furnitureDrawingsHtml(p: Project, heading = 'h3'): string {
-  const pcs = piecesOf(p);
+  const pcs = proposalPieces(p);
   if (!pcs.length) return '';
   const e = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;');
   return `<${heading}>Furniture drawings</${heading}>` + pcs.map((pc) => `<div style="break-inside:avoid;margin:6px 0 12px"><p style="margin:0 0 4px"><b>${e(pc.name)}</b> · ${e(pc.size)}${pc.kind === 'bed' ? ' (the mattress is shown dashed, for size)' : ''}</p>${pieceDrawingSvg(pc)}</div>`).join('')

@@ -2957,6 +2957,8 @@ eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i
   const doc = quoteDoc(job);
   eq('furniture on the proposal: drawings of both, with sizes', /Furniture drawings/.test(doc) && /Platform bed<\/b>/.test(doc) && /Dresser<\/b>/.test(doc) && (doc.match(/<svg[^>]*class="dwg"/g) ?? []).length === 2, true);
   eq('furniture on the proposal: none without furniture', /Furniture drawings/.test(quoteDoc(sp)), false);
+  const withTable = { ...sp, furniture: [{ ...newTable(), id: 'tq', name: 'Dining table' }] };
+  eq('furniture on the proposal: tables and benches drawn too', /Dining table<\/b>/.test(quoteDoc(withTable)) && /END ELEVATION/.test(quoteDoc(withTable)), true);
 }
 
 // Crown under a sloped ceiling: fine below where the slope starts, flagged only when it reaches into it (Cohen)

@@ -49,7 +49,7 @@ function cardSide(project: Project, summary: ReturnType<typeof proposalSummary>)
 }
 import type { Job, Shop as PortalShop } from '../../portal/src/store';
 import type { Project } from '../model/types';
-import { pieceDrawingSvg, piecesOf } from '../drawings/pieceViews';
+import { pieceDrawingSvg, proposalPieces } from '../drawings/pieceViews';
 
 const money = (v: number) => `$${Math.round(v).toLocaleString('en-US')}`;
 const when = (t: number) => new Date(t).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
@@ -73,7 +73,7 @@ export function proposalPictures(p: Project): { name: string; url: string; svg?:
   const chosen = r.images.filter((i) => i.kind === 'rendering').sort((a, b) => Number(b.id === r.quoteId) - Number(a.id === r.quoteId));
   const fallback = [...r.images.filter((i) => i.kind === 'photo' && /design view/i.test(`${i.note ?? ''} ${i.name ?? ''}`)), ...(drawingsOf(p).cover ? [{ name: '3D view of the design', url: drawingsOf(p).cover! }] : [])];
   // Each bed or case piece's drawing goes along too, since the client doesn't have the drawings yet
-  const drawn = piecesOf(p).slice(0, 3).map((pc) => ({ name: `${pc.name}: drawing`, url: '', svg: pieceDrawingSvg(pc) }));
+  const drawn = proposalPieces(p).slice(0, 3).map((pc) => ({ name: `${pc.name}: drawing`, url: '', svg: pieceDrawingSvg(pc) }));
   return [...(chosen.length ? chosen : fallback).slice(0, 6 - drawn.length).map((i) => ({ name: i.name || 'Rendering', url: i.url })), ...drawn];
 }
 
