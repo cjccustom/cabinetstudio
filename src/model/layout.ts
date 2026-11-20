@@ -298,6 +298,11 @@ export function resolveEnds(room: Room, cabinets: Cabinet[], c: Cabinet): EndInf
     const last = kr[kr.length - 1];
     ends.kickRun = { lead: kr[0].id === c.id, span: last.offset + last.width - kr[0].offset, names: kr.map((o) => o.name), seams: kr.slice(1).map((o) => o.offset - kr[0].offset) };
   }
+  const br = baseRun(cabinets, c);
+  if (br) {
+    const last = br[br.length - 1];
+    ends.baseRun = { lead: br[0].id === c.id, span: last.offset + last.width - br[0].offset, names: br.map((o) => o.name) };
+  }
   const sr = subRun(cabinets, c);
   if (sr) {
     const last = sr[sr.length - 1];
@@ -343,6 +348,33 @@ const sameTop = (a: Cabinet, b: Cabinet) =>
   a.kind === 'base' && b.kind === 'base' && !!a.countertop && !!b.countertop && !a.island && !b.island && !a.corner && !b.corner
   && a.wall === b.wall && (a.topKind ?? 'stone') === (b.topKind ?? 'stone') && Math.abs(a.elevation + a.height - (b.elevation + b.height)) < 1 / 16
   && Math.abs((a.wallInset ?? 0) - (b.wallInset ?? 0)) < 1 / 16 && Math.abs(a.depth - b.depth) < 1 / 16;
+
+/** On a separate base under the run (baseboard style). */
+const onRunBase = (c: Cabinet) => floorStanding(c) && baseOf(c).style === 'baseboard' && !!baseOf(c).runBase && (baseOf(c).platform ?? 0) > 0;
+
+/**
+ * The cabinets on one separate base with this one: neighbours along the wall on a run base, touching or with
+ * only pilaster faces between them, the same depth, left to right. Null when it stands alone.
+ */
+export function baseRun(cabinets: Cabinet[], c: Cabinet): Cabinet[] | null {
+  if (!onRunBase(c) || c.island) return null;
+  const row = cabinets.filter((o) => o.wall === c.wall && !o.island && onRunBase(o) && Math.abs(o.depth - c.depth) < 1 / 16 && (o.wallInset ?? 0) === (c.wallInset ?? 0)).sort((a, b) => a.offset - b.offset);
+  const pil = cabinets.filter((o) => o.wall === c.wall && o.kind === 'pilaster');
+  const bridged = (x0: number, x1: number) => {
+    // Every bit of the gap filled by pilasters
+    let at = x0;
+    for (const p of pil.filter((q) => q.offset + q.width > x0 && q.offset < x1).sort((a, b) => a.offset - b.offset)) { if (p.offset > at + 1 / 16) return false; at = Math.max(at, p.offset + p.width); }
+    return at >= x1 - 1 / 16;
+  };
+  const runs: Cabinet[][] = [];
+  for (const o of row) {
+    const cur = runs[runs.length - 1];
+    const prev = cur?.[cur.length - 1];
+    if (prev && (Math.abs(prev.offset + prev.width - o.offset) < 1 / 16 || bridged(prev.offset + prev.width, o.offset))) cur.push(o); else runs.push([o]);
+  }
+  const mine = runs.find((r) => r.some((o) => o.id === c.id));
+  return mine && mine.length > 1 ? mine : null;
+}
 
 /** On a separate toe kick base (and its kick showing). */
 const onSeparateKick = (c: Cabinet, s?: ShopSettings) => floorStanding(c) && baseOf(c).style === 'kick' && !!baseOf(c).separate && !fridgeBelow(c) && (s ? kickOf(c, s) > 0 : true);

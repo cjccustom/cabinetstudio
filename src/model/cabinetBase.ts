@@ -79,6 +79,8 @@ export function baseLayout(c: Cabinet, s: ShopSettings): BaseLayout {
     // getting in the way of leveling. On a platform the case sits on the platform, its top under the rail's top.
     const gap = Math.min(Math.max(0, s.baseboardGap ?? 0.5), top);
     const platform = Math.max(0, Math.min(b.platform ?? 0, top + R - 1));
+    // A separate base under the run: the case and its face frame sit on it, the baseboard covers its front
+    if (b.runBase && platform > 0) return { style: 'baseboard', kick: 0, stileY: platform, railY: platform, railW: top + R - platform, flat, top, rise: 0, applied: true, out: molded ? 0 : boardT, b, lift: platform, platform, molded };
     return { style: 'baseboard', kick: 0, stileY: 0, railY: gap, railW: top + R - gap, flat, top, rise: 0, applied: true, out: molded ? 0 : boardT, b, lift: platform || gap, platform, molded };
   }
   const flat = Math.max(0, b.height);

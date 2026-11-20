@@ -38,6 +38,7 @@ export function cabinetCallouts(p: Project, c: Cabinet): Callout[] {
     if (scribe) out.push({ text: `${side === 'left' ? 'Left' : 'Right'} stile extended ${fmt(scribe)}, scribe to the wall`, for: 'shop' });
   }
   // Shop only: the customer never hears about the separate base
+  if (c.base?.style === 'baseboard' && c.base.runBase && (c.base.platform ?? 0) > 0) out.push({ text: `Sits on a separate ${fmt(c.base.platform!)} base (built in ${c.base.sections ? `${c.base.sections} section${c.base.sections > 1 ? 's' : ''}` : 'sections'} for the run, ${fmt(c.depth - (c.base.setBack ?? 0.5))} deep, ${fmt(c.base.setBack ?? 0.5)} off the wall to shim); case and face frame sit on it, baseboard on its front, shimmed as needed`, for: 'shop' });
   if (c.kind !== 'wall' && c.base?.style === 'kick' && c.base.separate) out.push({ text: `Separate toe kick base (ladder, ${fmt(s.toeKickHeight)}): built and leveled once for the run; case has no toe notch and sits on it`, for: 'shop' });
   const base = baseLabel(c);
   if (base) out.push({ text: base.charAt(0).toUpperCase() + base.slice(1), for: 'both' });

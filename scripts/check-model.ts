@@ -3016,5 +3016,23 @@ eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i
   eq('continuous kick: the cases still have no toe notch', parts(cabs[2]).some((x) => x.name === 'Toe kick nailer'), false);
 }
 
+// A separate base under a run of baseboard cabinets with pilaster faces between (Pope's bookcase wall)
+{
+  const sp = sampleProject();
+  const tall = sp.cabinets.find((c) => c.kind === 'tall') ?? sp.cabinets[0];
+  const base = { style: 'baseboard' as const, height: 6, cap: 1.5, build: 'faceframe' as const, shape: 'bracket' as const, rise: 3, foot: 2.25, platform: 5.5, runBase: true, sections: 2 };
+  const mk = (id: string, offset: number) => ({ ...tall, id, name: id, kind: 'tall' as const, wall: 'back' as const, offset, width: 31.75, depth: 12, height: 98.75, elevation: 0, base, corner: undefined, island: undefined });
+  const pil = (id: string, offset: number) => ({ ...tall, id, name: id, kind: 'pilaster' as const, wall: 'back' as const, offset, width: 6, depth: 12.75, height: 98.75, elevation: 0, rows: [] });
+  const cabs = [pil('P1', 0), mk('T1', 6), pil('P2', 37.75), mk('T2', 43.75), pil('P3', 75.5)];
+  const parts = (c: typeof cabs[0]) => buildParts(c, sp.settings, resolveEnds(sp.room, cabs, c));
+  const t1 = parts(cabs[1]), t2 = parts(cabs[3]);
+  const rails = t1.filter((x) => /^Base front rail/.test(x.name));
+  eq('run base: one base under both cases, across the pilaster, in 2 sections', `${rails.length} ${rails.reduce((t, x) => t + x.length, 0)}`, '2 69.5');
+  eq('run base: the second case carries none', t2.some((x) => /^Base (front|back|cross)/.test(x.name)), false);
+  const back = t1.find((x) => /^Base back rail/.test(x.name))!;
+  eq('run base: 1/2" off the wall, front flush with the face frame, 5 1/2" tall', `${back.boxes[0].min[2]} ${(() => { const b = t1.find((x) => /^Base front rail/.test(x.name))!.boxes[0]; return b.min[2] + b.size[2]; })()} ${back.width}`, '0.5 12 5.5');
+  eq('run base: the face frame stiles start on it', t2.find((x) => x.role === 'stile')!.boxes[0].min[1], 5.5);
+}
+
 console.log(failed ? `${failed} check(s) failed` : 'All model checks passed');
 process.exit(failed ? 1 : 0);

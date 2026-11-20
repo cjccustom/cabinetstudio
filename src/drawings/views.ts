@@ -4,6 +4,7 @@ import { tvSize, tvsOf } from '../model/tv';
 import { tablesOf } from '../model/tableParts';
 import type { Cabinet, Part, Project, WallId } from '../model/types';
 import { buildParts, eff, layoutRows, topThick } from '../model/parts';
+import { baseOf } from '../model/cabinetBase';
 import { footprint, nextWall, resolveEnds, wallAxes, wallLength, wallNames, wallTransform } from '../model/layout';
 import { cabinetMoldings, mountShape, profileByNum, profileLabel, type Profile } from '../model/moldings';
 import { profileBreaks, runFaceOn, type EndCut } from './moldElev';
@@ -622,6 +623,16 @@ export function sideSection(p: Project, c: Cabinet, frame: Frame): { svg: string
   }
   const plat = parts.find((x) => x.name === 'Platform runner');
   if (plat) v.text(c.depth / 2, plat.width / 2, `${dimText(plat.width)} leveled platform`, 0.07, 'middle', 'dt');
+  // A separate base under the run: its height, its depth, and the gap to shim at the wall
+  const rb = baseOf(c);
+  if (rb.style === 'baseboard' && rb.runBase && (rb.platform ?? 0) > 0) {
+    const ph = rb.platform!, set = rb.setBack ?? 0.5;
+    if (!parts.some((x) => /^Base (front|back) rail/.test(x.name))) {
+      // Carried on the first cabinet of the run: drawn here too so every section shows it
+      v.rect(set, 0, 0.75, ph, 'o'); v.rect(c.depth - 0.75, 0, 0.75, ph, 'o');
+    }
+    v.text(-v.p(0.08), ph / 2, `${dimText(ph)} base, ${dimText(set)} off wall`, 0.065, 'end', 'dt');
+  }
   v.line(-2, 0, zMax + 2, 0, 'heavy');
   // Depths along the bottom and top, heights on the front
   const s = eff(c, p.settings);

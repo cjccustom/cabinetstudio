@@ -248,6 +248,8 @@ export interface EndInfo {
   subRun?: { lead: boolean; span: number; last: Cabinet; lastRight: boolean };
   /** A separate toe kick base under touching floor cabinets is one ladder: the first cabinet carries it across the run. */
   kickRun?: { lead: boolean; span: number; names: string[]; /** Where one case meets the next, from the run's start. */ seams: number[] };
+  /** A separate base under a run of baseboard cabinets (pilaster faces between them): the first cabinet carries it. */
+  baseRun?: { lead: boolean; span: number; names: string[] };
 }
 
 /**
@@ -612,7 +614,27 @@ function caseParts(c: Cabinet, s: ShopSettings, ends: EndInfo): Part[] {
       shapes: shaped ? [cutShape('x', [x0, BL.railY, zF], railLen, BL.railW, ft, a, b, BL.b.shape, BL.rise)] : undefined,
     });
   }
-  if (BL.platform > 0) {
+  if (BL.platform > 0 && BL.b.runBase) {
+    if (!ends.baseRun || ends.baseRun.lead) {
+      // A separate base under the run, in sections: each a ladder of 3/4" ply (front and back rails, cross pieces at
+      // its ends and about every 16"), its back off the wall to shim, its front flush with the face frames
+      const run = ends.baseRun;
+      const L = run ? run.span : W;
+      const set = BL.b.setBack ?? 0.5;
+      const n = Math.max(1, Math.round(BL.b.sections ?? Math.ceil(L / 96 - 1e-6)));
+      const ph = BL.platform, piece = L / n, z0 = set, z1 = D, depth = z1 - z0;
+      const under = run ? `under ${run.names.join(', ')}` : 'under this case';
+      const note = `Separate base ${under}, ${fmtShort(L)} long in ${n} section${n > 1 ? 's' : ''}, ${fmtShort(ph)} tall × ${fmtShort(depth)} deep: set ${fmtShort(set)} off the wall, shim behind and under to level and plumb, screw the sections together; the cases and face frames sit on it, the baseboard goes on its front (shim it out as needed)`;
+      for (let k = 0; k < n; k++) {
+        const x0 = k * piece, lbl = n > 1 ? ` (section ${k + 1} of ${n})` : '';
+        parts.push({ name: `Base front rail${lbl}`, role: 'nailer', material: 'box', length: piece, width: ph, thickness: tn, cut: true, note, boxes: [vb(x0, 0, z1 - ta, piece, ph, ta)] });
+        parts.push({ name: `Base back rail${lbl}`, role: 'nailer', material: 'box', length: piece, width: ph, thickness: tn, cut: true, note, boxes: [vb(x0, 0, z0, piece, ph, ta)] });
+        const m = Math.max(2, Math.ceil(piece / 16) + 1);
+        for (let i = 0; i < m; i++) parts.push({ name: `Base cross piece${lbl}`, role: 'nailer', material: 'box', length: depth - 2 * ta, width: ph, thickness: tn, cut: true,
+          note: `Between the rails, at each end of the section and about every ${fmtShort(Math.round((piece - ta) / (m - 1)))}`, boxes: [vb(x0 + ((piece - ta) * i) / (m - 1), 0, z0 + ta, ta, ph, depth - 2 * ta)] });
+      }
+    }
+  } else if (BL.platform > 0) {
     // A leveled platform under the case: front and back runners and cross pieces every 16" or so, built and
     // leveled once for the run, the baseboard covering its front; the face frame stiles run past it to the floor
     const ph = BL.platform, pd = boxD - 0.75, xs0 = xi0 - ta, len = xi1 + ta - xs0;

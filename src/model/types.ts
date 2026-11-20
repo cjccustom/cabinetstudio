@@ -610,6 +610,15 @@ export interface CabinetBase {
   separate?: boolean;
   /** Baseboard wrap: the cases sit on a leveled platform this high (built and leveled once for the run), instead of each being shimmed. */
   platform?: number;
+  /**
+   * Baseboard: the platform is a separate base under the whole run, built in sections; the cases and face
+   * frames sit on it and the baseboard goes on its front. Set back from the wall (to shim it) by setBack.
+   */
+  runBase?: boolean;
+  /** How many sections the separate base is built in (unset: as few as fit a sheet's 96"). */
+  sections?: number;
+  /** How far the separate base stands off the wall, to shim it (unset: 1/2"). */
+  setBack?: number;
 }
 
 /** A flat piece with a shaped edge (an arched skirt or rail): its outline, extruded through its thickness. */

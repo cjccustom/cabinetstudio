@@ -1177,6 +1177,9 @@ function BaseSection({ cab, set }: { cab: Cabinet; set: (patch: Partial<Cabinet>
         <div className="grid3">
           <label className="check-inline" style={{ display: 'flex', gap: 6, alignItems: 'center', gridColumn: 'span 2' }}><input type="checkbox" checked={(b.platform ?? 0) > 0} onChange={(e) => put({ platform: e.target.checked ? Math.min(3.5, Math.max(1, L.top + s.bottomRailWidth - 1.5)) : undefined })} /> Sit the cases on a leveled platform</label>
           {(b.platform ?? 0) > 0 && <Field label="Platform height" htmlFor="base-plat"><LengthInput id="base-plat" value={b.platform ?? 3.5} onChange={(v) => put({ platform: v ?? undefined })} /></Field>}
+          {(b.platform ?? 0) > 0 && <label className="check-inline" style={{ display: 'flex', gap: 6, alignItems: 'center', gridColumn: 'span 2' }}><input type="checkbox" checked={!!b.runBase} onChange={(e) => put({ runBase: e.target.checked || undefined })} /> A separate base under the run (cases and face frames sit on it, the baseboard on its front)</label>}
+          {(b.platform ?? 0) > 0 && b.runBase && <Field label="Built in sections" htmlFor="base-secs"><input id="base-secs" inputMode="numeric" value={b.sections ?? ''} placeholder="auto" onChange={(e) => { const v = parseInt(e.target.value, 10); put({ sections: Number.isFinite(v) && v > 0 ? v : undefined }); }} /></Field>}
+          {(b.platform ?? 0) > 0 && b.runBase && <Field label="Off the wall (to shim)" htmlFor="base-set"><LengthInput id="base-set" value={b.setBack ?? 0.5} onChange={(v) => put({ setBack: v ?? undefined })} /></Field>}
         </div>
       )}
       <div className="order-actions">
