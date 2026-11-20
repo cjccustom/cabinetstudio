@@ -6,6 +6,7 @@ import { ballpark, categoryLabel, categoryOf, comparableQuote, featureLabel, rat
 import { interiorPresets, interiorUnits, isInterior, newInterior, type InteriorUnit, type QuoteExtra } from '../model/quote';
 import { paintCostOf, paintCostRates, paintModeOf, heightOf, highWork, electricianLabel, electricianScopeOf, type HeightSettings } from '../model/quote';
 import { lightingJobOf, lightingParts } from '../model/cabinetLighting';
+import { calculatedLines } from '../model/quote';
 import { defaultStandards, groupLabel, lineKey, newExtra, paintEstimate, paintLineLabel, paintRates, type Group, priceQuote, quoteOf, scopeItems, type LaborStandards, type QuoteSettings, type Workload, extraFinishes } from '../model/quote';
 import { Field, Section } from './fields';
 import { QuoteRendering } from './Rendering';
@@ -328,9 +329,15 @@ export function QuoteSummary() {
                   <tr key={l.key} className={q.linePrices?.[l.key] != null ? 'overridden' : ''}>
                     <td>
                       <EditText value={l.label} label={`Wording for ${l.label}`} onSave={(v) => set({ lineLabels: keyed(q.lineLabels, l.key, v.trim() || undefined) })} />
-                      {changed && <button className="icon-btn reset" title="Back to the calculated wording and price" aria-label={`Reset ${l.label}`} onClick={() => set({ lineLabels: keyed(q.lineLabels, l.key, undefined), linePrices: keyed(q.linePrices, l.key, undefined) })}>↺</button>}
+                      {changed && <button className="icon-btn reset" title="Back to the calculated wording and price" aria-label={`Reset ${l.label}`} onClick={() => set({ lineLabels: keyed(q.lineLabels, l.key, undefined), linePrices: keyed(q.linePrices, l.key, undefined), lineBase: keyed(q.lineBase, l.key, undefined) })}>↺</button>}
+                      {(() => {
+                        // Your price, and what design changes since have added or taken away
+                        const v = q.linePrices?.[l.key], was = q.lineBase?.[l.key];
+                        const moved = v != null && was != null ? l.price - v : 0;
+                        return v != null && Math.abs(moved) >= 1 ? <div className="hint">{money(v)} as you set it, {moved > 0 ? '+' : '−'}{money(Math.abs(moved))} for design changes since</div> : null;
+                      })()}
                     </td>
-                    <td className="num"><EditNum value={l.price} digits={0} prefix="$" label={`Price for ${l.label}`} onSave={(v) => set({ linePrices: keyed(q.linePrices, l.key, v) })} /></td>
+                    <td className="num"><EditNum value={l.price} digits={0} prefix="$" label={`Price for ${l.label}`} onSave={(v) => set({ linePrices: keyed(q.linePrices, l.key, v), lineBase: keyed(q.lineBase, l.key, calculatedLines(project)[l.key]) })} /></td>
                   </tr>
                 );
               })}

@@ -97,6 +97,7 @@ import { hardwareItems, partsOf } from "../src/drawings/views";
 import { cabinetLine, cofferFeet, cofferLayout, cofferMoldings, cofferParts, coffers as cofferList, fasciaBacking } from "../src/model/coffer";
 import { blockedAlong, casingReach, freeRuns, newOpening, openingIssues, openingTrim, roomMoldings } from "../src/model/room";
 import { choicesExtras, applyPicks } from "../src/model/clientChoices";
+import { calculatedLines, agreementLines } from "../src/model/quote";
 
 let failed = 0;
 const eq = (label: string, got: unknown, want: unknown) => {
@@ -3050,6 +3051,20 @@ eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i
   const q = applyPicks(p, { door: { id: 'monroe', name: 'Monroe Slim Shaker' }, paint: { code: 'HC-154', name: 'Hale Navy (HC-154)', hex: '#434B56' }, hardware: { v: 'brass', label: 'Brass' } });
   eq('client options: picks applied', `${q.settings.doorStyleId} ${q.finishes.named?.paint?.code} ${q.settings.pullFinish}`, 'monroe HC-154 brass');
   eq('client options: none offered, none sent', choicesExtras(sp), null);
+}
+
+// A line price you set moves with later design changes by what they add, from the price you set
+{
+  const sp = sampleProject();
+  const lines0 = calculatedLines(sp);
+  const key = Object.keys(lines0)[0];
+  const set = { ...sp, quote: { ...quoteOf(sp), linePrices: { [key]: 20000 }, lineBase: { [key]: lines0[key] } } };
+  eq('line base: the set price shows as set', agreementLines(set).find((l) => l.key === key)!.price, 20000);
+  const more = { ...set, cabinets: [...set.cabinets, { ...set.cabinets[0], id: 'extra-cab', name: 'X9', offset: (set.cabinets[0].offset ?? 0) + 400 }] };
+  const added = calculatedLines(more)[key] - lines0[key];
+  eq('line base: a cabinet added moves the set price by what it adds', agreementLines(more).find((l) => l.key === key)!.price, 20000 + added);
+  const fixed = { ...more, quote: { ...quoteOf(more), lineBase: undefined } };
+  eq('line base: without one, the set price stays put', agreementLines(fixed).find((l) => l.key === key)!.price, 20000);
 }
 
 console.log(failed ? `${failed} check(s) failed` : 'All model checks passed');

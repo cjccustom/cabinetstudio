@@ -331,6 +331,12 @@ export interface QuoteSettings {
    */
   lineLabels?: Record<string, string>;
   linePrices?: Record<string, number>;
+  /**
+   * What the design priced each of those lines at when you set its price. Changes to the design after
+   * that move your price by the same amount (add a drawer, your price goes up by what the drawer adds),
+   * so the price you sent stays the starting point. A line with none keeps your price as it is.
+   */
+  lineBase?: Record<string, number>;
   /** Scope of work: your wording for a cabinet's line (by cabinet id, '' hides it), and lines of your own. */
   scopeText?: Record<string, string>;
   scopeExtra?: string[];
@@ -408,7 +414,11 @@ const withoutLinePrices = (p: Project): Project => ({ ...p, quote: { ...quoteOf(
 /** The price you set for a line; an older price for all the furniture is shared over its pieces by their calculated prices. */
 function lineSet(q: QuoteSettings, key: string, lines: AgreementLine[]): number | undefined {
   const v = q.linePrices?.[key];
-  if (v != null) return v;
+  if (v != null) {
+    // Your price, moved by whatever the design change since adds or takes away
+    const was = q.lineBase?.[key], now = lines.find((l) => l.key === key)?.price;
+    return was != null && now != null ? v + (now - was) : v;
+  }
   const all = q.linePrices?.furniture;
   if (all == null || !key.startsWith('furniture:')) return undefined;
   const pieces = lines.filter((l) => l.key.startsWith('furniture:'));
@@ -423,6 +433,12 @@ export function agreementLines(p: Project): AgreementLine[] {
   const bp = withoutLinePrices(p);
   const base = spreadLines(bp, priceQuote(bp)).lines;
   return base.map((l) => { const v = lineSet(q, l.key, base); return v != null ? { ...l, price: Math.round(v) } : l; });
+}
+
+/** What the design alone prices each agreement line at now (no prices of yours), by line key. */
+export function calculatedLines(p: Project): Record<string, number> {
+  const bp = withoutLinePrices(p);
+  return Object.fromEntries(spreadLines(bp, priceQuote(bp)).lines.map((l) => [l.key, l.price]));
 }
 
 /** Workload, adjustment and rounding spread over the lines so they add up to the total (lines with a price you set keep it, on signed jobs). */
