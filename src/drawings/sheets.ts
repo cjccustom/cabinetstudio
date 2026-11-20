@@ -1,6 +1,7 @@
 // Drawing sets: the customer's (cover, floor plan, wall elevations) and the shop's (a wall
 // assembly sheet per wall, then a sheet per cabinet), on 11×17 or letter, each with CJC's title
 // block. Every sheet is one SVG at true size, so it prints to scale.
+import { canSpots } from '../model/lighting';
 import { jobRooms } from '../model/rooms';
 import { cabinetMoldings, forCustomer, moldLabel, profileByNum, profileLabel, type MoldPiece } from '../model/moldings';
 import { resolveEnds } from '../model/layout';
@@ -878,6 +879,24 @@ function shopSheets(p: Project, s: DrawingSettings): Sheet[] {
     sheets.push(sheet(p, s, first, 'Coffered ceiling', `${scaleName(rcp.scale)}; section ${scaleName(sec.scale)}`, rcp.svg + sec.svg + table));
     pages.slice(1).forEach((pg, i) => sheets.push(sheet(p, s, `S${sheets.length + 1}`, 'Coffered ceiling parts (continued)', 'No scale',
       html({ x: A.x, y: A.y, w: A.w, h: A.h }, `<h2>Coffered ceiling: parts, continued (${i + 2} of ${pages.length})</h2>${pg}<p class="small">Plan and section on ${first}.</p>`, cfs))));
+    // For the electrician: where each light goes, dimensioned to its center from the walls
+    if (s.rcpLights ?? true) {
+      const spots = canSpots(p);
+      if (spots.length) {
+        const lp = inView('elec-rcp', 'Lighting plan', () => ceilingPlan(p, { x: A.x, y: A.y, w: A.w * 0.68, h: A.h }, { lights: true, lightDims: true }));
+        const c = cofferOf(p);
+        const note = `<h2>Lighting plan: for the electrician</h2>
+<p class="big">${spots.length} recessed light${spots.length > 1 ? 's' : ''}, one centered in each coffer</p>
+<ul>
+<li>Dimensions are to the center of each light, from the finished wall faces (left wall along the bottom, back wall down the right). Coffer sizes in each bay are the clear openings between the beam faces.</li>
+<li>Ceiling ${fmt(p.room.height)} above the finished floor. The beams drop ${fmt(c.drop)} and are ${fmt(c.beamWidth)} wide${c.perimeter ? ', with a fascia around the room' : ''}; the lights go in the flat ceiling inside each coffer.</li>
+<li>The beams are built on ${fmt(c.nailer)} nailers fastened to the ceiling framing along the beam lines shown: keep cans, boxes and wire runs clear of the beam lines, and have the wiring roughed in before the beams go up.</li>
+<li>Fixture type, size, trim, color temperature and switching by the electrician with the owner.</li>
+</ul>
+<table class="parts"><thead><tr><th>Light</th><th>From left wall</th><th>From back wall</th></tr></thead><tbody>${[...spots].sort((a2, b2) => a2.z - b2.z || a2.x - b2.x).map((q, i) => `<tr><td>${i + 1}</td><td>${fmt(Math.round(q.x * 16) / 16)}</td><td>${fmt(Math.round(q.z * 16) / 16)}</td></tr>`).join('')}</tbody></table>`;
+        sheets.push(sheet(p, s, `S${sheets.length + 1}`, 'Lighting plan (electrician)', scaleName(lp.scale), lp.svg + html({ x: A.x + A.w * 0.7, y: A.y, w: A.w * 0.3, h: A.h }, note, s.paper === 'tabloid' ? 0.1 : 0.08)));
+      }
+    }
   }
   for (const t of furnitureOf(p)) {
     const v = tableSheetViews(t, A, 0.62);

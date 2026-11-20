@@ -782,7 +782,7 @@ export function partRows(parts: Part[]) {
 }
 
 /** The ceiling looking up, drawn as a plan (back wall at the top): beams, perimeter fascia, coffer sizes. */
-export function ceilingPlan(p: Project, frame: Frame, show: { lights?: boolean; centers?: boolean } = {}): { svg: string; scale: number } {
+export function ceilingPlan(p: Project, frame: Frame, show: { lights?: boolean; centers?: boolean; /** For the electrician: each light's center dimensioned from the walls, and the walls named. */ lightDims?: boolean } = {}): { svg: string; scale: number } {
   const { width: W, depth: D } = p.room;
   const T = 4.5;
   const c = cofferOf(p);
@@ -813,8 +813,24 @@ export function ceilingPlan(p: Project, frame: Frame, show: { lights?: boolean; 
     v.circle(s.x, s.z, 2.5, 'f');
     v.line(s.x - 3.5, s.z, s.x + 3.5, s.z, 'thin'); v.line(s.x, s.z - 3.5, s.x, s.z + 3.5, 'thin');
   }
+  // For the electrician: the walls named, and every light center dimensioned from the walls (along the bottom
+  // from the left wall, down the right from the back wall), each step and running from the wall
+  if (show.lightDims) {
+    for (const w of ['back', 'front'] as const) v.text(W / 2, (w === 'back' ? -T / 2 : D + T / 2) + v.p(0.025), `${wallNames[w].toUpperCase()}`, 0.07, 'middle', 'dt');
+    v.text(-T / 2, D / 2 + v.p(0.025), 'L', 0.07, 'middle', 'dt'); v.text(W + T / 2, D / 2 + v.p(0.025), 'R', 0.07, 'middle', 'dt');
+    const spots = canSpots(p);
+    const round = (n: number) => Math.round(n * 16) / 16;
+    const xs = [...new Set(spots.map((q) => round(q.x)))].sort((a, b) => a - b), zs = [...new Set(spots.map((q) => round(q.z)))].sort((a, b) => a - b);
+    for (const x of xs) v.line(x, D + T / 4, x, D + T, 'cutline');
+    for (const z of zs) v.line(W + T / 4, z, W + T, z, 'cutline');
+    // The chain gives the first one from the wall; running dimensions for the rest
+    if (xs.length) { v.chainH([0, W, ...xs], D + T, -0.3); xs.slice(1).forEach((x, i) => v.dimH(0, x, D + T, -0.62 - i * 0.3, `${dimText(x)} to center`)); }
+    if (zs.length) { v.chainV([0, D, ...zs], W + T, 0.3); zs.slice(1).forEach((z, i) => v.dimV(0, z, W + T, 0.62 + i * 0.3, `${dimText(z)} to center`)); }
+    // Each light numbered as in the sheet's table: back to front, left to right
+    [...spots].sort((a, b) => a.z - b.z || a.x - b.x).forEach((q, i) => v.text(q.x + 4.5, q.z - 2.5, `${i + 1}`, 0.09, 'start', 'lbl'));
+  }
   // Beam centerlines, dimensioned from the walls along the bottom and the right
-  if (show.centers) {
+  if (show.centers && !show.lightDims) {
     const cx = L.beamsX.map((b) => (b.a + b.b) / 2), cz = L.beamsZ.map((b) => (b.a + b.b) / 2);
     for (const x of cx) { v.line(x, -T / 2, x, D + T / 2, 'cutline'); v.text(x, D + T + v.p(0.12), 'CL', 0.07, 'middle', 'dt'); }
     for (const z of cz) { v.line(-T / 2, z, W + T / 2, z, 'cutline'); v.text(W + T + v.p(0.12), z + v.p(0.03), 'CL', 0.07, 'middle', 'dt'); }
@@ -826,7 +842,8 @@ export function ceilingPlan(p: Project, frame: Frame, show: { lights?: boolean; 
   v.dimH(0, W, -T, 0.65, undefined, true);
   v.chainV([0, D, f.z0, f.z1, ...L.beamsZ.flatMap((b) => [b.a, b.b])], -T, -0.3);
   v.dimV(0, D, -T, -0.65, undefined, true);
-  v.text(W / 2, D + T + v.p(show.centers ? 0.75 : 0.45), 'REFLECTED CEILING PLAN', 0.14, 'middle', 'lbl');
+  const nx = show.lightDims ? Math.max(0, new Set(canSpots(p).map((q) => Math.round(q.x * 16))).size - 1) : 0;
+  v.text(W / 2, D + T + v.p(show.lightDims ? 0.75 + nx * 0.3 : show.centers ? 0.75 : 0.45), show.lightDims ? 'LIGHTING PLAN (REFLECTED CEILING)' : 'REFLECTED CEILING PLAN', 0.14, 'middle', 'lbl');
   return { svg: v.svg(), scale: perFoot };
 }
 
