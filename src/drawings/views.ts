@@ -290,7 +290,13 @@ export function wallElevation(p: Project, wall: WallId, frame: Frame, mode: 'cus
   const tops = [...floor.filter((c) => c.kind === 'base').map((c) => c.elevation + c.height + (c.countertop ? topThick(c) : 0)), ...floor.filter((c) => c.kind === 'tall').map((c) => c.elevation + c.height)];
   const cc = cofferOf(p);
   const fasciaY = cc.on && cc.perimeter ? [H - fasciaHeight(cc), ...(profileByNum(cc.picture) ? [H - fasciaHeight(cc) - mountShape(profileByNum(cc.picture)!).height] : [])] : [];
-  const ys = [0, H, ...tops, ...uppers.flatMap((c) => [c.elevation, c.elevation + c.height]), ...fasciaY];
+  // Where a closed section (doors, drawers) has open shelving over it: the top of the lower section, the
+  // surface a client reads as the counter of a bookcase wall
+  const ledges = [...new Set(floor.flatMap((c) => {
+    const lay = layoutRows(c, p.settings).rows;
+    return c.rows.flatMap((r, i) => i > 0 && c.rows[i - 1].type === 'open' && r.type !== 'open' && lay[i - 1] ? [Math.round((c.elevation + lay[i - 1].y0) * 16) / 16] : []);
+  }))].sort((a, b) => a - b);
+  const ys = [0, H, ...tops, ...ledges, ...uppers.flatMap((c) => [c.elevation, c.elevation + c.height]), ...fasciaY];
   v.chainV(ys, L + 4.5, 0.35);
   v.dimV(0, H, L + 4.5, 0.75, undefined, true);
   // Inside each cabinet: open sections' clear sizes, drawer front sizes, rod heights
@@ -311,10 +317,13 @@ export function wallElevation(p: Project, wall: WallId, frame: Frame, mode: 'cus
     v.text(t.center, t.bottom + h / 2, `${t.size}" TV (${dimText(w)} × ${dimText(h)})`, 0.09);
     v.dimV(0, t.bottom, t.center + w / 2, 0.25, `${dimText(t.bottom)} to bottom of TV`);
   }
+  // Outside the left wall, from the floor: the top of the lower section under open shelving (both sets), and
+  // the set height of the uppers (shop)
+  ledges.forEach((h, i) => v.dimV(0, h, -4.5, -0.35 - i * 0.3, `${dimText(h)} AFF to top of lower cabinets`));
   if (mode === 'shop') {
     // Set height for the uppers, from the floor, once per height, outside the left wall
     const heights = [...new Set(uppers.map((c) => Math.round(c.elevation * 16) / 16))].sort((a, b) => a - b);
-    heights.forEach((h, i) => v.dimV(0, h, -4.5, -0.35 - i * 0.3, `${dimText(h)} AFF to bottom of uppers`));
+    heights.forEach((h, i) => v.dimV(0, h, -4.5, -0.35 - (ledges.length + i) * 0.3, `${dimText(h)} AFF to bottom of uppers`));
   }
   // Where wall sections are cut: a line through the wall with a bubble at each end naming the detail
   for (const c of cuts) {
