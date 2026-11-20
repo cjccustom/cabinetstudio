@@ -294,7 +294,7 @@ export function wallElevation(p: Project, wall: WallId, frame: Frame, mode: 'cus
   // surface a client reads as the counter of a bookcase wall
   const ledges = [...new Set(floor.flatMap((c) => {
     const lay = layoutRows(c, p.settings).rows;
-    return c.rows.flatMap((r, i) => i > 0 && c.rows[i - 1].type === 'open' && r.type !== 'open' && lay[i - 1] ? [Math.round((c.elevation + lay[i - 1].y0) * 16) / 16] : []);
+    return c.rows.flatMap((r, i) => i > 0 && c.rows[i - 1].type === 'open' && (r.type === 'doors' || r.type === 'drawer') && lay[i - 1] ? [Math.round((c.elevation + lay[i - 1].y0) * 16) / 16] : []);
   }))].sort((a, b) => a - b);
   const ys = [0, H, ...tops, ...ledges, ...uppers.flatMap((c) => [c.elevation, c.elevation + c.height]), ...fasciaY];
   v.chainV(ys, L + 4.5, 0.35);
