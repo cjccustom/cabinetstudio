@@ -246,6 +246,8 @@ export interface EndInfo {
   topRun?: { lead: boolean; span: number; last: Cabinet; lastRight: boolean; /** Open spaces the top crosses. */ gaps?: { at: number; width: number }[] };
   /** Sub-crowns on touching cabinets at the same height are one piece: the first cabinet carries it across the run. */
   subRun?: { lead: boolean; span: number; last: Cabinet; lastRight: boolean };
+  /** A separate toe kick base under touching floor cabinets is one ladder: the first cabinet carries it across the run. */
+  kickRun?: { lead: boolean; span: number; names: string[]; /** Where one case meets the next, from the run's start. */ seams: number[] };
 }
 
 /**
@@ -503,22 +505,41 @@ function caseParts(c: Cabinet, s: ShopSettings, ends: EndInfo): Part[] {
     });
   }
 
-  if (sep) {
-    // A ladder of 3/4" ply rails, front and back, with cross pieces at each end and no more than 24" apart.
-    // Its front stands back where the toe kick nailer would, so the skin lands at the usual depth.
+  if (sep && ends.kickRun && !ends.kickRun.lead) {
+    // The ladder and skin under this case come with the first cabinet of the run
+  } else if (sep) {
+    // A ladder of 3/4" ply rails, front and back, with cross pieces at each end and no more than 24" apart,
+    // one for the whole run of touching cases. Its front stands back where the toe kick nailer would, so the
+    // skin lands at the usual depth. Longer than a sheet, the rails and skin come in pieces joined over a cross piece.
+    const run = ends.kickRun;
+    const L = run ? run.span : W;
     const front = D - kickBack - ta, back = s.backThickness > 0 ? 1 : 0, depthIn = front - back - ta;
-    const n = Math.max(2, Math.ceil(W / 24) + 1);
-    const railNote = 'Separate toe kick base: built as one ladder for the run (join rails over a cross piece), set and leveled before the cases go on (on carpet, cut the carpet back under it)';
-    parts.push({ name: 'Toe kick base, front rail', role: 'nailer', material: 'box', length: W, width: kick, thickness: tn, cut: true, note: railNote, boxes: [vb(0, 0, front, W, kick, ta)] });
-    parts.push({ name: 'Toe kick base, back rail', role: 'nailer', material: 'box', length: W, width: kick, thickness: tn, cut: true, note: railNote, boxes: [vb(0, 0, back, W, kick, ta)] });
-    for (let i = 0; i < n; i++) parts.push({ name: 'Toe kick base, cross piece', role: 'nailer', material: 'box', length: depthIn, width: kick, thickness: tn, cut: true,
-      note: `Between the rails, at each end and about every ${fmtShort(Math.round((W - ta) / (n - 1)))}; glued and screwed`,
-      boxes: [vb(i === n - 1 ? W - ta : (i * (W - ta)) / (n - 1), 0, back + ta, ta, kick, depthIn)] });
-    parts.push({
-      name: 'Toe kick skin', role: 'toekick', material: 'toeSkin', length: W, width: kick, thickness: s.toeKickSkin, cut: true,
-      note: 'Applied at install, continuous along the base',
-      boxes: [vb(0, 0, D - s.toeKickDepth - s.toeKickSkin, W, kick, s.toeKickSkin)],
-    });
+    const k = Math.ceil(L / 96 - 1e-6);
+    // Joints evenly along the run, moved 6" off any case joint they'd land on (a skin joint shouldn't line up with one)
+    const joints = Array.from({ length: k - 1 }, (_, j) => { const x = (L / k) * (j + 1); return (run?.seams ?? []).some((m) => Math.abs(m - x) < 2) ? Math.min(x + 6, 96 * (j + 1)) : x; });
+    const cuts = [0, ...joints, L];
+    const piece = L / k;
+    const nX = Math.max(2, Math.ceil(L / 24) + 1);
+    const spots = [...new Set([...Array.from({ length: nX }, (_, i) => (i * (L - ta)) / (nX - 1)), ...joints.map((x) => x - ta / 2)].map((x) => Math.round(x * 16) / 16))].sort((a, b) => a - b);
+    const under = run ? `under ${run.names.join(', ')}, ${fmtShort(L)} long` : 'under this case';
+    const railNote = `Separate toe kick base ${under}: one ladder, built and set level before the cases go on${k > 1 ? `; ${k} pieces end to end, joined over a cross piece` : ''} (on carpet, cut the carpet back under it)`;
+    for (let j = 0; j < k; j++) {
+      const x0 = cuts[j], len = cuts[j + 1] - cuts[j], part = k > 1 ? ` (${j + 1} of ${k})` : '';
+      parts.push({ name: `Toe kick base, front rail${part}`, role: 'nailer', material: 'box', length: len, width: kick, thickness: tn, cut: true, note: railNote, boxes: [vb(x0, 0, front, len, kick, ta)] });
+      parts.push({ name: `Toe kick base, back rail${part}`, role: 'nailer', material: 'box', length: len, width: kick, thickness: tn, cut: true, note: railNote, boxes: [vb(x0, 0, back, len, kick, ta)] });
+    }
+    for (const x of spots) parts.push({ name: 'Toe kick base, cross piece', role: 'nailer', material: 'box', length: depthIn, width: kick, thickness: tn, cut: true,
+      note: `Between the rails, at each end${k > 1 ? ', under each rail joint' : ''} and about every ${fmtShort(Math.round((L - ta) / (nX - 1)))}; glued and screwed`,
+      boxes: [vb(Math.min(x, L - ta), 0, back + ta, ta, kick, depthIn)] });
+    void piece;
+    for (let j = 0; j < k; j++) {
+      const x0 = cuts[j], len = cuts[j + 1] - cuts[j];
+      parts.push({
+        name: `Toe kick skin${k > 1 ? ` (${j + 1} of ${k})` : ''}`, role: 'toekick', material: 'toeSkin', length: len, width: kick, thickness: s.toeKickSkin, cut: true,
+        note: `Applied at install, continuous along the base${run ? ` ${under}` : ''}${k > 1 ? '; joined over a cross piece, away from a case joint' : ''}`,
+        boxes: [vb(x0, 0, D - s.toeKickDepth - s.toeKickSkin, len, kick, s.toeKickSkin)],
+      });
+    }
   } else if (kick > 0) {
     parts.push({
       name: 'Toe kick nailer', role: 'nailer', material: 'box', length: innerW, width: kick, thickness: tn, cut: true,

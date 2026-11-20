@@ -3002,5 +3002,19 @@ eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i
   eq('by room: a room line can be set like any other', proposalLines(set).find((l) => l.key === k)!.price, 5000);
 }
 
+// A separate toe kick base under touching cases is one continuous ladder and skin (Schmitt's walk-in)
+{
+  const sp = sampleProject();
+  const tall = sp.cabinets.find((c) => c.kind === 'tall') ?? sp.cabinets[0];
+  const mk = (id: string, offset: number, width: number) => ({ ...tall, id, name: id, kind: 'tall' as const, wall: 'left' as const, offset, width, depth: 18, elevation: 0, height: 95.25, base: { ...tall.base!, style: 'kick' as const, separate: true }, corner: undefined, island: undefined });
+  const cabs = [mk('A', 0, 36), mk('B', 36, 24), mk('C', 60, 49.5), mk('D', 109.5, 21)];
+  const parts = (c: typeof cabs[0]) => buildParts(c, sp.settings, resolveEnds(sp.room, cabs, c));
+  const kickParts = cabs.map((c) => parts(c).filter((x) => /Toe kick (base|skin)/.test(x.name)));
+  eq('continuous kick: only the first case carries it', kickParts.map((k) => k.length > 0).join(' '), 'true false false false');
+  const skins = kickParts[0].filter((x) => /skin/.test(x.name));
+  eq('continuous kick: skin runs the whole 130-1/2", in pieces under 96"', `${skins.reduce((t, x) => t + x.length, 0)} ${skins.every((x) => x.length <= 96)}`, '130.5 true');
+  eq('continuous kick: the cases still have no toe notch', parts(cabs[2]).some((x) => x.name === 'Toe kick nailer'), false);
+}
+
 console.log(failed ? `${failed} check(s) failed` : 'All model checks passed');
 process.exit(failed ? 1 : 0);

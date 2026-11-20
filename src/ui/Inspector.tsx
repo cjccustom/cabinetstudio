@@ -1158,7 +1158,20 @@ function BaseSection({ cab, set }: { cab: Cabinet; set: (patch: Partial<Cabinet>
         )}
       </div>
       {b.style === 'kick' && cab.kind !== 'wall' && (
-        <label className="check-inline"><input type="checkbox" checked={!!b.separate} onChange={(e) => put({ separate: e.target.checked || undefined })} /> Separate toe kick base (one ladder for the run; the cases sit on it)</label>
+        <>
+          <label className="check-inline"><input type="checkbox" checked={!!b.separate} onChange={(e) => put({ separate: e.target.checked || undefined })} /> Separate toe kick base (one ladder for the run; the cases sit on it)</label>
+          {(() => {
+            const wallCabs = useStore.getState().project.cabinets.filter((o) => o.wall === cab.wall && floorStanding(o) && !o.island && baseOf(o).style === 'kick');
+            const all = wallCabs.every((o) => baseOf(o).separate);
+            return wallCabs.length > 1 && (
+              <p className="hint">{all ? `Every floor cabinet on this wall (${wallCabs.map((o) => o.name).join(', ')}) sits on it: touching cases share one continuous ladder and skin, carried on the first one's parts.` : 'Touching cases on a separate base share one continuous ladder and skin.'}{' '}
+                <button className="link-btn" onClick={() => useStore.getState().commit((p) => ({ ...p, cabinets: p.cabinets.map((o) => (wallCabs.some((w) => w.id === o.id) ? { ...o, base: { ...defaultBase, ...o.base, separate: all ? undefined : true } } : o)) }))}>
+                  {all ? 'Take every cabinet on this wall off it' : `Put every floor cabinet on this wall on it (${wallCabs.length})`}
+                </button>
+              </p>
+            );
+          })()}
+        </>
       )}
       {b.style === 'baseboard' && (
         <div className="grid3">

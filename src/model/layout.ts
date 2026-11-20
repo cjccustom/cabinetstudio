@@ -1,6 +1,7 @@
 import type { EndInfo } from './parts';
 import type { Cabinet, Room, ShopSettings, WallId } from './types';
-import { crownFit, panelExtents, topThick } from './parts';
+import { crownFit, kickOf, panelExtents, topThick } from './parts';
+import { baseOf, floorStanding, fridgeBelow } from './cabinetBase';
 import { fmt } from '../units';
 import { cabinetCeiling, slopeFit, SLOPE_CLEAR } from './ceiling';
 
@@ -292,6 +293,11 @@ export function resolveEnds(room: Room, cabinets: Cabinet[], c: Cabinet): EndInf
     const last = run[run.length - 1];
     ends.topRun = { lead: run[0].id === c.id, span: last.offset + last.width - run[0].offset, last, lastRight: last.id === c.id ? ends.right : resolveEnds(room, cabinets, last).right, gaps: topGaps(run) };
   }
+  const kr = kickRun(cabinets, c);
+  if (kr) {
+    const last = kr[kr.length - 1];
+    ends.kickRun = { lead: kr[0].id === c.id, span: last.offset + last.width - kr[0].offset, names: kr.map((o) => o.name), seams: kr.slice(1).map((o) => o.offset - kr[0].offset) };
+  }
   const sr = subRun(cabinets, c);
   if (sr) {
     const last = sr[sr.length - 1];
@@ -337,6 +343,26 @@ const sameTop = (a: Cabinet, b: Cabinet) =>
   a.kind === 'base' && b.kind === 'base' && !!a.countertop && !!b.countertop && !a.island && !b.island && !a.corner && !b.corner
   && a.wall === b.wall && (a.topKind ?? 'stone') === (b.topKind ?? 'stone') && Math.abs(a.elevation + a.height - (b.elevation + b.height)) < 1 / 16
   && Math.abs((a.wallInset ?? 0) - (b.wallInset ?? 0)) < 1 / 16 && Math.abs(a.depth - b.depth) < 1 / 16;
+
+/** On a separate toe kick base (and its kick showing). */
+const onSeparateKick = (c: Cabinet, s?: ShopSettings) => floorStanding(c) && baseOf(c).style === 'kick' && !!baseOf(c).separate && !fridgeBelow(c) && (s ? kickOf(c, s) > 0 : true);
+
+/**
+ * The floor cabinets on one separate toe kick base with this one: touching neighbours along the wall
+ * on a separate base, the same depth and set out from the wall the same, left to right. Null when it stands alone.
+ */
+export function kickRun(cabinets: Cabinet[], c: Cabinet, s?: ShopSettings): Cabinet[] | null {
+  if (!onSeparateKick(c, s) || c.island) return null;
+  const row = cabinets.filter((o) => o.wall === c.wall && !o.island && onSeparateKick(o, s) && Math.abs(o.depth - c.depth) < 1 / 16 && (o.wallInset ?? 0) === (c.wallInset ?? 0)).sort((a, b) => a.offset - b.offset);
+  const runs: Cabinet[][] = [];
+  for (const o of row) {
+    const cur = runs[runs.length - 1];
+    const prev = cur?.[cur.length - 1];
+    if (prev && Math.abs(prev.offset + prev.width - o.offset) < 1 / 16) cur.push(o); else runs.push([o]);
+  }
+  const mine = runs.find((r) => r.some((o) => o.id === c.id));
+  return mine && mine.length > 1 ? mine : null;
+}
 
 /**
  * The cabinets whose countertop is one piece with this one's: touching neighbours along the wall
