@@ -220,6 +220,27 @@ export function frontBoxes(x: number, y: number, z: number, w: number, h: number
   return out;
 }
 
+/** How far an outside stile runs on behind the pilaster beside it, as the nailer for its face. */
+export const PILASTER_LAP = 1;
+
+/**
+ * The extra width on this cabinet's outside stile at that end, when a pilaster built as a face alone stands
+ * beside it with its face in front of this cabinet's face frame (so the stile can run on behind it). 0 otherwise.
+ */
+export function pilasterLap(c: Cabinet, s: ShopSettings, ends: EndInfo, side: 'left' | 'right'): number {
+  if (c.kind === 'pilaster' || c.kind === 'mantel' || c.kind === 'shelf') return 0;
+  const o = ends.beside?.(side);
+  if (!o || o.kind !== 'pilaster') return 0;
+  const ps = pilasterOf(o);
+  const faceT = s.ffThickness;
+  if (ps.face !== 'shop' || ps.build === 'box' || o.depth - faceT < 2) return 0;
+  // Its face's back at or in front of this face frame's front, and room in it for the lap
+  if (o.depth - faceT < c.depth - 1 / 16 || o.width < 2 * PILASTER_LAP + 1) return 0;
+  // It has to cover the stile's full height
+  if (o.elevation > c.elevation + 0.5 || o.elevation + o.height < c.elevation + c.height - 0.5) return 0;
+  return PILASTER_LAP;
+}
+
 export interface EndInfo {
   left: boolean;
   right: boolean;
@@ -588,8 +609,19 @@ function caseParts(c: Cabinet, s: ShopSettings, ends: EndInfo): Part[] {
   if (blind?.side === 'left') ox0 = Math.max(ox0, blindOpen);
   if (blind?.side === 'right') ox1 = Math.min(ox1, W - blindOpen);
   const cx = (ox0 + ox1) / 2;
-  for (const [x, extra, w] of [[0, sL, swL], [W - swR - sR, sR, swR]]) {
+  // Beside a pilaster built as a face alone (fastened to the cabinets on each side), the outside stile runs on
+  // behind the pilaster's face: the hidden part is the nailer the pilaster fastens to
+  const lapL = sL > 0 ? 0 : pilasterLap(c, s, ends, 'left'), lapR = sR > 0 ? 0 : pilasterLap(c, s, ends, 'right');
+  for (const [x, extra, w, lap] of [[-lapL, sL, swL, lapL], [W - swR - sR, sR, swR, lapR]]) {
     const scribed = extra > 0;
+    if (lap > 0) {
+      parts.push({
+        name: 'Stile, pilaster nailer', role: 'stile', material: 'faceframe', length: ffH, width: w + lap, thickness: ft, cut: true,
+        note: `${fmtShort(w)} shows + ${fmtShort(lap)} behind the pilaster: the pilaster face is glued and nailed to it`,
+        boxes: [vb(x, BL.stileY, zF, w + lap, ffH, ft)],
+      });
+      continue;
+    }
     parts.push({
       name: scribed ? 'Stile, extended' : 'Stile', role: 'stile', material: 'faceframe', length: ffH,
       width: w + extra + (scribed ? s.scribeAllowance : 0), thickness: ft, cut: true,

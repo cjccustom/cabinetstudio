@@ -8,7 +8,7 @@ import type { Cabinet, CabinetNote, Project } from '../model/types';
 import { applianceNotes } from '../model/appliances';
 import { cofferOf, fasciaBacking } from '../model/coffer';
 import { mantelNotes } from '../model/mantel';
-import { eff, panelOn } from '../model/parts';
+import { eff, panelOn, pilasterLap } from '../model/parts';
 import { resolveEnds } from '../model/layout';
 import { profileByNum, profileLabel } from '../model/moldings';
 import { fingerPullNote, hasFingerPulls, hasHardware } from '../model/pulls';
@@ -38,6 +38,12 @@ export function cabinetCallouts(p: Project, c: Cabinet): Callout[] {
     if (scribe) out.push({ text: `${side === 'left' ? 'Left' : 'Right'} stile extended ${fmt(scribe)}, scribe to the wall`, for: 'shop' });
   }
   // Shop only: the customer never hears about the separate base
+  {
+    // Outside stiles running on behind a pilaster's face, as its nailer
+    const es = eff(c, p.settings);
+    const laps = (['left', 'right'] as const).filter((sd) => pilasterLap(c, es, ends, sd) > 0);
+    if (laps.length) out.push({ text: `${laps.length > 1 ? 'Both outside stiles' : `The ${laps[0]} stile`} cut ${fmt(pilasterLap(c, es, ends, laps[0]))} wider than shows: it runs behind the pilaster face as its nailer`, for: 'shop' });
+  }
   if (c.base?.style === 'baseboard' && c.base.runBase && (c.base.platform ?? 0) > 0) out.push({ text: `Sits on a separate ${fmt(c.base.platform!)} base (built in ${c.base.sections ? `${c.base.sections} section${c.base.sections > 1 ? 's' : ''}` : 'sections'} for the run, ${fmt(c.depth - (c.base.setBack ?? 0.5))} deep, ${fmt(c.base.setBack ?? 0.5)} off the wall to shim); case and face frame sit on it, baseboard on its front, shimmed as needed`, for: 'shop' });
   if (c.kind !== 'wall' && c.base?.style === 'kick' && c.base.separate) out.push({ text: `Separate toe kick base (ladder, ${fmt(s.toeKickHeight)}): built and leveled once for the run; case has no toe notch and sits on it`, for: 'shop' });
   const base = baseLabel(c);

@@ -3032,6 +3032,12 @@ eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i
   const back = t1.find((x) => /^Base back rail/.test(x.name))!;
   eq('run base: 1/2" off the wall, front flush with the face frame, 5 1/2" tall', `${back.boxes[0].min[2]} ${(() => { const b = t1.find((x) => /^Base front rail/.test(x.name))!.boxes[0]; return b.min[2] + b.size[2]; })()} ${back.width}`, '0.5 12 5.5');
   eq('run base: the face frame stiles start on it', t2.find((x) => x.role === 'stile')!.boxes[0].min[1], 5.5);
+  // The outside stiles run 1" on behind each pilaster face, as its nailer; the openings don't change
+  const st = t1.filter((x) => x.role === 'stile');
+  eq('pilaster lap: both outside stiles 2 1/2" (1 1/2" shows + 1")', st.map((x) => `${x.name} ${x.width}`).join(' | '), 'Stile, pilaster nailer 2.5 | Stile, pilaster nailer 2.5');
+  eq('pilaster lap: they reach 1" past the case each side', `${st[0].boxes[0].min[0]} ${st[1].boxes[0].min[0] + st[1].boxes[0].size[0]}`, '-1 32.75');
+  const boxPil = cabs.map((c) => c.kind === 'pilaster' ? { ...c, pilaster: { ...c.pilaster!, build: 'box' as const } } : c);
+  eq('pilaster lap: none beside a pilaster built as a box', buildParts(boxPil[1], sp.settings, resolveEnds(sp.room, boxPil, boxPil[1])).filter((x) => x.role === 'stile').map((x) => x.width).join(' '), '1.5 1.5');
 }
 
 console.log(failed ? `${failed} check(s) failed` : 'All model checks passed');
