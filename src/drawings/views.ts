@@ -3,7 +3,7 @@
 import { tvSize, tvsOf } from '../model/tv';
 import { tablesOf } from '../model/tableParts';
 import type { Cabinet, Part, Project, WallId } from '../model/types';
-import { buildParts, eff, topThick } from '../model/parts';
+import { buildParts, eff, layoutRows, topThick } from '../model/parts';
 import { footprint, nextWall, resolveEnds, wallAxes, wallLength, wallNames, wallTransform } from '../model/layout';
 import { cabinetMoldings, mountShape, profileByNum, profileLabel, type Profile } from '../model/moldings';
 import { profileBreaks, runFaceOn, type EndCut } from './moldElev';
@@ -286,12 +286,14 @@ export function wallElevation(p: Project, wall: WallId, frame: Frame, mode: 'cus
   if (uppers.length) v.chainH([0, L, ...uppers.flatMap((c) => [c.offset, c.offset + c.width])], H, 0.35);
   v.dimH(0, L, 0, -0.83, undefined, true);
   // Heights up the right side: counter, bottom and top of the uppers, ceiling
-  const tops = floor.filter((c) => c.kind === 'base').map((c) => c.elevation + c.height + (c.countertop ? topThick(c) : 0));
+  const tops = [...floor.filter((c) => c.kind === 'base').map((c) => c.elevation + c.height + (c.countertop ? topThick(c) : 0)), ...floor.filter((c) => c.kind === 'tall').map((c) => c.elevation + c.height)];
   const cc = cofferOf(p);
   const fasciaY = cc.on && cc.perimeter ? [H - fasciaHeight(cc), ...(profileByNum(cc.picture) ? [H - fasciaHeight(cc) - mountShape(profileByNum(cc.picture)!).height] : [])] : [];
   const ys = [0, H, ...tops, ...uppers.flatMap((c) => [c.elevation, c.elevation + c.height]), ...fasciaY];
   v.chainV(ys, L + 4.5, 0.35);
   v.dimV(0, H, L + 4.5, 0.75, undefined, true);
+  // Inside each cabinet: open sections' clear sizes, drawer front sizes, rod heights
+  if (mode === 'customer') for (const c of cabs) insideDims(v, p, c);
   // Cabinet tags, and opening sizes
   // Tags: uppers in their middle, floor cabinets just under the floor line, clear of hardware
   for (const c of cabs) v.tag(c.offset + c.width / 2, isFloor(c) ? -v.p(0.2) : c.elevation + c.height / 2, c.name);
@@ -326,6 +328,67 @@ export function wallElevation(p: Project, wall: WallId, frame: Frame, mode: 'cus
   }
   v.text(L / 2, -v.p(1.12), wallNames[wall].toUpperCase(), 0.14, 'middle', 'lbl');
   return { svg: v.svg(), scale: perFoot };
+}
+
+/**
+ * The sizes a client asks about, drawn inside the cabinet: each open section's clear width and height
+ * (cubbies, shelving, hanging space), each drawer front's size, and each closet rod's height off the
+ * floor with the hanging room under it (and the spacing between two rods).
+ */
+function insideDims(v: View, p: Project, c: Cabinet) {
+  const parts = partsOf(p, c);
+  const X = (x: number) => c.offset + x, Y = (y: number) => c.elevation + y;
+  const { rows } = layoutRows(c, p.settings);
+  // The face frame's verticals (end stiles, mid stiles), to find each cubby's clear width
+  const stiles = parts.filter((x) => x.role === 'stile').flatMap((x) => x.boxes);
+  const fronts = parts.filter((x) => x.role === 'door' || x.role === 'drawerFront');
+  const covered = (x0: number, x1: number, y0: number, y1: number) => fronts.some((f) => f.boxes.some((b) => b.min[0] < x1 - 0.5 && b.min[0] + b.size[0] > x0 + 0.5 && b.min[1] < y1 - 0.5 && b.min[1] + b.size[1] > y0 + 0.5));
+  const fs = 0.065;
+  c.rows.forEach((r, i) => {
+    const L = rows[i];
+    if (!L || L.height < 2) return;
+    const ym = (L.y0 + L.y1) / 2;
+    const here = stiles.filter((b) => b.min[1] <= ym && b.min[1] + b.size[1] >= ym).map((b) => [b.min[0], b.min[0] + b.size[0]] as const).sort((a, b) => a[0] - b[0]);
+    const spans: [number, number][] = [];
+    for (let k = 0; k + 1 < here.length; k++) if (here[k + 1][0] - here[k][1] > 2) spans.push([here[k][1], here[k + 1][0]]);
+    for (const [x0, x1] of spans) {
+      if (covered(x0, x1, L.y0, L.y1)) continue;
+      const w = x1 - x0, h = L.y1 - L.y0;
+      // Width along the top of the opening, height up its left side, small and inside
+      if (w >= 6) v.dimH(X(x0), X(x1), Y(L.y0), 0.12, `${dimText(w)}`);
+      if (h >= 6) v.dimV(Y(L.y0), Y(L.y1), X(x0), 0.12, `${dimText(h)}`);
+    }
+  });
+  // Drawer fronts: their size, under the pull
+  // A five-piece front is several boxes (stiles, rails, panel): merge touching ones into each front's outline
+  const rects: [number, number, number, number][] = [];
+  for (const b of parts.filter((x) => x.role === 'drawerFront').flatMap((x) => x.boxes)) {
+    let r: [number, number, number, number] = [b.min[0], b.min[1], b.min[0] + b.size[0], b.min[1] + b.size[1]];
+    for (let k = rects.length - 1; k >= 0; k--) {
+      const o = rects[k];
+      if (o[0] <= r[2] + 0.01 && r[0] <= o[2] + 0.01 && o[1] <= r[3] + 0.01 && r[1] <= o[3] + 0.01) { r = [Math.min(o[0], r[0]), Math.min(o[1], r[1]), Math.max(o[2], r[2]), Math.max(o[3], r[3])]; rects.splice(k, 1); }
+    }
+    rects.push(r);
+  }
+  for (const [x0, y0, x1, y1] of rects) {
+    if (y1 - y0 < 3) continue;
+    v.text(X((x0 + x1) / 2), Y(y0) + v.p(0.15), `${dimText(x1 - x0)} × ${dimText(y1 - y0)}`, fs);
+  }
+  // Closet rods: a label over each rod, and a chain up the right of its opening: from the bottom of the
+  // opening (or the floor) to each rod, so the hanging room and the spacing between two rods both read
+  const r8 = (v0: number) => Math.round(v0 * 8) / 8;
+  const rodBoxes = parts.filter((x) => x.role === 'rod').flatMap((x) => x.boxes);
+  for (const L of rows) {
+    const inRow = rodBoxes.filter((b) => b.min[1] >= L.y0 - 0.5 && b.min[1] <= L.y1 + 0.5);
+    if (!inRow.length) continue;
+    const x1 = Math.max(...inRow.map((b) => b.min[0] + b.size[0]));
+    const ys = inRow.map((b) => r8(Y(b.min[1] + b.size[1] / 2)));
+    v.chainV([r8(Y(L.y0)), ...ys], X(x1), -0.14);
+    for (const b of inRow) {
+      const yc = r8(Y(b.min[1] + b.size[1] / 2));
+      v.text(X(b.min[0] + b.size[0] / 2), yc + v.p(0.05), `Rod ${dimText(yc)} AFF`, fs);
+    }
+  }
 }
 
 /** The floor plan: walls, cabinets (uppers dashed), doors and windows, and runs dimensioned along each wall. */
