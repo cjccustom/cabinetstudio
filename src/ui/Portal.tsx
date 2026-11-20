@@ -213,6 +213,13 @@ export function ClientPortal() {
     rend.forEach((r, i) => { html = html.split(`/p/preview/img/r${i}`).join(`data:${r.mimeType};base64,${r.data}`); });
     // Nothing can be signed here: say so where they'd sign
     html = html.replace('<button class="btn" id="go" disabled>Sign the agreement</button>', '<button class="btn" disabled>Preview only: sign on the real page</button>');
+    // The page's own links (the printable agreement, drawings, 3D) lead to the live portal, not this preview:
+    // the agreement link opens the agreement right here; the others say where they go
+    const previewLinks = `<script>document.addEventListener('click',function(e){var a=e.target.closest&&e.target.closest('a[href^="/p/preview"]');if(!a)return;e.preventDefault();
+var h=a.getAttribute('href');if(/\\/agreement$/.test(h)){var d=document.querySelector('details.agree');if(d){d.open=true;d.scrollIntoView({behavior:'smooth',block:'start'})}return}
+var n=document.getElementById('pv-note');if(!n){n=document.createElement('div');n.id='pv-note';n.style.cssText='position:fixed;left:50%;bottom:16px;transform:translateX(-50%);background:#222;color:#fff;padding:8px 14px;border-radius:8px;font:14px system-ui;z-index:9';document.body.appendChild(n)}
+n.textContent='That opens on the client’s real page (this is a preview).';clearTimeout(n._t);n._t=setTimeout(function(){n.remove()},2600)});</script>`;
+    html = html.includes('</body>') ? html.replace('</body>', `${previewLinks}</body>`) : html + previewLinks;
     setPreview({ html, offline });
   });
 
