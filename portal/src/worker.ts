@@ -757,7 +757,26 @@ async function tool(name: string, a: Record<string, unknown>, env: Env, url: URL
       return { ok: true, deleted: j.jobId, appointments: appts.length };
     }
     case 'publish_drawings': {
-      let doc = String(a.html || '');
+      // A big set comes in pieces (each call is limited in size): the whole call as JSON, cut up, each piece
+      // in html behind <!--CJC-PART i/n id-->; the last piece puts the call back together
+      let d: Record<string, unknown> = a;
+      const pm = String(a.html || '').match(/^<!--CJC-PART (\d+)\/(\d+) ([A-Za-z0-9]{4,40})-->/);
+      if (pm) {
+        const i = Number(pm[1]), n = Number(pm[2]), id = pm[3];
+        if (!(n >= 1 && n <= 200 && i >= 0 && i < n)) throw new Error('Send the drawings as part 0 to n-1 of n (at most 200).');
+        const key = (k: number) => `dwgp:${id}:${k}`;
+        await env.PORTAL.put(key(i), JSON.stringify(String(a.html).slice(pm[0].length)), { expirationTtl: 3600 });
+        if (i < n - 1) return { received: i + 1, of: n };
+        let text = '';
+        for (let k = 0; k < n; k++) {
+          const piece = (await env.PORTAL.get(key(k), 'json')) as string | null;
+          if (piece == null) throw new Error(`Piece ${k + 1} of the drawings is missing; send them again.`);
+          text += piece;
+        }
+        for (let k = 0; k < n; k++) await env.PORTAL.delete(key(k));
+        try { d = { ...(JSON.parse(text) as Record<string, unknown>), job_id: a.job_id }; } catch { throw new Error('The drawings came through incomplete; send them again.'); }
+      }
+      let doc = String(d.html || '');
       // A design draft for a returning client rides inside the document: <!--CJC-DESIGN base64(json)-->
       const dm = doc.match(/<!--CJC-DESIGN ([A-Za-z0-9+/=]+) -->/);
       let design: { project?: string; client?: Job['client'] } | null = null;
@@ -765,7 +784,7 @@ async function tool(name: string, a: Record<string, unknown>, env: Env, url: URL
         doc = doc.replace(dm[0], '');
         try { design = JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(dm[1]), (c) => c.charCodeAt(0)))); } catch { design = {}; }
       }
-      const jobId = String(a.job_id || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 64);
+      const jobId = String(d.job_id || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 64);
       let j = await getJob(env, jobId);
       if (design && !j) {
         // A page with the design and nothing to sign yet; the proposal comes later to the same link
@@ -786,10 +805,10 @@ async function tool(name: string, a: Record<string, unknown>, env: Env, url: URL
       if (!doc || doc.length > 20e6) throw new Error('The drawing set is empty or over 20 MB.');
       await env.PORTAL.put(`dwg:${j.jobId}`, new TextEncoder().encode(doc).buffer as ArrayBuffer);
       // The sheets one by one, for the page where the client marks changes on them
-      const sheets = Array.isArray(a.sheets) ? (a.sheets as { number?: string; title?: string; svg?: string }[]).filter((x) => typeof x.svg === 'string' && x.svg.startsWith('<svg')).slice(0, 80).map((x) => ({ number: String(x.number || '').slice(0, 12), title: String(x.title || '').slice(0, 120), svg: x.svg! })) : [];
-      if (sheets.length) await env.PORTAL.put(`dwgs:${j.jobId}`, JSON.stringify({ css: String(a.css || ''), sheets } satisfies DrawingSheets));
+      const sheets = Array.isArray(d.sheets) ? (d.sheets as { number?: string; title?: string; svg?: string }[]).filter((x) => typeof x.svg === 'string' && x.svg.startsWith('<svg')).slice(0, 80).map((x) => ({ number: String(x.number || '').slice(0, 12), title: String(x.title || '').slice(0, 120), svg: x.svg! })) : [];
+      if (sheets.length) await env.PORTAL.put(`dwgs:${j.jobId}`, JSON.stringify({ css: String(d.css || ''), sheets } satisfies DrawingSheets));
       else await env.PORTAL.delete(`dwgs:${j.jobId}`);
-      j.drawings = { publishedAt: Date.now(), version: (j.drawings?.version ?? 0) + 1, title: String(a.title || 'Drawings').slice(0, 120) };
+      j.drawings = { publishedAt: Date.now(), version: (j.drawings?.version ?? 0) + 1, title: String(d.title || 'Drawings').slice(0, 120) };
       await putJob(env, j);
       return status(j, url);
     }

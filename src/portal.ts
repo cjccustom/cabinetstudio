@@ -92,8 +92,23 @@ export const deleteShopDoc = (id: string) => call('delete_shop_doc', { id });
 export const publishProposal = (p: Proposal) => call<JobStatus>('publish_proposal', p as unknown as Raw);
 export const jobStatus = (jobId: string) => call<JobStatus>('job_status', { job_id: jobId });
 export const listJobs = async () => (await call<{ jobs: JobStatus[] }>('list_jobs')).jobs;
-export const publishDrawings = (jobId: string, html: string, title: string, css: string, sheets: { number: string; title: string; svg: string }[]) =>
-  call<JobStatus>('publish_drawings', { job_id: jobId, html, title, css, sheets } as unknown as Raw);
+/**
+ * The drawing set on the client's page. Each call to the portal is limited in size, so a big set (the
+ * printable document plus each sheet for marking up) goes as its JSON in pieces, the last putting it together.
+ */
+export async function publishDrawings(jobId: string, html: string, title: string, css: string, sheets: { number: string; title: string; svg: string }[], onProgress?: (done: number, of: number) => void): Promise<JobStatus> {
+  const whole = { job_id: jobId, html, title, css, sheets };
+  const text = JSON.stringify({ html, title, css, sheets });
+  if (text.length <= PIECE_B64) return call<JobStatus>('publish_drawings', whole as unknown as Raw);
+  const id = Math.random().toString(36).slice(2, 12);
+  const n = Math.ceil(text.length / PIECE_B64);
+  let last: unknown = null;
+  for (let i = 0; i < n; i++) {
+    onProgress?.(i, n);
+    last = await call('publish_drawings', { job_id: jobId, html: `<!--CJC-PART ${i}/${n} ${id}-->${text.slice(i * PIECE_B64, (i + 1) * PIECE_B64)}` });
+  }
+  return last as JobStatus;
+}
 export const replyComment = (jobId: string, text: string, about = 'proposal') => call<JobStatus>('reply_comment', { job_id: jobId, text, about });
 export const markCommentsRead = (jobId: string) => call<JobStatus>('mark_comments_read', { job_id: jobId });
 export type ApptKind = 'measure' | 'design' | 'review' | 'install' | 'delivery' | 'other';

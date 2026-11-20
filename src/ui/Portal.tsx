@@ -263,7 +263,7 @@ n.textContent='That opens on the client’s real page (this is a preview).';clea
     const d = drawingsOf(project);
     const title = `Drawings for review: ${project.name || 'your project'}`;
     const sheets = jobCustomerSet(await withPictures(project));
-    const s2 = await publishDrawings(portal!.jobId, setDocument(title, sheets, d.paper), 'Drawings for your review', sheetCss, sheets.map((x) => ({ number: x.number, title: x.title, svg: x.svg })));
+    const s2 = await publishDrawings(portal!.jobId, setDocument(title, sheets, d.paper), 'Drawings for your review', sheetCss, sheets.map((x) => ({ number: x.number, title: x.title, svg: x.svg })), (i, of) => setNote(`Sending the drawings… ${Math.round((i / of) * 100)}%`));
     keep(s2, portal!.jobId);
     markIssued();
     // The 3D model goes with them, for the customer to look around and pin notes on
@@ -290,7 +290,7 @@ n.textContent='That opens on the client’s real page (this is a preview).';clea
     // The request rides inside the document, so a connector that hasn't picked up new fields still carries it
     const ask = { project: proposalTitle(project), client: { first: c.first, last: c.last, email: c.email, phone: c.phone, address: c.address } };
     const carried = `<!--CJC-DESIGN ${btoa(String.fromCharCode(...new TextEncoder().encode(JSON.stringify(ask))))} -->`;
-    const s2 = await publishDrawings(jobId, carried + setDocument(title, sheets, d.paper), 'Design draft for discussion', sheetCss, sheets.map((x) => ({ number: x.number, title: x.title, svg: x.svg })));
+    const s2 = await publishDrawings(jobId, carried + setDocument(title, sheets, d.paper), 'Design draft for discussion', sheetCss, sheets.map((x) => ({ number: x.number, title: x.title, svg: x.svg })), (i, of) => setNote(`Sending the drawings… ${Math.round((i / of) * 100)}%`));
     keep(s2, jobId);
     markIssued();
     let sent3d = '';

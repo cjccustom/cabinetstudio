@@ -1635,7 +1635,28 @@ ${shop.terms}`);
       return { ok: true, deleted: j.jobId, appointments: appts.length };
     }
     case "publish_drawings": {
-      let doc = String(a.html || "");
+      let d = a;
+      const pm = String(a.html || "").match(/^<!--CJC-PART (\d+)\/(\d+) ([A-Za-z0-9]{4,40})-->/);
+      if (pm) {
+        const i = Number(pm[1]), n = Number(pm[2]), id = pm[3];
+        if (!(n >= 1 && n <= 200 && i >= 0 && i < n)) throw new Error("Send the drawings as part 0 to n-1 of n (at most 200).");
+        const key = (k) => `dwgp:${id}:${k}`;
+        await env.PORTAL.put(key(i), JSON.stringify(String(a.html).slice(pm[0].length)), { expirationTtl: 3600 });
+        if (i < n - 1) return { received: i + 1, of: n };
+        let text2 = "";
+        for (let k = 0; k < n; k++) {
+          const piece = await env.PORTAL.get(key(k), "json");
+          if (piece == null) throw new Error(`Piece ${k + 1} of the drawings is missing; send them again.`);
+          text2 += piece;
+        }
+        for (let k = 0; k < n; k++) await env.PORTAL.delete(key(k));
+        try {
+          d = { ...JSON.parse(text2), job_id: a.job_id };
+        } catch {
+          throw new Error("The drawings came through incomplete; send them again.");
+        }
+      }
+      let doc = String(d.html || "");
       const dm = doc.match(/<!--CJC-DESIGN ([A-Za-z0-9+/=]+) -->/);
       let design = null;
       if (dm) {
@@ -1646,7 +1667,7 @@ ${shop.terms}`);
           design = {};
         }
       }
-      const jobId = String(a.job_id || "").replace(/[^A-Za-z0-9_-]/g, "").slice(0, 64);
+      const jobId = String(d.job_id || "").replace(/[^A-Za-z0-9_-]/g, "").slice(0, 64);
       let j = await getJob(env, jobId);
       if (design && !j) {
         if (!jobId) throw new Error("job_id is needed.");
@@ -1674,10 +1695,10 @@ ${shop.terms}`);
       if (!canSeeDesign(j)) throw new Error("Drawings go to the client after the agreement is signed. For a returning client, share the design draft from Cabinet Studio instead.");
       if (!doc || doc.length > 2e7) throw new Error("The drawing set is empty or over 20 MB.");
       await env.PORTAL.put(`dwg:${j.jobId}`, new TextEncoder().encode(doc).buffer);
-      const sheets = Array.isArray(a.sheets) ? a.sheets.filter((x) => typeof x.svg === "string" && x.svg.startsWith("<svg")).slice(0, 80).map((x) => ({ number: String(x.number || "").slice(0, 12), title: String(x.title || "").slice(0, 120), svg: x.svg })) : [];
-      if (sheets.length) await env.PORTAL.put(`dwgs:${j.jobId}`, JSON.stringify({ css: String(a.css || ""), sheets }));
+      const sheets = Array.isArray(d.sheets) ? d.sheets.filter((x) => typeof x.svg === "string" && x.svg.startsWith("<svg")).slice(0, 80).map((x) => ({ number: String(x.number || "").slice(0, 12), title: String(x.title || "").slice(0, 120), svg: x.svg })) : [];
+      if (sheets.length) await env.PORTAL.put(`dwgs:${j.jobId}`, JSON.stringify({ css: String(d.css || ""), sheets }));
       else await env.PORTAL.delete(`dwgs:${j.jobId}`);
-      j.drawings = { publishedAt: Date.now(), version: (j.drawings?.version ?? 0) + 1, title: String(a.title || "Drawings").slice(0, 120) };
+      j.drawings = { publishedAt: Date.now(), version: (j.drawings?.version ?? 0) + 1, title: String(d.title || "Drawings").slice(0, 120) };
       await putJob(env, j);
       return status(j, url);
     }
