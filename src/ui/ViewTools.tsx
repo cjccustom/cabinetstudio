@@ -10,14 +10,16 @@ export function ViewTools() {
   const flat = view !== '3d';
   return (
     <div className="view-tools" role="toolbar" aria-label="View">
-      {!flat && (
+      {!flat && <button className={nav.walk ? 'on' : ''} aria-pressed={nav.walk} onClick={() => nav.setWalk(!nav.walk)} title="Stand in the room at eye height: drag to look around, tap the floor to walk there, tap a cabinet to walk up to it">{nav.walk ? 'Back to overview' : 'Stand in the room'}</button>}
+      {!flat && nav.walk && <button onClick={nav.turnAround}>Turn around</button>}
+      {!flat && !nav.walk && (
         <div className="seg" role="radiogroup" aria-label="Left-drag">
           <button role="radio" aria-checked={nav.mode === 'orbit'} className={nav.mode === 'orbit' ? 'on' : ''} onClick={() => nav.setMode('orbit')} title="Left-drag turns the view">Orbit</button>
           <button role="radio" aria-checked={nav.mode === 'pan'} className={nav.mode === 'pan' ? 'on' : ''} onClick={() => nav.setMode('pan')} title="Left-drag slides the view">Pan</button>
         </div>
       )}
-      <button className="icon-btn" aria-label="Zoom out" title="Zoom out" onClick={() => zoomStep(false)}>−</button>
-      <button className="icon-btn" aria-label="Zoom in" title="Zoom in" onClick={() => zoomStep(true)}>+</button>
+      {!nav.walk && <button className="icon-btn" aria-label="Zoom out" title="Zoom out" onClick={() => zoomStep(false)}>−</button>}
+      {!nav.walk && <button className="icon-btn" aria-label="Zoom in" title="Zoom in" onClick={() => zoomStep(true)}>+</button>}
       <button onClick={nav.reset} title="Back to the starting view">Reset view</button>
       {hasCeiling && <label className="check-inline" style={{ marginTop: 0 }}><input type="checkbox" checked={nav.ceiling} onChange={(e) => nav.setCeiling(e.target.checked)} /> Ceiling</label>}
       {!flat && <label className="check-inline" style={{ marginTop: 0 }} title="Hide the room's walls to see the work from any side"><input type="checkbox" checked={nav.walls} onChange={(e) => nav.setWalls(e.target.checked)} /> Walls</label>}
@@ -35,7 +37,8 @@ export function ViewTools() {
 }
 
 /** One line on how to get around, for the corner of the view. */
-export function navHint(view: string, pointer: 'mouse' | 'trackpad', mode: 'orbit' | 'pan') {
+export function navHint(view: string, pointer: 'mouse' | 'trackpad', mode: 'orbit' | 'pan', walk = false) {
+  if (view === '3d' && walk) return 'Drag to look · tap the floor to walk · tap a cabinet to go to it';
   const zoom = pointer === 'trackpad' ? 'pinch to zoom, two-finger swipe to pan' : 'scroll to zoom at the cursor';
   if (view !== '3d') return `Drag to pan · ${zoom}`;
   const drag = mode === 'pan' ? 'Drag to pan · right-drag to pan' : 'Drag to orbit · Shift-drag or right-drag to pan';

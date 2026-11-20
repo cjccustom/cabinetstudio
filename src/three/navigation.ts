@@ -16,6 +16,12 @@ export const useNav = create<{
   pointerChosen: boolean;
   /** Bumped to put the camera back where each view starts. */
   resetKey: number;
+  /** Standing in the room at eye height (3D view): drag to look, tap to walk. */
+  walk: boolean;
+  setWalk: (on: boolean) => void;
+  /** Bumped to turn around while standing in the room. */
+  turnKey: number;
+  turnAround: () => void;
   /** Draw the coffered ceiling (it can hide the room from above). */
   ceiling: boolean;
   setCeiling: (on: boolean) => void;
@@ -46,6 +52,10 @@ export const useNav = create<{
   pointer: load('cabinet-studio.pointer', ['mouse', 'trackpad'], 'mouse'),
   pointerChosen: load('cabinet-studio.pointerChosen', ['yes', 'no'], 'no') === 'yes',
   resetKey: 0,
+  walk: false,
+  setWalk: (walk) => set((s) => ({ walk, resetKey: s.resetKey + 1 })),
+  turnKey: 0,
+  turnAround: () => set((s) => ({ turnKey: s.turnKey + 1 })),
   ceiling: load('cabinet-studio.ceiling', ['on', 'off'], 'on') === 'on',
   setCeiling: (on) => { save('cabinet-studio.ceiling', on ? 'on' : 'off'); set({ ceiling: on }); },
   lights: load('cabinet-studio.lights', ['on', 'off'], 'on') === 'on',

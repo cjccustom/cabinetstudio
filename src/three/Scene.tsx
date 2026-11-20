@@ -21,6 +21,7 @@ import { MoldingModel } from './MoldingModel';
 import { CabinetLights } from './CabinetLights';
 import { ApplianceModel } from './ApplianceModel';
 import { live, onWheel, useNav } from './navigation';
+import { WalkControls } from './WalkControls';
 import { RoomModel } from './RoomModel';
 import { CofferModel } from './CofferModel';
 import { LadderModel } from './LadderModel';
@@ -159,6 +160,14 @@ function Cameras({ view, room }: { view: ViewMode; room: Room }) {
   const buttons = (flat: boolean) => ({ LEFT: flat || nav.mode === 'pan' ? THREE.MOUSE.PAN : THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.PAN, RIGHT: THREE.MOUSE.PAN });
   const k = nav.resetKey;
   const { width: W, depth: D, height: H } = room;
+  if (view === '3d' && nav.walk) {
+    return (
+      <>
+        <PerspectiveCamera key={`walk-${k}`} makeDefault fov={68} near={1} far={8000} />
+        <WalkControls key={`walk-ctl-${k}`} room={room} />
+      </>
+    );
+  }
   if (view === '3d') {
     const target: [number, number, number] = [W / 2, 34, D * 0.35];
     return (
@@ -337,7 +346,7 @@ function CabinetModel(props: {
 
   const onDown = (e: ThreeEvent<PointerEvent>) => {
     // Showing the customer: a drag only turns the view
-    if (e.button !== 0 || useStore.getState().present) return;
+    if (e.button !== 0 || useStore.getState().present || useNav.getState().walk) return;
     // Phones and tablets don't send double-clicks: two quick taps on the same cabinet open the editor
     if (e.nativeEvent.pointerType === 'touch') {
       // The time the finger came down, not when the busy page got to it
@@ -454,7 +463,7 @@ function CabinetModel(props: {
       onPointerDown={onDown}
       onPointerMove={onMove}
       onPointerUp={onUp}
-      onClick={(e) => { if (useStore.getState().present && view === '3d' && e.delta < 6) { e.stopPropagation(); useNav.getState().toggleOpen(cab.id); } }}
+      onClick={(e) => { if (useStore.getState().present && !useNav.getState().walk && view === '3d' && e.delta < 6) { e.stopPropagation(); useNav.getState().toggleOpen(cab.id); } }}
       onDoubleClick={(e) => { e.stopPropagation(); useStore.getState().edit({ kind: 'cabinet', id: cab.id }); }}
       onPointerOver={(e) => { e.stopPropagation(); document.body.style.cursor = 'grab'; }}
       onPointerOut={() => { document.body.style.cursor = ''; }}
@@ -547,7 +556,7 @@ function WallPanelModel({ panel: w, room, finishes, selected }: { panel: WallPan
   }, [w.profile, w.spacing, w.width, w.bottom, w.height]);
   useEffect(() => () => beads.dispose(), [beads]);
   const select = (e: ThreeEvent<PointerEvent>) => {
-    if (useStore.getState().present) return;
+    if (useStore.getState().present || useNav.getState().walk) return;
     if (e.button !== 0) return;
     e.stopPropagation();
     useStore.getState().select(w.id);

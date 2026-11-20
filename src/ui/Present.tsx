@@ -44,8 +44,10 @@ export function Present() {
           {pieces.map((t) => <button key={t.id} role="tab" aria-selected={piece?.id === t.id} className={piece?.id === t.id ? 'on' : ''} onClick={() => setSolo(t.id)} title="On its own, to look over up close">{t.name}</button>)}
         </div>
         <div className="present-tools">
-          {!piece && <button className="icon-btn" aria-label="Zoom out" onClick={() => zoomStep(false)}>−</button>}
-          {!piece && <button className="icon-btn" aria-label="Zoom in" onClick={() => zoomStep(true)}>+</button>}
+          {!piece && view === '3d' && <button className={nav.walk ? 'on' : ''} aria-pressed={nav.walk} onClick={() => nav.setWalk(!nav.walk)} title="Stand in the room: drag to look around, tap the floor to walk there, tap a cabinet to walk up to it">{nav.walk ? 'Back to overview' : 'Stand in the room'}</button>}
+          {!piece && view === '3d' && nav.walk && <button onClick={nav.turnAround}>Turn around</button>}
+          {!piece && !nav.walk && <button className="icon-btn" aria-label="Zoom out" onClick={() => zoomStep(false)}>−</button>}
+          {!piece && !nav.walk && <button className="icon-btn" aria-label="Zoom in" onClick={() => zoomStep(true)}>+</button>}
           <button onClick={() => (piece ? setSoloKey((k) => k + 1) : nav.reset())}>Reset view</button>
           {!piece && view === '3d' && <button className={nav.allOpen ? 'on' : ''} aria-pressed={nav.allOpen} onClick={() => nav.setAllOpen(!nav.allOpen)} title="Or tap a cabinet to open just that one">{nav.allOpen ? 'Close doors' : 'Open doors'}</button>}
           <button className="primary" onClick={() => setPresent(false)} title="Back to the design (Esc)">Exit</button>

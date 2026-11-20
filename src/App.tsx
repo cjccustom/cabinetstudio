@@ -171,7 +171,7 @@ export default function App() {
 
       <main className="stage">
         <div className="view-caption">
-          {view === 'plan' ? 'Plan view · back wall at top · ' : view === '3d' ? '' : `${wallNames[view.slice(5) as keyof typeof wallNames]} elevation · `}{navHint(view, nav.pointer, nav.mode)}
+          {view === 'plan' ? 'Plan view · back wall at top · ' : view === '3d' ? '' : `${wallNames[view.slice(5) as keyof typeof wallNames]} elevation · `}{navHint(view, nav.pointer, nav.mode, nav.walk)}
         </div>
         <Scene issueIds={issueIds} />
         <div className="render-view"><ViewTools />{view !== 'plan' && <CoverButton />}{view !== 'plan' && <ShotButton />}{view !== 'plan' && <DesignRenderButton />}</div>
