@@ -2972,5 +2972,19 @@ eq('sample has no layout issues', findIssues(p.room, p.cabinets, s).map((i) => i
   eq('slope crown: crown that reaches the slope is flagged', /runs into the sloped ceiling/.test(crownMsg({ ...up, elevation: 93 })[0]?.message ?? ''), true);
 }
 
+// Open cubbies at the top of a base never show stretchers: a solid plywood top instead (Schmitt's bench)
+{
+  const sp = sampleProject();
+  const base = sp.cabinets.find((c) => c.kind === 'base')!;
+  const bench = { ...base, id: 'bn', name: 'B9', height: 14.5, depth: 18, countertop: false, rows: [{ ...base.rows[0], type: 'open' as const, height: null, dividers: 2, shelves: 0 }] };
+  const names = (c: typeof bench) => buildParts(c, sp.settings).map((x) => x.name);
+  eq('open cubbies: no stretchers, a solid top', `${names(bench).some((n) => /stretcher/.test(n))} ${names(bench).includes('Top')}`, 'false true');
+  eq('open cubbies: stretchers only if picked by hand', names({ ...bench, build: { ...bench.build, top: 'stretchers' } }).some((n) => /stretcher/.test(n)), true);
+  eq('drawer bases keep their stretchers', names(base).some((n) => /stretcher/.test(n)), true);
+  const seat = { ...bench, cushion: { thickness: 2, edge: 'boxed' as const, source: 'upholsterer' as const, fabric: '' } };
+  const cu = buildParts(seat as never, sp.settings).find((x) => x.name === 'Seat cushion');
+  eq('bench without a countertop keeps its cushion, on the plywood top', cu ? `${cu.length} ${cu.width}` : 'none', `${bench.width} 18`);
+}
+
 console.log(failed ? `${failed} check(s) failed` : 'All model checks passed');
 process.exit(failed ? 1 : 0);

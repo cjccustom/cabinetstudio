@@ -65,6 +65,17 @@ export function bayEdges(x0: number, x1: number, n: number, w: number): { bay: n
 
 /** Open to the room: open shelves, or hanging space. */
 export const isOpenRow = (t: FaceRow['type'], covered?: boolean) => t === 'open' || ((t === 'hang' || t === 'shoes') && !covered);
+
+/**
+ * A base cabinet's case top: stretchers, or a solid plywood top. Open cubbies at the top never show
+ * stretchers, so they get the solid top unless stretchers were picked by hand.
+ */
+export function solidTopOf(c: Cabinet): boolean {
+  if (c.kind !== 'base') return false;
+  if (c.build?.top) return c.build.top === 'solid';
+  const top = c.rows[0];
+  return !!top && isOpenRow(top.type, top.covered);
+}
 /** Rows behind doors: door rows, and hanging or shoe space closed in for a wardrobe. */
 export const hasDoors = (r: FaceRow) => r.type === 'doors' || (!!r.covered && (r.type === 'hang' || r.type === 'shoes'));
 /** Shoe shelves: tipped about 15° to the front, a fence on the front edge to stop the heels. */
@@ -446,7 +457,7 @@ function caseParts(c: Cabinet, s: ShopSettings, ends: EndInfo): Part[] {
 
   // Top: stretchers in rabbets on base cabinets, a full panel in dados on wall and tall
   let topUnder = H;
-  if (c.kind === 'base' && c.build?.top === 'solid') {
+  if (solidTopOf(c)) {
     // A solid top in place of the stretchers, so the inside looks finished from below the counter
     parts.push({
       name: 'Top', role: 'top', material: 'box', length: cutW, width: boxD - rw, thickness: tn, cut: true, banded: fl || undefined,
@@ -942,6 +953,12 @@ function caseParts(c: Cabinet, s: ShopSettings, ends: EndInfo): Part[] {
         note: `Custom, ${cu.source === 'online' ? 'ordered made to size online' : 'by the upholsterer'}: ${fmtShort(cu.thickness)} foam, ${cu.edge === 'boxed' ? 'boxed edge with welt' : 'knife edge'}; ${cu.fabric?.trim() || 'fabric to be selected'}. ${cu.source === 'online' ? 'Order once the bench is built and measured.' : 'Upholsterer to confirm size on site.'}${cu.notes?.trim() ? ` ${cu.notes.trim()}` : ''}`,
         boxes: [vb(b.min[0], b.min[1] + b.size[1], b.min[2], b.size[0], cu.thickness, b.size[2], 0.9)] });
     }
+  } else if (c.kind === 'base' && c.cushion && solidTopOf(c)) {
+    // No countertop: the cushion sits on the case's own plywood top, the face frame's full width and depth
+    const cu = c.cushion;
+    parts.push({ name: 'Seat cushion', role: 'cushion', material: 'upholstery', length: W, width: D, thickness: cu.thickness, cut: false,
+      note: `Custom, ${cu.source === 'online' ? 'ordered made to size online' : 'by the upholsterer'}: ${fmtShort(cu.thickness)} foam, ${cu.edge === 'boxed' ? 'boxed edge with welt' : 'knife edge'}; ${cu.fabric?.trim() || 'fabric to be selected'}. On the plywood top, flush with the face frame. ${cu.source === 'online' ? 'Order once the bench is built and measured.' : 'Upholsterer to confirm size on site.'}${cu.notes?.trim() ? ` ${cu.notes.trim()}` : ''}`,
+      boxes: [vb(0, H, 0, W, cu.thickness, D, 0.9)] });
   }
   if (c.kind !== 'base') parts.push(...crownParts(c, s, ends));
   return fl ? parts.filter((x) => !(x.material === 'faceframe' && (x.role === 'stile' || x.role === 'rail'))) : parts;

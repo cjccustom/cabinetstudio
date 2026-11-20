@@ -11,7 +11,7 @@ import { CabinetFinishSection } from './CabinetFinish';
 import { SlopeFit } from './SlopeFit';
 import { CasePlywoodField } from './CasePlywood';
 import { takesLightRail } from '../model/moldings';
-import { rowOpenings, buildParts, closetRod, isOpenRow, joineryLabel, PAINT_TOP, topThick, crownFit, crownLayout, crownRoom, layoutRows, noCrownBuild, panelOn, subCrownOnTop } from '../model/parts';
+import { rowOpenings, buildParts, closetRod, isOpenRow, joineryLabel, PAINT_TOP, topThick, crownFit, crownLayout, crownRoom, layoutRows, noCrownBuild, panelOn, subCrownOnTop, solidTopOf } from '../model/parts';
 import { defaultPilaster, pilasterOf, pilasterSections } from '../model/pilaster';
 import { bracketCount, bracketGap, bracketLength, bracketProduct, finishedEnds, floatingOf, shelfPly } from '../model/floatingShelf';
 import { topRun } from '../model/layout';
@@ -692,7 +692,8 @@ function AssemblySection({ cab, set }: { cab: Cabinet; set: (p: Partial<Cabinet>
   const panels = sides.filter((x) => x.panel !== 'none').map((x) => `${x.side} ${panelLabel[x.panel].toLowerCase()}`);
   const hasShelves = cab.rows.some((r) => (r.type === 'doors' || r.type === 'open') && r.shelves > 0);
   const hasOpen = cab.rows.some((r) => isOpenRow(r.type, r.covered));
-  const solidTop = cab.kind === 'base' && b.top === 'solid';
+  const solidTop = solidTopOf(cab);
+  const autoSolid = cab.kind === 'base' && !b.top && solidTop;
   const joinery = b.joinery ?? 'standard';
   const backs = [0.25, 0.5, 0.75];
   return (
@@ -701,9 +702,14 @@ function AssemblySection({ cab, set }: { cab: Cabinet; set: (p: Partial<Cabinet>
       <div className="grid2">
         {cab.kind === 'base' && (
           <Field label="Case top" htmlFor="as-top">
-            <select id="as-top" value={b.top ?? 'stretchers'} onChange={(e) => putBuild({ top: e.target.value === 'solid' ? 'solid' : undefined })}>
+            <select id="as-top" value={solidTop ? 'solid' : 'stretchers'} onChange={(e) => {
+              const want = e.target.value as 'solid' | 'stretchers';
+              // The default follows the top row (open cubbies: solid); keep only a choice that differs from it
+              const auto = solidTopOf({ ...cab, build: { ...cab.build, top: undefined } }) ? 'solid' : 'stretchers';
+              putBuild({ top: want === auto ? undefined : want });
+            }}>
               <option value="stretchers">Front & back stretchers</option>
-              <option value="solid">Solid top (clean interior)</option>
+              <option value="solid">{autoSolid ? 'Solid top (open cubbies at the top)' : 'Solid top (clean interior)'}</option>
             </select>
           </Field>
         )}
