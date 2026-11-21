@@ -163,8 +163,8 @@ function DesignRenderDialog({ shot, onClose }: { shot: { blob: Blob; url: string
 }
 
 const qualities = [
-  { id: 'quick', label: 'Quick look (about a minute)', samples: 96, long: 1600 },
-  { id: 'best', label: 'Best, for the proposal (several minutes)', samples: 420, long: 2400 },
+  { id: 'quick', label: 'Quick look', samples: 96, long: 1600 },
+  { id: 'best', label: 'Best, for the proposal (takes longer)', samples: 420, long: 2400 },
 ] as const;
 
 /**

@@ -45,6 +45,8 @@ export async function photoRender(scene: THREE.Scene, view: THREE.Camera, o: Pho
   const pt = new WebGLPathTracer(renderer);
   try {
     pt.bounces = 6;
+    // Fewer bright speckles off glossy paint and metal
+    pt.filterGlossyFactor = 0.5;
     pt.renderDelay = 0;
     pt.minSamples = 0;
     pt.fadeDuration = 0;
