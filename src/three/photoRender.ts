@@ -3,7 +3,8 @@
 // a soft sky through the openings plus the cans; evening by the cans and the cabinet lighting alone.
 // Exposure sets itself from the first samples, like a camera.
 import * as THREE from 'three';
-import { GradientEquirectTexture, WebGLPathTracer } from 'three-gpu-pathtracer';
+import { DenoiseMaterial, GradientEquirectTexture, WebGLPathTracer } from 'three-gpu-pathtracer';
+import { FullScreenQuad } from 'three/examples/jsm/postprocessing/Pass.js';
 
 export type Mood = 'day' | 'evening';
 
@@ -60,7 +61,14 @@ export async function photoRender(scene: THREE.Scene, view: THREE.Camera, o: Pho
       if (Math.floor(pt.samples) % 2 === 0) { o.onProgress?.(Math.floor(pt.samples), o.samples, renderer.domElement); await frame(); }
     }
     pt.renderSample();
-    return await new Promise<Blob>((ok, no) => renderer.domElement.toBlob((b) => (b ? ok(b) : no(new Error('The picture didn’t come out.'))), 'image/jpeg', 0.92));
+    // Smooth the last grain, keeping edges crisp: harder the fewer passes it had
+    const n = pt.samples;
+    const dn = new FullScreenQuad(new DenoiseMaterial({ map: pt.target.texture, sigma: n < 64 ? 4 : n < 200 ? 3 : 2.5, threshold: n < 64 ? 0.35 : n < 200 ? 0.2 : 0.12, kSigma: 1 }));
+    renderer.setRenderTarget(null);
+    dn.render(renderer);
+    dn.material.dispose(); dn.dispose();
+    const out = whiteBalance(renderer.domElement);
+    return await new Promise<Blob>((ok, no) => out.toBlob((b) => (b ? ok(b) : no(new Error('The picture didn’t come out.'))), 'image/jpeg', 0.92));
   } finally {
     // Cleanup never hides what went wrong
     try { pt.dispose(); } catch { /* half set up */ }
@@ -82,6 +90,28 @@ function exposureFor(canvas: HTMLCanvasElement): number {
   const lum: number[] = [];
   for (let i = 0; i < d.length; i += 4) lum.push((0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2]) / 255);
   lum.sort((a, b) => a - b);
-  const mid = lum[Math.floor(lum.length * 0.6)] || 0.5;
-  return Math.min(4, Math.max(0.35, 0.62 / Math.max(0.02, mid)));
+  const mid = lum[Math.floor(lum.length * 0.5)] || 0.5;
+  return Math.min(4, Math.max(0.3, 0.5 / Math.max(0.02, mid)));
+}
+
+/**
+ * White balance, as a camera does: warm lamps and a wood floor tint the whole room, so pull the
+ * picture's average part of the way back to neutral (part way, so a warm room still feels warm).
+ */
+function whiteBalance(src: HTMLCanvasElement): HTMLCanvasElement {
+  const c = document.createElement('canvas');
+  c.width = src.width; c.height = src.height;
+  const g = c.getContext('2d');
+  if (!g) return src;
+  g.drawImage(src, 0, 0);
+  const img = g.getImageData(0, 0, c.width, c.height), d = img.data;
+  let r = 0, gg = 0, b = 0, n = 0;
+  for (let i = 0; i < d.length; i += 16) { r += d[i]; gg += d[i + 1]; b += d[i + 2]; n++; }
+  r /= n; gg /= n; b /= n;
+  const gray = (r + gg + b) / 3;
+  const k = 0.4;
+  const kr = Math.pow(gray / Math.max(1, r), k), kg = Math.pow(gray / Math.max(1, gg), k), kb = Math.pow(gray / Math.max(1, b), k);
+  for (let i = 0; i < d.length; i += 4) { d[i] = Math.min(255, d[i] * kr); d[i + 1] = Math.min(255, d[i + 1] * kg); d[i + 2] = Math.min(255, d[i + 2] * kb); }
+  g.putImageData(img, 0, 0);
+  return c;
 }
