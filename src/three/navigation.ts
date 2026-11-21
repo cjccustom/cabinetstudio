@@ -85,7 +85,7 @@ export const useNav = create<{
 
 /** The live controls, for the view buttons outside the canvas. */
 /** exporting: the 3D going out as a model, so everything the view hides by the camera's angle stays in. */
-export const live: { controls: OrbitControlsImpl | null; element: HTMLElement | null; scene?: import('three').Scene | null; exporting?: boolean } = { controls: null, element: null, scene: null };
+export const live: { controls: OrbitControlsImpl | null; element: HTMLElement | null; scene?: import('three').Scene | null; camera?: import('three').Camera | null; exporting?: boolean } = { controls: null, element: null, scene: null };
 
 /** Slide the view by a number of screen pixels. */
 export function panBy(dx: number, dy: number) {

@@ -1,7 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { live, useNav } from '../three/navigation';
+import { photoRender, type Mood } from '../three/photoRender';
 import { createPortal } from 'react-dom';
 import { useStore } from '../store';
-import { designRenderPrompt, geminiModels, renderOf } from '../model/rendering';
+import { designRenderPrompt, finishRenderPrompt, geminiModels, renderOf } from '../model/rendering';
 import { base64ToBlob, blobToDataUrl, shrinkImage, type Assets, type Mcp } from '../runtime';
 import { GEMINI, geminiError, storeImage, useCapability, useRender, useView } from './Rendering';
 import { Field } from './fields';
@@ -28,7 +30,8 @@ const toPart = async (b: Blob) => ({ data: (await blobToDataUrl(await shrinkImag
 
 /** Render the design as it's drawn now: the view goes to Gemini with a prompt written from the design. */
 export function DesignRenderButton() {
-  const [shot, setShot] = useState<{ blob: Blob; url: string } | null>(null);
+  const [shot, setShot] = useState<{ blob: Blob; url: string; photo?: boolean } | null>(null);
+  const [photo, setPhoto] = useState(false);
   const [msg, setMsg] = useState('');
   const open = async () => {
     const blob = await captureView();
@@ -38,11 +41,13 @@ export function DesignRenderButton() {
   const close = () => { if (shot) URL.revokeObjectURL(shot.url); setShot(null); };
   return (
     <>
-      <button className="render-view-btn" onClick={open} title="Send this view to Gemini for a photorealistic rendering">Render this view</button>
+      <button className="render-view-btn" onClick={() => setPhoto(true)} title="A photograph of the design exactly as drawn, from this view: real light, shadows and materials">Photo render</button>
+      <button className="render-view-btn" onClick={open} title="Send this view to Gemini as it is (quicker, but Gemini fills in more)">Gemini from view</button>
       <SaveViewButton onMsg={setMsg} />
       {msg && <span className="render-view-msg">{msg}</span>}
       {/* On the page body: inside the view's corner the add-toolbar would sit on top of it */}
       {shot && createPortal(<DesignRenderDialog shot={shot} onClose={close} />, document.body)}
+      {photo && createPortal(<PhotoRenderDialog onClose={() => setPhoto(false)} onGemini={(blob) => { setPhoto(false); setShot({ blob, url: URL.createObjectURL(blob), photo: true }); }} />, document.body)}
     </>
   );
 }
@@ -68,7 +73,7 @@ function SaveViewButton({ onMsg }: { onMsg: (m: string) => void }) {
   return <button className="render-view-btn" disabled={busy} onClick={save} title="Save this 3D view as a picture that goes with the proposal">Save view for proposal</button>;
 }
 
-function DesignRenderDialog({ shot, onClose }: { shot: { blob: Blob; url: string }; onClose: () => void }) {
+function DesignRenderDialog({ shot, onClose }: { shot: { blob: Blob; url: string; photo?: boolean }; onClose: () => void }) {
   const { project, r, set } = useRender();
   const setMode = useStore((s) => s.setMode);
   const select = useView((s) => s.select);
@@ -79,7 +84,8 @@ function DesignRenderDialog({ shot, onClose }: { shot: { blob: Blob; url: string
   const [photoId, setPhotoId] = useState<string>(photos[0]?.id ?? '');
   const [state, setState] = useState<{ busy?: boolean; error?: string; result?: { id: string; url: string } }>({});
   const photo = photos.find((p) => p.id === photoId);
-  const prompt = designRenderPrompt(project, notes, !!photo);
+  const [staging, setStaging] = useState(false);
+  const prompt = shot.photo ? finishRenderPrompt(project, notes, staging, !!photo) : designRenderPrompt(project, notes, !!photo);
 
   const go = async () => {
     if (!mcp) return;
@@ -104,9 +110,9 @@ function DesignRenderDialog({ shot, onClose }: { shot: { blob: Blob; url: string
   return (
     <div className="modal-back" onClick={state.busy ? undefined : onClose}>
       <div className="modal wide design-render" role="dialog" aria-modal="true" aria-labelledby="dr-title" onClick={(e) => e.stopPropagation()}>
-        <h2 id="dr-title">Render this view</h2>
+        <h2 id="dr-title">{shot.photo ? 'Finish the photo with Gemini' : 'Render this view with Gemini'}</h2>
         <div className="dr-pair">
-          <figure><img src={shot.url} alt="The design view" /><figcaption>Your design view</figcaption></figure>
+          <figure><img src={shot.url} alt="The design view" /><figcaption>{shot.photo ? 'Photo render (exact)' : 'Your design view'}</figcaption></figure>
           <figure>
             {state.result ? <img src={state.result.url} alt="Rendering" /> : <div className="dr-wait">{state.busy ? 'Gemini is rendering… usually 15 to 60 seconds' : 'The rendering appears here'}</div>}
             <figcaption>Rendering</figcaption>
@@ -127,6 +133,7 @@ function DesignRenderDialog({ shot, onClose }: { shot: { blob: Blob; url: string
                 </select>
               </Field>
             </div>
+            {shot.photo && <label className="chk-row"><input type="checkbox" checked={staging} onChange={(e) => setStaging(e.target.checked)} /> Add a few books, baskets and a rug (nothing in front of doors or drawers)</label>}
             <Field label="Anything to add (optional)" htmlFor="dr-notes">
               <textarea id="dr-notes" rows={2} value={notes} placeholder="Unlacquered brass knobs, warm evening light, books and baskets on the shelves…" onChange={(e) => setNotes(e.target.value)} />
             </Field>
@@ -150,6 +157,103 @@ function DesignRenderDialog({ shot, onClose }: { shot: { blob: Blob; url: string
           )}
         </div>
         {state.result && <p className="hint">Saved under Renderings{renderOf(project).quoteId === state.result.id ? ' and picked to go with the quote' : ''}.</p>}
+      </div>
+    </div>
+  );
+}
+
+const qualities = [
+  { id: 'quick', label: 'Quick look (about a minute)', samples: 96, long: 1600 },
+  { id: 'best', label: 'Best, for the proposal (several minutes)', samples: 420, long: 2400 },
+] as const;
+
+/**
+ * A photograph of the design exactly as drawn, from the view on screen: the scene path traced on this
+ * device (light bouncing around the room, soft shadows, real paint, stone and metal), no outlines.
+ */
+function PhotoRenderDialog({ onClose, onGemini }: { onClose: () => void; onGemini: (b: Blob) => void }) {
+  const { set } = useRender();
+  const assets = useCapability<Assets>('assets');
+  const [mood, setMood] = useState<Mood>('day');
+  const [q, setQ] = useState<(typeof qualities)[number]['id']>('quick');
+  const [state, setState] = useState<{ busy?: boolean; done?: number; of?: number; error?: string; result?: { blob: Blob; url: string }; saved?: boolean }>({});
+  const box = useRef<HTMLDivElement>(null);
+  const stop = useRef({ cancel: false });
+  useEffect(() => () => { stop.current.cancel = true; }, []);
+  const go = async () => {
+    const scene = live.scene, cam = live.camera;
+    const view = document.querySelector<HTMLCanvasElement>('.stage canvas');
+    if (!scene || !cam || !view) { setState({ error: 'Open the 3D view first, turned the way you want the picture.' }); return; }
+    const Q = qualities.find((x) => x.id === q)!;
+    // The picture keeps the view's shape, its long side at the chosen size
+    const r = view.clientWidth / Math.max(1, view.clientHeight);
+    const width = r >= 1 ? Q.long : Math.round(Q.long * r), height = r >= 1 ? Math.round(Q.long / r) : Q.long;
+    stop.current = { cancel: false };
+    setState({ busy: true, done: 0, of: Q.samples });
+    useStore.getState().select(null);
+    // Evening: the cabinet lighting on
+    const nav = useNav.getState(), lightsWere = nav.lights;
+    if (mood === 'evening' && !lightsWere) { nav.setLights(true); await new Promise((ok) => setTimeout(ok, 400)); }
+    try {
+      const blob = await photoRender(scene, cam, { width, height, samples: Q.samples, mood, stop: stop.current, onProgress: (done, of, canvas) => {
+        if (box.current && canvas.parentElement !== box.current) { box.current.innerHTML = ''; canvas.style.width = '100%'; canvas.style.height = 'auto'; box.current.appendChild(canvas); }
+        setState((st) => ({ ...st, done, of }));
+      } });
+      setState({ result: { blob, url: URL.createObjectURL(blob) } });
+    } catch (e) {
+      setState({ error: `The photo render didn’t work on this device: ${(e as Error).message}. Try Quick, or a computer with a stronger graphics card.` });
+    } finally {
+      if (mood === 'evening' && !lightsWere) useNav.getState().setLights(false);
+    }
+  };
+  const save = async () => {
+    if (!state.result) return;
+    const img = await storeImage(state.result.blob, 'rendering', assets, 'Photo render');
+    set((cur) => ({ images: [...cur.images, { ...img, note: `Photo render, ${mood}` }] }));
+    setState((st) => ({ ...st, saved: true }));
+  };
+  return (
+    <div className="modal-back" onClick={state.busy ? undefined : onClose}>
+      <div className="modal wide design-render" role="dialog" aria-modal="true" aria-labelledby="pr-title" onClick={(e) => e.stopPropagation()}>
+        <h2 id="pr-title">Photo render</h2>
+        <p className="hint">A photograph of the design exactly as drawn, from the view on screen: real light bouncing around the room, soft shadows, the paint, stone and metal as picked. Nothing is made up, so it can go to the client as is.</p>
+        {state.result
+          ? <img src={state.result.url} alt="Photo render" style={{ width: '100%', borderRadius: 6 }} />
+          : <div ref={box} className="dr-wait" style={{ minHeight: 220 }}>{state.busy ? 'Setting up the scene…' : 'The picture appears here as it renders, getting cleaner as it goes.'}</div>}
+        {!state.result && !state.busy && (
+          <div className="grid2">
+            <Field label="Light" htmlFor="pr-mood">
+              <select id="pr-mood" value={mood} onChange={(e) => setMood(e.target.value as Mood)}>
+                <option value="day">Day: soft daylight and the cans</option>
+                <option value="evening">Evening: the cans and cabinet lighting</option>
+              </select>
+            </Field>
+            <Field label="Quality" htmlFor="pr-q">
+              <select id="pr-q" value={q} onChange={(e) => setQ(e.target.value as typeof q)}>
+                {qualities.map((x) => <option key={x.id} value={x.id}>{x.label}</option>)}
+              </select>
+            </Field>
+          </div>
+        )}
+        {state.busy && <p className="hint" role="status">Rendering: {state.done ?? 0} of {state.of} passes. Keep this tab in front; it goes faster.</p>}
+        {state.error && <p className="warn" role="status">{state.error}</p>}
+        <div className="modal-actions">
+          {state.result ? (
+            <>
+              <button onClick={() => setState({})}>Render again</button>
+              <button onClick={() => onGemini(state.result!.blob)} title="Gemini adds photographic polish (and decor, if you like), keeping the cabinetry as drawn">Finish with Gemini…</button>
+              <button className="primary" disabled={state.saved} onClick={save}>{state.saved ? 'Saved for the proposal' : 'Save for the proposal'}</button>
+              <button onClick={onClose}>Done</button>
+            </>
+          ) : state.busy ? (
+            <button onClick={() => { stop.current.cancel = true; }}>Stop here and keep it</button>
+          ) : (
+            <>
+              <button onClick={onClose}>Cancel</button>
+              <button className="primary" onClick={go}>Render</button>
+            </>
+          )}
+        </div>
       </div>
     </div>
   );

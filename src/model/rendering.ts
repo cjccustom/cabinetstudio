@@ -141,3 +141,19 @@ export function designRenderPrompt(p: Project, notes: string, withPhoto: boolean
     ...(notes.trim() ? [`Also: ${notes.trim()}`] : []),
   ].join('\n');
 }
+
+/**
+ * Gemini as a finishing pass on a photo render of the design: the picture already shows the exact
+ * cabinetry, materials and light, so it only adds photographic polish (and, if asked, a lived-in touch).
+ */
+export function finishRenderPrompt(p: Project, notes: string, staging: boolean, withPhoto: boolean): string {
+  const style = styleById(p.settings.doorStyleId);
+  return [
+    `The ${withPhoto ? 'first ' : ''}image is a physically based rendering of custom built-in cabinetry exactly as it will be built. Make it look like a professional interior photograph of the finished room.`,
+    'Change nothing about the cabinetry: keep the camera angle and framing, every cabinet, door, drawer, shelf, rod, moulding and opening exactly where and as big as it is, the door style (' + style.name + '), the colors and finishes, the countertops and the hardware. Do not add, remove, move or restyle anything built in.',
+    'Improve only what a photographer and retoucher would: natural light falloff and soft shadows, subtle reflections and surface texture (paint, wood grain, stone), clean edges, true-to-life color, no rendering grain.',
+    staging ? 'Add a light, tasteful lived-in touch that does not hide the work: a few books and baskets on open shelves, a plant or vase, a rug on the floor. Nothing in front of doors or drawers.' : 'Do not add decor or objects: the room stays as it is.',
+    ...(withPhoto ? ['The second image is a photo of the customer’s actual room: match its flooring, wall color, windows and light so the cabinetry looks built in that room. Keep the camera angle of the first image.'] : []),
+    ...(notes.trim() ? [`Also: ${notes.trim()}`] : []),
+  ].join('\n');
+}

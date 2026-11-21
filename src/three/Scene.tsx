@@ -175,6 +175,8 @@ function NavBridge() {
   const gl = useThree((s) => s.gl);
   const scene = useThree((s) => s.scene);
   useEffect(() => { live.scene = scene; return () => { if (live.scene === scene) live.scene = null; }; }, [scene]);
+  const camera = useThree((s) => s.camera);
+  useEffect(() => { live.camera = camera; }, [camera]);
   useEffect(() => {
     live.controls = controls;
     live.element = gl.domElement;
