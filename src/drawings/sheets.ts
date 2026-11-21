@@ -30,10 +30,12 @@ import { beginEdits, drawingCss, endEdits, inView, markRevision, scaleName, take
 import { RESTRICTOR_NOTE, cabinetCallouts, forAudience, jobCallouts, type Audience } from './notes';
 import { LOGO, LOGO_ASPECT } from './logo';
 import { tableViews } from './tableViews';
+import { furnitureIso } from './furnitureIso';
+import { woodColor } from '../model/woodColors';
 import { pieceViews, piecesOf, type Piece } from './pieceViews';
 import { tableParts } from '../model/tableParts';
 import { furnitureOf, tableChecks, tableFinishLabel, tableScope, type DiningTable } from '../model/furniture';
-import { detailOk, detailTitle, detailsOf, drawDetail, inSet, suggestedCut, type Detail, wideDetail } from './details';
+import { detailOk, detailTitle, detailsOf, drawDetail, inSet, suggestedCut, type Detail, wallSection, wideDetail } from './details';
 
 /** The details for a set, numbered, two to a sheet: 1/A5, 2/A5, 3/A6… */
 function placeDetails(p: Project, set: 'customer' | 'shop', prefix: string, first: number) {
@@ -270,12 +272,14 @@ function customerSheets(p: Project, s: DrawingSettings): Sheet[] {
   const doorNo = `A${doorStyle ? nextNo++ : nextNo}`;
   const profiles = profileItems(p);
   const profNo = `A${profiles.length ? nextNo++ : nextNo}`;
-  const tableNos = furnitureOf(p).map(() => `A${nextNo++}`);
+  // Each table or bench: its drawing sheet, then a sheet of it in 3D
+  const tableNos: string[] = [], table3dNos: string[] = [];
+  for (const _t of furnitureOf(p)) { void _t; tableNos.push(`A${nextNo++}`); table3dNos.push(`A${nextNo++}`); }
   const pieces = piecesOf(p);
   const pieceNos = pieces.map(() => `A${nextNo++}`);
   const spec = lightingSpecHtml(p);
   const specNo = `A${nextNo}`;
-  const index = [['A0', 'Cover'], ['A1', 'Floor plan'], ...(ceiling ? [['A2', 'Ceiling plan']] : []), ...walls.map((w, i) => [`A${i + first}`, `${wallNames[w]} elevation`]), ...detailIdx, ...isoNos.map((n) => [n, '3D drawings']), ...picNos.map((n) => [n, '3D views']), [schedNo, 'Schedule & selections'], ...(doorStyle ? [[doorNo, 'Door style']] : []), ...(profiles.length ? [[profNo, 'Moulding & beadboard profiles']] : []), ...furnitureOf(p).map((t, i) => [tableNos[i], t.name]), ...pieces.map((pc, i) => [pieceNos[i], pc.name]), ...(spec ? [[specNo, 'Cabinet lighting']] : [])];
+  const index = [['A0', 'Cover'], ['A1', 'Floor plan'], ...(ceiling ? [['A2', 'Ceiling plan']] : []), ...walls.map((w, i) => [`A${i + first}`, `${wallNames[w]} elevation`]), ...detailIdx, ...isoNos.map((n) => [n, '3D drawings']), ...picNos.map((n) => [n, '3D views']), [schedNo, 'Schedule & selections'], ...(doorStyle ? [[doorNo, 'Door style']] : []), ...(profiles.length ? [[profNo, 'Moulding & beadboard profiles']] : []), ...furnitureOf(p).flatMap((t, i) => [[tableNos[i], t.name], [table3dNos[i], `${t.name}: 3D views`]]), ...pieces.map((pc, i) => [pieceNos[i], pc.name]), ...(spec ? [[specNo, 'Cabinet lighting']] : [])];
   // Cover: the picture, the job, and what's in the set
   const c = clientOf(p);
   const imgW = A.w * 0.64;
@@ -384,13 +388,35 @@ function customerSheets(p: Project, s: DrawingSettings): Sheet[] {
       sheets.push(sheet(p, s, doorNo, 'Door style', 'As noted', body));
     }
   }
-  if (profiles.length) sheets.push(sheet(p, s, profNo, 'Moulding & beadboard profiles', 'As noted', profileViews(profiles, A)));
+  if (profiles.length) {
+    // With crown on the casework, the profiles share the sheet with the whole top detail: the crown, the
+    // sub-crown and nailer it sits on, and the top of the cabinet, in section at the ceiling
+    const crowned = p.cabinets.find((c) => c.crown && c.kind !== 'mantel' && c.kind !== 'pilaster' && !c.island);
+    const topSec = crowned ? inView('crown-detail', 'Crown detail', () => wallSection(p, crowned.wall, suggestedCut(p, crowned.wall), { x: A.x + A.w * 0.42, y: A.y, w: A.w * 0.58, h: A.h - 0.6 }, 'top')) : null;
+    const body = topSec
+      ? profileViews(profiles, { ...A, w: A.w * 0.4 }) + topSec.svg
+        + `<line class="thin" x1="${A.x + A.w * 0.41}" y1="${A.y}" x2="${A.x + A.w * 0.41}" y2="${A.y + A.h}"/>`
+        + `<text x="${A.x + A.w * 0.71}" y="${A.y + A.h - 0.3}" font-size="0.13" font-weight="700" text-anchor="middle">CROWN AT THE TOP OF THE CABINETS</text>`
+        + `<text x="${A.x + A.w * 0.71}" y="${A.y + A.h - 0.13}" font-size="0.09" text-anchor="middle">In section: crown, sub-crown and the top of the cabinet · ${esc(scaleName(topSec.scale))}</text>`
+      : profileViews(profiles, A);
+    sheets.push(sheet(p, s, profNo, 'Moulding & beadboard profiles', 'As noted', body));
+  }
   furnitureOf(p).forEach((t, i) => {
     const no = tableNos[i];
     const fs = s.paper === 'tabloid' ? 0.11 : 0.09;
-    const v = tableSheetViews(t, A, 0.74);
-    const notes = html({ x: A.x + A.w * 0.76, y: A.y, w: A.w * 0.24, h: A.h }, `<h2>${esc(t.name)}</h2><p>${esc(tableScope(t).replace(/^[^:]*:\s*/, '').replace(/^./, (c) => c.toUpperCase()))}</p>${t.notes ? `<p>${esc(t.notes)}</p>` : ''}<p class="small">Drawings show design intent; final sizes are confirmed before the lumber is milled.</p>`, fs);
-    sheets.push(sheet(p, s, no, t.name, `${scaleName(v.scale)}; section ${scaleName(v.secScale)}`, v.svg + notes));
+    // The client's set: plan and elevations (the edge section is the shop's), then the piece in 3D
+    const v = tableSheetViews(t, A, 0.74, false);
+    const notes = html({ x: A.x + A.w * 0.76, y: A.y, w: A.w * 0.24, h: A.h }, `<h2>${esc(t.name)}</h2><p>${esc(tableScope(t).replace(/^[^:]*:\s*/, '').replace(/^./, (c) => c.toUpperCase()))}</p>${t.notes ? `<p>${esc(t.notes)}</p>` : ''}<p class="small">Drawings show design intent; final sizes are confirmed before the lumber is milled.</p><p class="small">In 3D on ${table3dNos[i]}.</p>`, fs);
+    sheets.push(sheet(p, s, no, t.name, scaleName(v.scale), v.svg + notes));
+    const parts = tableParts(t);
+    const wood = woodColor(t.species) ?? p.finishes.wood ?? '#b98a5a';
+    const half = A.w / 2;
+    const cap = (x: number, text: string) => `<text x="${x}" y="${A.y + A.h - 0.25}" font-size="0.12" font-weight="700" text-anchor="middle">${esc(text)}</text>`;
+    const iso = furnitureIso(parts, { x: A.x + 0.2, y: A.y + 0.3, w: half - 0.4, h: A.h - 1 }, wood, 'right') + cap(A.x + half / 2, 'FROM THE FRONT RIGHT')
+      + furnitureIso(parts, { x: A.x + half + 0.2, y: A.y + 0.3, w: half - 0.4, h: A.h - 1 }, wood, 'left') + cap(A.x + half * 1.5, 'FROM THE FRONT LEFT')
+      + `<line class="thin" x1="${A.x + half}" y1="${A.y}" x2="${A.x + half}" y2="${A.y + A.h}"/>`
+      + `<text x="${A.x + A.w / 2}" y="${A.y + A.h - 0.08}" font-size="0.09" text-anchor="middle">${esc(t.species)}, as drawn; the finish is matched to an approved sample</text>`;
+    sheets.push(sheet(p, s, table3dNos[i], `${t.name}: 3D views`, 'No scale', iso));
   });
   pieces.forEach((pc, i) => {
     const fs = s.paper === 'tabloid' ? 0.11 : 0.09;
@@ -421,13 +447,14 @@ function scheduleSheet(p: Project, A: Frame, fs: number): string {
 }
 
 /** The four table views laid out across the left part of a sheet (frac of its width). */
-function tableSheetViews(t: DiningTable, A: Frame, frac: number) {
+function tableSheetViews(t: DiningTable, A: Frame, frac: number, section = true) {
   const w = A.w * frac, top = A.h * 0.5;
   return tableViews(t, {
     plan: { x: A.x, y: A.y, w: w * 0.45, h: top },
     side: { x: A.x + w * 0.45, y: A.y, w: w * 0.55, h: top },
-    end: { x: A.x, y: A.y + top, w: w * 0.5, h: A.h - top },
-    section: { x: A.x + w * 0.5, y: A.y + top, w: w * 0.5, h: A.h - top },
+    // Without the section, the end elevation takes the bottom row
+    end: section ? { x: A.x, y: A.y + top, w: w * 0.5, h: A.h - top } : { x: A.x + w * 0.2, y: A.y + top, w: w * 0.6, h: A.h - top },
+    section: section ? { x: A.x + w * 0.5, y: A.y + top, w: w * 0.5, h: A.h - top } : null,
   });
 }
 

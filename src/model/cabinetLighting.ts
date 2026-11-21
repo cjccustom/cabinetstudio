@@ -62,6 +62,12 @@ export interface LightingJob {
   allowance?: number;
   /** The shop already has the bus bar router bit. */
   ownBit?: boolean;
+  /**
+   * The actual fixture, as sold (3" LED recessed downlights by Tangra...): named on the spec sheet in place of
+   * the generic description. byElectrician: line-voltage fixtures the electrician supplies, wires and
+   * installs (we drill the holes); switching: how they're switched, in words.
+   */
+  fixture?: { name: string; finish?: string; switching?: string; byElectrician?: boolean };
   /** Lighting offered as an option on the proposal, by kind: shelf lighting, the accent on top... (unset = in the base price). */
   options?: Partial<Record<CabLightKind, string>>;
 }
@@ -431,13 +437,15 @@ export function lightingSpecHtml(p: Project): string {
   if (kinds.has('shelfFront')) what.push(`<li><b>A light in the top of each open section${fixtures.some((f) => f.kind === 'shelfFront' && f.count > 1) ? ' and each cubby' : ''}.</b> ${loox ? 'LED tape in a recessed aluminum profile with an opal diffuser, flush with the wood.' : 'LED tape in a recessed channel.'}</li>`);
   if (kinds.has('topAccent')) what.push(`<li><b>Accent uplight on top of the bookcases.</b> ${others ? 'Supplied and installed by your electrician, not part of our price.' : `A light strip set back behind the crown, washing up the wall to the ceiling: ${esc(accentLabel[job.accent ?? 'white'].toLowerCase())}${job.accent === 'rgbw' ? ', with any color you pick from the remote or app' : ''}.`}</li>`);
   if (kinds.has('stile')) what.push('<li><b>Vertical light strips</b> just behind the face frame on both sides of each open section, lighting every shelf wherever it is set.</li>');
-  if (kinds.has('puck')) what.push('<li><b>Recessed puck lights</b> in the top of each open section.</li>');
+  const fx = job.fixture?.name?.trim() ? job.fixture : null;
+  const fxName = fx ? `${fx.name.trim()}${fx.finish?.trim() ? `, ${fx.finish.trim()} finish` : ''}` : '';
+  if (kinds.has('puck')) what.push(fx ? `<li><b>${esc(fxName)}</b>, recessed in the top of each open section.</li>` : '<li><b>Recessed puck lights</b> in the top of each open section.</li>');
   if (kinds.has('under')) what.push('<li><b>Under-cabinet light strips</b> at the front of the wall cabinets, lighting the counter.</li>');
-  const rows = fixtures.map((f) => `<tr><td>${esc(f.cab.name)}</td><td>${esc(cabLightLabel[f.kind])}${f.byOthers ? ' (by the electrician)' : ''}</td><td>${f.length ? `${f.count} × ${esc(fmt(f.length))}` : `${f.count}`}</td><td>${esc(f.where)}</td></tr>`).join('');
+  const rows = fixtures.map((f) => `<tr><td>${esc(f.cab.name)}</td><td>${esc(fx && f.kind === 'puck' ? fxName : cabLightLabel[f.kind])}${f.byOthers ? ' (by the electrician)' : ''}</td><td>${f.length ? `${f.count} × ${esc(fmt(f.length))}` : `${f.count}`}</td><td>${esc(f.where)}</td></tr>`).join('');
   return `<h2>Cabinet lighting</h2>
-<p>Low-voltage LED, ${job.kelvin}K (${warm}), high color rendering so wood and paint colors look true. Dimmable.${kinds.has('shelves') || loox ? ' Häfele Loox5 components.' : ''}</p>
+${fx ? `<p><b>${esc(fxName)}.</b> ${job.kelvin}K (${warm}), dimmable.</p>` : `<p>Low-voltage LED, ${job.kelvin}K (${warm}), high color rendering so wood and paint colors look true. Dimmable.${kinds.has('shelves') || loox ? ' Häfele Loox5 components.' : ''}</p>`}
 <h3>What's lit</h3><ul>${what.join('')}</ul>
-<h3>Switching</h3><p>${esc(controlLabel[job.control])}.${kinds.has('topAccent') && !others && (job.accent ?? 'white') !== 'white' ? ' The accent uplight has its own controller and remote.' : ''}</p>
-<h3>Power</h3><p>${drivers.length} hidden driver${drivers.length === 1 ? '' : 's'}: ${esc(job.driverAt.charAt(0).toLowerCase() + job.driverAt.slice(1))}. ${ours ? 'Our' : 'Your'} electrician brings a 120 V outlet to ${drivers.length === 1 ? 'it' : 'each one'}${job.control === 'wall' ? ' and installs the wall dimmer' : ''}; we supply, wire${job.control === 'mesh' ? ', program' : ''} and test the cabinet lights. Line-voltage wiring and outlets are by ${ours ? 'our licensed' : 'your'} electrician.</p>
+<h3>Switching</h3><p>${esc(fx?.switching?.trim() || controlLabel[job.control])}.${kinds.has('topAccent') && !others && (job.accent ?? 'white') !== 'white' ? ' The accent uplight has its own controller and remote.' : ''}</p>
+<h3>Power</h3>${fx?.byElectrician ? `<p>Line-voltage fixtures: supplied, wired and installed by ${ours ? 'our licensed' : 'your'} electrician, with the switching and any circuit work. We drill the holes in the cabinets and leave a clear path for the wiring.</p>` : `<p>${drivers.length} hidden driver${drivers.length === 1 ? '' : 's'}: ${esc(job.driverAt.charAt(0).toLowerCase() + job.driverAt.slice(1))}. ${ours ? 'Our' : 'Your'} electrician brings a 120 V outlet to ${drivers.length === 1 ? 'it' : 'each one'}${job.control === 'wall' ? ' and installs the wall dimmer' : ''}; we supply, wire${job.control === 'mesh' ? ', program' : ''} and test the cabinet lights. Line-voltage wiring and outlets are by ${ours ? 'our licensed' : 'your'} electrician.</p>`}
 <h3>By cabinet</h3><table class="parts"><thead><tr><th>Cabinet</th><th>Light</th><th>Lights</th><th>Where</th></tr></thead><tbody>${rows}</tbody></table>`;
 }

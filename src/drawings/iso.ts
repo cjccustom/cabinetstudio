@@ -12,6 +12,7 @@ import { mantelOf } from '../model/mantel';
 import { partsOf } from './views';
 import type { Frame } from './draw';
 import { pullColor, pullSpots } from '../model/pulls';
+import { finishColors, woodColor } from '../model/woodColors';
 
 const COS = Math.cos(Math.PI / 6), SIN = 0.5;
 type V3 = [number, number, number];
@@ -67,8 +68,7 @@ function moldingPolys(pc: MoldPiece, at: (x: number, y: number, z: number) => V3
 
 export function wallIso(p: Project, wall: WallId, f: Frame, L: number, H: number): string {
   const cabs = p.cabinets.filter((c) => c.wall === wall);
-  const paint = p.finishes.paint || '#ece8de';
-  const wood = '#b98a5a';
+  const woodAll = '#b98a5a';
   type IBox = { min: V3; max: V3; fill: string; edge?: string };
   type Solid = { kind: 'box'; min: V3; max: V3; fill: string } | { kind: 'face'; pts: V3[]; fill: string; stroke: number } | { kind: 'poly'; pts: V3[]; fill: string; edge: boolean }
     // Seen through the face: the inside of the open sections (back, sides, shelves, dividers, rods), clipped to the face
@@ -82,6 +82,17 @@ export function wallIso(p: Project, wall: WallId, f: Frame, L: number, H: number
   const depthKey = (x: number, y: number, z: number) => (L - x) + (40 - z) * 1.2 - y * 0.02;
   cabs.forEach((c) => {
     const allParts = partsOf(p, c);
+    // This cabinet's finish: the paint, or on stain grade the species (and stain); interiors the case plywood
+    const fc = finishColors(eff(c, p.settings), p.finishes, c.paint);
+    const paint = fc.paint;
+    const plyColor = fc.box;
+    const wood = woodColor(c.topSpecies) ?? woodColor(p.settings.woodSpecies) ?? p.finishes.wood ?? woodAll;
+    const ends = resolveEnds(p.room, p.cabinets, c);
+    // A piece the run shares (the one-piece top, a continuous sub-crown) is carried by the first cabinet but
+    // lies over the rest: it draws with the run's last cabinet, after the cabinets it sits on
+    const runOrder = (x1: number) => depthKey(c.offset + x1, c.elevation, z0run + c.depth);
+    const z0run = c.wallInset ?? 0;
+    const subEnd = ends.subRun ? ends.subRun.last.offset + ends.subRun.last.width : null;
     const parts = allParts.filter((x) => x.boxes.length && !['rod', 'cushion', 'nailer', 'back', 'drawerBox'].includes(x.role));
     if (c.elevation < 1) shadows.push([[c.offset - 1, 0, (c.wallInset ?? 0)], [c.offset + c.width + 2, 0, (c.wallInset ?? 0)], [c.offset + c.width + 4, 0, (c.wallInset ?? 0) + c.depth + 5], [c.offset + 1, 0, (c.wallInset ?? 0) + c.depth + 5]]);
     const z0 = c.wallInset ?? 0;
@@ -129,7 +140,7 @@ export function wallIso(p: Project, wall: WallId, f: Frame, L: number, H: number
         const inside = allParts.filter((x) => ['back', 'side', 'divider', 'shelf', 'top', 'bottom', 'stretcher', 'rod'].includes(x.role))
           .flatMap((part) => part.boxes.filter((b) => { const m = b.min[1] + b.size[1] / 2; return m >= cuts[i] && m < cuts[i + 1]; }).map((b) => ({ part, b })));
         const ib: IBox[] = inside.map(({ part, b }) => ({ min: at(b.min[0], b.min[1], b.min[2]), max: at(b.min[0] + b.size[0], b.min[1] + b.size[1], Math.min(front, b.min[2] + b.size[2])),
-          fill: part.role === 'rod' ? metal : part.role === 'back' ? shade(paint, -0.22) : shade(paint, -0.08), edge: part.role === 'rod' ? '#555' : undefined }));
+          fill: part.role === 'rod' ? metal : part.role === 'back' ? shade(plyColor, -0.22) : shade(plyColor, -0.08), edge: part.role === 'rod' ? '#555' : undefined }));
         ib.sort((a, b) => depthKey(b.max[0], b.min[1], b.max[2]) - depthKey(a.max[0], a.min[1], a.max[2]));
         items.push({ order, sub: sub0 + 1.2, s: { kind: 'inside', clip: [at(k.min[0], k.min[1], front), at(k.max[0], k.min[1], front), at(k.max[0], k.max[1], front), at(k.min[0], k.max[1], front)], boxes: ib } });
       }
@@ -157,7 +168,8 @@ export function wallIso(p: Project, wall: WallId, f: Frame, L: number, H: number
       // After the body it stands on, nearest last; but whatever runs along the far (left) side of the
       // body is behind it from this side, so it goes first
       const farSide = bodyX0 != null && b.min[0] + b.size[0] <= bodyX0 + 0.01;
-      items.push({ order, sub: bandOf(midY(x)) * 100 + (farSide ? -10 : 30) + (5000 - depthKey(mx[0], mn[1], mx[2])) / 10000, s: { kind: 'box', min: mn, max: mx, fill: colorOf(x.part) } });
+      const run = b.min[0] + b.size[0] > c.width + 0.5;
+      items.push({ order: run ? runOrder(b.min[0] + b.size[0]) : order, sub: run ? 40 : bandOf(midY(x)) * 100 + (farSide ? -10 : 30) + (5000 - depthKey(mx[0], mn[1], mx[2])) / 10000, s: { kind: 'box', min: mn, max: mx, fill: colorOf(x.part) } });
       maxZ = Math.max(maxZ, mx[2]);
     }
     // A bench's seat cushion, in a fabric gray
@@ -184,7 +196,8 @@ export function wallIso(p: Project, wall: WallId, f: Frame, L: number, H: number
       // On the cabinet, after its body and face (they sit on them), before whatever stands nearer
       const leftOfBody = bodyX0 != null && Math.max(...polys.flatMap((q) => q.pts.map((v) => v[0]))) <= c.offset + bodyX0 + 0.01;
       const sub = bandOf(pc.y) * 100 + (leftOfBody ? -10 : 30) + (5000 - near) / 10000;
-      polys.forEach((q, i) => items.push({ order, sub: sub + i / 1e7, s: { kind: 'poly', pts: q.pts, fill: shade(paint, q.light - 1), edge: q.edge } }));
+      const onRun = subEnd != null && c.elevation > 0;
+      polys.forEach((q, i) => items.push({ order: onRun ? depthKey(subEnd!, c.elevation, z0run + c.depth) : order, sub: (onRun ? 60 : 0) + sub + i / 1e7, s: { kind: 'poly', pts: q.pts, fill: shade(paint, q.light - 1), edge: q.edge } }));
       maxZ = Math.max(maxZ, ...polys.flatMap((q) => q.pts.map((v) => v[2])));
     }
   });
@@ -217,7 +230,7 @@ export function wallIso(p: Project, wall: WallId, f: Frame, L: number, H: number
     const casing = (a: V3, b: V3) => {
       const [ax, ay] = [a[0], a[1]], [bx, by] = [b[0], b[1]];
       out.push(poly([[ax, by, 0], [bx, by, 0], [bx, by, t], [ax, by, t]], '#ffffff', '#888', 0.004));
-      out.push(poly([[bx, ay, 0], [bx, ay, t], [bx, by, t], [bx, by, 0]], shade(paint, -0.1), '#888', 0.004));
+      out.push(poly([[bx, ay, 0], [bx, ay, t], [bx, by, t], [bx, by, 0]], shade(p.finishes.trim ?? '#f4f1ea', -0.1), '#888', 0.004));
       out.push(poly([[ax, ay, t], [bx, ay, t], [bx, by, t], [ax, by, t]], '#fbfaf7', '#888', 0.004));
     };
     casing([x0 - w, y0, 0], [x0, y1, 0]);

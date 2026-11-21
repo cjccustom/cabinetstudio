@@ -35,7 +35,7 @@ export function drawParts(view: View, parts: TablePart[], pr: Proj) {
 
 export interface TableSheetViews { svg: string; scale: number; secScale: number }
 
-export function tableViews(t: DiningTable, f: { plan: Frame; side: Frame; end: Frame; section: Frame }): TableSheetViews {
+export function tableViews(t: DiningTable, f: { plan: Frame; side: Frame; end: Frame; section: Frame | null }): TableSheetViews {
   const parts = tableParts(t);
   const L = t.length, W = t.width, H = t.height;
   // The highest thing on it: the lip, or a bench's cushion
@@ -90,12 +90,14 @@ export function tableViews(t: DiningTable, f: { plan: Frame; side: Frame; end: F
   ev.text(0, -ev.p(0.8), 'END ELEVATION', 0.12, 'middle', 'lbl');
   out.push(ev.svg());
 
-  // Section through the edge at the middle of the length: top, lip, apron, larger
+  // Section through the edge at the middle of the length: top, lip, apron, larger (the shop's; the client's set leaves it off)
+  if (!f.section) return { svg: out.join(''), scale, secScale: 0 };
+  const sec = f.section;
   const near = parts.filter((p) => p.boxes.some((b) => b.min[0] <= 0 && b.min[0] + b.size[0] >= 0));
   const lowest = t.base === 'legs' ? H - t.top - t.apron - 1.5 : H - t.top - 3;
   const win = { z0: W / 2 - 7, z1: W / 2 + 1.5, y0: lowest, y1: lipTop + 1.5 };
-  const secScale = inView(`table-sec:${t.id}`, `${t.name} edge section`, () => fitScale(win.z1 - win.z0, win.y1 - win.y0, f.section.w - 1.3, f.section.h - 1.0));
-  const cv = new View(f.section, { x0: win.z0, y0: win.y0, x1: win.z1, y1: win.y1 }, secScale);
+  const secScale = inView(`table-sec:${t.id}`, `${t.name} edge section`, () => fitScale(win.z1 - win.z0, win.y1 - win.y0, sec.w - 1.3, sec.h - 1.0));
+  const cv = new View(sec, { x0: win.z0, y0: win.y0, x1: win.z1, y1: win.y1 }, secScale);
   for (const part of near) for (const b of part.boxes) {
     if (!(b.min[0] <= 0 && b.min[0] + b.size[0] >= 0)) continue;
     const z0 = Math.max(win.z0, b.min[2]), z1 = Math.min(win.z1, b.min[2] + b.size[2]);

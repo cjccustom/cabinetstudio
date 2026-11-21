@@ -90,7 +90,7 @@ export function wallSection(p: Project, wall: WallId, at: number, frame: Frame, 
   const P = c.on && c.perimeter ? perimOf(c, wall) : 0;
   const deep = Math.max(24, ...cabs.map((k) => (k.wallInset ?? 0) + k.depth + 6), P + 6, L ? L.railZ + L.footOut + 6 : 0);
   // Enlarged: just the top or bottom 16" of the cut, at a large scale, clipped to its frame
-  const win = zoom === 'top' ? { y0: H - 16, y1: H + 1 } : zoom === 'base' ? { y0: -1, y1: 16 } : { y0: 0, y1: H };
+  const win = zoom === 'top' ? { y0: H - 16, y1: H + 4 } : zoom === 'base' ? { y0: -1, y1: 16 } : { y0: 0, y1: H };
   // Enlarged: the cut's own depth (no room for the floor beyond), so it comes out at 3" = 1'-0" when it can
   const near = Math.max(...cabs.map((k) => (k.wallInset ?? 0) + k.depth + 3), P + 4, 8);
   const wide = zoom === 'full' ? deep + T + 22 : near + T + 5;
@@ -103,6 +103,7 @@ export function wallSection(p: Project, wall: WallId, at: number, frame: Frame, 
   const notes: { x: number; y: number; text: string }[] = [];
   const zs = [0];
   const ys = [0, H];
+  const depthDims: { z0: number; z1: number; y: number; below: boolean; top?: boolean }[] = [];
   for (const k of cabs) {
     const s = eff(k, p.settings);
     const z0 = k.wallInset ?? 0;
@@ -127,11 +128,20 @@ export function wallSection(p: Project, wall: WallId, at: number, frame: Frame, 
     zs.push(z0 + k.depth);
     if (z0 > 0.1) zs.push(z0);
     ys.push(k.elevation, top);
-    const counter = cut.find(({ part }) => part.role === 'counter');
+    const counter = cut.find(({ part }) => part.role === 'counter' || part.role === 'woodTop' || part.role === 'paintTop');
     if (counter) ys.push(k.elevation + counter.b.min[1] + counter.b.size[1]);
     const kind = k.kind === 'base' ? 'base cabinet' : k.kind === 'wall' ? 'wall cabinet' : k.kind === 'tall' ? 'tall cabinet' : k.kind;
     notes.push({ x: z0 + k.depth * 0.5, y: k.elevation + k.height * 0.55, text: `${k.name}: ${kind}, ${dimText(k.depth)} deep` });
-    if (counter) notes.push({ x: z0 + k.depth * 0.7, y: k.elevation + counter.b.min[1] + counter.b.size[1] * 0.5, text: counter.part.name });
+    if (counter) notes.push({ x: z0 + k.depth * 0.7, y: k.elevation + counter.b.min[1] + counter.b.size[1] * 0.5, text: `${counter.part.name}, ${dimText(counter.b.size[1])} thick, ${dimText(counter.b.min[2] + counter.b.size[2])} deep` });
+    // Each cabinet's own depth, and its top's, dimensioned where it is (not one chain along the floor)
+    depthDims.push({ z0, z1: z0 + k.depth, y: k.elevation < 1 ? 0 : top, below: k.elevation < 1 });
+    if (counter) depthDims.push({ z0: 0, z1: z0 + counter.b.min[2] + counter.b.size[2], y: k.elevation + counter.b.min[1] + counter.b.size[1], below: false, top: true });
+    // The top of the case: what's there, named, with its heights (sub-crown, crown nailer, the case top)
+    for (const { part, b } of cut) if (/sub-crown|crown nailer|^top$|top rail/i.test(part.name)) {
+      const yb = k.elevation + b.min[1];
+      notes.push({ x: z0 + b.min[2] + b.size[2] / 2, y: yb + b.size[1] / 2, text: `${part.name}, ${dimText(b.size[2])} × ${dimText(b.size[1])}` });
+      if (/sub-crown/i.test(part.name)) { ys.push(yb, yb + b.size[1]); zs.push(z0 + b.min[2] + b.size[2]); }
+    }
     // In an enlarged base, name the base pieces the cut passes through
     for (const { part, b } of cut) if (/base|kick|skirt/i.test(part.name) && b.min[1] < 12) notes.push({ x: z0 + b.min[2] + b.size[2] / 2, y: k.elevation + b.min[1] + b.size[1] / 2, text: `${part.name}, ${dimText(b.size[2])} × ${dimText(b.size[1])}` });
   }
@@ -194,7 +204,8 @@ export function wallSection(p: Project, wall: WallId, at: number, frame: Frame, 
   // Depths along the floor, heights up the right, the room's height on the left
   const zMax = Math.max(...zs);
   if (zoom === 'full') {
-    v.chainH(zs, 0, -0.35);
+    // Depths: the base along the floor, the upper over its top, the top over its surface, each from the wall
+    for (const d of depthDims) v.dimH(d.z0, d.z1, d.y, d.below ? -0.35 : d.top ? 0.22 : 0.3, d.top ? `${dimText(d.z1 - d.z0)} top` : undefined);
     v.chainV(ys, zMax + 2, 0.3);
     v.dimV(0, H, -T, -0.35, undefined, true);
   } else {

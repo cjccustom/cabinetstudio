@@ -1,3 +1,4 @@
+import { doorPhotoData } from './doorPhotos';
 // The door style for the customer: the framing bead full size in section (stile, its inside profile,
 // the center panel in its groove, the outside edge), and the door straight on. Drawn from Eagle's
 // description of each bead (square shaker, rounded, bevel at its angle, ogee, cove, stepped).
@@ -67,7 +68,9 @@ export function doorPhotoPath(p: Project): string | null {
   if (style.profile === 'slab') return null;
   const raised = !!centerPanels.find((c) => c.code === s.centerPanel)?.raised;
   const flatOnly = style.id === 'barharbor';
-  return `doors/${style.id}${raised && !flatOnly ? '-raised' : ''}.webp`;
+  const name = `${style.id}${raised && !flatOnly ? '-raised' : ''}`;
+  // Built into the app where it can be, so the photo never depends on finding a file
+  return doorPhotoData(name) ?? `doors/${name}.webp`;
 }
 
 /**

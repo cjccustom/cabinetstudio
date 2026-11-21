@@ -50,6 +50,13 @@ export function LightingOrder() {
         <span>Cabinet lighting</span>
         <span className="muted">{L.fixtures.length} fixtures · {Math.round(L.watts)} W · {L.drivers.length} driver{L.drivers.length === 1 ? '' : 's'}{total ? ` · ${money(total)}` : ''}</span>
       </div>
+      {/* The fixture as sold, named on the drawings' lighting sheet in place of the generic description */}
+      <div className="grid2">
+        <Field label="Fixture as sold (shows on the drawings)" htmlFor="cl-fx"><input id="cl-fx" placeholder='e.g. 3" LED recessed downlight, Tangra' value={job.fixture?.name ?? ''} onChange={(e) => put({ fixture: { ...job.fixture, name: e.target.value } })} /></Field>
+        <Field label="Finish" htmlFor="cl-fxf"><input id="cl-fxf" placeholder="e.g. Bronze" value={job.fixture?.finish ?? ''} onChange={(e) => put({ fixture: { ...job.fixture, name: job.fixture?.name ?? '', finish: e.target.value } })} /></Field>
+        <Field label="Switching, in words (optional)" htmlFor="cl-fxs"><input id="cl-fxs" placeholder="e.g. Wireless switch by our electrician" value={job.fixture?.switching ?? ''} onChange={(e) => put({ fixture: { ...job.fixture, name: job.fixture?.name ?? '', switching: e.target.value } })} /></Field>
+        <label className="chk-row"><input type="checkbox" checked={!!job.fixture?.byElectrician} onChange={(e) => put({ fixture: { ...job.fixture, name: job.fixture?.name ?? '', byElectrician: e.target.checked || undefined } })} /> Line-voltage: the electrician supplies, wires and installs them (we drill the holes)</label>
+      </div>
       <div className="grid2">
         <Field label="Color temperature" htmlFor="cl-k">
           <select id="cl-k" value={job.kelvin} onChange={(e) => put({ kelvin: +e.target.value as LightingJob['kelvin'] })}>
